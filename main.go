@@ -1,7 +1,11 @@
 package main
 
 import (
+	"embed"
+	"html/template"
+	"io/fs"
 	"log"
+	"net/http"
 
 	"github.com/appleboy/authgate/config"
 	"github.com/appleboy/authgate/handlers"
@@ -13,6 +17,12 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 )
+
+//go:embed templates/*
+var templatesFS embed.FS
+
+//go:embed static/*
+var staticFS embed.FS
 
 func main() {
 	// Load configuration
@@ -48,11 +58,19 @@ func main() {
 	})
 	r.Use(sessions.Sessions("oauth_session", sessionStore))
 
-	// Load templates
-	r.LoadHTMLGlob("templates/*")
+	// Load embedded templates
+	tmpl, err := template.ParseFS(templatesFS, "templates/*.html")
+	if err != nil {
+		log.Fatalf("Failed to parse templates: %v", err)
+	}
+	r.SetHTMLTemplate(tmpl)
 
-	// Static files
-	r.Static("/static", "./static")
+	// Serve embedded static files
+	staticSubFS, err := fs.Sub(staticFS, "static")
+	if err != nil {
+		log.Fatalf("Failed to create static sub filesystem: %v", err)
+	}
+	r.StaticFS("/static", http.FS(staticSubFS))
 
 	// Public routes
 	r.GET("/", func(c *gin.Context) {
