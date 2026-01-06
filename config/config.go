@@ -13,8 +13,8 @@ type Config struct {
 	BaseURL    string
 
 	// JWT settings
-	JWTSecret        string
-	JWTExpiration    time.Duration
+	JWTSecret     string
+	JWTExpiration time.Duration
 
 	// Session settings
 	SessionSecret string

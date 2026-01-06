@@ -71,12 +71,14 @@ func (h *DeviceHandler) DeviceCodeRequest(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"device_code":               dc.DeviceCode,
-		"user_code":                 services.FormatUserCode(dc.UserCode),
-		"verification_uri":          h.config.BaseURL + "/device",
-		"verification_uri_complete": h.config.BaseURL + "/device?user_code=" + services.FormatUserCode(dc.UserCode),
-		"expires_in":                int(h.config.DeviceCodeExpiration.Seconds()),
-		"interval":                  dc.Interval,
+		"device_code":      dc.DeviceCode,
+		"user_code":        services.FormatUserCode(dc.UserCode),
+		"verification_uri": h.config.BaseURL + "/device",
+		"verification_uri_complete": h.config.BaseURL + "/device?user_code=" + services.FormatUserCode(
+			dc.UserCode,
+		),
+		"expires_in": int(h.config.DeviceCodeExpiration.Seconds()),
+		"interval":   dc.Interval,
 	})
 }
 
@@ -113,11 +115,14 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 
 	err := h.deviceService.AuthorizeDeviceCode(userCode, userID.(string))
 	if err != nil {
-		errorMsg := "Invalid or expired code"
-		if err == services.ErrUserCodeNotFound {
+		var errorMsg string
+		switch err {
+		case services.ErrUserCodeNotFound:
 			errorMsg = "User code not found"
-		} else if err == services.ErrDeviceCodeExpired {
+		case services.ErrDeviceCodeExpired:
 			errorMsg = "Code has expired, please request a new one"
+		default:
+			errorMsg = "Invalid or expired code"
 		}
 
 		c.HTML(http.StatusBadRequest, "device.html", gin.H{

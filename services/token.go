@@ -36,7 +36,9 @@ func NewTokenService(s *store.Store, cfg *config.Config) *TokenService {
 }
 
 // ExchangeDeviceCode exchanges an authorized device code for an access token
-func (s *TokenService) ExchangeDeviceCode(deviceCode, clientID string) (*models.AccessToken, error) {
+func (s *TokenService) ExchangeDeviceCode(
+	deviceCode, clientID string,
+) (*models.AccessToken, error) {
 	dc, err := s.store.GetDeviceCode(deviceCode)
 	if err != nil {
 		return nil, ErrExpiredToken
@@ -44,7 +46,7 @@ func (s *TokenService) ExchangeDeviceCode(deviceCode, clientID string) (*models.
 
 	// Check if expired
 	if dc.IsExpired() {
-		s.store.DeleteDeviceCode(deviceCode)
+		_ = s.store.DeleteDeviceCode(deviceCode)
 		return nil, ErrExpiredToken
 	}
 
@@ -95,17 +97,20 @@ func (s *TokenService) ExchangeDeviceCode(deviceCode, clientID string) (*models.
 	}
 
 	// Delete the used device code
-	s.store.DeleteDeviceCode(deviceCode)
+	_ = s.store.DeleteDeviceCode(deviceCode)
 
 	return accessToken, nil
 }
 
 // ValidateToken validates a JWT token and returns the claims
 func (s *TokenService) ValidateToken(tokenString string) (*JWTClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(s.config.JWTSecret), nil
-	})
-
+	token, err := jwt.ParseWithClaims(
+		tokenString,
+		&JWTClaims{},
+		func(token *jwt.Token) (interface{}, error) {
+			return []byte(s.config.JWTSecret), nil
+		},
+	)
 	if err != nil {
 		return nil, err
 	}

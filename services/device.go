@@ -63,7 +63,7 @@ func (s *DeviceService) GetDeviceCode(deviceCode string) (*models.DeviceCode, er
 	}
 
 	if dc.IsExpired() {
-		s.store.DeleteDeviceCode(deviceCode)
+		_ = s.store.DeleteDeviceCode(deviceCode)
 		return nil, ErrDeviceCodeExpired
 	}
 
@@ -81,7 +81,7 @@ func (s *DeviceService) GetDeviceCodeByUserCode(userCode string) (*models.Device
 	}
 
 	if dc.IsExpired() {
-		s.store.DeleteDeviceCode(dc.DeviceCode)
+		_ = s.store.DeleteDeviceCode(dc.DeviceCode)
 		return nil, ErrDeviceCodeExpired
 	}
 
