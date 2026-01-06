@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Authorization - OAuth Device Flow</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <h1>Device Authorization</h1>
+                {{if .username}}
+                <div class="user-info">
+                    Logged in as <strong>{{.username}}</strong>
+                    <a href="/logout" class="logout-link">Logout</a>
+                </div>
+                {{end}}
+            </div>
+
+            <p class="subtitle">Enter the code displayed on your device</p>
+
+            {{if .error}}
+            <div class="alert alert-error">
+                {{.error}}
+            </div>
+            {{end}}
+
+            <form method="POST" action="/device/verify">
+                <div class="form-group">
+                    <label for="user_code">Device Code</label>
+                    <input type="text"
+                           id="user_code"
+                           name="user_code"
+                           value="{{.user_code}}"
+                           placeholder="XXXX-XXXX"
+                           class="code-input"
+                           maxlength="9"
+                           required
+                           autofocus>
+                    <small class="hint">Enter the code shown in your CLI tool</small>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Authorize Device</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Auto-format the user code input
+        const codeInput = document.getElementById('user_code');
+        codeInput.addEventListener('input', function(e) {
+            let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            if (value.length > 4) {
+                value = value.slice(0, 4) + '-' + value.slice(4, 8);
+            }
+            e.target.value = value;
+        });
+    </script>
+</body>
+</html>
