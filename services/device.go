@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"oauth-device-flow/config"
-	"oauth-device-flow/models"
-	"oauth-device-flow/store"
+	"github.com/appleboy/authgate/config"
+	"github.com/appleboy/authgate/models"
+	"github.com/appleboy/authgate/store"
 
 	"github.com/google/uuid"
 )

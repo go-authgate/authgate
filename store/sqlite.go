@@ -3,7 +3,7 @@ package store
 import (
 	"log"
 
-	"oauth-device-flow/models"
+	"github.com/appleboy/authgate/models"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"

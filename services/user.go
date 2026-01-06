@@ -3,8 +3,8 @@ package services
 import (
 	"errors"
 
-	"oauth-device-flow/models"
-	"oauth-device-flow/store"
+	"github.com/appleboy/authgate/models"
+	"github.com/appleboy/authgate/store"
 
 	"golang.org/x/crypto/bcrypt"
 )

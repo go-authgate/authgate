@@ -3,8 +3,8 @@ package handlers
 import (
 	"net/http"
 
-	"oauth-device-flow/config"
-	"oauth-device-flow/services"
+	"github.com/appleboy/authgate/config"
+	"github.com/appleboy/authgate/services"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"

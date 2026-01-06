@@ -1,4 +1,4 @@
-module oauth-device-flow
+module github.com/appleboy/authgate
 
 go 1.24.0
 

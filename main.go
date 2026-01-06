@@ -3,11 +3,11 @@ package main
 import (
 	"log"
 
-	"oauth-device-flow/config"
-	"oauth-device-flow/handlers"
-	"oauth-device-flow/middleware"
-	"oauth-device-flow/services"
-	"oauth-device-flow/store"
+	"github.com/appleboy/authgate/config"
+	"github.com/appleboy/authgate/handlers"
+	"github.com/appleboy/authgate/middleware"
+	"github.com/appleboy/authgate/services"
+	"github.com/appleboy/authgate/store"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
