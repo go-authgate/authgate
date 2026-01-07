@@ -116,63 +116,55 @@ The CLI will:
 
 ### Device Flow Sequence
 
-```bash
-┌─────────┐                                  ┌─────────┐                    ┌──────┐
-│CLI Tool │                                  │AuthGate │                    │ User │
-└────┬────┘                                  └────┬────┘                    └───┬──┘
-     │                                            │                             │
-     │  POST /oauth/device/code                   │                             │
-     │─────────────────────────────────────────> │                             │
-     │                                            │                             │
-     │  device_code, user_code, verification_uri  │                             │
-     │ <─────────────────────────────────────────│                             │
-     │                                            │                             │
-     │  Display: "Visit http://..../device"       │                             │
-     │  "Enter code: 12345678"                    │                             │
-     │                                            │                             │
-     │                                            │   Visit /device             │
-     │                                            │ <───────────────────────────│
-     │                                            │                             │
-     │                                            │   Login Page                │
-     │                                            │ ────────────────────────────>
-     │                                            │                             │
-     │                                            │   POST /login (credentials) │
-     │                                            │ <───────────────────────────│
-     │                                            │                             │
-     │                                            │   Enter code: 12345678      │
-     │                                            │ <───────────────────────────│
-     │                                            │                             │
-     │                                            │   POST /device/authorize    │
-     │                                            │ <───────────────────────────│
-     │                                            │                             │
-     │                                            │   Success!                  │
-     │                                            │ ────────────────────────────>
-     │                                            │                             │
-     │  POST /oauth/token (polling every 5s)      │                             │
-     │─────────────────────────────────────────> │                             │
-     │                                            │                             │
-     │  {"error": "authorization_pending"}        │                             │
-     │ <─────────────────────────────────────────│                             │
-     │                                            │                             │
-     │  POST /oauth/token (polling)               │                             │
-     │─────────────────────────────────────────> │                             │
-     │                                            │                             │
-     │  {"access_token": "eyJ...", ...}           │                             │
-     │ <─────────────────────────────────────────│                             │
-     │                                            │                             │
+```mermaid
+sequenceDiagram
+    participant CLI as CLI Tool
+    participant AuthGate as AuthGate Server
+    participant User as User (Browser)
+
+    Note over CLI,User: Phase 1: Device Code Request
+    CLI->>+AuthGate: POST /oauth/device/code<br/>(client_id)
+    AuthGate-->>-CLI: device_code, user_code<br/>verification_uri
+
+    Note over CLI: Display to user:<br/>"Visit http://..../device"<br/>"Enter code: 12345678"
+
+    Note over CLI,User: Phase 2: User Authorization
+    User->>+AuthGate: GET /device
+    AuthGate-->>-User: Login page (if not authenticated)
+
+    User->>+AuthGate: POST /login<br/>(username, password)
+    AuthGate-->>-User: Redirect to /device<br/>(session created)
+
+    User->>+AuthGate: GET /device<br/>(show code entry form)
+    AuthGate-->>-User: Code entry page
+
+    User->>+AuthGate: POST /device/verify<br/>(user_code: 12345678)
+    AuthGate-->>-User: Success page
+
+    Note over CLI,User: Phase 3: Token Polling
+    CLI->>+AuthGate: POST /oauth/token<br/>(device_code, polling)
+    AuthGate-->>-CLI: {"error": "authorization_pending"}
+
+    Note over CLI: Wait 5 seconds
+
+    CLI->>+AuthGate: POST /oauth/token<br/>(device_code, polling)
+    AuthGate-->>-CLI: {"access_token": "eyJ...",<br/>"token_type": "Bearer",<br/>"expires_in": 3600}
+
+    Note over CLI: Authentication complete!<br/>Store and use access token
 ```
 
 ### Key Endpoints
 
-| Endpoint             | Method   | Purpose                       |
-| -------------------- | -------- | ----------------------------- |
-| `/oauth/device/code` | POST     | Request device and user codes |
-| `/oauth/token`       | POST     | Poll for access token         |
-| `/oauth/tokeninfo`   | GET      | Verify token validity         |
-| `/device`            | GET      | User authorization page       |
-| `/device/authorize`  | POST     | Complete authorization        |
-| `/login`             | GET/POST | User login                    |
-| `/logout`            | POST     | User logout                   |
+| Endpoint             | Method   | Purpose                                    |
+| -------------------- | -------- | ------------------------------------------ |
+| `/health`            | GET      | Health check with database connection test |
+| `/oauth/device/code` | POST     | Request device and user codes              |
+| `/oauth/token`       | POST     | Poll for access token                      |
+| `/oauth/tokeninfo`   | GET      | Verify token validity                      |
+| `/device`            | GET      | User authorization page                    |
+| `/device/verify`     | POST     | Complete authorization                     |
+| `/login`             | GET/POST | User login                                 |
+| `/logout`            | GET      | User logout                                |
 
 ---
 
