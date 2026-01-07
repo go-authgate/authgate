@@ -3,6 +3,7 @@ module github.com/appleboy/authgate
 go 1.24.0
 
 require (
+	github.com/appleboy/graceful v1.2.1
 	github.com/gin-contrib/sessions v1.0.4
 	github.com/gin-gonic/gin v1.11.0
 	github.com/golang-jwt/jwt/v5 v5.3.0

@@ -1,17 +1,20 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"html/template"
 	"io/fs"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/appleboy/authgate/config"
 	"github.com/appleboy/authgate/handlers"
 	"github.com/appleboy/authgate/middleware"
 	"github.com/appleboy/authgate/services"
 	"github.com/appleboy/authgate/store"
+	"github.com/appleboy/graceful"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -102,7 +105,41 @@ func main() {
 	log.Printf("Default user: admin / password123")
 	log.Printf("Default client: AuthGate CLI (check logs for client_id)")
 
-	if err := r.Run(cfg.ServerAddr); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	// Create HTTP server
+	srv := &http.Server{
+		Addr:    cfg.ServerAddr,
+		Handler: r,
 	}
+
+	// Create graceful manager
+	m := graceful.NewManager()
+
+	// Add server as a running job
+	m.AddRunningJob(func(ctx context.Context) error {
+		go func() {
+			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("Failed to start server: %v", err)
+			}
+		}()
+		<-ctx.Done()
+		return nil
+	})
+
+	// Add shutdown job
+	m.AddShutdownJob(func() error {
+		log.Println("Shutting down server...")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := srv.Shutdown(ctx); err != nil {
+			log.Printf("Server forced to shutdown: %v", err)
+			return err
+		}
+
+		log.Println("Server exited")
+		return nil
+	})
+
+	// Wait for graceful shutdown
+	<-m.Done()
 }
