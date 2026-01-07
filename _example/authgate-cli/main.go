@@ -68,9 +68,9 @@ func main() {
 	}
 
 	fmt.Printf("\n----------------------------------------\n")
-	fmt.Printf("Please visit: %s\n", deviceAuth.VerificationURI)
+	fmt.Printf("Please open this link to authorize:\n%s\n", deviceAuth.VerificationURIComplete)
+	fmt.Printf("\nOr manually visit: %s\n", deviceAuth.VerificationURI)
 	fmt.Printf("And enter code: %s\n", deviceAuth.UserCode)
-	fmt.Printf("\nOr use this direct link:\n%s\n", deviceAuth.VerificationURIComplete)
 	fmt.Printf("----------------------------------------\n\n")
 
 	// Step 2: Poll for token with custom polling logic to show progress
