@@ -11,7 +11,11 @@
         <div class="card">
             <div class="success-icon">&#10003;</div>
             <h1>Authorization Successful</h1>
+            {{if .client_name}}
+            <p class="subtitle">You have successfully authorized <span class="client-name">{{.client_name}}</span>.</p>
+            {{else}}
             <p class="subtitle">Your device has been authorized.</p>
+            {{end}}
             <p class="info">You can now close this browser window and return to your CLI tool.</p>
 
             <div class="actions">

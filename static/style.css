@@ -176,6 +176,17 @@ input[type="password"]:focus {
     border: 1px solid #fcc;
 }
 
+.alert-info {
+    background: #e7f3ff;
+    color: #0066cc;
+    border: 1px solid #b3d9ff;
+}
+
+.client-name {
+    color: #667eea;
+    font-weight: 600;
+}
+
 .success-icon {
     width: 80px;
     height: 80px;

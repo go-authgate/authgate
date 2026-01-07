@@ -21,6 +21,12 @@
 
             <p class="subtitle">Enter the code displayed on your device</p>
 
+            {{if .client_name}}
+            <div class="alert alert-info">
+                <span class="client-name">{{.client_name}}</span> is requesting authorization to access your account.
+            </div>
+            {{end}}
+
             {{if .error}}
             <div class="alert alert-error">
                 {{.error}}

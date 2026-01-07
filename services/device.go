@@ -102,6 +102,21 @@ func (s *DeviceService) AuthorizeDeviceCode(userCode, userID string) error {
 	return s.store.UpdateDeviceCode(dc)
 }
 
+// GetClientNameByUserCode retrieves the client name associated with a user code
+func (s *DeviceService) GetClientNameByUserCode(userCode string) (string, error) {
+	dc, err := s.GetDeviceCodeByUserCode(userCode)
+	if err != nil {
+		return "", err
+	}
+
+	client, err := s.store.GetClient(dc.ClientID)
+	if err != nil {
+		return "", err
+	}
+
+	return client.ClientName, nil
+}
+
 // generateUserCode creates a user-friendly code like "ABCD-EFGH"
 // Avoids confusing characters: 0, O, 1, I, L
 func generateUserCode() string {

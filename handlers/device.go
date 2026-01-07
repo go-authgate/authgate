@@ -88,11 +88,21 @@ func (h *DeviceHandler) DevicePage(c *gin.Context) {
 	username := session.Get(SessionUsername)
 	userCode := c.Query("user_code")
 
-	c.HTML(http.StatusOK, "device.html", gin.H{
+	data := gin.H{
 		"username":  username,
 		"user_code": userCode,
 		"error":     c.Query("error"),
-	})
+	}
+
+	// If user_code is provided, try to get the client name
+	if userCode != "" {
+		clientName, err := h.deviceService.GetClientNameByUserCode(userCode)
+		if err == nil {
+			data["client_name"] = clientName
+		}
+	}
+
+	c.HTML(http.StatusOK, "device.html", data)
 }
 
 // DeviceVerify handles the user code verification and authorization
@@ -112,6 +122,9 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 		})
 		return
 	}
+
+	// Get client name before authorizing
+	clientName, _ := h.deviceService.GetClientNameByUserCode(userCode)
 
 	err := h.deviceService.AuthorizeDeviceCode(userCode, userID.(string))
 	if err != nil {
@@ -134,6 +147,7 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "success.html", gin.H{
-		"username": session.Get(SessionUsername),
+		"username":    session.Get(SessionUsername),
+		"client_name": clientName,
 	})
 }
