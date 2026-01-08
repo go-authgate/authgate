@@ -2,15 +2,18 @@ FROM alpine:3.21
 
 ARG TARGETOS
 ARG TARGETARCH
+ARG VERSION=dev
 
 LABEL maintainer="AuthGate Team" \
   org.label-schema.name="AuthGate" \
   org.label-schema.vendor="AuthGate" \
-  org.label-schema.schema-version="1.0"
+  org.label-schema.schema-version="1.0" \
+  org.label-schema.version="${VERSION}"
 
 LABEL org.opencontainers.image.source=https://github.com/your-org/authgate
 LABEL org.opencontainers.image.description="OAuth 2.0 Device Authorization Grant server for CLI tools and browserless devices"
 LABEL org.opencontainers.image.licenses=MIT
+LABEL org.opencontainers.image.version="${VERSION}"
 
 RUN apk add --no-cache ca-certificates wget && \
   rm -rf /var/cache/apk/* && \

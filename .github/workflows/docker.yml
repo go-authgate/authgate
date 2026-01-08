@@ -71,6 +71,8 @@ jobs:
           push: false
           load: true
           tags: ${{ env.REPO }}:scan
+          build-args: |
+            VERSION=${{ steps.docker-meta.outputs.version }}
 
       - name: Run Trivy vulnerability scanner on Docker image
         uses: aquasecurity/trivy-action@0.33.1
@@ -95,5 +97,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker-meta.outputs.tags }}
           labels: ${{ steps.docker-meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.docker-meta.outputs.version }}
           cache-from: type=registry,ref=ghcr.io/${{ env.REPO }}:buildcache
           cache-to: type=registry,ref=ghcr.io/${{ env.REPO }}:buildcache,mode=max

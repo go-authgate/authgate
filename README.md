@@ -211,7 +211,14 @@ AuthGate provides multi-architecture Docker images for easy deployment:
 make build_linux_amd64  # For Linux x86_64
 make build_linux_arm64  # For Linux ARM64
 
-# Build Docker image
+# Build Docker image (with version tag)
+docker build -f docker/Dockerfile \
+  --build-arg VERSION=v1.0.0 \
+  -t authgate:v1.0.0 \
+  -t authgate:latest \
+  .
+
+# Or build without version (defaults to "dev")
 docker build -f docker/Dockerfile -t authgate .
 
 # Run with Docker
@@ -226,6 +233,9 @@ docker run -d \
 
 # Check health
 curl http://localhost:8080/health
+
+# Inspect image labels to verify version
+docker inspect authgate:v1.0.0 | grep -A 5 Labels
 ```
 
 #### Docker Features
@@ -236,6 +246,7 @@ curl http://localhost:8080/health
 - Built-in health check endpoint
 - Persistent volume for SQLite database
 - Embedded templates and static files (single binary)
+- Version labels via `--build-arg VERSION=<version>` (supports both OCI and Label Schema standards)
 
 #### Docker Compose Example
 
@@ -702,6 +713,14 @@ systemctl start authgate
 #### 2. Docker Deployment
 
 ```bash
+# Build with version information
+VERSION=$(git describe --tags --always --dirty)
+docker build -f docker/Dockerfile \
+  --build-arg VERSION=${VERSION} \
+  -t authgate:${VERSION} \
+  -t authgate:latest \
+  .
+
 # Using Docker Compose (recommended)
 docker-compose up -d
 
@@ -715,6 +734,9 @@ docker run -d \
   -e SESSION_SECRET=$(openssl rand -hex 32) \
   -e BASE_URL=https://auth.yourdomain.com \
   authgate:latest
+
+# Verify deployed version
+docker inspect authgate:latest --format '{{index .Config.Labels "org.opencontainers.image.version"}}'
 ```
 
 #### 3. Reverse Proxy Setup (Nginx)
