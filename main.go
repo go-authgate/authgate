@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"embed"
+	"flag"
 	"html/template"
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/appleboy/authgate/internal/config"
@@ -14,8 +16,9 @@ import (
 	"github.com/appleboy/authgate/internal/middleware"
 	"github.com/appleboy/authgate/internal/services"
 	"github.com/appleboy/authgate/internal/store"
-	"github.com/appleboy/graceful"
+	"github.com/appleboy/authgate/internal/version"
 
+	"github.com/appleboy/graceful"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -28,6 +31,17 @@ var templatesFS embed.FS
 var staticFS embed.FS
 
 func main() {
+	// Parse command line flags
+	showVersion := flag.Bool("version", false, "Show version information")
+	flag.BoolVar(showVersion, "v", false, "Show version information (shorthand)")
+	flag.Parse()
+
+	// Show version and exit if requested
+	if *showVersion {
+		version.PrintVersion()
+		os.Exit(0)
+	}
+
 	// Load configuration
 	cfg := config.Load()
 
