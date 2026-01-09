@@ -5,6 +5,7 @@ import (
 
 	"github.com/appleboy/authgate/internal/services"
 
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
@@ -26,11 +27,23 @@ func (h *ClientHandler) ShowClientsPage(c *gin.Context) {
 		return
 	}
 
+	// Get flash messages from session
+	session := sessions.Default(c)
+	flashes := session.Flashes()
+	session.Save()
+
+	var successMsg string
+	if len(flashes) > 0 {
+		if msg, ok := flashes[0].(string); ok {
+			successMsg = msg
+		}
+	}
+
 	user, _ := c.Get("user")
 	c.HTML(http.StatusOK, "admin/clients.html", gin.H{
 		"clients": clients,
 		"user":    user,
-		"success": c.Query("success"),
+		"success": successMsg,
 	})
 }
 
@@ -137,7 +150,12 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 		return
 	}
 
-	c.Redirect(http.StatusFound, "/admin/clients?success=Client updated successfully")
+	// Store success message in session flash
+	session := sessions.Default(c)
+	session.AddFlash("Client updated successfully")
+	session.Save()
+
+	c.Redirect(http.StatusFound, "/admin/clients")
 }
 
 // DeleteClient handles deleting an OAuth client
@@ -152,7 +170,12 @@ func (h *ClientHandler) DeleteClient(c *gin.Context) {
 		return
 	}
 
-	c.Redirect(http.StatusFound, "/admin/clients?success=Client deleted successfully")
+	// Store success message in session flash
+	session := sessions.Default(c)
+	session.AddFlash("Client deleted successfully")
+	session.Save()
+
+	c.Redirect(http.StatusFound, "/admin/clients")
 }
 
 // RegenerateSecret handles regenerating the client secret
