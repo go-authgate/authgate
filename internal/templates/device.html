@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="container">
+    <div class="container container-narrow">
         <div class="card">
             <div class="header">
                 <h1>Device Authorization</h1>
@@ -16,6 +16,12 @@
                     Logged in as <strong>{{.username}}</strong>
                     <a href="/logout" class="logout-link">Logout</a>
                 </div>
+                {{if .is_admin}}
+                <div class="admin-badge">
+                    🔐 Administrator Access
+                    <a href="/admin/clients" class="admin-panel-link">Go to Admin Panel →</a>
+                </div>
+                {{end}}
                 {{end}}
             </div>
 

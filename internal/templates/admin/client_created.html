@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client Created - AuthGate Admin</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body class="admin-layout">
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <h1 class="page-title-with-icon">
+                    <span>✅</span>
+                    <span>OAuth Client Created Successfully</span>
+                </h1>
+                {{if .user}}
+                <div class="user-info">
+                    Logged in as <strong>{{.user.Username}}</strong> (Admin)
+                    <a href="/logout" class="logout-link">Logout</a>
+                </div>
+                {{end}}
+            </div>
+
+            <div class="alert alert-success alert-success-spaced">
+                ✅ Client "<strong>{{.client.ClientName}}</strong>" has been created successfully!
+            </div>
+
+            <div class="warning-box warning-box-enhanced">
+                <div class="warning-icon">⚠️</div>
+                <div class="warning-content">
+                    <strong>Important Security Notice</strong>
+                    <p>
+                        The client secret is shown <strong>only once</strong> for security reasons.
+                        Please copy and save it securely now. You won't be able to see it again!
+                    </p>
+                </div>
+            </div>
+
+            <div class="secret-box secret-box-enhanced">
+                <div class="secret-header">
+                    <strong class="secret-title">🔑 Client Secret</strong>
+                    <p class="secret-description">
+                        Copy this secret and store it securely. You won't be able to see it again.
+                    </p>
+                </div>
+                <div class="secret-value secret-value-enhanced" id="clientSecret">{{.client_secret}}</div>
+                <button onclick="copySecret()" class="btn btn-secondary btn-small copy-button-spaced">
+                    📋 Copy to Clipboard
+                </button>
+            </div>
+
+            <h3 class="client-details-title">📋 Client Details</h3>
+            <div class="client-details-section">
+                <div class="info-row">
+                    <div class="info-label">🆔 Client ID:</div>
+                    <div class="info-value">{{.client.ClientID}}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">📝 Client Name:</div>
+                    <div class="info-value">{{.client.ClientName}}</div>
+                </div>
+                {{if .client.Description}}
+                <div class="info-row">
+                    <div class="info-label">📄 Description:</div>
+                    <div class="info-value">{{.client.Description}}</div>
+                </div>
+                {{end}}
+                <div class="info-row">
+                    <div class="info-label">🔓 Scopes:</div>
+                    <div class="info-value">{{.client.Scopes}}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">🔐 Grant Types:</div>
+                    <div class="info-value">{{.client.GrantTypes}}</div>
+                </div>
+                {{if .client.RedirectURIs}}
+                <div class="info-row">
+                    <div class="info-label">🔗 Redirect URIs:</div>
+                    <div class="info-value">{{.client.RedirectURIs}}</div>
+                </div>
+                {{end}}
+                <div class="info-row">
+                    <div class="info-label">📊 Status:</div>
+                    <div class="info-value">
+                        {{if .client.IsActive}}
+                        <span class="status-badge status-active">✓ Active</span>
+                        {{else}}
+                        <span class="status-badge status-inactive">✗ Inactive</span>
+                        {{end}}
+                    </div>
+                </div>
+            </div>
+
+            <div class="back-button-section">
+                <a href="/admin/clients" class="btn btn-primary">← Back to Clients List</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function copySecret() {
+            const secretElement = document.getElementById('clientSecret');
+            const secret = secretElement.textContent;
+
+            navigator.clipboard.writeText(secret).then(() => {
+                alert('Client secret copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                // Fallback for older browsers
+                const textarea = document.createElement('textarea');
+                textarea.value = secret;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                alert('Client secret copied to clipboard!');
+            });
+        }
+    </script>
+</body>
+</html>

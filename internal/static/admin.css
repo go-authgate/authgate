@@ -1,0 +1,620 @@
+/* Admin Panel Specific Styles */
+
+/* Container for admin pages - Wide layout with dynamic width */
+body:has(.admin-layout) .container {
+    max-width: 1400px;
+    min-width: 320px;
+}
+
+body:has(.admin-layout) .card {
+    max-width: 100%;
+    width: auto;
+    min-width: 600px;
+}
+
+/* Responsive behavior for smaller screens */
+@media (max-width: 1200px) {
+    body:has(.admin-layout) .container {
+        max-width: 95%;
+    }
+}
+
+@media (max-width: 768px) {
+    body:has(.admin-layout) .container {
+        max-width: 100%;
+    }
+
+    body:has(.admin-layout) .card {
+        min-width: auto;
+        width: 100%;
+    }
+}
+
+/* Admin Header */
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+/* Page Actions Section */
+.page-actions {
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e1e1e1;
+}
+
+/* Clients Table */
+.clients-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+.clients-table th,
+.clients-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+.clients-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+.clients-table tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Status Badges */
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.status-active {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-inactive {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+/* Actions */
+.actions {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    align-items: center;
+}
+
+.actions form {
+    margin: 0;
+    display: inline-flex;
+}
+
+.actions form button {
+    margin: 0;
+}
+
+/* Button Sizes */
+.btn-small {
+    padding: 6px 12px;
+    font-size: 14px;
+    width: auto;
+}
+
+/* Button Variants */
+.btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+}
+
+/* Client ID Display */
+.client-id {
+    font-family: monospace;
+    font-size: 13px;
+    color: #666;
+}
+
+/* Alert Variants */
+.alert-success {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+}
+
+/* Secret Box */
+.secret-box {
+    background-color: #f8f9fa;
+    border: 2px solid #28a745;
+    border-radius: 4px;
+    padding: 16px;
+    margin: 16px 0;
+    font-family: monospace;
+}
+
+.secret-value {
+    font-size: 16px;
+    word-break: break-all;
+    margin: 8px 0;
+    padding: 12px;
+    background-color: white;
+    border-radius: 4px;
+    user-select: all;
+}
+
+/* Warning Box */
+.warning-box {
+    background-color: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+    padding: 12px;
+    margin: 16px 0;
+    color: #856404;
+}
+
+/* Info Rows (for detail pages) */
+.info-row {
+    display: flex;
+    padding: 12px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.info-label {
+    font-weight: 600;
+    width: 180px;
+    color: #666;
+}
+
+.info-value {
+    flex: 1;
+    font-family: monospace;
+    font-size: 14px;
+}
+
+/* Form Enhancements for Admin */
+textarea {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid #e1e1e1;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    resize: vertical;
+}
+
+textarea:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+select {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid #e1e1e1;
+    border-radius: 8px;
+    font-size: 14px;
+    background-color: white;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* Form Group Spacing */
+.form-group .hint {
+    text-align: left;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .admin-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .title-with-icon {
+        font-size: 20px;
+    }
+
+    .page-actions {
+        text-align: center;
+    }
+
+    .page-actions .btn {
+        width: 100%;
+        display: block;
+    }
+
+    .clients-table {
+        font-size: 14px;
+    }
+
+    .clients-table th,
+    .clients-table td {
+        padding: 8px;
+    }
+
+    /* Keep actions horizontal on mobile for Edit/Delete buttons */
+    .actions {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .actions .btn-small {
+        font-size: 12px;
+        padding: 4px 8px;
+    }
+
+    .info-row {
+        flex-direction: column;
+    }
+
+    .info-label {
+        width: 100%;
+        margin-bottom: 4px;
+    }
+}
+
+/* ===== Client Secret Page Styles ===== */
+
+/* Page title with icon */
+.page-title-with-icon {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+/* Success alert spacing */
+.alert-success-spaced {
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+/* Warning box enhanced */
+.warning-box-enhanced {
+    margin-top: 20px;
+    display: flex;
+    align-items: start;
+    gap: 12px;
+}
+
+.warning-icon {
+    font-size: 24px;
+    line-height: 1;
+}
+
+.warning-content strong {
+    display: block;
+    margin-bottom: 8px;
+}
+
+.warning-content p {
+    margin: 0;
+    line-height: 1.6;
+}
+
+/* Secret box enhanced */
+.secret-box-enhanced {
+    margin-top: 24px;
+}
+
+.secret-header {
+    margin-bottom: 12px;
+}
+
+.secret-title {
+    font-size: 16px;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.secret-description {
+    margin: 0;
+    font-size: 13px;
+    color: #666;
+    font-family: sans-serif;
+}
+
+.secret-value-enhanced {
+    font-size: 15px;
+    letter-spacing: 0.5px;
+    line-height: 1.8;
+}
+
+.copy-button-spaced {
+    margin-top: 16px;
+}
+
+/* What's next section */
+.whats-next-section {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid #e1e1e1;
+}
+
+.whats-next-title {
+    font-size: 16px;
+    margin-bottom: 16px;
+    color: #666;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* ===== Clients List Page Styles ===== */
+
+/* Title with icon */
+.title-with-icon {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+/* Create button no-wrap */
+.btn-nowrap {
+    white-space: nowrap;
+}
+
+/* Table wrapper with scroll */
+.table-wrapper {
+    margin-top: 24px;
+    overflow-x: auto;
+}
+
+/* Table headers with icons */
+.table-header-with-icon {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.clients-table th {
+    min-width: fit-content;
+}
+
+.clients-table th.col-client-name {
+    min-width: 200px;
+}
+
+.clients-table th.col-client-id {
+    min-width: 250px;
+}
+
+.clients-table th.col-grant-types {
+    min-width: 150px;
+}
+
+.clients-table th.col-status {
+    min-width: 100px;
+}
+
+.clients-table th.col-created {
+    min-width: 140px;
+}
+
+.clients-table th.col-actions {
+    min-width: 180px;
+}
+
+/* Client name cell */
+.client-name-cell {
+    padding: 4px 0;
+}
+
+.client-name-title {
+    font-size: 15px;
+}
+
+.client-description {
+    color: #666;
+    font-size: 13px;
+    line-height: 1.4;
+    display: block;
+    margin-top: 4px;
+}
+
+/* Client ID display box */
+.client-id-box {
+    background: #f8f9fa;
+    padding: 6px 10px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+/* Grant types code display */
+.grant-types-code {
+    background: #f0f0f0;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+/* Created date column */
+.created-date-cell {
+    color: #666;
+    font-size: 14px;
+}
+
+.date-display {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.date-display-day {
+    font-weight: 500;
+}
+
+.date-display-time {
+    font-size: 12px;
+    color: #999;
+}
+
+/* Client count info box */
+.client-count-info {
+    margin-top: 16px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #666;
+}
+
+/* Empty state for no clients */
+.empty-state {
+    margin-top: 32px;
+    padding: 48px 24px;
+    text-align: center;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 12px;
+    border: 2px dashed #dee2e6;
+}
+
+.empty-state-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.empty-state-title {
+    margin: 0 0 12px 0;
+    font-size: 20px;
+    color: #495057;
+}
+
+.empty-state-description {
+    margin: 0 0 24px 0;
+    color: #6c757d;
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+.empty-state-button {
+    font-size: 16px;
+    padding: 14px 28px;
+}
+
+/* Back button section */
+.back-button-section {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid #e1e1e1;
+}
+
+/* ===== Client Details Styles ===== */
+
+/* Client details title */
+.client-details-title {
+    margin-top: 24px;
+    margin-bottom: 16px;
+    font-size: 18px;
+    color: #333;
+    font-weight: 600;
+}
+
+/* Client details section */
+.client-details-section {
+    margin-top: 16px;
+}
+
+/* Action buttons section */
+.action-buttons-section {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid #e1e1e1;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* ===== Form Styles ===== */
+
+/* Error alert spacing */
+.alert-error-spaced {
+    margin-top: 24px;
+}
+
+/* Client form */
+.client-form {
+    margin-top: 20px;
+}
+
+/* Secret info box */
+.secret-info-box {
+    background: #f8f9fa;
+    padding: 14px 16px;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    margin-top: 8px;
+}
+
+.secret-info-box p {
+    margin: 0;
+    color: #666;
+    line-height: 1.6;
+}
+
+.secret-info-box a {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.secret-info-box a:hover {
+    text-decoration: underline;
+}
+
+/* Form actions */
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #e1e1e1;
+}
+
+/* Form label icons */
+.client-form label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Responsive adjustments for forms and details */
+@media (max-width: 768px) {
+    .action-buttons-section,
+    .form-actions {
+        flex-direction: column;
+    }
+
+    .action-buttons-section .btn,
+    .form-actions .btn {
+        width: 100%;
+    }
+}

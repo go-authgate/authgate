@@ -14,8 +14,14 @@ body {
     padding: 20px;
 }
 
+/* Container with flexible width based on content */
 .container {
     width: 100%;
+    max-width: fit-content;
+}
+
+/* Narrow container for auth/login pages */
+.container-narrow {
     max-width: 420px;
 }
 
@@ -69,6 +75,35 @@ h1 {
 }
 
 .logout-link:hover {
+    text-decoration: underline;
+}
+
+.admin-badge {
+    text-align: center;
+    font-size: 13px;
+    padding: 10px 12px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 6px;
+    margin-top: 12px;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.admin-panel-link {
+    display: block;
+    color: white;
+    text-decoration: none;
+    margin-top: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 4px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.3);
+    transition: opacity 0.2s;
+}
+
+.admin-panel-link:hover {
+    opacity: 0.85;
     text-decoration: underline;
 }
 
