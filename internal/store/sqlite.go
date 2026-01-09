@@ -57,11 +57,12 @@ func (s *Store) seedData() error {
 			ID:           uuid.New().String(),
 			Username:     "admin",
 			PasswordHash: string(hash),
+			Role:         "admin",
 		}
 		if err := s.db.Create(user).Error; err != nil {
 			return err
 		}
-		log.Println("Created default user: admin / password123")
+		log.Println("Created default user: admin / password123 (role: admin)")
 	}
 
 	// Create default OAuth client if not exists
@@ -69,15 +70,25 @@ func (s *Store) seedData() error {
 	s.db.Model(&models.OAuthClient{}).Count(&clientCount)
 	if clientCount == 0 {
 		clientID := uuid.New().String()
+		clientSecret := uuid.New().String()
+		secretHash, err := bcrypt.GenerateFromPassword([]byte(clientSecret), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
 		client := &models.OAuthClient{
-			ClientID:   clientID,
-			ClientName: "AuthGate CLI",
-			Scopes:     "read write",
+			ClientID:     clientID,
+			ClientSecret: string(secretHash),
+			ClientName:   "AuthGate CLI",
+			Description:  "Default CLI client for device authorization flow",
+			Scopes:       "read write",
+			GrantTypes:   "device_code",
+			IsActive:     true,
 		}
 		if err := s.db.Create(client).Error; err != nil {
 			return err
 		}
 		log.Printf("Created default OAuth client: %s (AuthGate CLI)", clientID)
+		log.Printf("Client Secret (save this): %s", clientSecret)
 	}
 
 	return nil
@@ -107,6 +118,26 @@ func (s *Store) GetClient(clientID string) (*models.OAuthClient, error) {
 		return nil, err
 	}
 	return &client, nil
+}
+
+func (s *Store) ListClients() ([]models.OAuthClient, error) {
+	var clients []models.OAuthClient
+	if err := s.db.Order("created_at DESC").Find(&clients).Error; err != nil {
+		return nil, err
+	}
+	return clients, nil
+}
+
+func (s *Store) CreateClient(client *models.OAuthClient) error {
+	return s.db.Create(client).Error
+}
+
+func (s *Store) UpdateClient(client *models.OAuthClient) error {
+	return s.db.Save(client).Error
+}
+
+func (s *Store) DeleteClient(clientID string) error {
+	return s.db.Where("client_id = ?", clientID).Delete(&models.OAuthClient{}).Error
 }
 
 // Device Code operations

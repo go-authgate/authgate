@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}} - AuthGate Admin</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body class="admin-layout">
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <h1 class="page-title-with-icon">
+                    {{if .client}}
+                    <span>✏️</span>
+                    {{else}}
+                    <span>➕</span>
+                    {{end}}
+                    <span>{{.title}}</span>
+                </h1>
+                {{if .user}}
+                <div class="user-info">
+                    Logged in as <strong>{{.user.Username}}</strong> (Admin)
+                    <a href="/logout" class="logout-link">Logout</a>
+                </div>
+                {{end}}
+            </div>
+
+            {{if .error}}
+            <div class="alert alert-error alert-error-spaced">
+                ❌ {{.error}}
+            </div>
+            {{end}}
+
+            <form method="{{.method}}" action="{{.action}}" class="client-form">
+                <div class="form-group">
+                    <label for="client_name">📝 Client Name *</label>
+                    <input type="text" id="client_name" name="client_name"
+                           value="{{if .client}}{{.client.ClientName}}{{end}}"
+                           required>
+                    <small class="hint">A human-readable name for this OAuth client</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">📄 Description</label>
+                    <textarea id="description" name="description" rows="3">{{if .client}}{{.client.Description}}{{end}}</textarea>
+                    <small class="hint">Optional description of this client's purpose</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="scopes">🔓 Scopes</label>
+                    <input type="text" id="scopes" name="scopes"
+                           value="{{if .client}}{{.client.Scopes}}{{else}}read write{{end}}">
+                    <small class="hint">Space-separated list of scopes (e.g., "read write")</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="grant_types">🔐 Grant Types</label>
+                    <select id="grant_types" name="grant_types">
+                        {{$currentGrantTypes := ""}}
+                        {{if .client}}
+                            {{$currentGrantTypes = .client.GrantTypes}}
+                        {{end}}
+                        <option value="device_code" {{if eq $currentGrantTypes "device_code"}}selected{{end}}>
+                            Device Code Flow (RFC 8628)
+                        </option>
+                        <option value="authorization_code" {{if eq $currentGrantTypes "authorization_code"}}selected{{end}}>
+                            Authorization Code Flow
+                        </option>
+                        <option value="client_credentials" {{if eq $currentGrantTypes "client_credentials"}}selected{{end}}>
+                            Client Credentials Flow
+                        </option>
+                        <option value="device_code,authorization_code" {{if eq $currentGrantTypes "device_code,authorization_code"}}selected{{end}}>
+                            Device Code + Authorization Code
+                        </option>
+                        <option value="device_code,refresh_token" {{if eq $currentGrantTypes "device_code,refresh_token"}}selected{{end}}>
+                            Device Code + Refresh Token
+                        </option>
+                        <option value="authorization_code,refresh_token" {{if eq $currentGrantTypes "authorization_code,refresh_token"}}selected{{end}}>
+                            Authorization Code + Refresh Token
+                        </option>
+                    </select>
+                    <small class="hint">Select the OAuth 2.0 grant type(s) for this client</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="redirect_uris">🔗 Redirect URIs</label>
+                    <textarea id="redirect_uris" name="redirect_uris" rows="3">{{if .client}}{{.client.RedirectURIs}}{{end}}</textarea>
+                    <small class="hint">Comma-separated redirect URIs (optional for device flow)</small>
+                </div>
+
+                {{if .client}}
+                <div class="form-group">
+                    <label for="is_active">📊 Status</label>
+                    <select id="is_active" name="is_active">
+                        <option value="true" {{if .client.IsActive}}selected{{end}}>✓ Active</option>
+                        <option value="false" {{if not .client.IsActive}}selected{{end}}>✗ Inactive</option>
+                    </select>
+                    <small class="hint">Inactive clients cannot be used for authorization</small>
+                </div>
+
+                <div class="form-group">
+                    <label>🔑 Client Secret</label>
+                    <div class="secret-info-box">
+                        <p>
+                            The client secret is encrypted and cannot be displayed.
+                            <a href="/admin/clients/{{.client.ClientID}}/regenerate-secret"
+                               onclick="return confirm('⚠️ Are you sure? This will invalidate the current secret.');">
+                                🔄 Regenerate Secret
+                            </a>
+                        </p>
+                    </div>
+                </div>
+                {{end}}
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        {{if .client}}✏️ Update Client{{else}}➕ Create Client{{end}}
+                    </button>
+                    <a href="/admin/clients" class="btn btn-secondary">← Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

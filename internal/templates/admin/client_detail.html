@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client Details - AuthGate Admin</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body class="admin-layout">
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <h1 class="page-title-with-icon">
+                    <span>👁️</span>
+                    <span>Client Details</span>
+                </h1>
+                {{if .user}}
+                <div class="user-info">
+                    Logged in as <strong>{{.user.Username}}</strong> (Admin)
+                    <a href="/logout" class="logout-link">Logout</a>
+                </div>
+                {{end}}
+            </div>
+
+            <div class="client-details-section">
+                <div class="info-row">
+                    <div class="info-label">🆔 Client ID:</div>
+                    <div class="info-value">{{.client.ClientID}}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">📝 Client Name:</div>
+                    <div class="info-value">{{.client.ClientName}}</div>
+                </div>
+                {{if .client.Description}}
+                <div class="info-row">
+                    <div class="info-label">📄 Description:</div>
+                    <div class="info-value">{{.client.Description}}</div>
+                </div>
+                {{end}}
+                <div class="info-row">
+                    <div class="info-label">🔓 Scopes:</div>
+                    <div class="info-value">{{.client.Scopes}}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">🔐 Grant Types:</div>
+                    <div class="info-value">{{.client.GrantTypes}}</div>
+                </div>
+                {{if .client.RedirectURIs}}
+                <div class="info-row">
+                    <div class="info-label">🔗 Redirect URIs:</div>
+                    <div class="info-value">{{.client.RedirectURIs}}</div>
+                </div>
+                {{end}}
+                <div class="info-row">
+                    <div class="info-label">📊 Status:</div>
+                    <div class="info-value">
+                        {{if .client.IsActive}}
+                        <span class="status-badge status-active">✓ Active</span>
+                        {{else}}
+                        <span class="status-badge status-inactive">✗ Inactive</span>
+                        {{end}}
+                    </div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">📅 Created At:</div>
+                    <div class="info-value">{{.client.CreatedAt.Format "2006-01-02 15:04:05"}}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">🔄 Updated At:</div>
+                    <div class="info-value">{{.client.UpdatedAt.Format "2006-01-02 15:04:05"}}</div>
+                </div>
+            </div>
+
+            <div class="action-buttons-section">
+                <a href="/admin/clients/{{.client.ClientID}}/edit" class="btn btn-primary">
+                    ✏️ Edit Client
+                </a>
+                <a href="/admin/clients/{{.client.ClientID}}/regenerate-secret" class="btn btn-secondary"
+                   onclick="return confirm('⚠️ Are you sure? This will invalidate the current secret.');">
+                    🔄 Regenerate Secret
+                </a>
+                <a href="/admin/clients" class="btn btn-secondary">
+                    ← Back to List
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

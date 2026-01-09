@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error - AuthGate</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body>
+    <div class="container container-narrow">
+        <div class="card">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <div style="font-size: 64px; margin-bottom: 16px;">❌</div>
+                <h1 style="color: #dc3545; margin-bottom: 8px;">Error</h1>
+            </div>
+            <div class="alert alert-error">
+                {{.error}}
+            </div>
+            <div style="text-align: center; margin-top: 24px;">
+                <a href="/" class="btn btn-secondary">← Go Back</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

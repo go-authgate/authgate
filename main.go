@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/appleboy/authgate/internal/config"
@@ -86,11 +87,13 @@ func runServer() {
 	userService := services.NewUserService(db)
 	deviceService := services.NewDeviceService(db, cfg)
 	tokenService := services.NewTokenService(db, cfg)
+	clientService := services.NewClientService(db)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(userService)
-	deviceHandler := handlers.NewDeviceHandler(deviceService, cfg)
+	deviceHandler := handlers.NewDeviceHandler(deviceService, userService, cfg)
 	tokenHandler := handlers.NewTokenHandler(tokenService, cfg)
+	clientHandler := handlers.NewClientHandler(clientService)
 
 	// Setup Gin
 	r := gin.Default()
@@ -106,11 +109,37 @@ func runServer() {
 	})
 	r.Use(sessions.Sessions("oauth_session", sessionStore))
 
-	// Load embedded templates
-	tmpl, err := template.ParseFS(templatesFS, "internal/templates/*.html")
+	// Load embedded templates (including subdirectories)
+	// Create a sub filesystem to strip the "internal/templates" prefix
+	templateSubFS, err := fs.Sub(templatesFS, "internal/templates")
+	if err != nil {
+		log.Fatalf("Failed to create template sub filesystem: %v", err)
+	}
+
+	// Parse templates manually to preserve directory structure in names
+	tmpl := template.New("")
+	err = fs.WalkDir(templateSubFS, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".html") {
+			return nil
+		}
+
+		// Read the template file
+		content, err := fs.ReadFile(templateSubFS, path)
+		if err != nil {
+			return err
+		}
+
+		// Parse with the full path as the name
+		_, err = tmpl.New(path).Parse(string(content))
+		return err
+	})
 	if err != nil {
 		log.Fatalf("Failed to parse templates: %v", err)
 	}
+
 	r.SetHTMLTemplate(tmpl)
 
 	// Serve embedded static files
@@ -158,6 +187,20 @@ func runServer() {
 	{
 		protected.GET("/device", deviceHandler.DevicePage)
 		protected.POST("/device/verify", deviceHandler.DeviceVerify)
+	}
+
+	// Admin routes (require admin role)
+	admin := r.Group("/admin")
+	admin.Use(middleware.RequireAuth(), middleware.RequireAdmin(userService))
+	{
+		admin.GET("/clients", clientHandler.ShowClientsPage)
+		admin.GET("/clients/new", clientHandler.ShowCreateClientPage)
+		admin.POST("/clients", clientHandler.CreateClient)
+		admin.GET("/clients/:id", clientHandler.ViewClient)
+		admin.GET("/clients/:id/edit", clientHandler.ShowEditClientPage)
+		admin.POST("/clients/:id", clientHandler.UpdateClient)
+		admin.POST("/clients/:id/delete", clientHandler.DeleteClient)
+		admin.GET("/clients/:id/regenerate-secret", clientHandler.RegenerateSecret)
 	}
 
 	// Start server

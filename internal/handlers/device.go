@@ -12,11 +12,16 @@ import (
 
 type DeviceHandler struct {
 	deviceService *services.DeviceService
+	userService   *services.UserService
 	config        *config.Config
 }
 
-func NewDeviceHandler(ds *services.DeviceService, cfg *config.Config) *DeviceHandler {
-	return &DeviceHandler{deviceService: ds, config: cfg}
+func NewDeviceHandler(
+	ds *services.DeviceService,
+	us *services.UserService,
+	cfg *config.Config,
+) *DeviceHandler {
+	return &DeviceHandler{deviceService: ds, userService: us, config: cfg}
 }
 
 // DeviceCodeRequest handles POST /oauth/device/code
@@ -86,12 +91,22 @@ func (h *DeviceHandler) DeviceCodeRequest(c *gin.Context) {
 func (h *DeviceHandler) DevicePage(c *gin.Context) {
 	session := sessions.Default(c)
 	username := session.Get(SessionUsername)
+	userID := session.Get(SessionUserID)
 	userCode := c.Query("user_code")
 
 	data := gin.H{
 		"username":  username,
 		"user_code": userCode,
 		"error":     c.Query("error"),
+		"is_admin":  false,
+	}
+
+	// Check if user is admin
+	if userID != nil {
+		user, err := h.userService.GetUserByID(userID.(string))
+		if err == nil && user.IsAdmin() {
+			data["is_admin"] = true
+		}
 	}
 
 	// If user_code is provided, try to get the client name

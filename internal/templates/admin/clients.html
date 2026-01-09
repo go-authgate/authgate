@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Clients - AuthGate Admin</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body class="admin-layout">
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <h1 class="title-with-icon">
+                    <span>🔑</span>
+                    <span>OAuth Clients</span>
+                </h1>
+                {{if .user}}
+                <div class="user-info">
+                    Logged in as <strong>{{.user.Username}}</strong> (Admin)
+                    <a href="/logout" class="logout-link">Logout</a>
+                </div>
+                {{end}}
+            </div>
+
+            <div class="page-actions">
+                <a href="/admin/clients/new" class="btn btn-primary">
+                    ➕ Create New Client
+                </a>
+            </div>
+
+            {{if .success}}
+            <div class="alert alert-success alert-success-spaced">
+                ✅ {{.success}}
+            </div>
+            {{end}}
+
+            {{if .clients}}
+            <div class="table-wrapper">
+                <table class="clients-table">
+                    <thead>
+                        <tr>
+                            <th class="col-client-name">
+                                <div class="table-header-with-icon">
+                                    📝 <span>Client Name</span>
+                                </div>
+                            </th>
+                            <th class="col-client-id">
+                                <div class="table-header-with-icon">
+                                    🆔 <span>Client ID</span>
+                                </div>
+                            </th>
+                            <th class="col-grant-types">
+                                <div class="table-header-with-icon">
+                                    🔐 <span>Grant Types</span>
+                                </div>
+                            </th>
+                            <th class="col-status">
+                                <div class="table-header-with-icon">
+                                    📊 <span>Status</span>
+                                </div>
+                            </th>
+                            <th class="col-created">
+                                <div class="table-header-with-icon">
+                                    📅 <span>Created</span>
+                                </div>
+                            </th>
+                            <th class="col-actions">
+                                <div class="table-header-with-icon">
+                                    ⚙️ <span>Actions</span>
+                                </div>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .clients}}
+                        <tr>
+                            <td>
+                                <div class="client-name-cell">
+                                    <strong class="client-name-title">{{.ClientName}}</strong>
+                                    {{if .Description}}
+                                    <br><small class="client-description">{{.Description}}</small>
+                                    {{end}}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="client-id client-id-box">
+                                    {{.ClientID}}
+                                </div>
+                            </td>
+                            <td>
+                                <code class="grant-types-code">
+                                    {{.GrantTypes}}
+                                </code>
+                            </td>
+                            <td>
+                                {{if .IsActive}}
+                                <span class="status-badge status-active">✓ Active</span>
+                                {{else}}
+                                <span class="status-badge status-inactive">✗ Inactive</span>
+                                {{end}}
+                            </td>
+                            <td class="created-date-cell">
+                                <div class="date-display">
+                                    <span class="date-display-day">{{.CreatedAt.Format "2006-01-02"}}</span>
+                                    <span class="date-display-time">{{.CreatedAt.Format "15:04"}}</span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="actions">
+                                    <a href="/admin/clients/{{.ClientID}}/edit" class="btn btn-secondary btn-small" title="Edit client">
+                                        ✏️ Edit
+                                    </a>
+                                    <form method="POST" action="/admin/clients/{{.ClientID}}/delete" onsubmit="return confirm('⚠️ Are you sure you want to delete this client?\n\nThis action cannot be undone and will revoke all access tokens.');">
+                                        <button type="submit" class="btn btn-danger btn-small" title="Delete client">
+                                            🗑️ Delete
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="client-count-info">
+                <strong>📊 Total Clients:</strong> {{len .clients}}
+            </div>
+            {{else}}
+            <div class="empty-state">
+                <div class="empty-state-icon">🔑</div>
+                <h3 class="empty-state-title">No OAuth Clients Yet</h3>
+                <p class="empty-state-description">
+                    Get started by creating your first OAuth client.<br>
+                    Clients are used to authenticate applications that access your resources.
+                </p>
+                <a href="/admin/clients/new" class="btn btn-primary empty-state-button">
+                    ➕ Create Your First Client
+                </a>
+            </div>
+            {{end}}
+
+            <div class="back-button-section">
+                <a href="/device" class="btn btn-secondary">
+                    ← Back to Device Page
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
