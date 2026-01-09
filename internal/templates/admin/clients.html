@@ -112,6 +112,7 @@
                                         ✏️ Edit
                                     </a>
                                     <form method="POST" action="/admin/clients/{{.ClientID}}/delete" onsubmit="return confirm('⚠️ Are you sure you want to delete this client?\n\nThis action cannot be undone and will revoke all access tokens.');">
+                                        <input type="hidden" name="csrf_token" value="{{$.csrf_token}}">
                                         <button type="submit" class="btn btn-danger btn-small" title="Delete client">
                                             🗑️ Delete
                                         </button>

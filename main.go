@@ -183,7 +183,7 @@ func runServer() {
 
 	// Protected routes (require login)
 	protected := r.Group("")
-	protected.Use(middleware.RequireAuth())
+	protected.Use(middleware.RequireAuth(), middleware.CSRFMiddleware())
 	{
 		protected.GET("/device", deviceHandler.DevicePage)
 		protected.POST("/device/verify", deviceHandler.DeviceVerify)
@@ -191,7 +191,11 @@ func runServer() {
 
 	// Admin routes (require admin role)
 	admin := r.Group("/admin")
-	admin.Use(middleware.RequireAuth(), middleware.RequireAdmin(userService))
+	admin.Use(
+		middleware.RequireAuth(),
+		middleware.RequireAdmin(userService),
+		middleware.CSRFMiddleware(),
+	)
 	{
 		admin.GET("/clients", clientHandler.ShowClientsPage)
 		admin.GET("/clients/new", clientHandler.ShowCreateClientPage)

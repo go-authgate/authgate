@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/appleboy/authgate/internal/config"
+	"github.com/appleboy/authgate/internal/middleware"
 	"github.com/appleboy/authgate/internal/services"
 
 	"github.com/gin-contrib/sessions"
@@ -95,10 +96,11 @@ func (h *DeviceHandler) DevicePage(c *gin.Context) {
 	userCode := c.Query("user_code")
 
 	data := gin.H{
-		"username":  username,
-		"user_code": userCode,
-		"error":     c.Query("error"),
-		"is_admin":  false,
+		"username":   username,
+		"user_code":  userCode,
+		"error":      c.Query("error"),
+		"is_admin":   false,
+		"csrf_token": middleware.GetCSRFToken(c),
 	}
 
 	// Check if user is admin
@@ -132,8 +134,9 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 	userCode := c.PostForm("user_code")
 	if userCode == "" {
 		c.HTML(http.StatusBadRequest, "device.html", gin.H{
-			"username": session.Get(SessionUsername),
-			"error":    "Please enter a user code",
+			"username":   session.Get(SessionUsername),
+			"error":      "Please enter a user code",
+			"csrf_token": middleware.GetCSRFToken(c),
 		})
 		return
 	}
@@ -154,9 +157,10 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 		}
 
 		c.HTML(http.StatusBadRequest, "device.html", gin.H{
-			"username":  session.Get(SessionUsername),
-			"user_code": userCode,
-			"error":     errorMsg,
+			"username":   session.Get(SessionUsername),
+			"user_code":  userCode,
+			"error":      errorMsg,
+			"csrf_token": middleware.GetCSRFToken(c),
 		})
 		return
 	}
@@ -164,5 +168,6 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 	c.HTML(http.StatusOK, "success.html", gin.H{
 		"username":    session.Get(SessionUsername),
 		"client_name": clientName,
+		"csrf_token":  middleware.GetCSRFToken(c),
 	})
 }

@@ -30,3 +30,4 @@ Thumbs.db
 .env.local
 bin
 .claude
+coverage.txt

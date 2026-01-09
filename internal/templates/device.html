@@ -40,6 +40,7 @@
             {{end}}
 
             <form method="POST" action="/device/verify">
+                <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <div class="form-group">
                     <label for="user_code">Device Code</label>
                     <input type="text"

@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/appleboy/authgate/internal/middleware"
 	"github.com/appleboy/authgate/internal/services"
 
 	"github.com/gin-contrib/sessions"
@@ -30,7 +31,10 @@ func (h *ClientHandler) ShowClientsPage(c *gin.Context) {
 	// Get flash messages from session
 	session := sessions.Default(c)
 	flashes := session.Flashes()
-	session.Save()
+	if err := session.Save(); err != nil {
+		// Log error but continue - flash message is not critical
+		c.Set("session_save_error", err)
+	}
 
 	var successMsg string
 	if len(flashes) > 0 {
@@ -41,9 +45,10 @@ func (h *ClientHandler) ShowClientsPage(c *gin.Context) {
 
 	user, _ := c.Get("user")
 	c.HTML(http.StatusOK, "admin/clients.html", gin.H{
-		"clients": clients,
-		"user":    user,
-		"success": successMsg,
+		"clients":    clients,
+		"user":       user,
+		"success":    successMsg,
+		"csrf_token": middleware.GetCSRFToken(c),
 	})
 }
 
@@ -51,10 +56,11 @@ func (h *ClientHandler) ShowClientsPage(c *gin.Context) {
 func (h *ClientHandler) ShowCreateClientPage(c *gin.Context) {
 	user, _ := c.Get("user")
 	c.HTML(http.StatusOK, "admin/client_form.html", gin.H{
-		"user":   user,
-		"action": "/admin/clients",
-		"method": "POST",
-		"title":  "Create OAuth Client",
+		"user":       user,
+		"action":     "/admin/clients",
+		"method":     "POST",
+		"title":      "Create OAuth Client",
+		"csrf_token": middleware.GetCSRFToken(c),
 	})
 }
 
@@ -75,11 +81,12 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 	if err != nil {
 		user, _ := c.Get("user")
 		c.HTML(http.StatusBadRequest, "admin/client_form.html", gin.H{
-			"user":   user,
-			"error":  err.Error(),
-			"action": "/admin/clients",
-			"method": "POST",
-			"title":  "Create OAuth Client",
+			"user":       user,
+			"error":      err.Error(),
+			"action":     "/admin/clients",
+			"method":     "POST",
+			"title":      "Create OAuth Client",
+			"csrf_token": middleware.GetCSRFToken(c),
 			"client": map[string]string{
 				"client_name":   req.ClientName,
 				"description":   req.Description,
@@ -97,6 +104,7 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 		"user":          user,
 		"client":        resp.OAuthClient,
 		"client_secret": resp.ClientSecretPlain,
+		"csrf_token":    middleware.GetCSRFToken(c),
 	})
 }
 
@@ -114,11 +122,12 @@ func (h *ClientHandler) ShowEditClientPage(c *gin.Context) {
 
 	user, _ := c.Get("user")
 	c.HTML(http.StatusOK, "admin/client_form.html", gin.H{
-		"user":   user,
-		"client": client,
-		"action": "/admin/clients/" + clientID,
-		"method": "POST",
-		"title":  "Edit OAuth Client",
+		"user":       user,
+		"client":     client,
+		"action":     "/admin/clients/" + clientID,
+		"method":     "POST",
+		"title":      "Edit OAuth Client",
+		"csrf_token": middleware.GetCSRFToken(c),
 	})
 }
 
@@ -140,12 +149,13 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 		client, _ := h.clientService.GetClient(clientID)
 		user, _ := c.Get("user")
 		c.HTML(http.StatusBadRequest, "admin/client_form.html", gin.H{
-			"user":   user,
-			"error":  err.Error(),
-			"client": client,
-			"action": "/admin/clients/" + clientID,
-			"method": "POST",
-			"title":  "Edit OAuth Client",
+			"user":       user,
+			"error":      err.Error(),
+			"client":     client,
+			"action":     "/admin/clients/" + clientID,
+			"method":     "POST",
+			"title":      "Edit OAuth Client",
+			"csrf_token": middleware.GetCSRFToken(c),
 		})
 		return
 	}
@@ -153,7 +163,12 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 	// Store success message in session flash
 	session := sessions.Default(c)
 	session.AddFlash("Client updated successfully")
-	session.Save()
+	if err := session.Save(); err != nil {
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+			"error": "Failed to save session: " + err.Error(),
+		})
+		return
+	}
 
 	c.Redirect(http.StatusFound, "/admin/clients")
 }
@@ -173,7 +188,12 @@ func (h *ClientHandler) DeleteClient(c *gin.Context) {
 	// Store success message in session flash
 	session := sessions.Default(c)
 	session.AddFlash("Client deleted successfully")
-	session.Save()
+	if err := session.Save(); err != nil {
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+			"error": "Failed to save session: " + err.Error(),
+		})
+		return
+	}
 
 	c.Redirect(http.StatusFound, "/admin/clients")
 }
@@ -197,6 +217,7 @@ func (h *ClientHandler) RegenerateSecret(c *gin.Context) {
 		"user":          user,
 		"client":        client,
 		"client_secret": newSecret,
+		"csrf_token":    middleware.GetCSRFToken(c),
 	})
 }
 
@@ -214,7 +235,8 @@ func (h *ClientHandler) ViewClient(c *gin.Context) {
 
 	user, _ := c.Get("user")
 	c.HTML(http.StatusOK, "admin/client_detail.html", gin.H{
-		"user":   user,
-		"client": client,
+		"user":       user,
+		"client":     client,
+		"csrf_token": middleware.GetCSRFToken(c),
 	})
 }

@@ -34,6 +34,7 @@
             {{end}}
 
             <form method="{{.method}}" action="{{.action}}" class="client-form">
+                <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <div class="form-group">
                     <label for="client_name">📝 Client Name *</label>
                     <input type="text" id="client_name" name="client_name"
