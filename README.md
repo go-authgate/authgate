@@ -460,14 +460,14 @@ The server initializes with default test accounts:
 #### User Account
 
 - Username: `admin`
-- Password: `password123`
+- Password: Auto-generated 16-character random password (shown in server logs on first run)
 
 #### OAuth Client
 
 - Name: `AuthGate CLI`
 - Client ID: Auto-generated UUID (shown in server logs)
 
-**⚠️ Security Warning:** Change these in production!
+**⚠️ Security Warning:** Note the admin password from server logs on first run and change it in production!
 
 ---
 
@@ -635,7 +635,7 @@ curl http://localhost:8080/health
 - [ ] Change `JWT_SECRET` to a strong random value (32+ characters)
 - [ ] Change `SESSION_SECRET` to a strong random value (32+ characters)
 - [ ] Use HTTPS (set `BASE_URL` to `https://...`)
-- [ ] Change default user credentials (admin/password123)
+- [ ] Change default admin user password (check server logs for initial random password)
 - [ ] Set appropriate `DeviceCodeExpiration` (default: 30 minutes)
 - [ ] Set appropriate `JWTExpiration` (default: 1 hour)
 - [ ] Configure firewall rules
