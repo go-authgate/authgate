@@ -98,7 +98,11 @@ func main() {
 }
 
 // pollForTokenWithProgress polls for token while showing progress dots
-func pollForTokenWithProgress(ctx context.Context, config *oauth2.Config, deviceAuth *oauth2.DeviceAuthResponse) (*oauth2.Token, error) {
+func pollForTokenWithProgress(
+	ctx context.Context,
+	config *oauth2.Config,
+	deviceAuth *oauth2.DeviceAuthResponse,
+) (*oauth2.Token, error) {
 	// Create a channel to receive the token
 	tokenChan := make(chan *oauth2.Token, 1)
 	errChan := make(chan error, 1)

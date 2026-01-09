@@ -6,7 +6,7 @@ import (
 
 type OAuthClient struct {
 	ClientID     string `gorm:"primaryKey"`
-	ClientSecret string `gorm:"not null"`                       // bcrypt hashed secret
+	ClientSecret string `gorm:"not null"` // bcrypt hashed secret
 	ClientName   string `gorm:"not null"`
 	Description  string `gorm:"type:text"`
 	Scopes       string `gorm:"not null"`                       // space-separated scopes

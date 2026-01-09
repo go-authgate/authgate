@@ -16,7 +16,11 @@ type DeviceHandler struct {
 	config        *config.Config
 }
 
-func NewDeviceHandler(ds *services.DeviceService, us *services.UserService, cfg *config.Config) *DeviceHandler {
+func NewDeviceHandler(
+	ds *services.DeviceService,
+	us *services.UserService,
+	cfg *config.Config,
+) *DeviceHandler {
 	return &DeviceHandler{deviceService: ds, userService: us, config: cfg}
 }
 
