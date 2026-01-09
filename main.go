@@ -211,7 +211,7 @@ func runServer() {
 	log.Printf("OAuth Device Flow server starting on %s", cfg.ServerAddr)
 	log.Printf("Verification URL: %s/device", cfg.BaseURL)
 	log.Printf("  (Tip: Add ?user_code=XXXX-XXXX to pre-fill the code)")
-	log.Printf("Default user: admin / password123")
+	log.Printf("Default user: admin (check logs for password if first run)")
 	log.Printf("Default client: AuthGate CLI (check logs for client_id)")
 
 	// Create HTTP server

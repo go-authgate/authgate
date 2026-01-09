@@ -1,6 +1,8 @@
 package store
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"log"
 
 	"github.com/appleboy/authgate/internal/models"
@@ -44,12 +46,27 @@ func New(dbPath string) (*Store, error) {
 	return store, nil
 }
 
+// generateRandomPassword generates a random password of specified length
+func generateRandomPassword(length int) (string, error) {
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	// Use base64 URL encoding to get a safe, printable password
+	return base64.URLEncoding.EncodeToString(bytes)[:length], nil
+}
+
 func (s *Store) seedData() error {
 	// Create default user if not exists
 	var userCount int64
 	s.db.Model(&models.User{}).Count(&userCount)
 	if userCount == 0 {
-		hash, err := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+		// Generate random password
+		password, err := generateRandomPassword(16)
+		if err != nil {
+			return err
+		}
+		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 		if err != nil {
 			return err
 		}
@@ -62,7 +79,7 @@ func (s *Store) seedData() error {
 		if err := s.db.Create(user).Error; err != nil {
 			return err
 		}
-		log.Println("Created default user: admin / password123 (role: admin)")
+		log.Printf("Created default user: admin / %s (role: admin)", password)
 	}
 
 	// Create default OAuth client if not exists

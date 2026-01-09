@@ -89,7 +89,7 @@ docker build -f docker/Dockerfile -t authgate .
 
 Seeded automatically on first run (store/sqlite.go:seedData):
 
-- User: `admin` / `password123` (bcrypt hashed)
+- User: `admin` / `<random_password>` (16-character random password, logged at startup, bcrypt hashed)
 - Client: `AuthGate CLI` (client_id is auto-generated UUID, logged at startup)
 
 ## Example CLI Client
@@ -110,3 +110,6 @@ go run main.go
 - Handlers accept both form-encoded and JSON request bodies where applicable
 - All static assets and templates are embedded via `//go:embed` for single-binary deployment
 - Database connection health check available via `store.Health()` method
+- **IMPORTANT**: Before committing changes:
+  1. Run `make fmt` to automatically fix code formatting issues
+  2. Run `make lint` to verify all code passes linting without errors
