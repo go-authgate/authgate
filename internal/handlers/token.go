@@ -114,3 +114,35 @@ func (h *TokenHandler) TokenInfo(c *gin.Context) {
 		"iss":       claims.Issuer,
 	})
 }
+
+// Revoke handles POST /oauth/revoke (RFC 7009)
+// This endpoint allows clients to revoke access tokens
+func (h *TokenHandler) Revoke(c *gin.Context) {
+	// Get token from request
+	// RFC 7009 specifies that the token parameter is REQUIRED
+	token := c.PostForm("token")
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": "token parameter is required",
+		})
+		return
+	}
+
+	// Optional: token_type_hint can be "access_token" or "refresh_token"
+	// Since we only support access tokens, we can ignore this parameter
+	// tokenTypeHint := c.PostForm("token_type_hint")
+
+	// Revoke the token
+	err := h.tokenService.RevokeToken(token)
+	if err != nil {
+		// RFC 7009 section 2.2: The authorization server responds with HTTP status code 200
+		// if the token has been revoked successfully or if the client submitted an invalid token.
+		// This is to prevent token scanning attacks.
+		c.Status(http.StatusOK)
+		return
+	}
+
+	// Success response (RFC 7009)
+	c.Status(http.StatusOK)
+}

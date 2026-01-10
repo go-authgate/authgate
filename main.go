@@ -94,6 +94,7 @@ func runServer() {
 	deviceHandler := handlers.NewDeviceHandler(deviceService, userService, cfg)
 	tokenHandler := handlers.NewTokenHandler(tokenService, cfg)
 	clientHandler := handlers.NewClientHandler(clientService)
+	sessionHandler := handlers.NewSessionHandler(tokenService)
 
 	// Setup Gin
 	r := gin.Default()
@@ -179,6 +180,7 @@ func runServer() {
 		oauth.POST("/device/code", deviceHandler.DeviceCodeRequest)
 		oauth.POST("/token", tokenHandler.Token)
 		oauth.GET("/tokeninfo", tokenHandler.TokenInfo)
+		oauth.POST("/revoke", tokenHandler.Revoke)
 	}
 
 	// Protected routes (require login)
@@ -187,6 +189,15 @@ func runServer() {
 	{
 		protected.GET("/device", deviceHandler.DevicePage)
 		protected.POST("/device/verify", deviceHandler.DeviceVerify)
+	}
+
+	// Account routes (require login)
+	account := r.Group("/account")
+	account.Use(middleware.RequireAuth(), middleware.CSRFMiddleware())
+	{
+		account.GET("/sessions", sessionHandler.ListSessions)
+		account.POST("/sessions/:id/revoke", sessionHandler.RevokeSession)
+		account.POST("/sessions/revoke-all", sessionHandler.RevokeAllSessions)
 	}
 
 	// Admin routes (require admin role)

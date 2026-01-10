@@ -12,6 +12,12 @@ import (
 	"github.com/google/uuid"
 )
 
+// TokenWithClient combines token and client information for display
+type TokenWithClient struct {
+	models.AccessToken
+	ClientName string
+}
+
 var (
 	ErrAuthorizationPending = errors.New("authorization_pending")
 	ErrSlowDown             = errors.New("slow_down")
@@ -129,4 +135,76 @@ func (s *TokenService) ValidateToken(tokenString string) (*JWTClaims, error) {
 	}
 
 	return nil, errors.New("invalid token")
+}
+
+// RevokeToken revokes a token by its JWT string
+func (s *TokenService) RevokeToken(tokenString string) error {
+	// Get the token from database
+	token, err := s.store.GetAccessToken(tokenString)
+	if err != nil {
+		return errors.New("token not found")
+	}
+
+	// Delete the token
+	return s.store.RevokeToken(token.ID)
+}
+
+// RevokeTokenByID revokes a token by its ID
+func (s *TokenService) RevokeTokenByID(tokenID string) error {
+	return s.store.RevokeToken(tokenID)
+}
+
+// GetUserTokens returns all active tokens for a user
+func (s *TokenService) GetUserTokens(userID string) ([]models.AccessToken, error) {
+	return s.store.GetTokensByUserID(userID)
+}
+
+// GetUserTokensWithClient returns all active tokens for a user with client information
+func (s *TokenService) GetUserTokensWithClient(userID string) ([]TokenWithClient, error) {
+	tokens, err := s.store.GetTokensByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(tokens) == 0 {
+		return []TokenWithClient{}, nil
+	}
+
+	// Collect unique client IDs
+	clientIDSet := make(map[string]bool)
+	for _, token := range tokens {
+		clientIDSet[token.ClientID] = true
+	}
+
+	clientIDs := make([]string, 0, len(clientIDSet))
+	for clientID := range clientIDSet {
+		clientIDs = append(clientIDs, clientID)
+	}
+
+	// Batch query all clients using WHERE IN
+	clientMap, err := s.store.GetClientsByIDs(clientIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Combine tokens with client information
+	result := make([]TokenWithClient, 0, len(tokens))
+	for _, token := range tokens {
+		clientName := token.ClientID // Default to ClientID if not found
+		if client, ok := clientMap[token.ClientID]; ok && client != nil {
+			clientName = client.ClientName
+		}
+
+		result = append(result, TokenWithClient{
+			AccessToken: token,
+			ClientName:  clientName,
+		})
+	}
+
+	return result, nil
+}
+
+// RevokeAllUserTokens revokes all tokens for a user
+func (s *TokenService) RevokeAllUserTokens(userID string) error {
+	return s.store.RevokeTokensByUserID(userID)
 }

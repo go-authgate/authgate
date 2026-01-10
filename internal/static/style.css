@@ -68,13 +68,15 @@ h1 {
     color: #333;
 }
 
-.logout-link {
+.logout-link,
+.sessions-link {
     color: #667eea;
     text-decoration: none;
     margin-left: 8px;
 }
 
-.logout-link:hover {
+.logout-link:hover,
+.sessions-link:hover {
     text-decoration: underline;
 }
 

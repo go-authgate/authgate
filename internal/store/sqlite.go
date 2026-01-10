@@ -145,6 +145,25 @@ func (s *Store) ListClients() ([]models.OAuthClient, error) {
 	return clients, nil
 }
 
+func (s *Store) GetClientsByIDs(clientIDs []string) (map[string]*models.OAuthClient, error) {
+	if len(clientIDs) == 0 {
+		return make(map[string]*models.OAuthClient), nil
+	}
+
+	var clients []models.OAuthClient
+	if err := s.db.Where("client_id IN ?", clientIDs).Find(&clients).Error; err != nil {
+		return nil, err
+	}
+
+	// Convert to map for easy lookup
+	clientMap := make(map[string]*models.OAuthClient, len(clients))
+	for i := range clients {
+		clientMap[clients[i].ClientID] = &clients[i]
+	}
+
+	return clientMap, nil
+}
+
 func (s *Store) CreateClient(client *models.OAuthClient) error {
 	return s.db.Create(client).Error
 }
@@ -197,6 +216,36 @@ func (s *Store) GetAccessToken(token string) (*models.AccessToken, error) {
 		return nil, err
 	}
 	return &t, nil
+}
+
+func (s *Store) GetAccessTokenByID(tokenID string) (*models.AccessToken, error) {
+	var t models.AccessToken
+	if err := s.db.Where("id = ?", tokenID).First(&t).Error; err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (s *Store) GetTokensByUserID(userID string) ([]models.AccessToken, error) {
+	var tokens []models.AccessToken
+	if err := s.db.Where("user_id = ?", userID).
+		Order("created_at DESC").
+		Find(&tokens).Error; err != nil {
+		return nil, err
+	}
+	return tokens, nil
+}
+
+func (s *Store) RevokeToken(tokenID string) error {
+	return s.db.Where("id = ?", tokenID).Delete(&models.AccessToken{}).Error
+}
+
+func (s *Store) RevokeTokensByUserID(userID string) error {
+	return s.db.Where("user_id = ?", userID).Delete(&models.AccessToken{}).Error
+}
+
+func (s *Store) RevokeTokensByClientID(clientID string) error {
+	return s.db.Where("client_id = ?", clientID).Delete(&models.AccessToken{}).Error
 }
 
 func (s *Store) DeleteExpiredTokens() error {

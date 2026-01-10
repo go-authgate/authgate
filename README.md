@@ -139,10 +139,12 @@ Modern CLI tools and IoT devices need to access user resources securely, but tra
 ## Features
 
 - ✅ **RFC 8628 Compliant** - Full implementation of OAuth 2.0 Device Authorization Grant
+- ✅ **RFC 7009 Token Revocation** - Secure token revocation endpoint for revoking access
 - ✅ **Lightweight** - Single binary, SQLite database, no external dependencies
 - ✅ **Easy Configuration** - `.env` file support for all settings
 - ✅ **Session-Based Auth** - Secure user login with encrypted cookies (7-day expiry)
 - ✅ **JWT Tokens** - Industry-standard access tokens with HMAC-SHA256 signing
+- ✅ **Session Management** - Web UI for users to view and revoke active sessions
 - ✅ **Example CLI** - Complete working example of a client implementation
 - ✅ **Token Verification** - Built-in endpoint to validate tokens (`/oauth/tokeninfo`)
 - ✅ **Health Check** - Database connection monitoring via `/health` endpoint
@@ -346,6 +348,19 @@ Upon successful authorization, users receive confirmation with:
 - Option to authorize additional devices without re-login
 - Logout button for security
 
+### 4. Session Management
+
+After logging in, users can manage their active sessions by clicking the "Active Sessions" link on the device authorization page. The session management interface provides:
+
+- **View All Active Sessions** - See all devices that have been authorized with your account
+- **Client Information** - Display client name and ID for easy identification
+- **Session Details** - View creation time, expiration time, and granted scopes
+- **Individual Revocation** - Revoke specific device access with one click
+- **Revoke All** - Sign out all devices simultaneously for security
+- **Status Indicators** - Visual display of active vs. expired sessions
+
+This feature gives users complete control over which devices can access their account, enhancing security and transparency.
+
 ---
 
 ## How It Works
@@ -391,16 +406,20 @@ sequenceDiagram
 
 ### Key Endpoints
 
-| Endpoint             | Method   | Auth Required | Purpose                                        |
-| -------------------- | -------- | ------------- | ---------------------------------------------- |
-| `/health`            | GET      | No            | Health check with database connection test     |
-| `/oauth/device/code` | POST     | No            | Request device and user codes (CLI/device)     |
-| `/oauth/token`       | POST     | No            | Poll for access token (grant_type=device_code) |
-| `/oauth/tokeninfo`   | GET      | No            | Verify token validity (pass token as query)    |
-| `/device`            | GET      | Yes (Session) | User authorization page (browser)              |
-| `/device/verify`     | POST     | Yes (Session) | Complete authorization (submit user_code)      |
-| `/login`             | GET/POST | No            | User login (creates session)                   |
-| `/logout`            | GET      | Yes (Session) | User logout (destroys session)                 |
+| Endpoint                         | Method   | Auth Required | Purpose                                        |
+| -------------------------------- | -------- | ------------- | ---------------------------------------------- |
+| `/health`                        | GET      | No            | Health check with database connection test     |
+| `/oauth/device/code`             | POST     | No            | Request device and user codes (CLI/device)     |
+| `/oauth/token`                   | POST     | No            | Poll for access token (grant_type=device_code) |
+| `/oauth/tokeninfo`               | GET      | No            | Verify token validity (pass token as query)    |
+| `/oauth/revoke`                  | POST     | No            | Revoke access token (RFC 7009)                 |
+| `/device`                        | GET      | Yes (Session) | User authorization page (browser)              |
+| `/device/verify`                 | POST     | Yes (Session) | Complete authorization (submit user_code)      |
+| `/account/sessions`              | GET      | Yes (Session) | View all active sessions                       |
+| `/account/sessions/:id/revoke`   | POST     | Yes (Session) | Revoke specific session                        |
+| `/account/sessions/revoke-all`   | POST     | Yes (Session) | Revoke all user sessions                       |
+| `/login`                         | GET/POST | No            | User login (creates session)                   |
+| `/logout`                        | GET      | Yes (Session) | User logout (destroys session)                 |
 
 #### Endpoint Details
 
@@ -417,6 +436,32 @@ sequenceDiagram
 ##### Token Validation
 
 - `GET /oauth/tokeninfo?access_token=<JWT>` - Returns token details or error
+
+##### Token Revocation (RFC 7009)
+
+- `POST /oauth/revoke` - Revoke access token (CLI)
+  - Parameters: `token` (required) - The JWT token to revoke
+  - Parameters: `token_type_hint` (optional) - Set to "access_token"
+  - Returns: HTTP 200 on success (even if token doesn't exist, per RFC 7009)
+  - Note: Prevents token scanning attacks by always returning success
+
+##### Session Management (Web UI)
+
+- `GET /account/sessions` - View all active sessions for current user
+  - Displays: Client name, Client ID, scopes, creation/expiration times, status
+  - Requires: Valid user session (login required)
+
+- `POST /account/sessions/:id/revoke` - Revoke specific session
+  - Parameters: `:id` - Token ID to revoke
+  - Requires: Valid user session, token must belong to current user
+  - Returns: Redirect to sessions page
+
+- `POST /account/sessions/revoke-all` - Sign out all devices
+  - Revokes all access tokens for the current user
+  - Useful for security incidents or password changes
+  - Returns: Redirect to sessions page
+
+**Security Note:** Session management endpoints use CSRF protection and verify token ownership before revocation.
 
 ---
 
@@ -481,9 +526,12 @@ authgate/
 ├── handlers/        # HTTP request handlers
 │   ├── auth.go      # User login/logout endpoints
 │   ├── device.go    # Device authorization flow (/device, /device/verify)
-│   └── token.go     # Token issuance (/oauth/token) and verification (/oauth/tokeninfo)
+│   ├── token.go     # Token issuance (/oauth/token), verification (/oauth/tokeninfo), and revocation (/oauth/revoke)
+│   ├── session.go   # Session management (/account/sessions)
+│   └── client.go    # Admin client management
 ├── middleware/      # HTTP middleware
-│   └── auth.go      # Session authentication (RequireAuth)
+│   ├── auth.go      # Session authentication (RequireAuth, RequireAdmin)
+│   └── csrf.go      # CSRF protection middleware
 ├── models/          # Data models
 │   ├── user.go      # User accounts
 │   ├── client.go    # OAuth clients (OAuthClient)
@@ -492,10 +540,14 @@ authgate/
 ├── services/        # Business logic layer (depends on store)
 │   ├── auth.go      # User authentication and session management
 │   ├── device.go    # Device code generation and validation
-│   └── token.go     # JWT creation, signing, and validation
+│   ├── token.go     # JWT creation, signing, validation, and revocation
+│   └── client.go    # OAuth client management
 ├── store/           # Database layer (GORM + SQLite)
-│   └── sqlite.go    # Database initialization, migrations, seed data
+│   └── sqlite.go    # Database initialization, migrations, seed data, batch queries
 ├── templates/       # HTML templates (embedded via go:embed)
+│   ├── account/     # User account templates
+│   │   └── sessions.html  # Active sessions management page
+│   └── admin/       # Admin panel templates
 ├── static/          # Static files (embedded via go:embed)
 ├── docker/          # Docker configuration
 │   └── Dockerfile   # Alpine-based multi-arch image
@@ -639,12 +691,14 @@ curl http://localhost:8080/health
 - [ ] Set appropriate `DeviceCodeExpiration` (default: 30 minutes)
 - [ ] Set appropriate `JWTExpiration` (default: 1 hour)
 - [ ] Configure firewall rules
-- [ ] Enable rate limiting for token polling
+- [ ] Enable rate limiting for token polling and revocation endpoints
 - [ ] Regularly backup `oauth.db`
+- [ ] Set up automated cleanup for expired tokens and device codes
 - [ ] Use Docker non-root user mode (already configured)
 - [ ] Configure timeouts for HTTP server (ReadTimeout, WriteTimeout)
 - [ ] Enable CORS policies if needed
 - [ ] Monitor `/health` endpoint for service availability
+- [ ] Educate users to use `/account/sessions` to review and revoke suspicious devices
 
 ### Threat Model
 
@@ -806,6 +860,19 @@ Your smart device needs user authorization:
 4. Device receives token and can now access user's account
 5. Token stored securely in device memory
 
+### Example: Security Incident Response
+
+When a user suspects unauthorized access:
+
+1. **User logs in** to the web interface
+2. **Reviews active sessions** at `/account/sessions`
+3. **Identifies suspicious devices** by checking client names and authorization times
+4. **Revokes specific sessions** for unrecognized devices
+5. **Or revokes all sessions** if multiple devices are compromised
+6. **Re-authorizes legitimate devices** after security review
+
+This workflow gives users complete control and visibility over their device authorizations, meeting modern security and privacy expectations.
+
 ---
 
 ## Performance Considerations
@@ -831,11 +898,12 @@ db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 #### Performance Tips
 
 - Enable SQLite WAL mode for better concurrent read performance
-- Add indexes on frequently queried columns (`device_code`, `user_code`)
+- Add indexes on frequently queried columns (`device_code`, `user_code`, `client_id`)
 - Implement connection pooling for PostgreSQL
 - Use Redis for session storage instead of cookies
 - Add caching layer for token validation
 - Clean up expired device codes and tokens regularly
+- **Batch Queries:** Session management uses `WHERE IN` queries to avoid N+1 problems when fetching client information
 
 ### Benchmarks (Reference)
 
@@ -938,7 +1006,14 @@ A: Yes! Add additional clients to the `oauth_clients` table with unique `client_
 
 ### Q: What about token refresh?
 
-A: This implementation uses short-lived JWTs without refresh tokens. Implement refresh tokens by extending `models.AccessToken` and adding a `/oauth/token` refresh grant type.
+A: This implementation uses short-lived JWTs without refresh tokens. For production use, consider implementing refresh tokens to avoid frequent re-authorization.
+
+### Q: How do users revoke device access?
+
+A: Users have multiple options to revoke access:
+- **Web UI:** Visit `/account/sessions` to view and revoke individual devices
+- **CLI/API:** Call `POST /oauth/revoke` with the token parameter (RFC 7009)
+- **Revoke All:** Use the "Revoke All" button on the sessions page to sign out all devices at once
 
 ### Q: How long do device codes last?
 
@@ -979,6 +1054,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## References
 
 - [RFC 8628 - OAuth 2.0 Device Authorization Grant](https://datatracker.ietf.org/doc/html/rfc8628)
+- [RFC 7009 - OAuth 2.0 Token Revocation](https://datatracker.ietf.org/doc/html/rfc7009)
 - [OAuth 2.0 Documentation](https://oauth.net/2/)
 - [JWT Best Practices](https://datatracker.ietf.org/doc/html/rfc8725)
 
