@@ -111,5 +111,6 @@ go run main.go
 - All static assets and templates are embedded via `//go:embed` for single-binary deployment
 - Database connection health check available via `store.Health()` method
 - **IMPORTANT**: Before committing changes:
-  1. Run `make fmt` to automatically fix code formatting issues
-  2. Run `make lint` to verify all code passes linting without errors
+  1. **Write tests**: All new features and bug fixes MUST include corresponding unit tests
+  2. **Format code**: Run `make fmt` to automatically fix code formatting issues and ensure consistency
+  3. **Pass linting**: Run `make lint` to verify all code passes linting without errors
