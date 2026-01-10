@@ -27,6 +27,7 @@
     - [1. Login Page](#1-login-page)
     - [2. Device Authorization Page](#2-device-authorization-page)
     - [3. Authorization Success](#3-authorization-success)
+    - [4. Session Management](#4-session-management)
   - [How It Works](#how-it-works)
     - [Device Flow Sequence](#device-flow-sequence)
     - [Key Endpoints](#key-endpoints)
@@ -34,6 +35,8 @@
         - [Device Flow (CLI)](#device-flow-cli)
         - [User Authorization (Browser)](#user-authorization-browser)
         - [Token Validation](#token-validation)
+        - [Token Revocation (RFC 7009)](#token-revocation-rfc-7009)
+        - [Session Management (Web UI)](#session-management-web-ui)
   - [Configuration](#configuration)
     - [Environment Variables](#environment-variables)
       - [Generate Strong Secrets](#generate-strong-secrets)
@@ -71,6 +74,7 @@
   - [Use Cases](#use-cases)
     - [Example: Securing a CLI Tool](#example-securing-a-cli-tool)
     - [Example: IoT Device Authentication](#example-iot-device-authentication)
+    - [Example: Security Incident Response](#example-security-incident-response)
   - [Performance Considerations](#performance-considerations)
     - [Scalability](#scalability)
       - [Current Architecture (SQLite)](#current-architecture-sqlite)
@@ -82,7 +86,7 @@
     - [Common Issues](#common-issues)
       - [Issue: "Client not found" error](#issue-client-not-found-error)
       - [Issue: Database locked errors](#issue-database-locked-errors)
-      - [Issue: "authorization_pending" never resolves](#issue-authorization_pending-never-resolves)
+      - [Issue: "authorization\_pending" never resolves](#issue-authorization_pending-never-resolves)
       - [Issue: JWT signature verification fails](#issue-jwt-signature-verification-fails)
       - [Issue: Session not persisting](#issue-session-not-persisting)
     - [Debug Mode](#debug-mode)
@@ -92,6 +96,7 @@
     - [Q: How do I add user registration?](#q-how-do-i-add-user-registration)
     - [Q: Can I use this with multiple clients?](#q-can-i-use-this-with-multiple-clients)
     - [Q: What about token refresh?](#q-what-about-token-refresh)
+    - [Q: How do users revoke device access?](#q-how-do-users-revoke-device-access)
     - [Q: How long do device codes last?](#q-how-long-do-device-codes-last)
     - [Q: Can I use a different database?](#q-can-i-use-a-different-database)
     - [Q: How do I change the polling interval?](#q-how-do-i-change-the-polling-interval)
@@ -406,20 +411,20 @@ sequenceDiagram
 
 ### Key Endpoints
 
-| Endpoint                         | Method   | Auth Required | Purpose                                        |
-| -------------------------------- | -------- | ------------- | ---------------------------------------------- |
-| `/health`                        | GET      | No            | Health check with database connection test     |
-| `/oauth/device/code`             | POST     | No            | Request device and user codes (CLI/device)     |
-| `/oauth/token`                   | POST     | No            | Poll for access token (grant_type=device_code) |
-| `/oauth/tokeninfo`               | GET      | No            | Verify token validity (pass token as query)    |
-| `/oauth/revoke`                  | POST     | No            | Revoke access token (RFC 7009)                 |
-| `/device`                        | GET      | Yes (Session) | User authorization page (browser)              |
-| `/device/verify`                 | POST     | Yes (Session) | Complete authorization (submit user_code)      |
-| `/account/sessions`              | GET      | Yes (Session) | View all active sessions                       |
-| `/account/sessions/:id/revoke`   | POST     | Yes (Session) | Revoke specific session                        |
-| `/account/sessions/revoke-all`   | POST     | Yes (Session) | Revoke all user sessions                       |
-| `/login`                         | GET/POST | No            | User login (creates session)                   |
-| `/logout`                        | GET      | Yes (Session) | User logout (destroys session)                 |
+| Endpoint                       | Method   | Auth Required | Purpose                                        |
+| ------------------------------ | -------- | ------------- | ---------------------------------------------- |
+| `/health`                      | GET      | No            | Health check with database connection test     |
+| `/oauth/device/code`           | POST     | No            | Request device and user codes (CLI/device)     |
+| `/oauth/token`                 | POST     | No            | Poll for access token (grant_type=device_code) |
+| `/oauth/tokeninfo`             | GET      | No            | Verify token validity (pass token as query)    |
+| `/oauth/revoke`                | POST     | No            | Revoke access token (RFC 7009)                 |
+| `/device`                      | GET      | Yes (Session) | User authorization page (browser)              |
+| `/device/verify`               | POST     | Yes (Session) | Complete authorization (submit user_code)      |
+| `/account/sessions`            | GET      | Yes (Session) | View all active sessions                       |
+| `/account/sessions/:id/revoke` | POST     | Yes (Session) | Revoke specific session                        |
+| `/account/sessions/revoke-all` | POST     | Yes (Session) | Revoke all user sessions                       |
+| `/login`                       | GET/POST | No            | User login (creates session)                   |
+| `/logout`                      | GET      | Yes (Session) | User logout (destroys session)                 |
 
 #### Endpoint Details
 
@@ -448,10 +453,12 @@ sequenceDiagram
 ##### Session Management (Web UI)
 
 - `GET /account/sessions` - View all active sessions for current user
+
   - Displays: Client name, Client ID, scopes, creation/expiration times, status
   - Requires: Valid user session (login required)
 
 - `POST /account/sessions/:id/revoke` - Revoke specific session
+
   - Parameters: `:id` - Token ID to revoke
   - Requires: Valid user session, token must belong to current user
   - Returns: Redirect to sessions page
@@ -1011,6 +1018,7 @@ A: This implementation uses short-lived JWTs without refresh tokens. For product
 ### Q: How do users revoke device access?
 
 A: Users have multiple options to revoke access:
+
 - **Web UI:** Visit `/account/sessions` to view and revoke individual devices
 - **CLI/API:** Call `POST /oauth/revoke` with the token parameter (RFC 7009)
 - **Revoke All:** Use the "Revoke All" button on the sessions page to sign out all devices at once
