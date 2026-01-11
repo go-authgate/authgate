@@ -24,12 +24,22 @@ type Config struct {
 	PollingInterval      int // seconds
 
 	// Database
-	DatabasePath string
+	DatabaseDriver string // "sqlite" or "postgres"
+	DatabaseDSN    string // Database connection string (DSN or path)
 }
 
 func Load() *Config {
 	// Load .env file if exists (ignore error if not found)
 	_ = godotenv.Load()
+
+	// Determine database driver and DSN
+	driver := getEnv("DATABASE_DRIVER", "sqlite")
+	var dsn string
+	if driver == "sqlite" {
+		dsn = getEnv("DATABASE_DSN", getEnv("DATABASE_PATH", "oauth.db"))
+	} else {
+		dsn = getEnv("DATABASE_DSN", "")
+	}
 
 	return &Config{
 		ServerAddr:           getEnv("SERVER_ADDR", ":8080"),
@@ -39,7 +49,8 @@ func Load() *Config {
 		SessionSecret:        getEnv("SESSION_SECRET", "session-secret-change-in-production"),
 		DeviceCodeExpiration: 30 * time.Minute,
 		PollingInterval:      5,
-		DatabasePath:         getEnv("DATABASE_PATH", "oauth.db"),
+		DatabaseDriver:       driver,
+		DatabaseDSN:          dsn,
 	}
 }
 

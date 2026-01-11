@@ -488,7 +488,12 @@ JWT_SECRET=your-256-bit-secret-change-in-production       # HMAC-SHA256 signing 
 SESSION_SECRET=session-secret-change-in-production        # Cookie encryption key
 
 # Database
-DATABASE_PATH=oauth.db           # SQLite database file path
+DATABASE_DRIVER=sqlite           # Database driver: "sqlite" or "postgres"
+DATABASE_DSN=oauth.db            # Connection string (file path for SQLite, DSN for PostgreSQL)
+
+# PostgreSQL Example:
+# DATABASE_DRIVER=postgres
+# DATABASE_DSN="host=localhost user=authgate password=secret dbname=authgate port=5432 sslmode=disable"
 ```
 
 #### Generate Strong Secrets
@@ -894,13 +899,15 @@ This workflow gives users complete control and visibility over their device auth
 
 #### For High-Scale Deployments
 
-```go
-// Replace SQLite with PostgreSQL in store/
-import "gorm.io/driver/postgres"
+AuthGate now supports PostgreSQL natively. Simply configure via environment variables:
 
-dsn := "host=localhost user=authgate password=secret dbname=authgate"
-db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+```bash
+# .env configuration
+DATABASE_DRIVER=postgres
+DATABASE_DSN="host=localhost user=authgate password=secret dbname=authgate port=5432 sslmode=require"
 ```
+
+No code changes required! The application automatically selects the appropriate driver based on your configuration.
 
 #### Performance Tips
 
@@ -1029,7 +1036,23 @@ A: Device codes expire after 30 minutes by default. This is configurable via `Co
 
 ### Q: Can I use a different database?
 
-A: Yes! GORM supports PostgreSQL, MySQL, SQL Server. Update `store/sqlite.go` to use a different driver. Note: SQLite is recommended for small-scale deployments.
+A: Yes! AuthGate supports both SQLite and PostgreSQL out of the box:
+
+**SQLite** (default):
+
+```bash
+DATABASE_DRIVER=sqlite
+DATABASE_DSN=oauth.db
+```
+
+**PostgreSQL**:
+
+```bash
+DATABASE_DRIVER=postgres
+DATABASE_DSN="host=localhost user=authgate password=secret dbname=authgate port=5432 sslmode=disable"
+```
+
+The database driver uses a factory pattern and can be extended to support MySQL or other databases. See `internal/store/driver.go` for implementation details.
 
 ### Q: How do I change the polling interval?
 

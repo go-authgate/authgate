@@ -46,7 +46,9 @@ docker build -f docker/Dockerfile -t authgate .
 
 - `main.go` - Wires up store → services → handlers, configures Gin router with session middleware
 - `config/` - Loads .env via godotenv, provides Config struct with defaults
-- `store/` - GORM-based data access layer with SQLite, single Store struct with all DB methods
+- `store/` - GORM-based data access layer, supports SQLite and PostgreSQL via driver factory pattern
+  - `driver.go` - Database driver factory using map-based pattern (no if-else)
+  - `sqlite.go` - Store implementation and database operations (driver-agnostic)
 - `services/` - Business logic (UserService, DeviceService, TokenService), depends on Store
 - `handlers/` - HTTP handlers (AuthHandler, DeviceHandler, TokenHandler), depends on Services
 - `models/` - GORM models (User, OAuthClient, DeviceCode, AccessToken)
@@ -77,13 +79,14 @@ docker build -f docker/Dockerfile -t authgate .
 
 ## Environment Variables
 
-| Variable       | Default                 | Description                     |
-| -------------- | ----------------------- | ------------------------------- |
-| SERVER_ADDR    | :8080                   | Listen address                  |
-| BASE_URL       | `http://localhost:8080` | Public URL for verification_uri |
-| JWT_SECRET     | (default)               | JWT signing key                 |
-| SESSION_SECRET | (default)               | Cookie encryption key           |
-| DATABASE_PATH  | oauth.db                | SQLite database path            |
+| Variable        | Default                 | Description                                             |
+| --------------- | ----------------------- | ------------------------------------------------------- |
+| SERVER_ADDR     | :8080                   | Listen address                                          |
+| BASE_URL        | `http://localhost:8080` | Public URL for verification_uri                         |
+| JWT_SECRET      | (default)               | JWT signing key                                         |
+| SESSION_SECRET  | (default)               | Cookie encryption key                                   |
+| DATABASE_DRIVER | sqlite                  | Database driver ("sqlite" or "postgres")                |
+| DATABASE_DSN    | oauth.db                | Connection string (path for SQLite, DSN for PostgreSQL) |
 
 ## Default Test Data
 

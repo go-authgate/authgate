@@ -4,12 +4,12 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"log"
+	"time"
 
 	"github.com/appleboy/authgate/internal/models"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -18,8 +18,13 @@ type Store struct {
 	db *gorm.DB
 }
 
-func New(dbPath string) (*Store, error) {
-	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
+func New(driver, dsn string) (*Store, error) {
+	dialector, err := GetDialector(driver, dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	db, err := gorm.Open(dialector, &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {
@@ -249,11 +254,11 @@ func (s *Store) RevokeTokensByClientID(clientID string) error {
 }
 
 func (s *Store) DeleteExpiredTokens() error {
-	return s.db.Where("expires_at < datetime('now')").Delete(&models.AccessToken{}).Error
+	return s.db.Where("expires_at < ?", time.Now()).Delete(&models.AccessToken{}).Error
 }
 
 func (s *Store) DeleteExpiredDeviceCodes() error {
-	return s.db.Where("expires_at < datetime('now')").Delete(&models.DeviceCode{}).Error
+	return s.db.Where("expires_at < ?", time.Now()).Delete(&models.DeviceCode{}).Error
 }
 
 // Health checks the database connection

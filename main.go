@@ -78,7 +78,7 @@ func runServer() {
 	cfg := config.Load()
 
 	// Initialize store
-	db, err := store.New(cfg.DatabasePath)
+	db, err := store.New(cfg.DatabaseDriver, cfg.DatabaseDSN)
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}

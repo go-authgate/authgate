@@ -15,7 +15,7 @@ import (
 
 func setupTestStore(t *testing.T) *store.Store {
 	// Use in-memory SQLite database for testing
-	s, err := store.New(":memory:")
+	s, err := store.New("sqlite", ":memory:")
 	require.NoError(t, err)
 	return s
 }
