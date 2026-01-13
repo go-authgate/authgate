@@ -54,7 +54,7 @@ type APIAuthResponse struct {
 }
 
 // Authenticate verifies credentials against external HTTP API
-func (p *HTTPAPIAuthProvider) Authenticate(username, password string) (*AuthResult, error) {
+func (p *HTTPAPIAuthProvider) Authenticate(ctx context.Context, username, password string) (*AuthResult, error) {
 	reqBody := APIAuthRequest{
 		Username: username,
 		Password: password,
@@ -65,7 +65,6 @@ func (p *HTTPAPIAuthProvider) Authenticate(username, password string) (*AuthResu
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	ctx := context.Background()
 	req, err := http.NewRequestWithContext(
 		ctx,
 		"POST",

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -43,18 +44,18 @@ func NewUserService(
 	}
 }
 
-func (s *UserService) Authenticate(username, password string) (*models.User, error) {
+func (s *UserService) Authenticate(ctx context.Context, username, password string) (*models.User, error) {
 	// First, try to find existing user
 	existingUser, err := s.store.GetUserByUsername(username)
 
 	// If user exists, authenticate based on their auth_source
 	if err == nil {
-		return s.authenticateExistingUser(existingUser, password)
+		return s.authenticateExistingUser(ctx, existingUser, password)
 	}
 
 	// User doesn't exist - try to create via external auth if configured
 	if s.authMode == AuthModeHTTPAPI {
-		return s.authenticateAndCreateExternalUser(username, password)
+		return s.authenticateAndCreateExternalUser(ctx, username, password)
 	}
 
 	// No existing user and not in external auth mode
@@ -63,6 +64,7 @@ func (s *UserService) Authenticate(username, password string) (*models.User, err
 
 // authenticateExistingUser authenticates based on user's auth_source
 func (s *UserService) authenticateExistingUser(
+	ctx context.Context,
 	user *models.User,
 	password string,
 ) (*models.User, error) {
@@ -77,7 +79,7 @@ func (s *UserService) authenticateExistingUser(
 			return nil, fmt.Errorf("%w: HTTP API provider not configured", ErrAuthProviderFailed)
 		}
 		providerName = "HTTP API"
-		authResult, err = s.httpAPIProvider.Authenticate(user.Username, password)
+		authResult, err = s.httpAPIProvider.Authenticate(ctx, user.Username, password)
 
 		// Sync user data on successful external auth
 		if err == nil && authResult.Success {
@@ -96,7 +98,7 @@ func (s *UserService) authenticateExistingUser(
 			return nil, fmt.Errorf("%w: local provider not configured", ErrAuthProviderFailed)
 		}
 		providerName = AuthModeLocal
-		authResult, err = s.localProvider.Authenticate(user.Username, password)
+		authResult, err = s.localProvider.Authenticate(ctx, user.Username, password)
 	}
 
 	// Handle authentication failure
@@ -114,6 +116,7 @@ func (s *UserService) authenticateExistingUser(
 
 // authenticateAndCreateExternalUser tries external auth and creates new user
 func (s *UserService) authenticateAndCreateExternalUser(
+	ctx context.Context,
 	username, password string,
 ) (*models.User, error) {
 	if s.httpAPIProvider == nil {
@@ -121,7 +124,7 @@ func (s *UserService) authenticateAndCreateExternalUser(
 	}
 
 	// Try external authentication
-	authResult, err := s.httpAPIProvider.Authenticate(username, password)
+	authResult, err := s.httpAPIProvider.Authenticate(ctx, username, password)
 	if err != nil {
 		return nil, ErrInvalidCredentials
 	}

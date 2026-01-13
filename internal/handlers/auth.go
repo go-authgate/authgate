@@ -44,7 +44,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	password := c.PostForm("password")
 	redirectTo := c.PostForm("redirect")
 
-	user, err := h.userService.Authenticate(username, password)
+	user, err := h.userService.Authenticate(c.Request.Context(), username, password)
 	if err != nil {
 		c.HTML(http.StatusUnauthorized, "login.html", gin.H{
 			"error":    "Invalid username or password",
