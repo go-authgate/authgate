@@ -975,6 +975,27 @@ No code changes required! The application automatically selects the appropriate 
 # Check server logs for errors during authorization
 ```
 
+#### Issue: "Username conflict with existing user" error
+
+**Problem**: User sees "Username conflict with existing user. Please contact administrator." when logging in via external API.
+
+**Cause**: The username returned by the external authentication API matches an existing user in the local database.
+
+**Resolution Options**:
+
+1. **Rename existing local user** (if it's a different person):
+   ```sql
+   UPDATE users SET username = 'newname' WHERE username = 'conflicting-username';
+   ```
+
+2. **Configure external API to use different username**: Update the external system to return a unique username (e.g., append domain suffix).
+
+3. **Manual account merge** (if it's the same person):
+   - Ensure the local user has `auth_source='http_api'` and correct `external_id`
+   - Recommended for migrating local users to external authentication
+
+**Prevention**: Use namespaced usernames in external API (e.g., "john@company.com" instead of "john").
+
 #### Issue: JWT signature verification fails
 
 ```bash

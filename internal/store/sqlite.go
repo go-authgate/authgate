@@ -3,6 +3,8 @@ package store
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"log"
 	"time"
 
@@ -130,6 +132,93 @@ func (s *Store) GetUserByID(id string) (*models.User, error) {
 	if err := s.db.Where("id = ?", id).First(&user).Error; err != nil {
 		return nil, err
 	}
+	return &user, nil
+}
+
+// GetUserByExternalID finds a user by their external ID and auth source
+func (s *Store) GetUserByExternalID(externalID, authSource string) (*models.User, error) {
+	var user models.User
+	if err := s.db.Where("external_id = ? AND auth_source = ?", externalID, authSource).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// UpsertExternalUser creates or updates a user from external authentication
+func (s *Store) UpsertExternalUser(
+	username, externalID, authSource, email, fullName string,
+) (*models.User, error) {
+	var user models.User
+
+	// Try to find existing user by external ID
+	err := s.db.Where("external_id = ? AND auth_source = ?", externalID, authSource).
+		First(&user).
+		Error
+
+	if err == nil {
+		// User exists - check if username changed
+		if user.Username != username {
+			// Username changed, verify new username is available
+			var conflictingUser models.User
+			conflictErr := s.db.Where("username = ? AND id != ?", username, user.ID).
+				First(&conflictingUser).
+				Error
+
+			if conflictErr == nil {
+				// Username taken by another user
+				return nil, ErrUsernameConflict
+			}
+			if !errors.Is(conflictErr, gorm.ErrRecordNotFound) {
+				// Unexpected database error
+				return nil, fmt.Errorf("failed to check username: %w", conflictErr)
+			}
+			// Username available, continue with update
+		}
+
+		// Update user fields
+		user.Username = username
+		user.Email = email
+		user.FullName = fullName
+		if err := s.db.Save(&user).Error; err != nil {
+			return nil, fmt.Errorf("failed to update external user: %w", err)
+		}
+		return &user, nil
+	}
+
+	// Handle query error
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to query external user: %w", err)
+	}
+
+	// User doesn't exist - check if username is available
+	var existingUser models.User
+	err = s.db.Where("username = ?", username).First(&existingUser).Error
+
+	if err == nil {
+		// Username already taken
+		return nil, ErrUsernameConflict
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		// Unexpected database error
+		return nil, fmt.Errorf("failed to check username: %w", err)
+	}
+
+	// Create new user
+	user = models.User{
+		ID:           uuid.New().String(),
+		Username:     username,
+		PasswordHash: "", // No local password for external users
+		Role:         "user",
+		ExternalID:   externalID,
+		AuthSource:   authSource,
+		Email:        email,
+		FullName:     fullName,
+	}
+
+	if err := s.db.Create(&user).Error; err != nil {
+		return nil, fmt.Errorf("failed to create external user: %w", err)
+	}
+
 	return &user, nil
 }
 

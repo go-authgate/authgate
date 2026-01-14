@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"errors"
 	"flag"
 	"fmt"
 	"html/template"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/appleboy/authgate/internal/auth"
 	"github.com/appleboy/authgate/internal/config"
 	"github.com/appleboy/authgate/internal/handlers"
 	"github.com/appleboy/authgate/internal/middleware"
@@ -77,14 +79,28 @@ func runServer() {
 	// Load configuration
 	cfg := config.Load()
 
+	// Validate authentication configuration
+	if err := validateAuthConfig(cfg); err != nil {
+		log.Fatalf("Invalid authentication configuration: %v", err)
+	}
+
 	// Initialize store
 	db, err := store.New(cfg.DatabaseDriver, cfg.DatabaseDSN)
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
+	// Initialize authentication providers
+	localProvider := auth.NewLocalAuthProvider(db)
+
+	var httpAPIProvider *auth.HTTPAPIAuthProvider
+	if cfg.AuthMode == "http_api" {
+		httpAPIProvider = auth.NewHTTPAPIAuthProvider(cfg)
+		log.Printf("HTTP API authentication enabled: %s", cfg.HTTPAPIURL)
+	}
+
 	// Initialize services
-	userService := services.NewUserService(db)
+	userService := services.NewUserService(db, localProvider, httpAPIProvider, cfg.AuthMode)
 	deviceService := services.NewDeviceService(db, cfg)
 	tokenService := services.NewTokenService(db, cfg)
 	clientService := services.NewClientService(db)
@@ -219,6 +235,7 @@ func runServer() {
 	}
 
 	// Start server
+	log.Printf("Authentication mode: %s", cfg.AuthMode)
 	log.Printf("OAuth Device Flow server starting on %s", cfg.ServerAddr)
 	log.Printf("Verification URL: %s/device", cfg.BaseURL)
 	log.Printf("  (Tip: Add ?user_code=XXXX-XXXX to pre-fill the code)")
@@ -266,4 +283,19 @@ func runServer() {
 
 	// Wait for graceful shutdown
 	<-m.Done()
+}
+
+// validateAuthConfig checks that required config is present for selected auth mode
+func validateAuthConfig(cfg *config.Config) error {
+	switch cfg.AuthMode {
+	case "http_api":
+		if cfg.HTTPAPIURL == "" {
+			return errors.New("HTTP_API_URL is required when AUTH_MODE=http_api")
+		}
+	case "local":
+		// No additional validation needed
+	default:
+		return fmt.Errorf("invalid AUTH_MODE: %s (must be: local, http_api)", cfg.AuthMode)
+	}
+	return nil
 }

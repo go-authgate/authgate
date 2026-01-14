@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/appleboy/authgate/internal/models"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -337,4 +338,166 @@ func BenchmarkStoreOperations(b *testing.B) {
 			_, _ = store.GetUserByUsername("benchuser")
 		}
 	})
+}
+
+// TestUpsertExternalUser_UsernameConflict_OnCreate tests username conflict detection when creating new users
+func TestUpsertExternalUser_UsernameConflict_OnCreate(t *testing.T) {
+	store, err := New("sqlite", ":memory:")
+	require.NoError(t, err)
+
+	// Create a local user first
+	localUser := &models.User{
+		ID:           uuid.New().String(),
+		Username:     "john",
+		PasswordHash: "hashedpassword",
+		Role:         "user",
+		AuthSource:   "local",
+	}
+	err = store.db.Create(localUser).Error
+	require.NoError(t, err)
+
+	// Try to create external user with same username
+	_, err = store.UpsertExternalUser(
+		"john",         // same username
+		"ext-user-123", // different external ID
+		"http_api",     // different auth source
+		"john@example.com",
+		"John Doe",
+	)
+
+	// Should return username conflict error
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrUsernameConflict)
+}
+
+// TestUpsertExternalUser_UsernameConflict_OnUpdate tests username conflict when updating existing user
+func TestUpsertExternalUser_UsernameConflict_OnUpdate(t *testing.T) {
+	store, err := New("sqlite", ":memory:")
+	require.NoError(t, err)
+
+	// Create first external user
+	user1, err := store.UpsertExternalUser(
+		"john",
+		"ext-user-1",
+		"http_api",
+		"john@example.com",
+		"John Doe",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "john", user1.Username)
+
+	// Create second external user
+	user2, err := store.UpsertExternalUser(
+		"jane",
+		"ext-user-2",
+		"http_api",
+		"jane@example.com",
+		"Jane Smith",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "jane", user2.Username)
+
+	// Try to update user2's username to conflict with user1
+	_, err = store.UpsertExternalUser(
+		"john",       // trying to change to john
+		"ext-user-2", // same external ID as user2
+		"http_api",
+		"jane@example.com",
+		"Jane Smith",
+	)
+
+	// Should return username conflict error
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrUsernameConflict)
+
+	// Verify user2's username unchanged
+	user2Check, err := store.GetUserByExternalID("ext-user-2", "http_api")
+	require.NoError(t, err)
+	assert.Equal(t, "jane", user2Check.Username)
+}
+
+// TestUpsertExternalUser_SameUserKeepsUsername tests that same user can keep their username
+func TestUpsertExternalUser_SameUserKeepsUsername(t *testing.T) {
+	store, err := New("sqlite", ":memory:")
+	require.NoError(t, err)
+
+	// Create external user
+	user, err := store.UpsertExternalUser(
+		"john",
+		"ext-user-123",
+		"http_api",
+		"john@example.com",
+		"John Doe",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "john", user.Username)
+
+	// Update same user with same username (should succeed)
+	updatedUser, err := store.UpsertExternalUser(
+		"john", // same username
+		"ext-user-123",
+		"http_api",
+		"john.doe@example.com", // updated email
+		"John A. Doe",          // updated name
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "john", updatedUser.Username)
+	assert.Equal(t, "john.doe@example.com", updatedUser.Email)
+	assert.Equal(t, "John A. Doe", updatedUser.FullName)
+}
+
+// TestUpsertExternalUser_Success_NewUser tests successful creation of new external user
+func TestUpsertExternalUser_Success_NewUser(t *testing.T) {
+	store, err := New("sqlite", ":memory:")
+	require.NoError(t, err)
+
+	user, err := store.UpsertExternalUser(
+		"alice",
+		"ext-user-456",
+		"http_api",
+		"alice@example.com",
+		"Alice Wonder",
+	)
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, user.ID)
+	assert.Equal(t, "alice", user.Username)
+	assert.Equal(t, "ext-user-456", user.ExternalID)
+	assert.Equal(t, "http_api", user.AuthSource)
+	assert.Equal(t, "alice@example.com", user.Email)
+	assert.Equal(t, "Alice Wonder", user.FullName)
+	assert.Equal(t, "user", user.Role)
+	assert.Empty(t, user.PasswordHash)
+}
+
+// TestUpsertExternalUser_Success_UpdateExisting tests successful update of existing external user
+func TestUpsertExternalUser_Success_UpdateExisting(t *testing.T) {
+	store, err := New("sqlite", ":memory:")
+	require.NoError(t, err)
+
+	// Create user
+	user, err := store.UpsertExternalUser(
+		"bob",
+		"ext-user-789",
+		"http_api",
+		"bob@example.com",
+		"Bob Builder",
+	)
+	require.NoError(t, err)
+	originalID := user.ID
+
+	// Update user info
+	updatedUser, err := store.UpsertExternalUser(
+		"bob",
+		"ext-user-789", // same external ID
+		"http_api",
+		"bob.builder@example.com", // updated email
+		"Robert Builder",          // updated name
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, originalID, updatedUser.ID) // ID unchanged
+	assert.Equal(t, "bob", updatedUser.Username)
+	assert.Equal(t, "bob.builder@example.com", updatedUser.Email)
+	assert.Equal(t, "Robert Builder", updatedUser.FullName)
 }
