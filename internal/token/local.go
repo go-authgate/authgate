@@ -93,10 +93,6 @@ func (p *LocalTokenProvider) ValidateToken(
 	}
 	expiresAt := time.Unix(int64(exp), 0)
 
-	if time.Now().After(expiresAt) {
-		return nil, ErrExpiredToken
-	}
-
 	return &TokenValidationResult{
 		Valid:     true,
 		UserID:    userID,

@@ -100,7 +100,7 @@ func (s *TokenService) ExchangeDeviceCode(
 	switch s.tokenProviderMode {
 	case "http_api":
 		if s.httpTokenProvider == nil {
-			return nil, fmt.Errorf("HTTP token provider not configured")
+			return nil, fmt.Errorf("HTTP token provider not configured (TOKEN_PROVIDER_MODE=http_api requires TOKEN_API_URL)")
 		}
 		tokenResult, providerErr = s.httpTokenProvider.GenerateToken(
 			context.Background(),
