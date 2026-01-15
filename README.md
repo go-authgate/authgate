@@ -87,6 +87,7 @@
       - [Issue: "Client not found" error](#issue-client-not-found-error)
       - [Issue: Database locked errors](#issue-database-locked-errors)
       - [Issue: "authorization\_pending" never resolves](#issue-authorization_pending-never-resolves)
+      - [Issue: "Username conflict with existing user" error](#issue-username-conflict-with-existing-user-error)
       - [Issue: JWT signature verification fails](#issue-jwt-signature-verification-fails)
       - [Issue: Session not persisting](#issue-session-not-persisting)
     - [Debug Mode](#debug-mode)
@@ -984,6 +985,7 @@ No code changes required! The application automatically selects the appropriate 
 **Resolution Options**:
 
 1. **Rename existing local user** (if it's a different person):
+
    ```sql
    UPDATE users SET username = 'newname' WHERE username = 'conflicting-username';
    ```
@@ -994,7 +996,7 @@ No code changes required! The application automatically selects the appropriate 
    - Ensure the local user has `auth_source='http_api'` and correct `external_id`
    - Recommended for migrating local users to external authentication
 
-**Prevention**: Use namespaced usernames in external API (e.g., "john@company.com" instead of "john").
+**Prevention**: Use namespaced usernames in external API (e.g., [john@company.com](mailto:john@company.com) instead of "john").
 
 #### Issue: JWT signature verification fails
 
