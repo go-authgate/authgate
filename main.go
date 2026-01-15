@@ -100,7 +100,7 @@ func runServer() {
 	localProvider := auth.NewLocalAuthProvider(db)
 
 	var httpAPIProvider *auth.HTTPAPIAuthProvider
-	if cfg.AuthMode == "http_api" {
+	if cfg.AuthMode == config.AuthModeHTTPAPI {
 		httpAPIProvider = auth.NewHTTPAPIAuthProvider(cfg)
 		log.Printf("HTTP API authentication enabled: %s", cfg.HTTPAPIURL)
 	}
@@ -109,7 +109,7 @@ func runServer() {
 	localTokenProvider := token.NewLocalTokenProvider(cfg)
 
 	var httpTokenProvider *token.HTTPTokenProvider
-	if cfg.TokenProviderMode == "http_api" {
+	if cfg.TokenProviderMode == config.TokenProviderModeHTTPAPI {
 		httpTokenProvider = token.NewHTTPTokenProvider(cfg)
 		log.Printf("HTTP API token provider enabled: %s", cfg.TokenAPIURL)
 	}
@@ -309,11 +309,11 @@ func runServer() {
 // validateAuthConfig checks that required config is present for selected auth mode
 func validateAuthConfig(cfg *config.Config) error {
 	switch cfg.AuthMode {
-	case "http_api":
+	case config.AuthModeHTTPAPI:
 		if cfg.HTTPAPIURL == "" {
 			return errors.New("HTTP_API_URL is required when AUTH_MODE=http_api")
 		}
-	case "local":
+	case config.AuthModeLocal:
 		// No additional validation needed
 	default:
 		return fmt.Errorf("invalid AUTH_MODE: %s (must be: local, http_api)", cfg.AuthMode)
@@ -324,11 +324,11 @@ func validateAuthConfig(cfg *config.Config) error {
 // validateTokenProviderConfig checks that required config is present for selected token provider mode
 func validateTokenProviderConfig(cfg *config.Config) error {
 	switch cfg.TokenProviderMode {
-	case "http_api":
+	case config.TokenProviderModeHTTPAPI:
 		if cfg.TokenAPIURL == "" {
 			return errors.New("TOKEN_API_URL is required when TOKEN_PROVIDER_MODE=http_api")
 		}
-	case "local":
+	case config.TokenProviderModeLocal:
 		// No additional validation needed
 	default:
 		return fmt.Errorf(

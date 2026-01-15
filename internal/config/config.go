@@ -7,6 +7,18 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// Authentication mode constants
+const (
+	AuthModeLocal   = "local"
+	AuthModeHTTPAPI = "http_api"
+)
+
+// Token provider mode constants
+const (
+	TokenProviderModeLocal   = "local"
+	TokenProviderModeHTTPAPI = "http_api"
+)
+
 type Config struct {
 	// Server settings
 	ServerAddr string
@@ -69,7 +81,7 @@ func Load() *Config {
 		DatabaseDSN:          dsn,
 
 		// Authentication
-		AuthMode: getEnv("AUTH_MODE", "local"),
+		AuthMode: getEnv("AUTH_MODE", AuthModeLocal),
 
 		// HTTP API Authentication
 		HTTPAPIURL:                getEnv("HTTP_API_URL", ""),
@@ -77,7 +89,7 @@ func Load() *Config {
 		HTTPAPIInsecureSkipVerify: getEnvBool("HTTP_API_INSECURE_SKIP_VERIFY", false),
 
 		// Token Provider
-		TokenProviderMode: getEnv("TOKEN_PROVIDER_MODE", "local"),
+		TokenProviderMode: getEnv("TOKEN_PROVIDER_MODE", TokenProviderModeLocal),
 
 		// HTTP API Token Provider
 		TokenAPIURL:                getEnv("TOKEN_API_URL", ""),

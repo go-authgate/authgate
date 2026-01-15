@@ -95,29 +95,7 @@ func TestHTTPTokenProvider_GenerateToken_MissingAccessToken(t *testing.T) {
 }
 
 func TestHTTPTokenProvider_GenerateToken_APIError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		err := json.NewEncoder(w).Encode(APITokenGenerateResponse{
-			Success: false,
-			Message: "Invalid user_id",
-		})
-		require.NoError(t, err)
-	}))
-	defer server.Close()
-
-	cfg := &config.Config{
-		TokenAPIURL:     server.URL,
-		TokenAPITimeout: 10 * time.Second,
-		JWTExpiration:   1 * time.Hour,
-	}
-
-	provider := NewHTTPTokenProvider(cfg)
-	_, err := provider.GenerateToken(context.Background(), "invalid", "client456", "read")
-
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrHTTPTokenAuthFailed)
-	assert.Contains(t, err.Error(), "Invalid user_id")
+	testGenerateTokenError(t, http.StatusBadRequest, "Invalid user_id")
 }
 
 func TestHTTPTokenProvider_GenerateToken_Non2xxStatus(t *testing.T) {
@@ -311,12 +289,18 @@ func TestHTTPTokenProvider_Name(t *testing.T) {
 }
 
 func TestHTTPTokenProvider_GenerateToken_SuccessFalse(t *testing.T) {
+	testGenerateTokenError(t, http.StatusOK, "Authentication failed")
+}
+
+// testGenerateTokenError is a helper function to test token generation error scenarios
+func testGenerateTokenError(t *testing.T, statusCode int, errorMessage string) {
+	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(statusCode)
 		err := json.NewEncoder(w).Encode(APITokenGenerateResponse{
 			Success: false,
-			Message: "Authentication failed",
+			Message: errorMessage,
 		})
 		require.NoError(t, err)
 	}))
@@ -333,5 +317,5 @@ func TestHTTPTokenProvider_GenerateToken_SuccessFalse(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, ErrHTTPTokenAuthFailed)
-	assert.Contains(t, err.Error(), "Authentication failed")
+	assert.Contains(t, err.Error(), errorMessage)
 }
