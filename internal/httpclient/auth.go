@@ -1,6 +1,7 @@
 package httpclient
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -83,11 +84,11 @@ func (c *AuthConfig) addHMACAuth(req *http.Request, body []byte) error {
 	timestamp := time.Now().Unix()
 	nonce := uuid.New().String()
 
-	// Calculate signature: HMAC-SHA256(secret, timestamp + method + path + body)
+	// Calculate signature: HMAC-SHA256(secret, timestamp + method + path + query + body)
 	signature := c.calculateHMACSignature(
 		timestamp,
 		req.Method,
-		req.URL.Path,
+		getFullPath(req),
 		body,
 	)
 
@@ -133,6 +134,15 @@ func (c *AuthConfig) calculateHMACSignature(
 	h.Write([]byte(message))
 
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// getFullPath returns the full request path including query parameters
+func getFullPath(req *http.Request) string {
+	path := req.URL.Path
+	if req.URL.RawQuery != "" {
+		return path + "?" + req.URL.RawQuery
+	}
+	return path
 }
 
 // VerifyHMACSignature verifies HMAC signature from request (for server-side validation)
@@ -181,11 +191,14 @@ func (c *AuthConfig) VerifyHMACSignature(req *http.Request, maxAge time.Duration
 		return fmt.Errorf("failed to read body: %w", err)
 	}
 
-	// Calculate expected signature
+	// Restore body for subsequent handlers
+	req.Body = io.NopCloser(bytes.NewBuffer(body))
+
+	// Calculate expected signature (including query parameters)
 	expectedSignature := c.calculateHMACSignature(
 		timestamp,
 		req.Method,
-		req.URL.Path,
+		getFullPath(req),
 		body,
 	)
 

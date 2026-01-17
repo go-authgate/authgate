@@ -429,3 +429,131 @@ func TestNewAuthConfig(t *testing.T) {
 		t.Errorf("NonceHeader = %v, want %s", config.NonceHeader, testXNonce)
 	}
 }
+
+// TestAuthConfig_VerifyHMACSignature_BodyPreservation tests that the request body
+// can be read again after VerifyHMACSignature has been called.
+// This is critical for middleware scenarios where the body needs to be processed
+// by subsequent handlers after signature verification.
+func TestAuthConfig_VerifyHMACSignature_BodyPreservation(t *testing.T) {
+	config := &AuthConfig{
+		Secret: "test-secret",
+	}
+
+	originalBody := []byte(`{"username":"test","password":"secret123"}`)
+	timestamp := time.Now().Unix()
+	signature := config.calculateHMACSignature(timestamp, "POST", "/api/auth", originalBody)
+
+	// Create a request with valid signature
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		"POST",
+		testExampleAuthURL,
+		bytes.NewBuffer(originalBody),
+	)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	req.Header.Set(testXSignature, signature)
+	req.Header.Set(testXTimestamp, strconv.FormatInt(timestamp, 10))
+
+	// Verify the signature (this will read the body)
+	err = config.VerifyHMACSignature(req, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("VerifyHMACSignature() error = %v, want nil", err)
+	}
+
+	// Try to read the body again (simulating what a subsequent handler would do)
+	bodyAfterVerify, err := io.ReadAll(req.Body)
+	if err != nil {
+		t.Fatalf("Failed to read body after verification: %v", err)
+	}
+
+	// The body should still contain the original data
+	if !bytes.Equal(bodyAfterVerify, originalBody) {
+		t.Errorf(
+			"Body after verification = %q, want %q",
+			string(bodyAfterVerify),
+			string(originalBody),
+		)
+		t.Errorf(
+			"Body length after verification = %d, want %d",
+			len(bodyAfterVerify),
+			len(originalBody),
+		)
+		if len(bodyAfterVerify) == 0 {
+			t.Error("Body is empty after verification - this proves the bug exists!")
+		}
+	}
+}
+
+// TestAuthConfig_VerifyHMACSignature_QueryParameterSecurity tests that query parameters
+// are included in the HMAC signature calculation. Without this, an attacker could modify
+// query parameters without invalidating the signature, which is a security vulnerability.
+func TestAuthConfig_VerifyHMACSignature_QueryParameterSecurity(t *testing.T) {
+	config := &AuthConfig{
+		Secret: "test-secret",
+	}
+
+	body := []byte(`{"action":"view"}`)
+	timestamp := time.Now().Unix()
+
+	// Step 1: Create signature for original request with safe query parameters
+	originalURL := "http://example.com/api/users?id=123&action=view"
+	req1, _ := http.NewRequestWithContext(
+		context.Background(),
+		"POST",
+		originalURL,
+		bytes.NewBuffer(body),
+	)
+
+	// Generate signature using the SAME logic as VerifyHMACSignature
+	// (which now includes query parameters)
+	fullPath := req1.URL.Path
+	if req1.URL.RawQuery != "" {
+		fullPath += "?" + req1.URL.RawQuery
+	}
+	signature := config.calculateHMACSignature(timestamp, req1.Method, fullPath, body)
+
+	// Verify original request passes
+	req1.Header.Set(testXSignature, signature)
+	req1.Header.Set(testXTimestamp, strconv.FormatInt(timestamp, 10))
+	if err := config.VerifyHMACSignature(req1, 5*time.Minute); err != nil {
+		t.Fatalf("Original request should pass verification: %v", err)
+	}
+
+	// Step 2: Create a DIFFERENT request with MALICIOUS query parameters
+	// but use the SAME signature from step 1
+	maliciousURL := "http://example.com/api/users?id=999&action=delete&admin=true"
+	req2, _ := http.NewRequestWithContext(
+		context.Background(),
+		"POST",
+		maliciousURL,
+		bytes.NewBuffer(body),
+	)
+
+	// Use the SAME signature (from original safe request)
+	req2.Header.Set(testXSignature, signature)
+	req2.Header.Set(testXTimestamp, strconv.FormatInt(timestamp, 10))
+
+	// Verify the tampered request
+	err := config.VerifyHMACSignature(req2, 5*time.Minute)
+
+	// This SHOULD fail because query params are different
+	// If it passes, it means query params are NOT included in signature (security bug)
+	if err == nil {
+		t.Error(
+			"SECURITY VULNERABILITY: VerifyHMACSignature() passed with tampered query parameters!",
+		)
+		t.Error("This proves that query parameters are NOT included in the signature calculation.")
+		t.Errorf("Original request: %s", originalURL)
+		t.Errorf("Tampered request: %s", maliciousURL)
+		t.Error("An attacker could:")
+		t.Error("  - Change user IDs to access other users' data")
+		t.Error("  - Change actions from 'view' to 'delete'")
+		t.Error("  - Add admin privileges")
+		t.Error("All without invalidating the signature!")
+	} else {
+		t.Logf("Good! Verification correctly failed: %v", err)
+	}
+}
