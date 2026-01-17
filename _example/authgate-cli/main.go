@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -16,6 +18,7 @@ import (
 var (
 	serverURL string
 	clientID  string
+	tokenFile string
 )
 
 func init() {
@@ -24,6 +27,7 @@ func init() {
 
 	serverURL = getEnv("SERVER_URL", "http://localhost:8080")
 	clientID = getEnv("CLIENT_ID", "")
+	tokenFile = getEnv("TOKEN_FILE", ".authgate-tokens.json")
 
 	if clientID == "" {
 		fmt.Println("Error: CLIENT_ID not set. Please set it in .env file or environment variable.")
@@ -44,10 +48,80 @@ type ErrorResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
-func main() {
-	fmt.Printf("=== OAuth Device Code Flow CLI Demo ===\n")
+// TokenStorage represents saved tokens
+type TokenStorage struct {
+	AccessToken  string    `json:"access_token"`
+	RefreshToken string    `json:"refresh_token"`
+	TokenType    string    `json:"token_type"`
+	ExpiresAt    time.Time `json:"expires_at"`
+}
 
-	// Configure OAuth2 with device flow endpoints
+func main() {
+	fmt.Printf("=== OAuth Device Code Flow CLI Demo (with Refresh Token) ===\n\n")
+
+	ctx := context.Background()
+	var storage *TokenStorage
+
+	// Try to load existing tokens
+	storage, err := loadTokens()
+	if err == nil && storage != nil {
+		fmt.Println("Found existing tokens!")
+
+		// Check if access token is still valid
+		if time.Now().Before(storage.ExpiresAt) {
+			fmt.Println("Access token is still valid, using it...")
+		} else {
+			fmt.Println("Access token expired, refreshing...")
+
+			// Try to refresh
+			newStorage, err := refreshAccessToken(storage.RefreshToken)
+			if err != nil {
+				fmt.Printf("Refresh failed: %v\n", err)
+				fmt.Println("Starting new device flow...")
+				storage = nil // Force device flow
+			} else {
+				storage = newStorage
+				fmt.Println("Token refreshed successfully!")
+			}
+		}
+	} else {
+		fmt.Println("No existing tokens found, starting device flow...")
+	}
+
+	// If no valid tokens, do device flow
+	if storage == nil {
+		storage, err = performDeviceFlow(ctx)
+		if err != nil {
+			fmt.Printf("Device flow failed: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	// Display current token info
+	fmt.Printf("\n========================================\n")
+	fmt.Printf("Current Token Info:\n")
+	fmt.Printf("Access Token: %s...\n", storage.AccessToken[:min(50, len(storage.AccessToken))])
+	fmt.Printf("Token Type: %s\n", storage.TokenType)
+	fmt.Printf("Expires In: %s\n", time.Until(storage.ExpiresAt).Round(time.Second))
+	fmt.Printf("========================================\n")
+
+	// Verify token
+	fmt.Println("\nVerifying token...")
+	if err := verifyToken(storage.AccessToken); err != nil {
+		fmt.Printf("Token verification failed: %v\n", err)
+	} else {
+		fmt.Println("Token verified successfully!")
+	}
+
+	// Demonstrate automatic refresh on 401
+	fmt.Println("\nDemonstrating automatic refresh on API call...")
+	if err := makeAPICallWithAutoRefresh(storage); err != nil {
+		fmt.Printf("API call failed: %v\n", err)
+	}
+}
+
+// performDeviceFlow performs the OAuth device authorization flow
+func performDeviceFlow(ctx context.Context) (*TokenStorage, error) {
 	config := &oauth2.Config{
 		ClientID: clientID,
 		Endpoint: oauth2.Endpoint{
@@ -57,14 +131,11 @@ func main() {
 		Scopes: []string{"read", "write"},
 	}
 
-	ctx := context.Background()
-
 	// Step 1: Request device code
 	fmt.Println("Step 1: Requesting device code...")
 	deviceAuth, err := config.DeviceAuth(ctx)
 	if err != nil {
-		fmt.Printf("Error requesting device code: %v\n", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("device code request failed: %w", err)
 	}
 
 	fmt.Printf("\n----------------------------------------\n")
@@ -73,28 +144,30 @@ func main() {
 	fmt.Printf("And enter code: %s\n", deviceAuth.UserCode)
 	fmt.Printf("----------------------------------------\n\n")
 
-	// Step 2: Poll for token with custom polling logic to show progress
+	// Step 2: Poll for token
 	fmt.Println("Step 2: Waiting for authorization...")
 	token, err := pollForTokenWithProgress(ctx, config, deviceAuth)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("token poll failed: %w", err)
 	}
 
-	fmt.Printf("\n========================================\n")
-	fmt.Printf("Authorization successful!\n")
-	fmt.Printf("Access Token: %s...\n", token.AccessToken[:min(50, len(token.AccessToken))])
-	fmt.Printf("Token Type: %s\n", token.Type())
-	fmt.Printf("Expires In: %s\n", time.Until(token.Expiry).Round(time.Second))
-	fmt.Printf("========================================\n")
+	fmt.Println("\nAuthorization successful!")
 
-	// Step 3: Verify token
-	fmt.Println("\nStep 3: Verifying token...")
-	if err := verifyToken(token.AccessToken); err != nil {
-		fmt.Printf("Token verification failed: %v\n", err)
+	// Convert to TokenStorage and save
+	storage := &TokenStorage{
+		AccessToken:  token.AccessToken,
+		RefreshToken: token.RefreshToken,
+		TokenType:    token.Type(),
+		ExpiresAt:    token.Expiry,
+	}
+
+	if err := saveTokens(storage); err != nil {
+		fmt.Printf("Warning: Failed to save tokens: %v\n", err)
 	} else {
-		fmt.Println("Token verified successfully!")
+		fmt.Printf("Tokens saved to %s\n", tokenFile)
 	}
+
+	return storage, nil
 }
 
 // pollForTokenWithProgress polls for token while showing progress dots
@@ -154,6 +227,134 @@ func verifyToken(accessToken string) error {
 	}
 
 	fmt.Printf("Token Info: %s\n", string(body))
+	return nil
+}
+
+// loadTokens loads tokens from file
+func loadTokens() (*TokenStorage, error) {
+	data, err := os.ReadFile(tokenFile)
+	if err != nil {
+		return nil, err
+	}
+
+	var storage TokenStorage
+	if err := json.Unmarshal(data, &storage); err != nil {
+		return nil, err
+	}
+
+	return &storage, nil
+}
+
+// saveTokens saves tokens to file
+func saveTokens(storage *TokenStorage) error {
+	data, err := json.MarshalIndent(storage, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	// Get absolute path for display
+	absPath, _ := filepath.Abs(tokenFile)
+	_ = absPath // Use the variable to avoid unused warning
+
+	return os.WriteFile(tokenFile, data, 0o600) // 0600 = read/write for owner only
+}
+
+// refreshAccessToken refreshes the access token using refresh token
+func refreshAccessToken(refreshToken string) (*TokenStorage, error) {
+	data := url.Values{}
+	data.Set("grant_type", "refresh_token")
+	data.Set("refresh_token", refreshToken)
+	data.Set("client_id", clientID)
+
+	resp, err := http.PostForm(serverURL+"/oauth/token", data)
+	if err != nil {
+		return nil, fmt.Errorf("refresh request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		var errResp ErrorResponse
+		if err := json.Unmarshal(body, &errResp); err == nil {
+			return nil, fmt.Errorf("%s: %s", errResp.Error, errResp.ErrorDescription)
+		}
+		return nil, fmt.Errorf("refresh failed with status %d", resp.StatusCode)
+	}
+
+	// Parse token response
+	var tokenResp struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		TokenType    string `json:"token_type"`
+		ExpiresIn    int    `json:"expires_in"`
+	}
+
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return nil, fmt.Errorf("failed to parse token response: %w", err)
+	}
+
+	storage := &TokenStorage{
+		AccessToken:  tokenResp.AccessToken,
+		RefreshToken: tokenResp.RefreshToken,
+		TokenType:    tokenResp.TokenType,
+		ExpiresAt:    time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
+	}
+
+	// Save updated tokens
+	if err := saveTokens(storage); err != nil {
+		fmt.Printf("Warning: Failed to save refreshed tokens: %v\n", err)
+	}
+
+	return storage, nil
+}
+
+// makeAPICallWithAutoRefresh demonstrates automatic refresh on 401
+func makeAPICallWithAutoRefresh(storage *TokenStorage) error {
+	// Try with current access token
+	req, _ := http.NewRequest("GET", serverURL+"/oauth/tokeninfo", nil)
+	req.Header.Set("Authorization", "Bearer "+storage.AccessToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("API request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// If 401, try to refresh and retry
+	if resp.StatusCode == http.StatusUnauthorized {
+		fmt.Println("Access token rejected (401), refreshing...")
+
+		newStorage, err := refreshAccessToken(storage.RefreshToken)
+		if err != nil {
+			return fmt.Errorf("refresh failed: %w", err)
+		}
+
+		// Update storage and retry
+		storage.AccessToken = newStorage.AccessToken
+		storage.RefreshToken = newStorage.RefreshToken
+		storage.ExpiresAt = newStorage.ExpiresAt
+
+		fmt.Println("Token refreshed, retrying API call...")
+
+		// Retry with new token
+		req, _ = http.NewRequest("GET", serverURL+"/oauth/tokeninfo", nil)
+		req.Header.Set("Authorization", "Bearer "+storage.AccessToken)
+
+		resp, err = http.DefaultClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("retry failed: %w", err)
+		}
+		defer resp.Body.Close()
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API call failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	fmt.Println("API call successful!")
 	return nil
 }
 

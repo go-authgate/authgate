@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/appleboy/authgate/internal/config"
 	"github.com/appleboy/authgate/internal/models"
@@ -59,64 +60,64 @@ func NewTokenService(
 	}
 }
 
-// ExchangeDeviceCode exchanges an authorized device code for an access token
+// ExchangeDeviceCode exchanges an authorized device code for access and refresh tokens
 func (s *TokenService) ExchangeDeviceCode(
 	deviceCode, clientID string,
-) (*models.AccessToken, error) {
+) (*models.AccessToken, *models.AccessToken, error) {
 	dc, err := s.store.GetDeviceCode(deviceCode)
 	if err != nil {
-		return nil, ErrExpiredToken
+		return nil, nil, ErrExpiredToken
 	}
 
 	// Check if expired
 	if dc.IsExpired() {
 		_ = s.store.DeleteDeviceCode(deviceCode)
-		return nil, ErrExpiredToken
+		return nil, nil, ErrExpiredToken
 	}
 
 	// Check if client matches
 	if dc.ClientID != clientID {
-		return nil, ErrAccessDenied
+		return nil, nil, ErrAccessDenied
 	}
 
 	// Check if client is active
 	client, err := s.store.GetClient(clientID)
 	if err != nil {
-		return nil, ErrAccessDenied
+		return nil, nil, ErrAccessDenied
 	}
 	if !client.IsActive {
-		return nil, ErrAccessDenied
+		return nil, nil, ErrAccessDenied
 	}
 
 	// Check if authorized
 	if !dc.Authorized {
-		return nil, ErrAuthorizationPending
+		return nil, nil, ErrAuthorizationPending
 	}
 
-	// Generate JWT token using provider
-	var tokenResult *token.TokenResult
+	// Generate access token using provider
+	var accessTokenResult *token.TokenResult
 	var providerErr error
 
 	switch s.tokenProviderMode {
-	case "http_api":
+	case config.TokenProviderModeHTTPAPI:
 		if s.httpTokenProvider == nil {
-			return nil, fmt.Errorf(
+			return nil, nil, fmt.Errorf(
 				"HTTP token provider not configured (TOKEN_PROVIDER_MODE=http_api requires TOKEN_API_URL)",
 			)
 		}
-		tokenResult, providerErr = s.httpTokenProvider.GenerateToken(
+		accessTokenResult, providerErr = s.httpTokenProvider.GenerateToken(
 			context.Background(),
 			dc.UserID,
 			dc.ClientID,
 			dc.Scopes,
 		)
-	case "local":
+	case config.TokenProviderModeLocal:
 		fallthrough
 	default:
 		if s.localTokenProvider == nil {
-			return nil, fmt.Errorf("local token provider not configured")
+			return nil, nil, fmt.Errorf("local token provider not configured")
 		}
-		tokenResult, providerErr = s.localTokenProvider.GenerateToken(
+		accessTokenResult, providerErr = s.localTokenProvider.GenerateToken(
 			context.Background(),
 			dc.UserID,
 			dc.ClientID,
@@ -125,33 +126,105 @@ func (s *TokenService) ExchangeDeviceCode(
 	}
 
 	if providerErr != nil {
-		log.Printf("[Token] Generation failed provider=%s: %v", s.tokenProviderMode, providerErr)
-		return nil, fmt.Errorf("token generation failed: %w", providerErr)
+		log.Printf(
+			"[Token] Access token generation failed provider=%s: %v",
+			s.tokenProviderMode,
+			providerErr,
+		)
+		return nil, nil, fmt.Errorf("token generation failed: %w", providerErr)
 	}
 
-	if !tokenResult.Success {
-		return nil, fmt.Errorf("token generation unsuccessful")
+	if !accessTokenResult.Success {
+		return nil, nil, fmt.Errorf("token generation unsuccessful")
+	}
+
+	// Generate refresh token using provider
+	var refreshTokenResult *token.TokenResult
+
+	switch s.tokenProviderMode {
+	case config.TokenProviderModeHTTPAPI:
+		refreshTokenResult, providerErr = s.httpTokenProvider.GenerateRefreshToken(
+			context.Background(),
+			dc.UserID,
+			dc.ClientID,
+			dc.Scopes,
+		)
+	case config.TokenProviderModeLocal:
+		fallthrough
+	default:
+		refreshTokenResult, providerErr = s.localTokenProvider.GenerateRefreshToken(
+			context.Background(),
+			dc.UserID,
+			dc.ClientID,
+			dc.Scopes,
+		)
+	}
+
+	if providerErr != nil {
+		log.Printf(
+			"[Token] Refresh token generation failed provider=%s: %v",
+			s.tokenProviderMode,
+			providerErr,
+		)
+		return nil, nil, fmt.Errorf("refresh token generation failed: %w", providerErr)
+	}
+
+	if !refreshTokenResult.Success {
+		return nil, nil, fmt.Errorf("refresh token generation unsuccessful")
 	}
 
 	// Create access token record
 	accessToken := &models.AccessToken{
-		ID:        uuid.New().String(),
-		Token:     tokenResult.TokenString,
-		TokenType: tokenResult.TokenType,
-		UserID:    dc.UserID,
-		ClientID:  dc.ClientID,
-		Scopes:    dc.Scopes,
-		ExpiresAt: tokenResult.ExpiresAt,
+		ID:            uuid.New().String(),
+		Token:         accessTokenResult.TokenString,
+		TokenType:     accessTokenResult.TokenType,
+		TokenCategory: "access", // Explicitly set token category
+		Status:        "active", // Set initial status
+		UserID:        dc.UserID,
+		ClientID:      dc.ClientID,
+		Scopes:        dc.Scopes,
+		ExpiresAt:     accessTokenResult.ExpiresAt,
 	}
 
-	if err := s.store.CreateAccessToken(accessToken); err != nil {
-		return nil, err
+	// Create refresh token record
+	refreshToken := &models.AccessToken{
+		ID:            uuid.New().String(),
+		Token:         refreshTokenResult.TokenString,
+		TokenType:     refreshTokenResult.TokenType,
+		TokenCategory: "refresh", // Mark as refresh token
+		Status:        "active",  // Set initial status
+		UserID:        dc.UserID,
+		ClientID:      dc.ClientID,
+		Scopes:        dc.Scopes,
+		ExpiresAt:     refreshTokenResult.ExpiresAt,
+	}
+
+	// Save both tokens in transaction
+	tx := s.store.DB().Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	if err := tx.Create(accessToken).Error; err != nil {
+		tx.Rollback()
+		return nil, nil, fmt.Errorf("failed to save access token: %w", err)
+	}
+
+	if err := tx.Create(refreshToken).Error; err != nil {
+		tx.Rollback()
+		return nil, nil, fmt.Errorf("failed to save refresh token: %w", err)
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	// Delete the used device code
 	_ = s.store.DeleteDeviceCode(deviceCode)
 
-	return accessToken, nil
+	return accessToken, refreshToken, nil
 }
 
 // ValidateToken validates a JWT token using the configured provider
@@ -160,12 +233,12 @@ func (s *TokenService) ValidateToken(tokenString string) (*token.TokenValidation
 	var err error
 
 	switch s.tokenProviderMode {
-	case "http_api":
+	case config.TokenProviderModeHTTPAPI:
 		if s.httpTokenProvider == nil {
 			return nil, fmt.Errorf("HTTP token provider not configured")
 		}
 		result, err = s.httpTokenProvider.ValidateToken(context.Background(), tokenString)
-	case "local":
+	case config.TokenProviderModeLocal:
 		fallthrough
 	default:
 		if s.localTokenProvider == nil {
@@ -259,4 +332,222 @@ func (s *TokenService) GetUserTokensWithClient(userID string) ([]TokenWithClient
 // RevokeAllUserTokens revokes all tokens for a user
 func (s *TokenService) RevokeAllUserTokens(userID string) error {
 	return s.store.RevokeTokensByUserID(userID)
+}
+
+// RefreshAccessToken generates new access token (and optionally new refresh token in rotation mode)
+func (s *TokenService) RefreshAccessToken(
+	refreshTokenString, clientID, requestedScopes string,
+) (*models.AccessToken, *models.AccessToken, error) {
+	// 1. Get refresh token from database
+	refreshToken, err := s.store.GetAccessToken(refreshTokenString)
+	if err != nil {
+		return nil, nil, token.ErrInvalidRefreshToken
+	}
+
+	// 2. Verify token category and status
+	if refreshToken.TokenCategory != "refresh" {
+		return nil, nil, token.ErrInvalidRefreshToken
+	}
+	if refreshToken.Status != "active" {
+		return nil, nil, token.ErrInvalidRefreshToken // Token disabled or revoked
+	}
+
+	// 3. Verify expiration
+	if refreshToken.IsExpired() {
+		return nil, nil, token.ErrExpiredRefreshToken
+	}
+
+	// 4. Verify client_id
+	if refreshToken.ClientID != clientID {
+		return nil, nil, ErrAccessDenied
+	}
+
+	// 5. Verify scope (cannot upgrade)
+	if !s.validateScopes(refreshToken.Scopes, requestedScopes) {
+		return nil, nil, token.ErrInvalidScope
+	}
+
+	// 6. Use provider to generate new tokens (pass rotation config)
+	enableRotation := s.config.EnableTokenRotation
+	var refreshResult *token.RefreshResult
+	var providerErr error
+
+	switch s.tokenProviderMode {
+	case config.TokenProviderModeHTTPAPI:
+		if s.httpTokenProvider == nil {
+			return nil, nil, fmt.Errorf("HTTP token provider not configured")
+		}
+		refreshResult, providerErr = s.httpTokenProvider.RefreshAccessToken(
+			context.Background(),
+			refreshTokenString,
+			enableRotation,
+		)
+	case config.TokenProviderModeLocal:
+		fallthrough
+	default:
+		if s.localTokenProvider == nil {
+			return nil, nil, fmt.Errorf("local token provider not configured")
+		}
+		refreshResult, providerErr = s.localTokenProvider.RefreshAccessToken(
+			context.Background(),
+			refreshTokenString,
+			enableRotation,
+		)
+	}
+
+	if providerErr != nil {
+		log.Printf("[Token] Refresh failed provider=%s: %v", s.tokenProviderMode, providerErr)
+		return nil, nil, providerErr
+	}
+
+	if !refreshResult.Success {
+		return nil, nil, fmt.Errorf("token refresh unsuccessful")
+	}
+
+	// 7. Save new tokens in transaction
+	tx := s.store.DB().Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 7.1 Create new access token
+	newAccessToken := &models.AccessToken{
+		ID:            uuid.New().String(),
+		Token:         refreshResult.AccessToken.TokenString,
+		TokenCategory: "access",
+		Status:        "active",
+		TokenType:     refreshResult.AccessToken.TokenType,
+		UserID:        refreshToken.UserID,
+		ClientID:      refreshToken.ClientID,
+		Scopes:        refreshToken.Scopes,
+		ExpiresAt:     refreshResult.AccessToken.ExpiresAt,
+		ParentTokenID: refreshToken.ID, // Token family tracking
+	}
+
+	if err := tx.Create(newAccessToken).Error; err != nil {
+		tx.Rollback()
+		return nil, nil, fmt.Errorf("failed to save new access token: %w", err)
+	}
+
+	// 7.2 Handle refresh token based on mode
+	var newRefreshToken *models.AccessToken
+
+	if enableRotation && refreshResult.RefreshToken != nil {
+		// Rotation mode: create new refresh token, revoke old one
+		newRefreshToken = &models.AccessToken{
+			ID:            uuid.New().String(),
+			Token:         refreshResult.RefreshToken.TokenString,
+			TokenCategory: "refresh",
+			Status:        "active",
+			TokenType:     refreshResult.RefreshToken.TokenType,
+			UserID:        refreshToken.UserID,
+			ClientID:      refreshToken.ClientID,
+			Scopes:        refreshToken.Scopes,
+			ExpiresAt:     refreshResult.RefreshToken.ExpiresAt,
+			ParentTokenID: refreshToken.ID, // Token family tracking
+		}
+
+		if err := tx.Create(newRefreshToken).Error; err != nil {
+			tx.Rollback()
+			return nil, nil, fmt.Errorf("failed to save new refresh token: %w", err)
+		}
+
+		// Revoke old refresh token (soft delete)
+		if err := tx.Model(refreshToken).Update("status", "revoked").Error; err != nil {
+			tx.Rollback()
+			return nil, nil, fmt.Errorf("failed to revoke old refresh token: %w", err)
+		}
+	} else {
+		// Fixed mode: update refresh token's last_used_at
+		now := time.Now()
+		if err := tx.Model(refreshToken).Update("last_used_at", &now).Error; err != nil {
+			tx.Rollback()
+			return nil, nil, fmt.Errorf("failed to update refresh token last_used_at: %w", err)
+		}
+		// Return original refresh token (unchanged)
+		newRefreshToken = refreshToken
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return newAccessToken, newRefreshToken, nil
+}
+
+// validateScopes checks if requested scopes are subset of original scopes
+func (s *TokenService) validateScopes(originalScopes, requestedScopes string) bool {
+	if requestedScopes == "" {
+		return true // No request = inherit original scope
+	}
+
+	// Check that requested scopes are subset of original scopes
+	originalSet := make(map[string]bool)
+	for _, scope := range splitScopes(originalScopes) {
+		originalSet[scope] = true
+	}
+
+	for _, scope := range splitScopes(requestedScopes) {
+		if !originalSet[scope] {
+			return false // Requested unauthorized scope
+		}
+	}
+
+	return true
+}
+
+// splitScopes splits space-separated scope string
+func splitScopes(scopes string) []string {
+	if scopes == "" {
+		return []string{}
+	}
+	var result []string
+	for _, s := range splitBySpace(scopes) {
+		if s != "" {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
+// splitBySpace splits string by space
+func splitBySpace(s string) []string {
+	var result []string
+	current := ""
+	for _, r := range s {
+		if r == ' ' {
+			if current != "" {
+				result = append(result, current)
+				current = ""
+			}
+		} else {
+			current += string(r)
+		}
+	}
+	if current != "" {
+		result = append(result, current)
+	}
+	return result
+}
+
+// DisableToken disables a token (can be re-enabled)
+func (s *TokenService) DisableToken(tokenID string) error {
+	return s.store.UpdateTokenStatus(tokenID, "disabled")
+}
+
+// EnableToken re-enables a disabled token
+func (s *TokenService) EnableToken(tokenID string) error {
+	return s.store.UpdateTokenStatus(tokenID, "active")
+}
+
+// RevokeTokenByStatus permanently revokes a token (uses status update, not deletion)
+func (s *TokenService) RevokeTokenByStatus(tokenID string) error {
+	return s.store.UpdateTokenStatus(tokenID, "revoked")
+}
+
+// GetActiveRefreshTokens gets all active refresh tokens for a user
+func (s *TokenService) GetActiveRefreshTokens(userID string) ([]models.AccessToken, error) {
+	return s.store.GetTokensByCategoryAndStatus(userID, "refresh", "active")
 }

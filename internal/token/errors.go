@@ -15,6 +15,20 @@ var (
 	// ErrExpiredToken indicates the token has expired
 	ErrExpiredToken = errors.New("token expired")
 
+	// Refresh token specific errors
+
+	// ErrInvalidRefreshToken indicates the refresh token is invalid
+	ErrInvalidRefreshToken = errors.New("invalid refresh token")
+
+	// ErrExpiredRefreshToken indicates the refresh token has expired
+	ErrExpiredRefreshToken = errors.New("refresh token expired")
+
+	// ErrTokenReused indicates a refresh token was reused (security alert)
+	ErrTokenReused = errors.New("token reuse detected")
+
+	// ErrInvalidScope indicates scope validation failed
+	ErrInvalidScope = errors.New("invalid scope")
+
 	// HTTP API specific errors
 
 	// ErrHTTPTokenConnection indicates failed connection to token API

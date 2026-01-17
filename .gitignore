@@ -31,3 +31,7 @@ Thumbs.db
 bin
 .claude
 coverage.txt
+
+# Tokens
+*.authgate-tokens.json
+.authgate-tokens.json

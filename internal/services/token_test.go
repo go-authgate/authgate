@@ -55,7 +55,7 @@ func TestExchangeDeviceCode_ActiveClient(t *testing.T) {
 	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
 
 	// Exchange device code for token
-	token, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, client.ClientID)
+	token, _, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, client.ClientID)
 
 	// Assert
 	assert.NoError(t, err)
@@ -87,7 +87,7 @@ func TestExchangeDeviceCode_InactiveClient(t *testing.T) {
 
 	// Try to exchange device code with inactive client
 	tokenService := createTestTokenService(s, cfg)
-	token, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, client.ClientID)
+	token, _, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, client.ClientID)
 
 	// Assert - should fail with access denied
 	assert.Error(t, err)
@@ -112,7 +112,7 @@ func TestExchangeDeviceCode_ClientMismatch(t *testing.T) {
 
 	// Try to exchange with a different client ID
 	differentClientID := uuid.New().String()
-	token, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, differentClientID)
+	token, _, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, differentClientID)
 
 	// Assert
 	assert.Error(t, err)
@@ -138,7 +138,7 @@ func TestExchangeDeviceCode_NotAuthorized(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to exchange without authorization
-	token, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, client.ClientID)
+	token, _, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, client.ClientID)
 
 	// Assert
 	assert.Error(t, err)
@@ -164,7 +164,7 @@ func TestExchangeDeviceCode_ExpiredCode(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to exchange expired device code
-	token, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, client.ClientID)
+	token, _, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, client.ClientID)
 
 	// Assert
 	assert.Error(t, err)
@@ -187,7 +187,7 @@ func TestExchangeDeviceCode_InvalidDeviceCode(t *testing.T) {
 	client := createTestClient(t, s, true)
 
 	// Try to exchange with non-existent device code
-	token, err := tokenService.ExchangeDeviceCode("non-existent-code", client.ClientID)
+	token, _, err := tokenService.ExchangeDeviceCode("non-existent-code", client.ClientID)
 
 	// Assert
 	assert.Error(t, err)
@@ -209,7 +209,7 @@ func TestValidateToken_Success(t *testing.T) {
 	// Create an active client and get a token
 	client := createTestClient(t, s, true)
 	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
-	token, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, client.ClientID)
+	token, _, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, client.ClientID)
 	require.NoError(t, err)
 
 	// Validate the token
@@ -251,7 +251,7 @@ func TestValidateToken_WrongSecret(t *testing.T) {
 	// Create an active client and get a token
 	client := createTestClient(t, s, true)
 	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
-	token, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, client.ClientID)
+	token, _, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, client.ClientID)
 	require.NoError(t, err)
 
 	// Try to validate with different secret
@@ -280,7 +280,7 @@ func TestRevokeToken_Success(t *testing.T) {
 	// Create an active client and get a token
 	client := createTestClient(t, s, true)
 	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
-	token, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, client.ClientID)
+	token, _, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, client.ClientID)
 	require.NoError(t, err)
 
 	// Revoke the token
@@ -323,7 +323,7 @@ func TestRevokeTokenByID_Success(t *testing.T) {
 	// Create an active client and get a token
 	client := createTestClient(t, s, true)
 	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
-	token, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, client.ClientID)
+	token, _, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, client.ClientID)
 	require.NoError(t, err)
 
 	// Revoke the token by ID
@@ -365,19 +365,24 @@ func TestGetUserTokens_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	// Exchange for tokens
-	token1, err := tokenService.ExchangeDeviceCode(dc1.DeviceCode, client.ClientID)
+	token1, _, err := tokenService.ExchangeDeviceCode(dc1.DeviceCode, client.ClientID)
 	require.NoError(t, err)
-	token2, err := tokenService.ExchangeDeviceCode(dc2.DeviceCode, client.ClientID)
+	token2, _, err := tokenService.ExchangeDeviceCode(dc2.DeviceCode, client.ClientID)
 	require.NoError(t, err)
 
 	// Get user tokens
 	tokens, err := tokenService.GetUserTokens(userID)
 
-	// Assert
+	// Assert - should have 4 tokens (2 access + 2 refresh)
 	assert.NoError(t, err)
-	assert.Len(t, tokens, 2)
-	assert.Contains(t, []string{token1.ID, token2.ID}, tokens[0].ID)
-	assert.Contains(t, []string{token1.ID, token2.ID}, tokens[1].ID)
+	assert.Len(t, tokens, 4)
+	// Verify we have tokens from both device code exchanges
+	tokenIDs := make([]string, len(tokens))
+	for i, tok := range tokens {
+		tokenIDs[i] = tok.ID
+	}
+	assert.Contains(t, tokenIDs, token1.ID)
+	assert.Contains(t, tokenIDs, token2.ID)
 }
 
 func TestRevokeAllUserTokens_Success(t *testing.T) {
@@ -408,9 +413,9 @@ func TestRevokeAllUserTokens_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	// Exchange for tokens
-	_, err = tokenService.ExchangeDeviceCode(dc1.DeviceCode, client.ClientID)
+	_, _, err = tokenService.ExchangeDeviceCode(dc1.DeviceCode, client.ClientID)
 	require.NoError(t, err)
-	_, err = tokenService.ExchangeDeviceCode(dc2.DeviceCode, client.ClientID)
+	_, _, err = tokenService.ExchangeDeviceCode(dc2.DeviceCode, client.ClientID)
 	require.NoError(t, err)
 
 	// Revoke all user tokens
@@ -445,19 +450,27 @@ func TestGetUserTokensWithClient_Success(t *testing.T) {
 	err = deviceService.AuthorizeDeviceCode(dc.UserCode, userID)
 	require.NoError(t, err)
 
-	// Exchange for token
-	token, err := tokenService.ExchangeDeviceCode(dc.DeviceCode, client.ClientID)
+	// Exchange for token (returns both access and refresh tokens)
+	accessToken, refreshToken, err := tokenService.ExchangeDeviceCode(
+		dc.DeviceCode,
+		client.ClientID,
+	)
 	require.NoError(t, err)
 
 	// Get user tokens with client info
 	tokensWithClient, err := tokenService.GetUserTokensWithClient(userID)
 
-	// Assert
+	// Assert - should have 2 tokens (access + refresh)
 	assert.NoError(t, err)
-	assert.Len(t, tokensWithClient, 1)
-	assert.Equal(t, token.ID, tokensWithClient[0].ID)
-	assert.Equal(t, client.ClientName, tokensWithClient[0].ClientName)
-	assert.Equal(t, "read write", tokensWithClient[0].Scopes)
+	assert.Len(t, tokensWithClient, 2)
+
+	// Verify both tokens are present
+	tokenIDs := []string{accessToken.ID, refreshToken.ID}
+	for _, twc := range tokensWithClient {
+		assert.Contains(t, tokenIDs, twc.ID)
+		assert.Equal(t, client.ClientName, twc.ClientName)
+		assert.Equal(t, "read write", twc.Scopes)
+	}
 }
 
 func TestGetUserTokensWithClient_MultipleClients(t *testing.T) {
@@ -489,17 +502,17 @@ func TestGetUserTokensWithClient_MultipleClients(t *testing.T) {
 	require.NoError(t, err)
 
 	// Exchange for tokens
-	token1, err := tokenService.ExchangeDeviceCode(dc1.DeviceCode, client1.ClientID)
+	token1, _, err := tokenService.ExchangeDeviceCode(dc1.DeviceCode, client1.ClientID)
 	require.NoError(t, err)
-	token2, err := tokenService.ExchangeDeviceCode(dc2.DeviceCode, client2.ClientID)
+	token2, _, err := tokenService.ExchangeDeviceCode(dc2.DeviceCode, client2.ClientID)
 	require.NoError(t, err)
 
 	// Get user tokens with client info (should use WHERE IN for batch query)
 	tokensWithClient, err := tokenService.GetUserTokensWithClient(userID)
 
-	// Assert
+	// Assert - should have 4 tokens (2 access + 2 refresh)
 	assert.NoError(t, err)
-	assert.Len(t, tokensWithClient, 2)
+	assert.Len(t, tokensWithClient, 4)
 
 	// Create maps for easier verification
 	tokenMap := make(map[string]TokenWithClient)

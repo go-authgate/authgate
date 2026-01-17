@@ -35,12 +35,14 @@ docker build -f docker/Dockerfile -t authgate .
 
 ## Architecture
 
-**Device Authorization Flow**:
+**Device Authorization Flow (with Refresh Tokens)**:
 
 1. CLI calls `POST /oauth/device/code` with client_id → receives device_code + user_code + verification_uri
 2. User visits verification_uri (`/device`) in browser, must login first if not authenticated
 3. User submits user_code via `POST /device/verify` → device code marked as authorized
-4. CLI polls `POST /oauth/token` with device_code every 5s → receives JWT when authorized
+4. CLI polls `POST /oauth/token` with device_code every 5s → receives access_token + refresh_token when authorized
+5. CLI uses access_token for API calls (expires in 1 hour)
+6. When access_token expires, CLI calls `POST /oauth/token` with `grant_type=refresh_token` → receives new access_token (fixed mode) or new access_token + refresh_token (rotation mode)
 
 **Layers** (dependency injection pattern):
 
@@ -102,6 +104,62 @@ docker build -f docker/Dockerfile -t authgate .
 - **API Contract**: HTTPTokenProvider expects `/generate` and `/validate` endpoints with specific JSON format
 - **Key Benefit**: Centralized token services, advanced key management, compliance requirements while maintaining local token management
 
+**Refresh Token Architecture**:
+
+AuthGate supports refresh tokens following RFC 6749 with configurable rotation modes for different security requirements.
+
+- **Key Features**:
+
+  - **Dual Modes**: Fixed (reusable) vs Rotation (one-time use) refresh tokens
+  - **Unified Storage**: Both access and refresh tokens stored in `AccessToken` table with `token_category` field
+  - **Token Family Tracking**: `parent_token_id` links tokens for audit trails and revocation
+  - **Status Management**: Tokens can be `active`, `disabled`, or `revoked`
+  - **Configurable Expiration**: `REFRESH_TOKEN_EXPIRATION` env var (default: 720h = 30 days)
+  - **Provider Support**: Both LocalTokenProvider and HTTPTokenProvider support refresh operations
+
+- **Fixed Mode (Default - Multi-Device Friendly)**:
+
+  1. Device code exchange returns `access_token` + `refresh_token`
+  2. When access token expires, client POSTs to `/oauth/token` with `grant_type=refresh_token`
+  3. Server returns new `access_token` only (refresh token remains unchanged and reusable)
+  4. Process repeats until refresh token expires or is manually disabled/revoked
+  5. Each device/application gets its own refresh token that doesn't affect others
+  6. Users can manage all tokens (disable/enable/revoke) via backend UI
+  7. LastUsedAt field tracks activity for identifying inactive sessions
+
+- **Rotation Mode (Optional - High Security)**:
+
+  1. Same as fixed mode, but step 3 returns both new `access_token` + new `refresh_token`
+  2. Old refresh token is automatically revoked (status set to 'revoked') after each use
+  3. Prevents token replay attacks
+  4. Requires clients to update stored refresh token after each use
+  5. Enable via `ENABLE_TOKEN_ROTATION=true`
+
+- **Token Management**:
+
+  - **Status Field**: `active` (usable) / `disabled` (temporarily blocked, can re-enable) / `revoked` (permanently blocked)
+  - **Independent Revocation**: Revoking refresh token doesn't affect existing access tokens
+  - **Family Tracking**: ParentTokenID enables audit trails and selective revocation
+  - **Scope Validation**: Refresh requests cannot escalate privileges beyond original grant
+
+- **Environment Variables**:
+
+  - `REFRESH_TOKEN_EXPIRATION=720h` - Refresh token lifetime (default: 30 days)
+  - `ENABLE_REFRESH_TOKENS=true` - Feature flag (default: enabled)
+  - `ENABLE_TOKEN_ROTATION=false` - Enable rotation mode (default: disabled, uses fixed mode)
+
+- **Grant Type Support**:
+
+  - `urn:ietf:params:oauth:grant-type:device_code` - Device authorization flow (returns access + refresh)
+  - `refresh_token` - RFC 6749 refresh token grant (returns new tokens)
+
+- **Security Considerations**:
+  - Refresh tokens validated by type claim (`"type": "refresh"` in JWT)
+  - Refresh tokens cannot be used as access tokens (separate validation logic)
+  - Client ID verification prevents cross-client token usage
+  - Token family tracking enables detection of suspicious patterns
+  - Optional rotation mode for high-security scenarios
+
 **Key Implementation Details**:
 
 - Device codes expire after 30min (configurable via Config.DeviceCodeExpiration)
@@ -116,8 +174,11 @@ docker build -f docker/Dockerfile -t authgate .
 
 - `GET /health` - Health check with database connection test
 - `POST /oauth/device/code` - CLI requests device+user codes (accepts form or JSON)
-- `POST /oauth/token` - CLI polls for JWT (grant_type=urn:ietf:params:oauth:grant-type:device_code)
+- `POST /oauth/token` - Token endpoint supporting multiple grant types:
+  - `grant_type=urn:ietf:params:oauth:grant-type:device_code` - Device authorization flow (returns access + refresh tokens)
+  - `grant_type=refresh_token` - Refresh token grant (RFC 6749) - returns new access token (fixed mode) or new access + refresh tokens (rotation mode)
 - `GET /oauth/tokeninfo` - Verify JWT validity
+- `POST /oauth/revoke` - Revoke tokens (RFC 7009)
 - `GET /device` - User authorization page (protected, requires login)
 - `POST /device/verify` - User submits code to authorize device (protected)
 - `GET|POST /login` - User authentication
@@ -127,22 +188,25 @@ docker build -f docker/Dockerfile -t authgate .
 
 ## Environment Variables
 
-| Variable                      | Default                 | Description                                                  |
-| ----------------------------- | ----------------------- | ------------------------------------------------------------ |
-| SERVER_ADDR                   | :8080                   | Listen address                                               |
-| BASE_URL                      | `http://localhost:8080` | Public URL for verification_uri                              |
-| JWT_SECRET                    | (default)               | JWT signing key (used when TOKEN_PROVIDER_MODE=local)        |
-| SESSION_SECRET                | (default)               | Cookie encryption key                                        |
-| DATABASE_DRIVER               | sqlite                  | Database driver ("sqlite" or "postgres")                     |
-| DATABASE_DSN                  | oauth.db                | Connection string (path for SQLite, DSN for PostgreSQL)      |
-| **AUTH_MODE**                 | local                   | Authentication mode: `local` or `http_api`                   |
-| HTTP_API_URL                  | (none)                  | External auth API endpoint (required when AUTH_MODE=http_api)|
-| HTTP_API_TIMEOUT              | 10s                     | HTTP API request timeout                                     |
-| HTTP_API_INSECURE_SKIP_VERIFY | false                   | Skip TLS verification (dev/testing only)                     |
-| **TOKEN_PROVIDER_MODE**       | local                   | Token provider mode: `local` or `http_api`                   |
-| TOKEN_API_URL                 | (none)                  | External token API endpoint (required when TOKEN_PROVIDER_MODE=http_api) |
-| TOKEN_API_TIMEOUT             | 10s                     | Token API request timeout                                    |
-| TOKEN_API_INSECURE_SKIP_VERIFY| false                   | Skip TLS verification for token API (dev/testing only)       |
+| Variable                       | Default                 | Description                                                              |
+| ------------------------------ | ----------------------- | ------------------------------------------------------------------------ |
+| SERVER_ADDR                    | :8080                   | Listen address                                                           |
+| BASE_URL                       | `http://localhost:8080` | Public URL for verification_uri                                          |
+| JWT_SECRET                     | (default)               | JWT signing key (used when TOKEN_PROVIDER_MODE=local)                    |
+| SESSION_SECRET                 | (default)               | Cookie encryption key                                                    |
+| DATABASE_DRIVER                | sqlite                  | Database driver ("sqlite" or "postgres")                                 |
+| DATABASE_DSN                   | oauth.db                | Connection string (path for SQLite, DSN for PostgreSQL)                  |
+| **AUTH_MODE**                  | local                   | Authentication mode: `local` or `http_api`                               |
+| HTTP_API_URL                   | (none)                  | External auth API endpoint (required when AUTH_MODE=http_api)            |
+| HTTP_API_TIMEOUT               | 10s                     | HTTP API request timeout                                                 |
+| HTTP_API_INSECURE_SKIP_VERIFY  | false                   | Skip TLS verification (dev/testing only)                                 |
+| **TOKEN_PROVIDER_MODE**        | local                   | Token provider mode: `local` or `http_api`                               |
+| TOKEN_API_URL                  | (none)                  | External token API endpoint (required when TOKEN_PROVIDER_MODE=http_api) |
+| TOKEN_API_TIMEOUT              | 10s                     | Token API request timeout                                                |
+| TOKEN_API_INSECURE_SKIP_VERIFY | false                   | Skip TLS verification for token API (dev/testing only)                   |
+| **REFRESH_TOKEN_EXPIRATION**   | 720h                    | Refresh token lifetime (default: 30 days)                                |
+| **ENABLE_REFRESH_TOKENS**      | true                    | Feature flag to enable/disable refresh tokens                            |
+| **ENABLE_TOKEN_ROTATION**      | false                   | Enable rotation mode (default: false, uses fixed mode)                   |
 
 ## Default Test Data
 
@@ -260,6 +324,7 @@ TOKEN_API_INSECURE_SKIP_VERIFY=false
 **Token Generation Endpoint:** `POST {TOKEN_API_URL}/generate`
 
 Request:
+
 ```json
 {
   "user_id": "user-uuid",
@@ -270,6 +335,7 @@ Request:
 ```
 
 Response (Success):
+
 ```json
 {
   "success": true,
@@ -283,6 +349,7 @@ Response (Success):
 ```
 
 Response (Error):
+
 ```json
 {
   "success": false,
@@ -293,6 +360,7 @@ Response (Error):
 **Token Validation Endpoint:** `POST {TOKEN_API_URL}/validate`
 
 Request:
+
 ```json
 {
   "token": "eyJhbGc..."
@@ -300,6 +368,7 @@ Request:
 ```
 
 Response (Valid):
+
 ```json
 {
   "valid": true,
@@ -314,6 +383,7 @@ Response (Valid):
 ```
 
 Response (Invalid):
+
 ```json
 {
   "valid": false,
@@ -324,6 +394,7 @@ Response (Invalid):
 **Response Requirements:**
 
 Generation Response:
+
 - `success` (required): Boolean indicating generation result
 - `access_token` (required when success=true): Non-empty JWT string
 - `token_type` (optional): Token type, defaults to "Bearer"
@@ -332,6 +403,7 @@ Generation Response:
 - `message` (optional): Error message when success=false
 
 Validation Response:
+
 - `valid` (required): Boolean indicating validation result
 - `user_id` (required when valid=true): User identifier from token
 - `client_id` (required when valid=true): Client identifier from token
@@ -361,11 +433,13 @@ JWT_SECRET=your-256-bit-secret-change-in-production
 ### Token Provider Benefits
 
 **Local Mode:**
+
 - Simple setup, no external dependencies
 - Fast token operations
 - Self-contained deployment
 
 **HTTP API Mode:**
+
 - Centralized token services across multiple applications
 - Advanced key management and rotation
 - Custom signing algorithms (RS256, ES256)
@@ -373,6 +447,7 @@ JWT_SECRET=your-256-bit-secret-change-in-production
 - Integration with existing IAM/PKI systems
 
 **Why Local Storage is Retained:**
+
 - Revocation: Users can revoke tokens via `/account/sessions` or `/oauth/revoke`
 - Management: Users can list active sessions
 - Auditing: Track when and for which clients tokens were issued

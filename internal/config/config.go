@@ -54,6 +54,11 @@ type Config struct {
 	TokenAPIURL                string
 	TokenAPITimeout            time.Duration
 	TokenAPIInsecureSkipVerify bool
+
+	// Refresh Token settings
+	RefreshTokenExpiration time.Duration // Refresh token lifetime (default: 720h = 30 days)
+	EnableRefreshTokens    bool          // Feature flag to enable/disable refresh tokens (default: true)
+	EnableTokenRotation    bool          // Enable token rotation mode (default: false, fixed mode)
 }
 
 func Load() *Config {
@@ -95,6 +100,14 @@ func Load() *Config {
 		TokenAPIURL:                getEnv("TOKEN_API_URL", ""),
 		TokenAPITimeout:            getEnvDuration("TOKEN_API_TIMEOUT", 10*time.Second),
 		TokenAPIInsecureSkipVerify: getEnvBool("TOKEN_API_INSECURE_SKIP_VERIFY", false),
+
+		// Refresh Token settings
+		RefreshTokenExpiration: getEnvDuration(
+			"REFRESH_TOKEN_EXPIRATION",
+			720*time.Hour,
+		), // 30 days
+		EnableRefreshTokens: getEnvBool("ENABLE_REFRESH_TOKENS", true),
+		EnableTokenRotation: getEnvBool("ENABLE_TOKEN_ROTATION", false),
 	}
 }
 

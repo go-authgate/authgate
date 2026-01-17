@@ -358,3 +358,27 @@ func (s *Store) Health() error {
 	}
 	return sqlDB.Ping()
 }
+
+// DB returns the underlying GORM database connection (for transactions)
+func (s *Store) DB() *gorm.DB {
+	return s.db
+}
+
+// UpdateTokenStatus updates the status of a token
+func (s *Store) UpdateTokenStatus(tokenID, status string) error {
+	return s.db.Model(&models.AccessToken{}).
+		Where("id = ?", tokenID).
+		Update("status", status).Error
+}
+
+// GetTokensByCategoryAndStatus returns tokens filtered by category and status
+func (s *Store) GetTokensByCategoryAndStatus(
+	userID, category, status string,
+) ([]models.AccessToken, error) {
+	var tokens []models.AccessToken
+	err := s.db.Where("user_id = ? AND token_category = ? AND status = ?", userID, category, status).
+		Order("created_at DESC").
+		Find(&tokens).
+		Error
+	return tokens, err
+}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/appleboy/authgate/internal/config"
 	"github.com/appleboy/authgate/internal/services"
+	"github.com/appleboy/authgate/internal/token"
 
 	"github.com/gin-gonic/gin"
 )
@@ -14,6 +15,8 @@ import (
 const (
 	// https://datatracker.ietf.org/doc/html/rfc8628#section-3.4
 	GrantTypeDeviceCode = "urn:ietf:params:oauth:grant-type:device_code"
+	// https://datatracker.ietf.org/doc/html/rfc6749#section-6
+	GrantTypeRefreshToken = "refresh_token"
 )
 
 type TokenHandler struct {
@@ -26,18 +29,25 @@ func NewTokenHandler(ts *services.TokenService, cfg *config.Config) *TokenHandle
 }
 
 // Token handles POST /oauth/token
-// This is called by the CLI to poll for the access token
+// Routes to appropriate grant type handler based on grant_type parameter
 func (h *TokenHandler) Token(c *gin.Context) {
 	grantType := c.PostForm("grant_type")
 
-	if grantType != GrantTypeDeviceCode {
+	switch grantType {
+	case GrantTypeDeviceCode:
+		h.handleDeviceCodeGrant(c)
+	case GrantTypeRefreshToken:
+		h.handleRefreshTokenGrant(c)
+	default:
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "unsupported_grant_type",
-			"error_description": "Only device_code grant type is supported",
+			"error_description": "Supported grant types: device_code, refresh_token",
 		})
-		return
 	}
+}
 
+// handleDeviceCodeGrant handles device code grant type (RFC 8628)
+func (h *TokenHandler) handleDeviceCodeGrant(c *gin.Context) {
 	deviceCode := c.PostForm("device_code")
 	clientID := c.PostForm("client_id")
 
@@ -49,7 +59,7 @@ func (h *TokenHandler) Token(c *gin.Context) {
 		return
 	}
 
-	accessToken, err := h.tokenService.ExchangeDeviceCode(deviceCode, clientID)
+	accessToken, refreshToken, err := h.tokenService.ExchangeDeviceCode(deviceCode, clientID)
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrAuthorizationPending):
@@ -78,10 +88,71 @@ func (h *TokenHandler) Token(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"access_token": accessToken.Token,
-		"token_type":   accessToken.TokenType,
-		"expires_in":   int(h.config.JWTExpiration.Seconds()),
-		"scope":        accessToken.Scopes,
+		"access_token":  accessToken.Token,
+		"refresh_token": refreshToken.Token,
+		"token_type":    accessToken.TokenType,
+		"expires_in":    int(h.config.JWTExpiration.Seconds()),
+		"scope":         accessToken.Scopes,
+	})
+}
+
+// handleRefreshTokenGrant handles refresh token grant type (RFC 6749)
+func (h *TokenHandler) handleRefreshTokenGrant(c *gin.Context) {
+	// 1. Parse parameters
+	refreshTokenString := c.PostForm("refresh_token")
+	clientID := c.PostForm("client_id")
+	requestedScopes := c.PostForm("scope") // Optional
+
+	// 2. Validate required parameters
+	if refreshTokenString == "" || clientID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": "refresh_token and client_id are required",
+		})
+		return
+	}
+
+	// 3. Call service to refresh token
+	newAccessToken, newRefreshToken, err := h.tokenService.RefreshAccessToken(
+		refreshTokenString,
+		clientID,
+		requestedScopes,
+	)
+	// 4. Error handling (RFC 6749 error codes)
+	if err != nil {
+		switch {
+		case errors.Is(err, token.ErrInvalidRefreshToken),
+			errors.Is(err, token.ErrExpiredRefreshToken):
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "invalid_grant",
+				"error_description": "Refresh token is invalid or expired",
+			})
+		case errors.Is(err, services.ErrAccessDenied):
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "invalid_client",
+				"error_description": "Client authentication failed",
+			})
+		case errors.Is(err, token.ErrInvalidScope):
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "invalid_scope",
+				"error_description": "Requested scope exceeds original grant",
+			})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":             "server_error",
+				"error_description": "Token refresh failed",
+			})
+		}
+		return
+	}
+
+	// 5. Return new tokens (RFC 6749 format)
+	c.JSON(http.StatusOK, gin.H{
+		"access_token":  newAccessToken.Token,
+		"refresh_token": newRefreshToken.Token,
+		"token_type":    newAccessToken.TokenType,
+		"expires_in":    int(h.config.JWTExpiration.Seconds()),
+		"scope":         newAccessToken.Scopes,
 	})
 }
 

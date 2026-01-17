@@ -152,11 +152,14 @@ Modern CLI tools and IoT devices need to access user resources securely, but tra
 ## Features
 
 - ✅ **RFC 8628 Compliant** - Full implementation of OAuth 2.0 Device Authorization Grant
+- ✅ **RFC 6749 Refresh Tokens** - Full refresh token support with fixed and rotation modes
 - ✅ **RFC 7009 Token Revocation** - Secure token revocation endpoint for revoking access
 - ✅ **Lightweight** - Single binary, SQLite database, no external dependencies
 - ✅ **Easy Configuration** - `.env` file support for all settings
 - ✅ **Session-Based Auth** - Secure user login with encrypted cookies (7-day expiry)
 - ✅ **JWT Tokens** - Industry-standard access tokens with HMAC-SHA256 signing
+- ✅ **Refresh Token Modes** - Fixed (reusable, multi-device friendly) or Rotation (high security)
+- ✅ **Token Management** - Status-based token control (active/disabled/revoked)
 - ✅ **Session Management** - Web UI for users to view and revoke active sessions
 - ✅ **Example CLI** - Complete working example of a client implementation
 - ✅ **Token Verification** - Built-in endpoint to validate tokens (`/oauth/tokeninfo`)
@@ -316,13 +319,29 @@ nano .env  # Add the CLIENT_ID from server logs
 go run main.go
 ```
 
-The CLI will:
+The CLI demonstrates:
 
-1. Request a device code
-2. Display a URL and user code
-3. Wait for you to authorize
-4. Receive an access token
-5. Verify the token
+1. **First Run (Device Flow)**:
+
+   - Requests a device code
+   - Displays a URL and user code
+   - Waits for authorization
+   - Receives access token + refresh token
+   - Saves tokens to `.authgate-tokens.json`
+   - Verifies the token
+
+2. **Subsequent Runs (Token Reuse)**:
+
+   - Loads existing tokens from file
+   - Uses access token if still valid
+   - Automatically refreshes if expired
+   - Saves refreshed tokens
+
+3. **Automatic Refresh Demo**:
+   - Makes API call with automatic 401 handling
+   - Refreshes token and retries on authentication failure
+
+**Token Storage**: Tokens are securely saved to `.authgate-tokens.json` (excluded from git) with file permissions 0600 (read/write for owner only)
 
 ---
 
@@ -421,27 +440,35 @@ sequenceDiagram
 
 ### Key Endpoints
 
-| Endpoint                       | Method   | Auth Required | Purpose                                        |
-| ------------------------------ | -------- | ------------- | ---------------------------------------------- |
-| `/health`                      | GET      | No            | Health check with database connection test     |
-| `/oauth/device/code`           | POST     | No            | Request device and user codes (CLI/device)     |
-| `/oauth/token`                 | POST     | No            | Poll for access token (grant_type=device_code) |
-| `/oauth/tokeninfo`             | GET      | No            | Verify token validity (pass token as query)    |
-| `/oauth/revoke`                | POST     | No            | Revoke access token (RFC 7009)                 |
-| `/device`                      | GET      | Yes (Session) | User authorization page (browser)              |
-| `/device/verify`               | POST     | Yes (Session) | Complete authorization (submit user_code)      |
-| `/account/sessions`            | GET      | Yes (Session) | View all active sessions                       |
-| `/account/sessions/:id/revoke` | POST     | Yes (Session) | Revoke specific session                        |
-| `/account/sessions/revoke-all` | POST     | Yes (Session) | Revoke all user sessions                       |
-| `/login`                       | GET/POST | No            | User login (creates session)                   |
-| `/logout`                      | GET      | Yes (Session) | User logout (destroys session)                 |
+| Endpoint                       | Method   | Auth Required | Purpose                                                             |
+| ------------------------------ | -------- | ------------- | ------------------------------------------------------------------- |
+| `/health`                      | GET      | No            | Health check with database connection test                          |
+| `/oauth/device/code`           | POST     | No            | Request device and user codes (CLI/device)                          |
+| `/oauth/token`                 | POST     | No            | Token endpoint (grant_type=device_code or grant_type=refresh_token) |
+| `/oauth/tokeninfo`             | GET      | No            | Verify token validity (pass token as query)                         |
+| `/oauth/revoke`                | POST     | No            | Revoke access token (RFC 7009)                                      |
+| `/device`                      | GET      | Yes (Session) | User authorization page (browser)                                   |
+| `/device/verify`               | POST     | Yes (Session) | Complete authorization (submit user_code)                           |
+| `/account/sessions`            | GET      | Yes (Session) | View all active sessions                                            |
+| `/account/sessions/:id/revoke` | POST     | Yes (Session) | Revoke specific session                                             |
+| `/account/sessions/revoke-all` | POST     | Yes (Session) | Revoke all user sessions                                            |
+| `/login`                       | GET/POST | No            | User login (creates session)                                        |
+| `/logout`                      | GET      | Yes (Session) | User logout (destroys session)                                      |
 
 #### Endpoint Details
 
 ##### Device Flow (CLI)
 
 - `POST /oauth/device/code` - Returns `device_code`, `user_code`, `verification_uri`, `interval` (5s)
-- `POST /oauth/token` - Poll with `device_code`, returns JWT or `authorization_pending` error
+- `POST /oauth/token` - Token endpoint supporting multiple grant types:
+  - **Device Code Grant**: `grant_type=urn:ietf:params:oauth:grant-type:device_code`
+    - Poll with `device_code` and `client_id`
+    - Returns `access_token`, `refresh_token`, `token_type`, `expires_in`, `scope`
+    - Returns `authorization_pending` error while waiting for user
+  - **Refresh Token Grant**: `grant_type=refresh_token`
+    - Request with `refresh_token`, `client_id`, and optional `scope`
+    - Returns new `access_token` (fixed mode) or new `access_token` + `refresh_token` (rotation mode)
+    - Returns `invalid_grant` error if refresh token is invalid/expired
 
 ##### User Authorization (Browser)
 
@@ -525,6 +552,11 @@ TOKEN_PROVIDER_MODE=local
 TOKEN_API_URL=https://token.example.com/api
 TOKEN_API_TIMEOUT=10s
 TOKEN_API_INSECURE_SKIP_VERIFY=false
+
+# Refresh Token Configuration
+REFRESH_TOKEN_EXPIRATION=720h        # Refresh token lifetime (default: 30 days)
+ENABLE_REFRESH_TOKENS=true          # Feature flag to enable/disable refresh tokens
+ENABLE_TOKEN_ROTATION=false         # Enable rotation mode (default: fixed mode)
 ```
 
 #### Generate Strong Secrets
@@ -1222,7 +1254,35 @@ A: Yes! Add additional clients to the `oauth_clients` table with unique `client_
 
 ### Q: What about token refresh?
 
-A: This implementation uses short-lived JWTs without refresh tokens. For production use, consider implementing refresh tokens to avoid frequent re-authorization.
+A: AuthGate now fully supports refresh tokens (RFC 6749) with two modes:
+
+- **Fixed Mode (Default)**: Refresh tokens are reusable, perfect for multi-device scenarios. Each device gets its own refresh token that remains valid until manually revoked or expired. Users can manage all tokens via `/account/sessions`.
+
+- **Rotation Mode**: High-security mode where each refresh returns new tokens and old ones are revoked. Enable with `ENABLE_TOKEN_ROTATION=true`.
+
+**Usage Example:**
+
+```bash
+# Initial authorization returns both tokens
+POST /oauth/token
+  grant_type=urn:ietf:params:oauth:grant-type:device_code
+  device_code=xxx
+  client_id=xxx
+→ Returns: access_token + refresh_token
+
+# When access token expires, refresh it
+POST /oauth/token
+  grant_type=refresh_token
+  refresh_token=xxx
+  client_id=xxx
+→ Returns: new access_token (fixed mode) or access_token + refresh_token (rotation mode)
+```
+
+Configure via environment variables:
+
+- `REFRESH_TOKEN_EXPIRATION=720h` (default: 30 days)
+- `ENABLE_REFRESH_TOKENS=true` (default)
+- `ENABLE_TOKEN_ROTATION=false` (default: fixed mode)
 
 ### Q: How do users revoke device access?
 
@@ -1287,6 +1347,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## References
 
 - [RFC 8628 - OAuth 2.0 Device Authorization Grant](https://datatracker.ietf.org/doc/html/rfc8628)
+- [RFC 6749 - OAuth 2.0 Framework (Refresh Tokens)](https://datatracker.ietf.org/doc/html/rfc6749)
 - [RFC 7009 - OAuth 2.0 Token Revocation](https://datatracker.ietf.org/doc/html/rfc7009)
 - [OAuth 2.0 Documentation](https://oauth.net/2/)
 - [JWT Best Practices](https://datatracker.ietf.org/doc/html/rfc8725)
