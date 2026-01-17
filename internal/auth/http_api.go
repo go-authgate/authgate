@@ -9,15 +9,15 @@ import (
 	"io"
 	"net/http"
 
+	httpclient "github.com/appleboy/go-httpclient"
+
 	"github.com/appleboy/authgate/internal/config"
-	"github.com/appleboy/authgate/internal/httpclient"
 )
 
 // HTTPAPIAuthProvider handles HTTP API-based authentication
 type HTTPAPIAuthProvider struct {
-	config     *config.Config
-	client     *http.Client
-	authConfig *httpclient.AuthConfig
+	config *config.Config
+	client *http.Client
 }
 
 // NewHTTPAPIAuthProvider creates a new HTTP API authentication provider
@@ -29,22 +29,18 @@ func NewHTTPAPIAuthProvider(cfg *config.Config) *HTTPAPIAuthProvider {
 		},
 	}
 
-	client := &http.Client{
-		Timeout:   cfg.HTTPAPITimeout,
-		Transport: transport,
-	}
-
-	// Initialize authentication config
-	authConfig := &httpclient.AuthConfig{
-		Mode:       cfg.HTTPAPIAuthMode,
-		Secret:     cfg.HTTPAPIAuthSecret,
-		HeaderName: cfg.HTTPAPIAuthHeader,
-	}
+	// Create HTTP client with automatic authentication
+	client := httpclient.NewAuthClient(
+		cfg.HTTPAPIAuthMode,
+		cfg.HTTPAPIAuthSecret,
+		httpclient.WithTimeout(cfg.HTTPAPITimeout),
+		httpclient.WithTransport(transport),
+		httpclient.WithHeaderName(cfg.HTTPAPIAuthHeader),
+	)
 
 	return &HTTPAPIAuthProvider{
-		config:     cfg,
-		client:     client,
-		authConfig: authConfig,
+		config: cfg,
+		client: client,
 	}
 }
 
@@ -90,11 +86,7 @@ func (p *HTTPAPIAuthProvider) Authenticate(
 
 	req.Header.Set("Content-Type", "application/json")
 
-	// Add authentication headers
-	if err := p.authConfig.AddAuthHeaders(req, jsonData); err != nil {
-		return nil, fmt.Errorf("failed to add auth headers: %w", err)
-	}
-
+	// Authentication headers are automatically added by the HTTP client
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrHTTPAPIConnection, err)

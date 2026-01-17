@@ -240,7 +240,7 @@ HTTP_API_TIMEOUT=10s
 HTTP_API_INSECURE_SKIP_VERIFY=false
 ```
 
-#### Expected API Contract
+#### Authentication API Contract
 
 Request (POST to HTTP_API_URL):
 
@@ -262,7 +262,7 @@ Response:
 }
 ```
 
-#### Response Requirements
+#### Authentication Response Requirements
 
 - `success` (required): Boolean indicating authentication result
 - `user_id` (required when success=true): Non-empty string uniquely identifying the user in external system
@@ -270,7 +270,7 @@ Response:
 - `full_name` (optional): User's display name
 - `message` (optional): Error message when success=false or HTTP status is non-2xx
 
-#### Behavior
+#### Authentication Behavior
 
 - First login auto-creates user in local database with `auth_source="http_api"`
 - Subsequent logins update user info (email, full_name)
@@ -321,7 +321,7 @@ TOKEN_API_TIMEOUT=10s
 TOKEN_API_INSECURE_SKIP_VERIFY=false
 ```
 
-#### Expected API Contract
+#### Token API Contract
 
 **Token Generation Endpoint:** `POST {TOKEN_API_URL}/generate`
 
@@ -393,7 +393,7 @@ Response (Invalid):
 }
 ```
 
-#### Response Requirements
+#### Token Response Requirements
 
 Generation Response:
 
@@ -414,7 +414,7 @@ Validation Response:
 - `claims` (optional): Additional JWT claims
 - `message` (optional): Error message when valid=false
 
-#### Behavior
+#### Token Provider Behavior
 
 - Token generation/validation delegated to external service
 - Token records still saved to local database for management
@@ -486,13 +486,13 @@ TOKEN_API_AUTH_SECRET=your-shared-secret-key
 TOKEN_API_AUTH_HEADER=X-API-Secret  # Optional
 ```
 
-##### Request Headers
+##### Simple Mode: Request Headers
 
 ```
 X-API-Secret: your-shared-secret-key
 ```
 
-##### Server-side validation
+##### Simple Mode: Server-side Validation
 
 ```go
 secret := r.Header.Get("X-API-Secret")
@@ -515,7 +515,7 @@ TOKEN_API_AUTH_MODE=hmac
 TOKEN_API_AUTH_SECRET=your-shared-secret-key
 ```
 
-##### Request Headers
+##### HMAC Mode: Request Headers
 
 ```txt
 X-Signature: <hmac-sha256-hex>
@@ -546,10 +546,10 @@ h.Write([]byte(message))
 signature := hex.EncodeToString(h.Sum(nil))
 ```
 
-##### Server-side validation
+##### HMAC Mode: Server-side Validation
 
 ```go
-import "github.com/appleboy/authgate/internal/httpclient"
+import httpclient "github.com/appleboy/go-httpclient"
 
 authConfig := &httpclient.AuthConfig{
     Mode:   httpclient.AuthModeHMAC,

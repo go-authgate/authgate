@@ -10,15 +10,15 @@ import (
 	"net/http"
 	"time"
 
+	httpclient "github.com/appleboy/go-httpclient"
+
 	"github.com/appleboy/authgate/internal/config"
-	"github.com/appleboy/authgate/internal/httpclient"
 )
 
 // HTTPTokenProvider generates and validates tokens via external HTTP API
 type HTTPTokenProvider struct {
-	config     *config.Config
-	client     *http.Client
-	authConfig *httpclient.AuthConfig
+	config *config.Config
+	client *http.Client
 }
 
 // NewHTTPTokenProvider creates a new HTTP API token provider
@@ -30,22 +30,18 @@ func NewHTTPTokenProvider(cfg *config.Config) *HTTPTokenProvider {
 		},
 	}
 
-	client := &http.Client{
-		Timeout:   cfg.TokenAPITimeout,
-		Transport: transport,
-	}
-
-	// Initialize authentication config
-	authConfig := &httpclient.AuthConfig{
-		Mode:       cfg.TokenAPIAuthMode,
-		Secret:     cfg.TokenAPIAuthSecret,
-		HeaderName: cfg.TokenAPIAuthHeader,
-	}
+	// Create HTTP client with automatic authentication
+	client := httpclient.NewAuthClient(
+		cfg.TokenAPIAuthMode,
+		cfg.TokenAPIAuthSecret,
+		httpclient.WithTimeout(cfg.TokenAPITimeout),
+		httpclient.WithTransport(transport),
+		httpclient.WithHeaderName(cfg.TokenAPIAuthHeader),
+	)
 
 	return &HTTPTokenProvider{
-		config:     cfg,
-		client:     client,
-		authConfig: authConfig,
+		config: cfg,
+		client: client,
 	}
 }
 
@@ -76,11 +72,7 @@ func (p *HTTPTokenProvider) callValidateAPI(
 
 	req.Header.Set("Content-Type", "application/json")
 
-	// Add authentication headers
-	if err := p.authConfig.AddAuthHeaders(req, jsonData); err != nil {
-		return nil, fmt.Errorf("failed to add auth headers: %w", err)
-	}
-
+	// Authentication headers are automatically added by the HTTP client
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrHTTPTokenConnection, err)
@@ -187,11 +179,7 @@ func (p *HTTPTokenProvider) GenerateToken(
 
 	req.Header.Set("Content-Type", "application/json")
 
-	// Add authentication headers
-	if err := p.authConfig.AddAuthHeaders(req, jsonData); err != nil {
-		return nil, fmt.Errorf("failed to add auth headers: %w", err)
-	}
-
+	// Authentication headers are automatically added by the HTTP client
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrHTTPTokenConnection, err)
@@ -323,11 +311,7 @@ func (p *HTTPTokenProvider) GenerateRefreshToken(
 
 	req.Header.Set("Content-Type", "application/json")
 
-	// Add authentication headers
-	if err := p.authConfig.AddAuthHeaders(req, jsonData); err != nil {
-		return nil, fmt.Errorf("failed to add auth headers: %w", err)
-	}
-
+	// Authentication headers are automatically added by the HTTP client
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrHTTPTokenConnection, err)
@@ -430,11 +414,7 @@ func (p *HTTPTokenProvider) RefreshAccessToken(
 
 	req.Header.Set("Content-Type", "application/json")
 
-	// Add authentication headers
-	if err := p.authConfig.AddAuthHeaders(req, jsonData); err != nil {
-		return nil, fmt.Errorf("failed to add auth headers: %w", err)
-	}
-
+	// Authentication headers are automatically added by the HTTP client
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrHTTPTokenConnection, err)

@@ -84,7 +84,7 @@
       - [3. Reverse Proxy Setup (Nginx)](#3-reverse-proxy-setup-nginx)
       - [4. Cloud Platform Deployment](#4-cloud-platform-deployment)
         - [Fly.io Example](#flyio-example)
-  - [Use Cases](#use-cases-1)
+  - [Use Cases Sample](#use-cases-sample)
     - [Example: Securing a CLI Tool](#example-securing-a-cli-tool)
     - [Example: IoT Device Authentication](#example-iot-device-authentication)
     - [Example: Security Incident Response](#example-security-incident-response)
@@ -807,7 +807,7 @@ Authentication is configured **separately** for each external service:
 Your external API must verify incoming requests. Here's a Go example for HMAC verification:
 
 ```go
-import "github.com/appleboy/authgate/internal/httpclient"
+import httpclient "github.com/appleboy/go-httpclient"
 
 // Initialize auth config (server side)
 authConfig := httpclient.NewAuthConfig("hmac", "your-hmac-secret")
@@ -1174,7 +1174,7 @@ fly deploy
 
 ---
 
-## Use Cases
+## Use Cases Sample
 
 ### Example: Securing a CLI Tool
 
