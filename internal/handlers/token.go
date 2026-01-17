@@ -59,7 +59,11 @@ func (h *TokenHandler) handleDeviceCodeGrant(c *gin.Context) {
 		return
 	}
 
-	accessToken, refreshToken, err := h.tokenService.ExchangeDeviceCode(deviceCode, clientID)
+	accessToken, refreshToken, err := h.tokenService.ExchangeDeviceCode(
+		c.Request.Context(),
+		deviceCode,
+		clientID,
+	)
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrAuthorizationPending):
@@ -114,6 +118,7 @@ func (h *TokenHandler) handleRefreshTokenGrant(c *gin.Context) {
 
 	// 3. Call service to refresh token
 	newAccessToken, newRefreshToken, err := h.tokenService.RefreshAccessToken(
+		c.Request.Context(),
 		refreshTokenString,
 		clientID,
 		requestedScopes,
@@ -167,7 +172,7 @@ func (h *TokenHandler) TokenInfo(c *gin.Context) {
 	}
 
 	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-	result, err := h.tokenService.ValidateToken(tokenString)
+	result, err := h.tokenService.ValidateToken(c.Request.Context(), tokenString)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error":             "invalid_token",

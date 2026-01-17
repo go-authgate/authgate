@@ -63,6 +63,7 @@ func NewTokenService(
 
 // ExchangeDeviceCode exchanges an authorized device code for access and refresh tokens
 func (s *TokenService) ExchangeDeviceCode(
+	ctx context.Context,
 	deviceCode, clientID string,
 ) (*models.AccessToken, *models.AccessToken, error) {
 	dc, err := s.store.GetDeviceCode(deviceCode)
@@ -107,7 +108,7 @@ func (s *TokenService) ExchangeDeviceCode(
 			)
 		}
 		accessTokenResult, providerErr = s.httpTokenProvider.GenerateToken(
-			context.Background(),
+			ctx,
 			dc.UserID,
 			dc.ClientID,
 			dc.Scopes,
@@ -119,7 +120,7 @@ func (s *TokenService) ExchangeDeviceCode(
 			return nil, nil, fmt.Errorf("local token provider not configured")
 		}
 		accessTokenResult, providerErr = s.localTokenProvider.GenerateToken(
-			context.Background(),
+			ctx,
 			dc.UserID,
 			dc.ClientID,
 			dc.Scopes,
@@ -145,7 +146,7 @@ func (s *TokenService) ExchangeDeviceCode(
 	switch s.tokenProviderMode {
 	case config.TokenProviderModeHTTPAPI:
 		refreshTokenResult, providerErr = s.httpTokenProvider.GenerateRefreshToken(
-			context.Background(),
+			ctx,
 			dc.UserID,
 			dc.ClientID,
 			dc.Scopes,
@@ -154,7 +155,7 @@ func (s *TokenService) ExchangeDeviceCode(
 		fallthrough
 	default:
 		refreshTokenResult, providerErr = s.localTokenProvider.GenerateRefreshToken(
-			context.Background(),
+			ctx,
 			dc.UserID,
 			dc.ClientID,
 			dc.Scopes,
@@ -229,7 +230,10 @@ func (s *TokenService) ExchangeDeviceCode(
 }
 
 // ValidateToken validates a JWT token using the configured provider
-func (s *TokenService) ValidateToken(tokenString string) (*token.TokenValidationResult, error) {
+func (s *TokenService) ValidateToken(
+	ctx context.Context,
+	tokenString string,
+) (*token.TokenValidationResult, error) {
 	var result *token.TokenValidationResult
 	var err error
 
@@ -238,14 +242,14 @@ func (s *TokenService) ValidateToken(tokenString string) (*token.TokenValidation
 		if s.httpTokenProvider == nil {
 			return nil, fmt.Errorf("HTTP token provider not configured")
 		}
-		result, err = s.httpTokenProvider.ValidateToken(context.Background(), tokenString)
+		result, err = s.httpTokenProvider.ValidateToken(ctx, tokenString)
 	case config.TokenProviderModeLocal:
 		fallthrough
 	default:
 		if s.localTokenProvider == nil {
 			return nil, fmt.Errorf("local token provider not configured")
 		}
-		result, err = s.localTokenProvider.ValidateToken(context.Background(), tokenString)
+		result, err = s.localTokenProvider.ValidateToken(ctx, tokenString)
 	}
 
 	if err != nil {
@@ -337,6 +341,7 @@ func (s *TokenService) RevokeAllUserTokens(userID string) error {
 
 // RefreshAccessToken generates new access token (and optionally new refresh token in rotation mode)
 func (s *TokenService) RefreshAccessToken(
+	ctx context.Context,
 	refreshTokenString, clientID, requestedScopes string,
 ) (*models.AccessToken, *models.AccessToken, error) {
 	// 1. Get refresh token from database
@@ -379,7 +384,7 @@ func (s *TokenService) RefreshAccessToken(
 			return nil, nil, fmt.Errorf("HTTP token provider not configured")
 		}
 		refreshResult, providerErr = s.httpTokenProvider.RefreshAccessToken(
-			context.Background(),
+			ctx,
 			refreshTokenString,
 			enableRotation,
 		)
@@ -390,7 +395,7 @@ func (s *TokenService) RefreshAccessToken(
 			return nil, nil, fmt.Errorf("local token provider not configured")
 		}
 		refreshResult, providerErr = s.localTokenProvider.RefreshAccessToken(
-			context.Background(),
+			ctx,
 			refreshTokenString,
 			enableRotation,
 		)
