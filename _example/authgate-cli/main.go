@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,15 +25,33 @@ func init() {
 	// Load .env file if exists (ignore error if not found)
 	_ = godotenv.Load()
 
-	serverURL = getEnv("SERVER_URL", "http://localhost:8080")
-	clientID = getEnv("CLIENT_ID", "")
-	tokenFile = getEnv("TOKEN_FILE", ".authgate-tokens.json")
+	// Define flags
+	flagServerURL := flag.String("server-url", "", "OAuth server URL (default: http://localhost:8080 or SERVER_URL env)")
+	flagClientID := flag.String("client-id", "", "OAuth client ID (required, or set CLIENT_ID env)")
+	flagTokenFile := flag.String("token-file", "", "Token storage file (default: .authgate-tokens.json or TOKEN_FILE env)")
+	flag.Parse()
+
+	// Priority: flag > env > default
+	serverURL = getConfig(*flagServerURL, "SERVER_URL", "http://localhost:8080")
+	clientID = getConfig(*flagClientID, "CLIENT_ID", "")
+	tokenFile = getConfig(*flagTokenFile, "TOKEN_FILE", ".authgate-tokens.json")
 
 	if clientID == "" {
-		fmt.Println("Error: CLIENT_ID not set. Please set it in .env file or environment variable.")
-		fmt.Println("You can find the client_id in the server startup logs.")
+		fmt.Println("Error: CLIENT_ID not set. Please provide it via:")
+		fmt.Println("  1. Command line flag: -client-id=<your-client-id>")
+		fmt.Println("  2. Environment variable: CLIENT_ID=<your-client-id>")
+		fmt.Println("  3. .env file: CLIENT_ID=<your-client-id>")
+		fmt.Println("\nYou can find the client_id in the server startup logs.")
 		os.Exit(1)
 	}
+}
+
+// getConfig returns value with priority: flag > env > default
+func getConfig(flagValue, envKey, defaultValue string) string {
+	if flagValue != "" {
+		return flagValue
+	}
+	return getEnv(envKey, defaultValue)
 }
 
 func getEnv(key, defaultValue string) string {
@@ -99,7 +118,11 @@ func main() {
 	// Display current token info
 	fmt.Printf("\n========================================\n")
 	fmt.Printf("Current Token Info:\n")
-	fmt.Printf("Access Token: %s...\n", storage.AccessToken[:min(50, len(storage.AccessToken))])
+	tokenPreview := storage.AccessToken
+	if len(tokenPreview) > 50 {
+		tokenPreview = tokenPreview[:50]
+	}
+	fmt.Printf("Access Token: %s...\n", tokenPreview)
 	fmt.Printf("Token Type: %s\n", storage.TokenType)
 	fmt.Printf("Expires In: %s\n", time.Until(storage.ExpiresAt).Round(time.Second))
 	fmt.Printf("========================================\n")
@@ -351,11 +374,4 @@ func makeAPICallWithAutoRefresh(storage *TokenStorage) error {
 
 	fmt.Println("API call successful!")
 	return nil
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
