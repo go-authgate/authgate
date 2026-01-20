@@ -66,12 +66,18 @@ type ErrorResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
-// TokenStorage represents saved tokens
+// TokenStorage represents saved tokens for a specific client
 type TokenStorage struct {
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string    `json:"refresh_token"`
 	TokenType    string    `json:"token_type"`
 	ExpiresAt    time.Time `json:"expires_at"`
+	ClientID     string    `json:"client_id"`
+}
+
+// TokenStorageMap manages tokens for multiple clients
+type TokenStorageMap struct {
+	Tokens map[string]*TokenStorage `json:"tokens"` // key = client_id
 }
 
 func main() {
@@ -181,6 +187,7 @@ func performDeviceFlow(ctx context.Context) (*TokenStorage, error) {
 		RefreshToken: token.RefreshToken,
 		TokenType:    token.Type(),
 		ExpiresAt:    token.Expiry,
+		ClientID:     clientID,
 	}
 
 	if err := saveTokens(storage); err != nil {
@@ -252,24 +259,58 @@ func verifyToken(accessToken string) error {
 	return nil
 }
 
-// loadTokens loads tokens from file
+// loadTokens loads tokens from file for the current client
 func loadTokens() (*TokenStorage, error) {
 	data, err := os.ReadFile(tokenFile)
 	if err != nil {
 		return nil, err
 	}
 
-	var storage TokenStorage
-	if err := json.Unmarshal(data, &storage); err != nil {
-		return nil, err
+	var storageMap TokenStorageMap
+	if err := json.Unmarshal(data, &storageMap); err != nil {
+		return nil, fmt.Errorf("failed to parse token file: %w", err)
 	}
 
-	return &storage, nil
+	if storageMap.Tokens == nil {
+		return nil, fmt.Errorf("no tokens found in token file")
+	}
+
+	// Look up token for current client_id
+	if storage, ok := storageMap.Tokens[clientID]; ok {
+		return storage, nil
+	}
+
+	return nil, fmt.Errorf("no tokens found for client_id: %s", clientID)
 }
 
-// saveTokens saves tokens to file
+// saveTokens saves tokens to file (merges with existing tokens for other clients)
 func saveTokens(storage *TokenStorage) error {
-	data, err := json.MarshalIndent(storage, "", "  ")
+	// Ensure ClientID is set
+	if storage.ClientID == "" {
+		storage.ClientID = clientID
+	}
+
+	// Load existing token map
+	var storageMap TokenStorageMap
+	existingData, err := os.ReadFile(tokenFile)
+	if err == nil {
+		// File exists, try to load it
+		if unmarshalErr := json.Unmarshal(existingData, &storageMap); unmarshalErr != nil {
+			// If unmarshal fails, start with empty map
+			storageMap.Tokens = make(map[string]*TokenStorage)
+		}
+	}
+
+	// Initialize map if nil
+	if storageMap.Tokens == nil {
+		storageMap.Tokens = make(map[string]*TokenStorage)
+	}
+
+	// Add or update token for current client
+	storageMap.Tokens[storage.ClientID] = storage
+
+	// Marshal and save
+	data, err := json.MarshalIndent(storageMap, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -317,6 +358,7 @@ func refreshAccessToken(refreshToken string) (*TokenStorage, error) {
 		RefreshToken: tokenResp.RefreshToken,
 		TokenType:    tokenResp.TokenType,
 		ExpiresAt:    time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
+		ClientID:     clientID,
 	}
 
 	// Save updated tokens

@@ -112,11 +112,38 @@ After the first login, your tokens are saved locally. The tool will:
 
 ### Token Storage
 
-Tokens are saved in `.authgate-tokens.json` by default (or the path you specify). This file contains:
+Tokens are saved in `.authgate-tokens.json` by default (or the path you specify). This file now supports **multiple Client IDs**, allowing you to manage tokens for different OAuth clients in a single file.
+
+File structure:
+
+```json
+{
+  "tokens": {
+    "client-id-1": {
+      "access_token": "...",
+      "refresh_token": "...",
+      "token_type": "Bearer",
+      "expires_at": "2026-01-20T12:00:00Z",
+      "client_id": "client-id-1"
+    },
+    "client-id-2": {
+      "access_token": "...",
+      "refresh_token": "...",
+      "token_type": "Bearer",
+      "expires_at": "2026-01-20T13:00:00Z",
+      "client_id": "client-id-2"
+    }
+  }
+}
+```
+
+Each client ID has its own token entry containing:
 
 - Access token
 - Refresh token
+- Token type
 - Token expiration time
+- Client ID
 
 **Security Note**: This file is created with `0600` permissions (owner read/write only).
 
@@ -139,10 +166,26 @@ Tokens are saved in `.authgate-tokens.json` by default (or the path you specify)
 ./authgate-cli -client-id=abc-123 -server-url=https://auth.example.com
 ```
 
-### Multiple Token Files
+### Multiple Client IDs
+
+#### Same Token File (Recommended)
+
+The default behavior now supports multiple clients in one file:
 
 ```bash
-# Use different token files for different accounts
+# Both clients save to the same .authgate-tokens.json file
+./authgate-cli -client-id=abc-123
+./authgate-cli -client-id=xyz-789
+
+# Tokens for both clients are stored together and managed independently
+```
+
+#### Separate Token Files
+
+You can still use different token files if preferred:
+
+```bash
+# Use different token files for different environments
 ./authgate-cli -client-id=abc-123 -token-file=./work-tokens.json
 ./authgate-cli -client-id=xyz-789 -token-file=./personal-tokens.json
 ```
