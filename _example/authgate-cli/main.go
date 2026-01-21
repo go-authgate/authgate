@@ -66,6 +66,9 @@ type ErrorResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
+// ErrRefreshTokenExpired indicates that the refresh token has expired or is invalid
+var ErrRefreshTokenExpired = fmt.Errorf("refresh token expired or invalid")
+
 // TokenStorage represents saved tokens for a specific client
 type TokenStorage struct {
 	AccessToken  string    `json:"access_token"`
@@ -144,7 +147,25 @@ func main() {
 	// Demonstrate automatic refresh on 401
 	fmt.Println("\nDemonstrating automatic refresh on API call...")
 	if err := makeAPICallWithAutoRefresh(storage); err != nil {
-		fmt.Printf("API call failed: %v\n", err)
+		// Check if error is due to expired refresh token
+		if err == ErrRefreshTokenExpired {
+			fmt.Println("Refresh token expired, re-authenticating...")
+			storage, err = performDeviceFlow(ctx)
+			if err != nil {
+				fmt.Printf("Re-authentication failed: %v\n", err)
+				os.Exit(1)
+			}
+
+			// Retry API call with new tokens
+			fmt.Println("Retrying API call with new tokens...")
+			if err := makeAPICallWithAutoRefresh(storage); err != nil {
+				fmt.Printf("API call failed after re-authentication: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("API call successful after re-authentication!")
+		} else {
+			fmt.Printf("API call failed: %v\n", err)
+		}
 	}
 }
 
@@ -336,6 +357,10 @@ func refreshAccessToken(refreshToken string) (*TokenStorage, error) {
 	if resp.StatusCode != http.StatusOK {
 		var errResp ErrorResponse
 		if err := json.Unmarshal(body, &errResp); err == nil {
+			// Check if refresh token is expired or invalid
+			if errResp.Error == "invalid_grant" || errResp.Error == "invalid_token" {
+				return nil, ErrRefreshTokenExpired
+			}
 			return nil, fmt.Errorf("%s: %s", errResp.Error, errResp.ErrorDescription)
 		}
 		return nil, fmt.Errorf("refresh failed with status %d", resp.StatusCode)
@@ -387,6 +412,10 @@ func makeAPICallWithAutoRefresh(storage *TokenStorage) error {
 
 		newStorage, err := refreshAccessToken(storage.RefreshToken)
 		if err != nil {
+			// If refresh token is expired, propagate the error to trigger device flow
+			if err == ErrRefreshTokenExpired {
+				return ErrRefreshTokenExpired
+			}
 			return fmt.Errorf("refresh failed: %w", err)
 		}
 
