@@ -38,8 +38,10 @@ func acquireFileLock(filePath string) (*fileLock, error) {
 			if info, statErr := os.Stat(lockPath); statErr == nil {
 				age := time.Since(info.ModTime())
 				if age > 30*time.Second {
-					// Stale lock, try to remove it
-					os.Remove(lockPath)
+					// Stale lock, try to remove it; handle races and real errors
+					if remErr := os.Remove(lockPath); remErr != nil && !os.IsNotExist(remErr) {
+						return nil, fmt.Errorf("failed to remove stale lock file %s: %w", lockPath, remErr)
+					}
 					continue
 				}
 			}
