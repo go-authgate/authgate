@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"golang.org/x/oauth2"
 )
@@ -87,6 +88,20 @@ func initConfig() {
 		fmt.Println("  3. .env file: CLIENT_ID=<your-client-id>")
 		fmt.Println("\nYou can find the client_id in the server startup logs.")
 		os.Exit(1)
+	}
+
+	// Validate CLIENT_ID format (should be UUID)
+	if _, err := uuid.Parse(clientID); err != nil {
+		fmt.Fprintf(
+			os.Stderr,
+			"⚠️  Warning: CLIENT_ID doesn't appear to be a valid UUID: %s\n",
+			clientID,
+		)
+		fmt.Fprintln(
+			os.Stderr,
+			"⚠️  This may cause authentication issues if the server expects UUID format.",
+		)
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Initialize secure HTTP client
