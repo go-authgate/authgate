@@ -165,6 +165,28 @@ type ErrorResponse struct {
 // ErrRefreshTokenExpired indicates that the refresh token has expired or is invalid
 var ErrRefreshTokenExpired = fmt.Errorf("refresh token expired or invalid")
 
+// validateTokenResponse validates the OAuth token response
+func validateTokenResponse(accessToken, tokenType string, expiresIn int) error {
+	if accessToken == "" {
+		return fmt.Errorf("access_token is empty")
+	}
+
+	if len(accessToken) < 10 {
+		return fmt.Errorf("access_token is too short (length: %d)", len(accessToken))
+	}
+
+	if expiresIn <= 0 {
+		return fmt.Errorf("expires_in must be positive, got: %d", expiresIn)
+	}
+
+	// Token type is optional in OAuth 2.0, but if present, should be "Bearer"
+	if tokenType != "" && tokenType != "Bearer" {
+		return fmt.Errorf("unexpected token_type: %s (expected Bearer)", tokenType)
+	}
+
+	return nil
+}
+
 // TokenStorage represents saved tokens for a specific client
 type TokenStorage struct {
 	AccessToken  string    `json:"access_token"`
@@ -474,6 +496,11 @@ func exchangeDeviceCode(
 		return nil, fmt.Errorf("failed to parse token response: %w", err)
 	}
 
+	// Validate token response
+	if err := validateTokenResponse(tokenResp.AccessToken, tokenResp.TokenType, tokenResp.ExpiresIn); err != nil {
+		return nil, fmt.Errorf("invalid token response: %w", err)
+	}
+
 	token := &oauth2.Token{
 		AccessToken:  tokenResp.AccessToken,
 		RefreshToken: tokenResp.RefreshToken,
@@ -641,9 +668,23 @@ func refreshAccessToken(refreshToken string) (*TokenStorage, error) {
 		return nil, fmt.Errorf("failed to parse token response: %w", err)
 	}
 
+	// Validate token response
+	if err := validateTokenResponse(tokenResp.AccessToken, tokenResp.TokenType, tokenResp.ExpiresIn); err != nil {
+		return nil, fmt.Errorf("invalid token response: %w", err)
+	}
+
+	// Handle refresh token rotation modes:
+	// - Rotation mode: Server returns new refresh_token (use it)
+	// - Fixed mode: Server doesn't return refresh_token (preserve old one)
+	newRefreshToken := tokenResp.RefreshToken
+	if newRefreshToken == "" {
+		// Server didn't return a new refresh token (fixed mode)
+		newRefreshToken = refreshToken
+	}
+
 	storage := &TokenStorage{
 		AccessToken:  tokenResp.AccessToken,
-		RefreshToken: tokenResp.RefreshToken,
+		RefreshToken: newRefreshToken,
 		TokenType:    tokenResp.TokenType,
 		ExpiresAt:    time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
 		ClientID:     clientID,
