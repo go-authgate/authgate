@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/appleboy/go-httpretry"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"golang.org/x/oauth2"
@@ -27,7 +28,7 @@ var (
 	flagClientID      *string
 	flagTokenFile     *string
 	configInitialized bool
-	httpClient        *http.Client
+	retryClient       *retry.Client
 )
 
 // Timeout configuration for different operations
@@ -113,8 +114,8 @@ func initConfig() {
 		fmt.Fprintln(os.Stderr)
 	}
 
-	// Initialize secure HTTP client (no global timeout - we use per-request timeouts)
-	httpClient = &http.Client{
+	// Initialize HTTP client with retry support
+	baseHTTPClient := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				MinVersion: tls.VersionTLS12,
@@ -125,6 +126,15 @@ func initConfig() {
 			DisableKeepAlives:   false,
 		},
 	}
+
+	// Wrap with retry logic using go-httpretry
+	retryClient = retry.NewClient(
+		retry.WithHTTPClient(baseHTTPClient),
+		retry.WithMaxRetries(3),
+		retry.WithInitialRetryDelay(1*time.Second),
+		retry.WithMaxRetryDelay(10*time.Second),
+		retry.WithRetryDelayMultiple(2.0),
+	)
 }
 
 // getConfig returns value with priority: flag > env > default
@@ -318,7 +328,7 @@ func requestDeviceCode(ctx context.Context) (*oauth2.DeviceAuthResponse, error) 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	// Execute request with retry logic
-	resp, err := retryableHTTPRequest(reqCtx, httpClient, req)
+	resp, err := retryClient.Do(reqCtx, req)
 	if err != nil {
 		return nil, fmt.Errorf("device code request failed: %w", err)
 	}
@@ -330,7 +340,11 @@ func requestDeviceCode(ctx context.Context) (*oauth2.DeviceAuthResponse, error) 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("device code request failed with status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf(
+			"device code request failed with status %d: %s",
+			resp.StatusCode,
+			string(body),
+		)
 	}
 
 	// Parse response
@@ -530,13 +544,18 @@ func exchangeDeviceCode(
 	data.Set("device_code", deviceCode)
 	data.Set("client_id", clientID)
 
-	req, err := http.NewRequestWithContext(reqCtx, "POST", tokenURL, strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(
+		reqCtx,
+		"POST",
+		tokenURL,
+		strings.NewReader(data.Encode()),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := httpClient.Do(req)
+	resp, err := retryClient.Do(reqCtx, req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -595,7 +614,7 @@ func verifyToken(accessToken string) error {
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	// Execute request with retry logic
-	resp, err := retryableHTTPRequest(ctx, httpClient, req)
+	resp, err := retryClient.Do(ctx, req)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
@@ -726,7 +745,7 @@ func refreshAccessToken(refreshToken string) (*TokenStorage, error) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	// Execute request with retry logic
-	resp, err := retryableHTTPRequest(ctx, httpClient, req)
+	resp, err := retryClient.Do(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("refresh request failed: %w", err)
 	}
@@ -800,7 +819,7 @@ func makeAPICallWithAutoRefresh(storage *TokenStorage) error {
 	}
 	req.Header.Set("Authorization", "Bearer "+storage.AccessToken)
 
-	resp, err := httpClient.Do(req)
+	resp, err := retryClient.Do(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("API request failed: %w", err)
 	}
@@ -834,7 +853,7 @@ func makeAPICallWithAutoRefresh(storage *TokenStorage) error {
 		}
 		req.Header.Set("Authorization", "Bearer "+storage.AccessToken)
 
-		resp, err = httpClient.Do(req)
+		resp, err = retryClient.Do(context.Background(), req)
 		if err != nil {
 			return fmt.Errorf("retry failed: %w", err)
 		}

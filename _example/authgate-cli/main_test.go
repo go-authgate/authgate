@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/appleboy/go-httpretry"
 )
 
 func init() {
@@ -25,9 +27,9 @@ func init() {
 	if tokenFile == "" {
 		tokenFile = ".authgate-tokens.json"
 	}
-	// Initialize httpClient for tests (no global timeout - we use per-request timeouts)
-	if httpClient == nil {
-		httpClient = &http.Client{}
+	// Initialize retryClient for tests
+	if retryClient == nil {
+		retryClient = retry.NewClient()
 	}
 }
 
@@ -349,39 +351,41 @@ func TestRefreshAccessToken_RotationMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock server
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path != "/oauth/token" {
-					http.NotFound(w, r)
-					return
-				}
+			server := httptest.NewServer(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.URL.Path != "/oauth/token" {
+						http.NotFound(w, r)
+						return
+					}
 
-				// Parse form to verify grant_type
-				if err := r.ParseForm(); err != nil {
-					http.Error(w, "Invalid form", http.StatusBadRequest)
-					return
-				}
+					// Parse form to verify grant_type
+					if err := r.ParseForm(); err != nil {
+						http.Error(w, "Invalid form", http.StatusBadRequest)
+						return
+					}
 
-				grantType := r.FormValue("grant_type")
-				if grantType != "refresh_token" {
-					http.Error(w, "Invalid grant_type", http.StatusBadRequest)
-					return
-				}
+					grantType := r.FormValue("grant_type")
+					if grantType != "refresh_token" {
+						http.Error(w, "Invalid grant_type", http.StatusBadRequest)
+						return
+					}
 
-				// Build response
-				response := map[string]interface{}{
-					"access_token": "new-access-token",
-					"token_type":   "Bearer",
-					"expires_in":   3600,
-				}
+					// Build response
+					response := map[string]interface{}{
+						"access_token": "new-access-token",
+						"token_type":   "Bearer",
+						"expires_in":   3600,
+					}
 
-				// Only include refresh_token if not empty (simulates rotation vs fixed mode)
-				if tt.responseRefreshToken != "" {
-					response["refresh_token"] = tt.responseRefreshToken
-				}
+					// Only include refresh_token if not empty (simulates rotation vs fixed mode)
+					if tt.responseRefreshToken != "" {
+						response["refresh_token"] = tt.responseRefreshToken
+					}
 
-				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(response)
-			}))
+					w.Header().Set("Content-Type", "application/json")
+					json.NewEncoder(w).Encode(response)
+				}),
+			)
 			defer server.Close()
 
 			// Update serverURL to point to mock server
@@ -507,10 +511,12 @@ func TestRefreshAccessToken_ValidationErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock server
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(tt.responseBody)
-			}))
+			server := httptest.NewServer(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					json.NewEncoder(w).Encode(tt.responseBody)
+				}),
+			)
 			defer server.Close()
 
 			// Update serverURL to point to mock server
