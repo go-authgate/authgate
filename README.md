@@ -993,7 +993,7 @@ HTTP_API_TIMEOUT=15s
 
 #### Implementation Details
 
-- Built using [go-httpretry v0.1.0](https://github.com/appleboy/go-httpretry)
+- Built using [go-httpretry v0.2.0](https://github.com/appleboy/go-httpretry)
 - Retry logic wraps the authentication-enabled HTTP client
 - All authentication headers (Simple, HMAC) are preserved across retries
 - Request bodies are cloned for retries to avoid consumed stream issues

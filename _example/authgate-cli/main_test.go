@@ -29,7 +29,11 @@ func init() {
 	}
 	// Initialize retryClient for tests
 	if retryClient == nil {
-		retryClient = retry.NewClient()
+		var err error
+		retryClient, err = retry.NewClient()
+		if err != nil {
+			panic(fmt.Sprintf("failed to create retry client: %v", err))
+		}
 	}
 }
 

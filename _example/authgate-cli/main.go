@@ -128,13 +128,17 @@ func initConfig() {
 	}
 
 	// Wrap with retry logic using go-httpretry
-	retryClient = retry.NewClient(
+	var err error
+	retryClient, err = retry.NewClient(
 		retry.WithHTTPClient(baseHTTPClient),
 		retry.WithMaxRetries(3),
 		retry.WithInitialRetryDelay(1*time.Second),
 		retry.WithMaxRetryDelay(10*time.Second),
 		retry.WithRetryDelayMultiple(2.0),
 	)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create retry client: %v", err))
+	}
 }
 
 // getConfig returns value with priority: flag > env > default

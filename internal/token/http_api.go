@@ -41,12 +41,15 @@ func NewHTTPTokenProvider(cfg *config.Config) *HTTPTokenProvider {
 	)
 
 	// Wrap with retry client
-	retryClient := retry.NewClient(
+	retryClient, err := retry.NewClient(
 		retry.WithHTTPClient(client),
 		retry.WithMaxRetries(cfg.TokenAPIMaxRetries),
 		retry.WithInitialRetryDelay(cfg.TokenAPIRetryDelay),
 		retry.WithMaxRetryDelay(cfg.TokenAPIMaxRetryDelay),
 	)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create retry client: %v", err))
+	}
 
 	return &HTTPTokenProvider{
 		config:      cfg,

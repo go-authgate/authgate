@@ -40,12 +40,15 @@ func NewHTTPAPIAuthProvider(cfg *config.Config) *HTTPAPIAuthProvider {
 	)
 
 	// Wrap with retry client
-	retryClient := retry.NewClient(
+	retryClient, err := retry.NewClient(
 		retry.WithHTTPClient(client),
 		retry.WithMaxRetries(cfg.HTTPAPIMaxRetries),
 		retry.WithInitialRetryDelay(cfg.HTTPAPIRetryDelay),
 		retry.WithMaxRetryDelay(cfg.HTTPAPIMaxRetryDelay),
 	)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create retry client: %v", err))
+	}
 
 	return &HTTPAPIAuthProvider{
 		config:      cfg,
