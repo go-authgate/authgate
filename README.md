@@ -56,6 +56,17 @@
       - [Configuration per Service](#configuration-per-service)
       - [Server-Side Verification Example](#server-side-verification-example)
       - [Example: Securing External Authentication API](#example-securing-external-authentication-api)
+    - [HTTP Retry with Exponential Backoff](#http-retry-with-exponential-backoff)
+      - [Features](#features-1)
+      - [Default Behavior](#default-behavior)
+      - [Automatic Retry Conditions](#automatic-retry-conditions)
+      - [Configuration](#configuration-1)
+      - [Disable Retries](#disable-retries)
+      - [Use Cases](#use-cases-1)
+      - [Best Practices](#best-practices)
+      - [Example: Aggressive Retry Configuration](#example-aggressive-retry-configuration)
+      - [Example: Conservative Retry Configuration](#example-conservative-retry-configuration)
+      - [Implementation Details](#implementation-details)
   - [AuthGate Architecture](#authgate-architecture)
     - [Project Structure](#project-structure)
     - [Technology Stack](#technology-stack)
@@ -177,6 +188,7 @@ Modern CLI tools and IoT devices need to access user resources securely, but tra
 - ✅ **Static Binaries** - CGO-free builds for easy deployment
 - ✅ **Pluggable Token Providers** - Use local JWT or delegate to external token services
 - ✅ **Hybrid Authentication** - Support both local and external authentication providers
+- ✅ **HTTP Retry with Exponential Backoff** - Automatic retry for external API calls with configurable backoff
 
 ---
 
@@ -544,6 +556,12 @@ HTTP_API_URL=https://auth.example.com/api/verify
 HTTP_API_TIMEOUT=10s
 HTTP_API_INSECURE_SKIP_VERIFY=false
 
+# HTTP API Retry Configuration
+# Automatic retry with exponential backoff for failed requests
+HTTP_API_MAX_RETRIES=3           # Maximum retry attempts (default: 3, set 0 to disable)
+HTTP_API_RETRY_DELAY=1s          # Initial retry delay (default: 1s)
+HTTP_API_MAX_RETRY_DELAY=10s     # Maximum retry delay (default: 10s)
+
 # Token Provider Mode
 # Options: local, http_api
 # Default: local
@@ -554,6 +572,12 @@ TOKEN_PROVIDER_MODE=local
 TOKEN_API_URL=https://token.example.com/api
 TOKEN_API_TIMEOUT=10s
 TOKEN_API_INSECURE_SKIP_VERIFY=false
+
+# Token API Retry Configuration
+# Automatic retry with exponential backoff for failed requests
+TOKEN_API_MAX_RETRIES=3          # Maximum retry attempts (default: 3, set 0 to disable)
+TOKEN_API_RETRY_DELAY=1s         # Initial retry delay (default: 1s)
+TOKEN_API_MAX_RETRY_DELAY=10s    # Maximum retry delay (default: 10s)
 
 # Refresh Token Configuration
 REFRESH_TOKEN_EXPIRATION=720h        # Refresh token lifetime (default: 30 days)
@@ -839,6 +863,140 @@ HTTP_API_AUTH_SECRET=shared-secret-between-services
 2. Your authentication API validates the HMAC signature before processing login requests.
 
 3. When users log into AuthGate, their credentials are forwarded to your API with HMAC signature verification.
+
+### HTTP Retry with Exponential Backoff
+
+AuthGate includes automatic HTTP retry capabilities for all external API communications (authentication and token operations) to improve reliability and resilience against transient network failures.
+
+#### Features
+
+- **Automatic Retries**: Failed HTTP requests are automatically retried with configurable attempts
+- **Exponential Backoff**: Retry delays increase exponentially to avoid overwhelming failing services
+- **Smart Retry Logic**: Only retries on appropriate errors (network failures, 5xx errors, 429 rate limits)
+- **Non-Blocking**: Retries respect context cancellation and timeouts
+
+#### Default Behavior
+
+By default, AuthGate retries failed requests up to 3 times with the following pattern:
+
+- **Initial delay**: 1 second
+- **Maximum delay**: 10 seconds
+- **Multiplier**: 2.0x (exponential backoff)
+
+Example retry sequence:
+
+1. First attempt fails → wait 1s
+2. Second attempt fails → wait 2s
+3. Third attempt fails → wait 4s
+4. Fourth attempt fails → return error
+
+#### Automatic Retry Conditions
+
+Requests are automatically retried on:
+
+- Network errors (connection failures, timeouts, DNS issues)
+- HTTP 5xx server errors (500, 502, 503, 504)
+- HTTP 429 (Too Many Requests)
+
+Requests are **not** retried on:
+
+- HTTP 4xx client errors (except 429)
+- HTTP 2xx/3xx successful responses
+- Context cancellation or timeout
+
+#### Configuration
+
+Configure retry behavior for each external service independently:
+
+**HTTP API Authentication:**
+
+```bash
+HTTP_API_MAX_RETRIES=5              # Maximum retry attempts (default: 3)
+HTTP_API_RETRY_DELAY=2s             # Initial retry delay (default: 1s)
+HTTP_API_MAX_RETRY_DELAY=30s        # Maximum retry delay (default: 10s)
+```
+
+**Token API:**
+
+```bash
+TOKEN_API_MAX_RETRIES=5             # Maximum retry attempts (default: 3)
+TOKEN_API_RETRY_DELAY=2s            # Initial retry delay (default: 1s)
+TOKEN_API_MAX_RETRY_DELAY=30s       # Maximum retry delay (default: 10s)
+```
+
+#### Disable Retries
+
+To disable retries (not recommended for production):
+
+```bash
+HTTP_API_MAX_RETRIES=0
+TOKEN_API_MAX_RETRIES=0
+```
+
+#### Use Cases
+
+**1. Handling Transient Network Issues**
+
+Temporary network glitches are automatically handled without failing the entire request:
+
+- Brief network interruptions
+- DNS resolution delays
+- Connection pool exhaustion
+
+**2. Service Restarts**
+
+When external services restart, AuthGate automatically retries until the service is available:
+
+- Rolling deployments
+- Service updates
+- Container restarts
+
+**3. Rate Limiting**
+
+When external APIs return 429 (rate limit), AuthGate backs off and retries:
+
+- Automatic backoff on rate limits
+- Prevents cascading failures
+- Respects service quotas
+
+#### Best Practices
+
+1. **Production Settings**: Use default retry settings (3 retries) for most production scenarios
+2. **High-Traffic Environments**: Consider increasing `MAX_RETRY_DELAY` to 30s-60s to avoid overwhelming recovering services
+3. **Low-Latency Requirements**: Reduce `MAX_RETRIES` to 1-2 for time-sensitive operations
+4. **Monitoring**: Track retry rates to identify unreliable external services
+5. **Timeouts**: Ensure `HTTP_API_TIMEOUT` and `TOKEN_API_TIMEOUT` are set appropriately to account for retries
+
+#### Example: Aggressive Retry Configuration
+
+For critical services where availability is paramount:
+
+```bash
+# Retry up to 10 times with longer delays
+HTTP_API_MAX_RETRIES=10
+HTTP_API_RETRY_DELAY=500ms
+HTTP_API_MAX_RETRY_DELAY=60s
+HTTP_API_TIMEOUT=120s  # Increase timeout to accommodate retries
+```
+
+#### Example: Conservative Retry Configuration
+
+For fast-fail scenarios where latency matters more than resilience:
+
+```bash
+# Retry only once with short delays
+HTTP_API_MAX_RETRIES=1
+HTTP_API_RETRY_DELAY=500ms
+HTTP_API_MAX_RETRY_DELAY=2s
+HTTP_API_TIMEOUT=15s
+```
+
+#### Implementation Details
+
+- Built using [go-httpretry v0.1.0](https://github.com/appleboy/go-httpretry)
+- Retry logic wraps the authentication-enabled HTTP client
+- All authentication headers (Simple, HMAC) are preserved across retries
+- Request bodies are cloned for retries to avoid consumed stream issues
 
 ---
 

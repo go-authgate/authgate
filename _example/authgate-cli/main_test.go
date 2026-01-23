@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/appleboy/go-httpretry"
+	retry "github.com/appleboy/go-httpretry"
 )
 
 func init() {

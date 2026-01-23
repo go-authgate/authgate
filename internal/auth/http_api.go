@@ -10,14 +10,15 @@ import (
 	"net/http"
 
 	httpclient "github.com/appleboy/go-httpclient"
+	retry "github.com/appleboy/go-httpretry"
 
 	"github.com/appleboy/authgate/internal/config"
 )
 
 // HTTPAPIAuthProvider handles HTTP API-based authentication
 type HTTPAPIAuthProvider struct {
-	config *config.Config
-	client *http.Client
+	config      *config.Config
+	retryClient *retry.Client
 }
 
 // NewHTTPAPIAuthProvider creates a new HTTP API authentication provider
@@ -38,9 +39,17 @@ func NewHTTPAPIAuthProvider(cfg *config.Config) *HTTPAPIAuthProvider {
 		httpclient.WithHeaderName(cfg.HTTPAPIAuthHeader),
 	)
 
+	// Wrap with retry client
+	retryClient := retry.NewClient(
+		retry.WithHTTPClient(client),
+		retry.WithMaxRetries(cfg.HTTPAPIMaxRetries),
+		retry.WithInitialRetryDelay(cfg.HTTPAPIRetryDelay),
+		retry.WithMaxRetryDelay(cfg.HTTPAPIMaxRetryDelay),
+	)
+
 	return &HTTPAPIAuthProvider{
-		config: cfg,
-		client: client,
+		config:      cfg,
+		retryClient: retryClient,
 	}
 }
 
@@ -87,7 +96,8 @@ func (p *HTTPAPIAuthProvider) Authenticate(
 	req.Header.Set("Content-Type", "application/json")
 
 	// Authentication headers are automatically added by the HTTP client
-	resp, err := p.client.Do(req)
+	// Retry client handles retries with exponential backoff
+	resp, err := p.retryClient.Do(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrHTTPAPIConnection, err)
 	}

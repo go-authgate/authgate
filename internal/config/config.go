@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -49,6 +50,9 @@ type Config struct {
 	HTTPAPIAuthMode           string // Authentication mode: "none", "simple", or "hmac"
 	HTTPAPIAuthSecret         string // Shared secret for authentication
 	HTTPAPIAuthHeader         string // Custom header name for simple mode (default: "X-API-Secret")
+	HTTPAPIMaxRetries         int    // Maximum retry attempts (default: 3)
+	HTTPAPIRetryDelay         time.Duration
+	HTTPAPIMaxRetryDelay      time.Duration
 
 	// Token Provider
 	TokenProviderMode string // "local" or "http_api"
@@ -60,6 +64,9 @@ type Config struct {
 	TokenAPIAuthMode           string // Authentication mode: "none", "simple", or "hmac"
 	TokenAPIAuthSecret         string // Shared secret for authentication
 	TokenAPIAuthHeader         string // Custom header name for simple mode (default: "X-API-Secret")
+	TokenAPIMaxRetries         int    // Maximum retry attempts (default: 3)
+	TokenAPIRetryDelay         time.Duration
+	TokenAPIMaxRetryDelay      time.Duration
 
 	// Refresh Token settings
 	RefreshTokenExpiration time.Duration // Refresh token lifetime (default: 720h = 30 days)
@@ -101,6 +108,9 @@ func Load() *Config {
 		HTTPAPIAuthMode:           getEnv("HTTP_API_AUTH_MODE", "none"),
 		HTTPAPIAuthSecret:         getEnv("HTTP_API_AUTH_SECRET", ""),
 		HTTPAPIAuthHeader:         getEnv("HTTP_API_AUTH_HEADER", "X-API-Secret"),
+		HTTPAPIMaxRetries:         getEnvInt("HTTP_API_MAX_RETRIES", 3),
+		HTTPAPIRetryDelay:         getEnvDuration("HTTP_API_RETRY_DELAY", 1*time.Second),
+		HTTPAPIMaxRetryDelay:      getEnvDuration("HTTP_API_MAX_RETRY_DELAY", 10*time.Second),
 
 		// Token Provider
 		TokenProviderMode: getEnv("TOKEN_PROVIDER_MODE", TokenProviderModeLocal),
@@ -112,6 +122,9 @@ func Load() *Config {
 		TokenAPIAuthMode:           getEnv("TOKEN_API_AUTH_MODE", "none"),
 		TokenAPIAuthSecret:         getEnv("TOKEN_API_AUTH_SECRET", ""),
 		TokenAPIAuthHeader:         getEnv("TOKEN_API_AUTH_HEADER", "X-API-Secret"),
+		TokenAPIMaxRetries:         getEnvInt("TOKEN_API_MAX_RETRIES", 3),
+		TokenAPIRetryDelay:         getEnvDuration("TOKEN_API_RETRY_DELAY", 1*time.Second),
+		TokenAPIMaxRetryDelay:      getEnvDuration("TOKEN_API_MAX_RETRY_DELAY", 10*time.Second),
 
 		// Refresh Token settings
 		RefreshTokenExpiration: getEnvDuration(
@@ -133,6 +146,16 @@ func getEnv(key, defaultValue string) string {
 func getEnvBool(key string, defaultValue bool) bool {
 	if value := os.Getenv(key); value != "" {
 		return value == "true" || value == "1"
+	}
+	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		var i int
+		if _, err := fmt.Sscanf(value, "%d", &i); err == nil {
+			return i
+		}
 	}
 	return defaultValue
 }

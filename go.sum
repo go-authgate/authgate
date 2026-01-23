@@ -8,6 +8,8 @@ github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERo
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/appleboy/go-httpclient v0.3.0 h1:6MkPoPFV1J2cxTuwNnMxuf/8ElMCj1f4y2CF0qKbJEg=
 github.com/appleboy/go-httpclient v0.3.0/go.mod h1:kQwfZ82XifjYMAIPBHQatyjDsjf4wWnWSLmS8gx4nJI=
+github.com/appleboy/go-httpretry v0.1.0 h1:YTYt2OCDxc2/BZR/0YoaJX9WAjhfjIw7PjbzKjMfUAQ=
+github.com/appleboy/go-httpretry v0.1.0/go.mod h1:96v1IO6wg1+S10iFbOM3O8rn2vkFw8+uH4mDPhGoz+E=
 github.com/appleboy/graceful v1.2.1 h1:OCNfj5QdQQ82eBuxEF7RAILQCGG+Ued7BOMQwcTv9DQ=
 github.com/appleboy/graceful v1.2.1/go.mod h1:XlEg3jkgb42weJeCXch3HRXvWrU5r+EYymCyPVy0EkA=
 github.com/bytedance/gopkg v0.1.3 h1:TPBSwH8RsouGCBcMBktLt1AymVo2TVsBVCY4b6TnZ/M=

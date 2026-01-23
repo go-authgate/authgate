@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/appleboy/go-httpretry"
+	retry "github.com/appleboy/go-httpretry"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"golang.org/x/oauth2"
