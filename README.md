@@ -110,7 +110,7 @@
     - [Common Issues](#common-issues)
       - [Issue: "Client not found" error](#issue-client-not-found-error)
       - [Issue: Database locked errors](#issue-database-locked-errors)
-      - [Issue: "authorization_pending" never resolves](#issue-authorization_pending-never-resolves)
+      - [Issue: "authorization\_pending" never resolves](#issue-authorization_pending-never-resolves)
       - [Issue: "Username conflict with existing user" error](#issue-username-conflict-with-existing-user-error)
       - [Issue: JWT signature verification fails](#issue-jwt-signature-verification-fails)
       - [Issue: Session not persisting](#issue-session-not-persisting)
@@ -168,27 +168,39 @@ Modern CLI tools and IoT devices need to access user resources securely, but tra
 
 ## Features
 
-- ✅ **RFC 8628 Compliant** - Full implementation of OAuth 2.0 Device Authorization Grant
-- ✅ **RFC 6749 Refresh Tokens** - Full refresh token support with fixed and rotation modes
-- ✅ **RFC 7009 Token Revocation** - Secure token revocation endpoint for revoking access
-- ✅ **Lightweight** - Single binary, SQLite database, no external dependencies
-- ✅ **Easy Configuration** - `.env` file support for all settings
-- ✅ **Session-Based Auth** - Secure user login with encrypted cookies (7-day expiry)
-- ✅ **JWT Tokens** - Industry-standard access tokens with HMAC-SHA256 signing
-- ✅ **Refresh Token Modes** - Fixed (reusable, multi-device friendly) or Rotation (high security)
-- ✅ **Token Management** - Status-based token control (active/disabled/revoked)
-- ✅ **Session Management** - Web UI for users to view and revoke active sessions
-- ✅ **Example CLI** - Complete working example of a client implementation
-- ✅ **Token Verification** - Built-in endpoint to validate tokens (`/oauth/tokeninfo`)
-- ✅ **Health Check** - Database connection monitoring via `/health` endpoint
-- ✅ **Graceful Shutdown** - Proper signal handling for zero-downtime deployments
-- ✅ **Embedded Assets** - Templates and static files compiled into binary
-- ✅ **Cross-Platform** - Runs on Linux, macOS, Windows
-- ✅ **Docker Ready** - Multi-arch images with security best practices
-- ✅ **Static Binaries** - CGO-free builds for easy deployment
-- ✅ **Pluggable Token Providers** - Use local JWT or delegate to external token services
-- ✅ **Hybrid Authentication** - Support both local and external authentication providers
-- ✅ **HTTP Retry with Exponential Backoff** - Automatic retry for external API calls with configurable backoff
+🔐 Comprehensive & Secure OAuth 2.0 Support
+
+- Fully implements OAuth 2.0 Device Authorization Grant (RFC 8628)
+- Complete Refresh Token support (RFC 6749)
+- Secure Token Revocation endpoint (RFC 7009)
+- Built‑in JWT Access Tokens signed with HMAC‑SHA256
+- Status‑based token lifecycle control (active / disabled / revoked)
+
+🧩 Flexible Authentication & Token Flows
+
+- Session-based authentication with encrypted cookies (7‑day expiry)
+- Pluggable token providers: use embedded JWT or external token services
+- Hybrid authentication: supports both local and external identity providers
+- Configurable refresh token modes:
+  - Fixed mode – reusable, multi-device friendly
+  - Rotation mode – high‑security token hygiene
+
+🛠️ Easy Deployment & Operational Simplicity
+
+- Lightweight single static binary with SQLite built-in
+- Zero external dependencies
+- Fully configurable via .env
+- Web UI for viewing and revoking active sessions and tokens
+- Token validation endpoint: /oauth/tokeninfo
+- Health check endpoint: /health
+- Graceful shutdown with safe signal handling
+- Automatic HTTP retry with exponential backoff
+
+📦 Cloud & Platform Friendly
+
+- Cross‑platform support for Linux, macOS, and Windows
+- Docker-ready with multi‑arch images and security hardening
+- Embedded templates and static files—no additional assets required
 
 ---
 
