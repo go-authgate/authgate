@@ -9,6 +9,7 @@ import (
 
 	"github.com/appleboy/authgate/internal/auth"
 	"github.com/appleboy/authgate/internal/services"
+
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
@@ -156,7 +157,7 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 		log.Printf("[OAuth] Authentication failed: %v", err)
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
 			"error":   "Authentication failed",
-			"message": err.Error(),
+			"message": "Unable to authenticate your account at this time. Please try again later.",
 		})
 		return
 	}
