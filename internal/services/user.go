@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
+	"gorm.io/gorm"
 )
 
 const (
@@ -340,13 +341,6 @@ func (s *UserService) createUserWithOAuth(
 		PasswordHash: "", // OAuth users have no password
 	}
 
-	if err := s.store.CreateUser(user); err != nil {
-		if strings.Contains(err.Error(), "UNIQUE constraint") {
-			return nil, fmt.Errorf("email already in use: %s", oauthUserInfo.Email)
-		}
-		return nil, fmt.Errorf("failed to create user: %w", err)
-	}
-
 	// Create OAuth connection
 	connection := &models.OAuthConnection{
 		ID:               uuid.New().String(),
@@ -362,12 +356,23 @@ func (s *UserService) createUserWithOAuth(
 		LastUsedAt:       time.Now(),
 	}
 
-	if err := s.store.CreateOAuthConnection(connection); err != nil {
-		// Rollback: delete user
-		if deleteErr := s.store.DeleteUser(user.ID); deleteErr != nil {
-			log.Printf("[OAuth] Failed to rollback user creation: %v", deleteErr)
+	// Use transaction to ensure atomicity
+	err := s.store.DB().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(user).Error; err != nil {
+			if strings.Contains(err.Error(), "UNIQUE constraint") {
+				return fmt.Errorf("email already in use: %s", oauthUserInfo.Email)
+			}
+			return fmt.Errorf("failed to create user: %w", err)
 		}
-		return nil, fmt.Errorf("failed to create OAuth connection: %w", err)
+
+		if err := tx.Create(connection).Error; err != nil {
+			return fmt.Errorf("failed to create OAuth connection: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	log.Printf("[OAuth] New user created: username=%s email=%s provider=%s",
