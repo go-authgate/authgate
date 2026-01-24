@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/appleboy/authgate/internal/auth"
 	"github.com/appleboy/authgate/internal/services"
 
 	"github.com/gin-contrib/sessions"
@@ -25,6 +26,14 @@ func NewAuthHandler(us *services.UserService) *AuthHandler {
 
 // LoginPage renders the login page
 func (h *AuthHandler) LoginPage(c *gin.Context) {
+	h.LoginPageWithOAuth(c, nil)
+}
+
+// LoginPageWithOAuth renders the login page with OAuth providers
+func (h *AuthHandler) LoginPageWithOAuth(
+	c *gin.Context,
+	oauthProviders map[string]*auth.OAuthProvider,
+) {
 	session := sessions.Default(c)
 	if session.Get(SessionUserID) != nil {
 		// Already logged in, redirect to device page
@@ -33,9 +42,20 @@ func (h *AuthHandler) LoginPage(c *gin.Context) {
 	}
 
 	redirectTo := c.Query("redirect")
+
+	// Prepare OAuth provider data for template
+	providers := []map[string]string{}
+	for _, provider := range oauthProviders {
+		providers = append(providers, map[string]string{
+			"name":        provider.GetProvider(),
+			"displayName": provider.GetDisplayName(),
+		})
+	}
+
 	c.HTML(http.StatusOK, "login.html", gin.H{
-		"redirect": redirectTo,
-		"error":    c.Query("error"),
+		"redirect":       redirectTo,
+		"error":          c.Query("error"),
+		"oauthProviders": providers,
 	})
 }
 
