@@ -15,7 +15,10 @@
                 <h1 style="color: #dc3545; margin-bottom: 8px;">Error</h1>
             </div>
             <div class="alert alert-error">
-                {{.error}}
+                <strong>{{.error}}</strong>
+                {{if .message}}
+                <p style="margin-top: 8px; margin-bottom: 0;">{{.message}}</p>
+                {{end}}
             </div>
             <div style="text-align: center; margin-top: 24px;">
                 <a href="/" class="btn btn-secondary">← Go Back</a>

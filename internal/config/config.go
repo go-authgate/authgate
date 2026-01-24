@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -72,6 +73,29 @@ type Config struct {
 	RefreshTokenExpiration time.Duration // Refresh token lifetime (default: 720h = 30 days)
 	EnableRefreshTokens    bool          // Feature flag to enable/disable refresh tokens (default: true)
 	EnableTokenRotation    bool          // Enable token rotation mode (default: false, fixed mode)
+
+	// OAuth settings
+	// GitHub OAuth
+	GitHubOAuthEnabled     bool
+	GitHubClientID         string
+	GitHubClientSecret     string
+	GitHubOAuthRedirectURL string
+	GitHubOAuthScopes      []string
+
+	// Gitea OAuth
+	GiteaOAuthEnabled     bool
+	GiteaURL              string
+	GiteaClientID         string
+	GiteaClientSecret     string
+	GiteaOAuthRedirectURL string
+	GiteaOAuthScopes      []string
+
+	// OAuth Auto Registration
+	OAuthAutoRegister bool // Allow OAuth to auto-create accounts (default: true)
+
+	// OAuth HTTP Client Settings
+	OAuthTimeout            time.Duration // HTTP client timeout for OAuth requests (default: 15s)
+	OAuthInsecureSkipVerify bool          // Skip TLS verification for OAuth (dev/testing only, default: false)
 }
 
 func Load() *Config {
@@ -133,6 +157,29 @@ func Load() *Config {
 		), // 30 days
 		EnableRefreshTokens: getEnvBool("ENABLE_REFRESH_TOKENS", true),
 		EnableTokenRotation: getEnvBool("ENABLE_TOKEN_ROTATION", false),
+
+		// OAuth settings
+		// GitHub OAuth
+		GitHubOAuthEnabled:     getEnvBool("GITHUB_OAUTH_ENABLED", false),
+		GitHubClientID:         getEnv("GITHUB_CLIENT_ID", ""),
+		GitHubClientSecret:     getEnv("GITHUB_CLIENT_SECRET", ""),
+		GitHubOAuthRedirectURL: getEnv("GITHUB_REDIRECT_URL", ""),
+		GitHubOAuthScopes:      getEnvSlice("GITHUB_SCOPES", []string{"user:email"}),
+
+		// Gitea OAuth
+		GiteaOAuthEnabled:     getEnvBool("GITEA_OAUTH_ENABLED", false),
+		GiteaURL:              getEnv("GITEA_URL", ""),
+		GiteaClientID:         getEnv("GITEA_CLIENT_ID", ""),
+		GiteaClientSecret:     getEnv("GITEA_CLIENT_SECRET", ""),
+		GiteaOAuthRedirectURL: getEnv("GITEA_REDIRECT_URL", ""),
+		GiteaOAuthScopes:      getEnvSlice("GITEA_SCOPES", []string{"read:user"}),
+
+		// OAuth Auto Registration
+		OAuthAutoRegister: getEnvBool("OAUTH_AUTO_REGISTER", true),
+
+		// OAuth HTTP Client Settings
+		OAuthTimeout:            getEnvDuration("OAUTH_TIMEOUT", 15*time.Second),
+		OAuthInsecureSkipVerify: getEnvBool("OAUTH_INSECURE_SKIP_VERIFY", false),
 	}
 }
 
@@ -167,4 +214,30 @@ func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
 		}
 	}
 	return defaultValue
+}
+
+func getEnvSlice(key string, defaultValue []string) []string {
+	if value := os.Getenv(key); value != "" {
+		// Split by comma and trim spaces
+		parts := []string{}
+		for _, part := range splitAndTrim(value, ",") {
+			if part != "" {
+				parts = append(parts, part)
+			}
+		}
+		if len(parts) > 0 {
+			return parts
+		}
+	}
+	return defaultValue
+}
+
+func splitAndTrim(s, sep string) []string {
+	var out []string
+	for _, part := range strings.Split(s, sep) {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }

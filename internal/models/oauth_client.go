@@ -20,5 +20,5 @@ type OAuthClient struct {
 
 // TableName overrides the table name used by OAuthClient to `oauth_client`
 func (OAuthClient) TableName() string {
-	return "oauth_client"
+	return "oauth_clients"
 }

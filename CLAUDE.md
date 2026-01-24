@@ -488,7 +488,7 @@ TOKEN_API_AUTH_HEADER=X-API-Secret  # Optional
 
 ##### Simple Mode: Request Headers
 
-```
+```txt
 X-API-Secret: your-shared-secret-key
 ```
 

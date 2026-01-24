@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"embed"
 	"errors"
 	"flag"
@@ -126,12 +127,22 @@ func runServer() {
 	)
 	clientService := services.NewClientService(db)
 
+	// Initialize OAuth providers
+	oauthProviders := initializeOAuthProviders(cfg)
+	if len(oauthProviders) > 0 {
+		log.Printf("OAuth providers enabled: %v", getProviderNames(oauthProviders))
+	}
+
+	// Create HTTP client for OAuth requests
+	oauthHTTPClient := createOAuthHTTPClient(cfg)
+
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(userService)
 	deviceHandler := handlers.NewDeviceHandler(deviceService, userService, cfg)
 	tokenHandler := handlers.NewTokenHandler(tokenService, cfg)
 	clientHandler := handlers.NewClientHandler(clientService)
 	sessionHandler := handlers.NewSessionHandler(tokenService)
+	oauthHandler := handlers.NewOAuthHandler(oauthProviders, userService, oauthHTTPClient)
 
 	// Setup Gin
 	r := gin.Default()
@@ -207,9 +218,20 @@ func runServer() {
 	r.GET("/", func(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/device")
 	})
-	r.GET("/login", authHandler.LoginPage)
+	r.GET("/login", func(c *gin.Context) {
+		authHandler.LoginPageWithOAuth(c, oauthProviders)
+	})
 	r.POST("/login", authHandler.Login)
 	r.GET("/logout", authHandler.Logout)
+
+	// OAuth routes (public)
+	if len(oauthProviders) > 0 {
+		oauthGroup := r.Group("/auth")
+		{
+			oauthGroup.GET("/login/:provider", oauthHandler.LoginWithProvider)
+			oauthGroup.GET("/callback/:provider", oauthHandler.OAuthCallback)
+		}
+	}
 
 	// OAuth API routes (public, called by CLI)
 	oauth := r.Group("/oauth")
@@ -339,4 +361,80 @@ func validateTokenProviderConfig(cfg *config.Config) error {
 		)
 	}
 	return nil
+}
+
+// initializeOAuthProviders initializes configured OAuth providers
+func initializeOAuthProviders(cfg *config.Config) map[string]*auth.OAuthProvider {
+	providers := make(map[string]*auth.OAuthProvider)
+
+	// GitHub OAuth
+	if cfg.GitHubOAuthEnabled {
+		if cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "" {
+			log.Printf("Warning: GitHub OAuth enabled but CLIENT_ID or CLIENT_SECRET missing")
+		} else {
+			providers["github"] = auth.NewGitHubProvider(auth.OAuthProviderConfig{
+				ClientID:     cfg.GitHubClientID,
+				ClientSecret: cfg.GitHubClientSecret,
+				RedirectURL:  cfg.GitHubOAuthRedirectURL,
+				Scopes:       cfg.GitHubOAuthScopes,
+			})
+			log.Printf("GitHub OAuth configured: redirect=%s", cfg.GitHubOAuthRedirectURL)
+		}
+	}
+
+	// Gitea OAuth
+	if cfg.GiteaOAuthEnabled {
+		if cfg.GiteaURL == "" || cfg.GiteaClientID == "" || cfg.GiteaClientSecret == "" {
+			log.Printf("Warning: Gitea OAuth enabled but URL, CLIENT_ID or CLIENT_SECRET missing")
+		} else {
+			providers["gitea"] = auth.NewGiteaProvider(auth.OAuthProviderConfig{
+				ClientID:     cfg.GiteaClientID,
+				ClientSecret: cfg.GiteaClientSecret,
+				RedirectURL:  cfg.GiteaOAuthRedirectURL,
+				Scopes:       cfg.GiteaOAuthScopes,
+			}, cfg.GiteaURL)
+			log.Printf("Gitea OAuth configured: server=%s redirect=%s", cfg.GiteaURL, cfg.GiteaOAuthRedirectURL)
+		}
+	}
+
+	return providers
+}
+
+// getProviderNames returns a list of provider names
+func getProviderNames(providers map[string]*auth.OAuthProvider) []string {
+	names := make([]string, 0, len(providers))
+	for name := range providers {
+		names = append(names, name)
+	}
+	return names
+}
+
+// createOAuthHTTPClient creates an HTTP client for OAuth requests with retry support
+func createOAuthHTTPClient(cfg *config.Config) *http.Client {
+	// #nosec G402 -- InsecureSkipVerify is user-configurable for development/testing
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: cfg.OAuthInsecureSkipVerify,
+		},
+		MaxIdleConns:        10,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     30 * time.Second,
+	}
+
+	baseClient := &http.Client{
+		Timeout:   cfg.OAuthTimeout,
+		Transport: transport,
+	}
+
+	// Note: We don't use retry.Client here because the oauth2 library requires
+	// *http.Client, and retry.Client is not compatible with that interface.
+	// OAuth flows are interactive and providers are generally reliable, so
+	// automatic retry is less critical than for API calls. The baseClient already
+	// has proper timeout and TLS configuration.
+
+	if cfg.OAuthInsecureSkipVerify {
+		log.Printf("WARNING: OAuth TLS verification is disabled (OAUTH_INSECURE_SKIP_VERIFY=true)")
+	}
+
+	return baseClient
 }

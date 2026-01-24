@@ -43,6 +43,13 @@
     - [Default Test Data](#default-test-data)
       - [User Account](#user-account)
       - [OAuth Client](#oauth-client)
+    - [OAuth Third-Party Login](#oauth-third-party-login)
+      - [Supported Providers](#supported-providers)
+      - [Key Features](#key-features)
+      - [Quick Setup](#quick-setup)
+      - [Authentication Scenarios](#authentication-scenarios)
+      - [Security Considerations](#security-considerations)
+      - [Detailed Setup Guide](#detailed-setup-guide)
     - [Pluggable Token Providers](#pluggable-token-providers)
       - [Architecture](#architecture)
       - [Token Provider Modes](#token-provider-modes)
@@ -83,7 +90,7 @@
     - [Monitoring Best Practices](#monitoring-best-practices)
       - [Key Metrics to Monitor](#key-metrics-to-monitor)
       - [Logging](#logging)
-  - [Security Considerations](#security-considerations)
+  - [Security Considerations](#security-considerations-1)
     - [Production Deployment Checklist](#production-deployment-checklist)
     - [Threat Model](#threat-model)
       - [What AuthGate Protects Against](#what-authgate-protects-against)
@@ -179,6 +186,8 @@ Modern CLI tools and IoT devices need to access user resources securely, but tra
 🧩 Flexible Authentication & Token Flows
 
 - Session-based authentication with encrypted cookies (7‑day expiry)
+- OAuth 2.0 third-party login: GitHub, Gitea, and extensible to other providers
+- Email-based account linking: automatically links OAuth accounts with matching emails
 - Pluggable token providers: use embedded JWT or external token services
 - Hybrid authentication: supports both local and external identity providers
 - Configurable refresh token modes:
@@ -482,6 +491,8 @@ sequenceDiagram
 | `/account/sessions/revoke-all` | POST     | Yes (Session) | Revoke all user sessions                                            |
 | `/login`                       | GET/POST | No            | User login (creates session)                                        |
 | `/logout`                      | GET      | Yes (Session) | User logout (destroys session)                                      |
+| `/auth/login/:provider`        | GET      | No            | Initiate OAuth login (provider: github, gitea)                      |
+| `/auth/callback/:provider`     | GET      | No            | OAuth callback endpoint                                             |
 
 #### Endpoint Details
 
@@ -595,6 +606,27 @@ TOKEN_API_MAX_RETRY_DELAY=10s    # Maximum retry delay (default: 10s)
 REFRESH_TOKEN_EXPIRATION=720h        # Refresh token lifetime (default: 30 days)
 ENABLE_REFRESH_TOKENS=true          # Feature flag to enable/disable refresh tokens
 ENABLE_TOKEN_ROTATION=false         # Enable rotation mode (default: fixed mode)
+
+# OAuth Configuration (optional - for third-party login)
+# GitHub OAuth
+GITHUB_OAUTH_ENABLED=false
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
+GITHUB_REDIRECT_URL=http://localhost:8080/auth/callback/github
+GITHUB_SCOPES=user:email
+
+# Gitea OAuth
+GITEA_OAUTH_ENABLED=false
+GITEA_URL=https://gitea.example.com
+GITEA_CLIENT_ID=your_gitea_client_id
+GITEA_CLIENT_SECRET=your_gitea_client_secret
+GITEA_REDIRECT_URL=http://localhost:8080/auth/callback/gitea
+GITEA_SCOPES=read:user
+
+# OAuth Settings
+OAUTH_AUTO_REGISTER=true         # Allow OAuth to auto-create accounts (default: true)
+OAUTH_TIMEOUT=15s                # HTTP client timeout for OAuth requests (default: 15s)
+OAUTH_INSECURE_SKIP_VERIFY=false # Skip TLS verification for OAuth (dev/testing only, default: false)
 ```
 
 #### Generate Strong Secrets
@@ -626,6 +658,86 @@ The server initializes with default test accounts:
 - Client ID: Auto-generated UUID (shown in server logs)
 
 **⚠️ Security Warning:** Note the admin password from server logs on first run and change it in production!
+
+### OAuth Third-Party Login
+
+AuthGate supports OAuth 2.0 authentication with third-party providers, allowing users to sign in with their existing accounts from GitHub, Gitea, and other OAuth providers.
+
+#### Supported Providers
+
+- **GitHub** - Sign in with GitHub accounts
+- **Gitea** - Sign in with self-hosted or public Gitea instances
+- **Extensible** - Easy to add GitLab, Google, or other OAuth 2.0 providers
+
+#### Key Features
+
+- **Email-Based Account Linking**: Automatically links OAuth accounts to existing users with matching email addresses
+- **Auto-Registration**: New users can be automatically created via OAuth login
+- **Multiple Authentication Methods**: Users can have both password and OAuth authentication
+- **Profile Sync**: Avatar and profile information synced from OAuth providers
+- **Secure by Default**: CSRF protection via state parameter, TLS verification enabled
+
+#### Quick Setup
+
+1. **Create OAuth Application** in your provider (GitHub/Gitea)
+2. **Configure AuthGate** with client credentials:
+
+```bash
+# Enable GitHub OAuth
+GITHUB_OAUTH_ENABLED=true
+GITHUB_CLIENT_ID=your_client_id
+GITHUB_CLIENT_SECRET=your_client_secret
+GITHUB_REDIRECT_URL=http://localhost:8080/auth/callback/github
+
+# Enable Gitea OAuth
+GITEA_OAUTH_ENABLED=true
+GITEA_URL=https://gitea.example.com
+GITEA_CLIENT_ID=your_client_id
+GITEA_CLIENT_SECRET=your_client_secret
+GITEA_REDIRECT_URL=http://localhost:8080/auth/callback/gitea
+```
+
+3. **Restart server** and visit `/login` to see OAuth buttons
+
+#### Authentication Scenarios
+
+**Scenario 1: New User**
+
+- User clicks "Sign in with GitHub"
+- GitHub returns email: alice@example.com
+- System creates new user with GitHub OAuth connection
+- User is logged in
+
+**Scenario 2: Existing User (Email Match)**
+
+- User Bob already has account: bob@example.com
+- Bob clicks "Sign in with GitHub"
+- GitHub returns same email: bob@example.com
+- System automatically links GitHub to Bob's account
+- Bob can now login with either password or GitHub
+
+**Scenario 3: Multiple OAuth Accounts**
+
+- User can link multiple OAuth providers (GitHub + Gitea)
+- All methods log into the same AuthGate account
+
+#### Security Considerations
+
+- **HTTPS Required**: Always use HTTPS in production
+- **Email Validation**: OAuth providers must return verified email addresses
+- **TLS Verification**: Never set `OAUTH_INSECURE_SKIP_VERIFY=true` in production
+- **Token Storage**: OAuth tokens stored in database (consider encryption at rest)
+
+#### Detailed Setup Guide
+
+For complete setup instructions including:
+
+- Step-by-step provider configuration
+- Production deployment guidelines
+- Troubleshooting common issues
+- Adding custom OAuth providers
+
+See [OAuth Setup Guide](docs/OAUTH_SETUP.md)
 
 ### Pluggable Token Providers
 
@@ -1024,7 +1136,8 @@ authgate/
 │   ├── device.go    # Device authorization flow (/device, /device/verify)
 │   ├── token.go     # Token issuance (/oauth/token), verification (/oauth/tokeninfo), and revocation (/oauth/revoke)
 │   ├── session.go   # Session management (/account/sessions)
-│   └── client.go    # Admin client management
+│   ├── client.go    # Admin client management
+│   └── oauth_handler.go  # OAuth third-party login handlers
 ├── middleware/      # HTTP middleware
 │   ├── auth.go      # Session authentication (RequireAuth, RequireAdmin)
 │   └── csrf.go      # CSRF protection middleware
@@ -1032,10 +1145,12 @@ authgate/
 │   ├── user.go      # User accounts
 │   ├── client.go    # OAuth clients (OAuthClient)
 │   ├── device.go    # Device codes (DeviceCode)
-│   └── token.go     # Access tokens (AccessToken)
+│   ├── token.go     # Access tokens (AccessToken)
+│   └── oauth_connection.go  # OAuth provider connections
 ├── auth/            # Authentication providers (pluggable design)
 │   ├── local.go     # Local authentication (database)
-│   └── http_api.go  # External HTTP API authentication
+│   ├── http_api.go  # External HTTP API authentication
+│   └── oauth_provider.go  # OAuth 2.0 provider implementations (GitHub, Gitea)
 ├── token/           # Token providers (pluggable design)
 │   ├── types.go     # Shared data structures (TokenResult, TokenValidationResult)
 │   ├── errors.go    # Provider-level error definitions
@@ -1056,6 +1171,8 @@ authgate/
 ├── static/          # Static files (embedded via go:embed)
 ├── docker/          # Docker configuration
 │   └── Dockerfile   # Alpine-based multi-arch image
+├── docs/            # Documentation
+│   └── OAUTH_SETUP.md  # OAuth provider setup guide
 ├── _example/        # Example CLI client implementation
 │   └── authgate-cli/
 ├── version/         # Version information (embedded at build time)
@@ -1118,10 +1235,11 @@ make help
 
 The application automatically creates these tables:
 
-- `users` - User accounts
+- `users` - User accounts (includes OAuth-linked users)
 - `oauth_clients` - Registered client applications
 - `device_codes` - Active device authorization requests
 - `access_tokens` - Issued JWT tokens
+- `oauth_connections` - OAuth provider connections (GitHub, Gitea, etc.)
 
 ### Extending the Server
 

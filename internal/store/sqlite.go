@@ -39,6 +39,7 @@ func New(driver, dsn string) (*Store, error) {
 		&models.OAuthClient{},
 		&models.DeviceCode{},
 		&models.AccessToken{},
+		&models.OAuthConnection{},
 	); err != nil {
 		return nil, err
 	}
@@ -80,6 +81,7 @@ func (s *Store) seedData() error {
 		user := &models.User{
 			ID:           uuid.New().String(),
 			Username:     "admin",
+			Email:        "admin@localhost", // Default email for admin
 			PasswordHash: string(hash),
 			Role:         "admin",
 		}
@@ -381,4 +383,80 @@ func (s *Store) GetTokensByCategoryAndStatus(
 		Find(&tokens).
 		Error
 	return tokens, err
+}
+
+// OAuth Connection operations
+
+// GetUserByEmail finds a user by email address
+func (s *Store) GetUserByEmail(email string) (*models.User, error) {
+	var user models.User
+	if err := s.db.Where("email = ?", email).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// CreateUser creates a new user
+func (s *Store) CreateUser(user *models.User) error {
+	return s.db.Create(user).Error
+}
+
+// UpdateUser updates an existing user
+func (s *Store) UpdateUser(user *models.User) error {
+	return s.db.Save(user).Error
+}
+
+// DeleteUser deletes a user by ID
+func (s *Store) DeleteUser(id string) error {
+	return s.db.Delete(&models.User{}, "id = ?", id).Error
+}
+
+// CreateOAuthConnection creates a new OAuth connection
+func (s *Store) CreateOAuthConnection(conn *models.OAuthConnection) error {
+	return s.db.Create(conn).Error
+}
+
+// GetOAuthConnection finds an OAuth connection by provider and provider user ID
+func (s *Store) GetOAuthConnection(
+	provider, providerUserID string,
+) (*models.OAuthConnection, error) {
+	var conn models.OAuthConnection
+	err := s.db.Where("provider = ? AND provider_user_id = ?", provider, providerUserID).
+		First(&conn).Error
+	if err != nil {
+		return nil, err
+	}
+	return &conn, nil
+}
+
+// GetOAuthConnectionByUserAndProvider finds an OAuth connection by user ID and provider
+func (s *Store) GetOAuthConnectionByUserAndProvider(
+	userID, provider string,
+) (*models.OAuthConnection, error) {
+	var conn models.OAuthConnection
+	err := s.db.Where("user_id = ? AND provider = ?", userID, provider).
+		First(&conn).Error
+	if err != nil {
+		return nil, err
+	}
+	return &conn, nil
+}
+
+// GetOAuthConnectionsByUserID returns all OAuth connections for a user
+func (s *Store) GetOAuthConnectionsByUserID(userID string) ([]models.OAuthConnection, error) {
+	var conns []models.OAuthConnection
+	err := s.db.Where("user_id = ?", userID).
+		Order("created_at DESC").
+		Find(&conns).Error
+	return conns, err
+}
+
+// UpdateOAuthConnection updates an existing OAuth connection
+func (s *Store) UpdateOAuthConnection(conn *models.OAuthConnection) error {
+	return s.db.Save(conn).Error
+}
+
+// DeleteOAuthConnection deletes an OAuth connection by ID
+func (s *Store) DeleteOAuthConnection(id string) error {
+	return s.db.Delete(&models.OAuthConnection{}, "id = ?", id).Error
 }
