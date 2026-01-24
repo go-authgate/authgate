@@ -6,10 +6,10 @@ github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 h1:UQHMgLO+TxOEl
 github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1/go.mod h1:xomTg63KZ2rFqZQzSB4Vz2SUXa1BpHTVz9L5PTmPC4E=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
-github.com/appleboy/go-httpclient v0.3.0 h1:6MkPoPFV1J2cxTuwNnMxuf/8ElMCj1f4y2CF0qKbJEg=
-github.com/appleboy/go-httpclient v0.3.0/go.mod h1:kQwfZ82XifjYMAIPBHQatyjDsjf4wWnWSLmS8gx4nJI=
-github.com/appleboy/go-httpretry v0.3.0 h1:YvQV3PMVeojpeZbLB23nAwm5pEFVZ/TvRzTiearqUwc=
-github.com/appleboy/go-httpretry v0.3.0/go.mod h1:96v1IO6wg1+S10iFbOM3O8rn2vkFw8+uH4mDPhGoz+E=
+github.com/appleboy/go-httpclient v0.4.0 h1:vHj2lDq2FTp/RnjYjtWSqURWepAa+EcqQ1y9oV+lbJU=
+github.com/appleboy/go-httpclient v0.4.0/go.mod h1:kQwfZ82XifjYMAIPBHQatyjDsjf4wWnWSLmS8gx4nJI=
+github.com/appleboy/go-httpretry v0.4.0 h1:d2mMv6LQPzsM2h643ZkwtApuqAy3taG3J6h83l0na40=
+github.com/appleboy/go-httpretry v0.4.0/go.mod h1:96v1IO6wg1+S10iFbOM3O8rn2vkFw8+uH4mDPhGoz+E=
 github.com/appleboy/graceful v1.2.1 h1:OCNfj5QdQQ82eBuxEF7RAILQCGG+Ued7BOMQwcTv9DQ=
 github.com/appleboy/graceful v1.2.1/go.mod h1:XlEg3jkgb42weJeCXch3HRXvWrU5r+EYymCyPVy0EkA=
 github.com/bytedance/gopkg v0.1.3 h1:TPBSwH8RsouGCBcMBktLt1AymVo2TVsBVCY4b6TnZ/M=
