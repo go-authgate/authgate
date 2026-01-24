@@ -44,7 +44,7 @@
           </p>
           {{range .oauthProviders}}
           <a
-            href="/auth/login/{{.name}}?redirect={{$.redirect}}"
+            href="/auth/login/{{.name}}?redirect={{urlquery $.redirect}}"
             class="btn btn-oauth btn-{{.name}}"
             style="
               display: block;
