@@ -116,7 +116,13 @@ func runServer() {
 	}
 
 	// Initialize services
-	userService := services.NewUserService(db, localProvider, httpAPIProvider, cfg.AuthMode)
+	userService := services.NewUserService(
+		db,
+		localProvider,
+		httpAPIProvider,
+		cfg.AuthMode,
+		cfg.OAuthAutoRegister,
+	)
 	deviceService := services.NewDeviceService(db, cfg)
 	tokenService := services.NewTokenService(
 		db,

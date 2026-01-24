@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"log"
 	"net/http"
 
@@ -155,6 +156,17 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 	)
 	if err != nil {
 		log.Printf("[OAuth] Authentication failed: %v", err)
+
+		// Handle specific errors
+		if errors.Is(err, services.ErrOAuthAutoRegisterDisabled) {
+			c.HTML(http.StatusForbidden, "error.html", gin.H{
+				"error":   "Registration Disabled",
+				"message": "New account registration via OAuth is currently disabled. Please contact your administrator.",
+			})
+			return
+		}
+
+		// Generic error
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
 			"error":   "Authentication failed",
 			"message": "Unable to authenticate your account at this time. Please try again later.",

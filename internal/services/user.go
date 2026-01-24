@@ -24,18 +24,20 @@ const (
 )
 
 var (
-	ErrInvalidCredentials = errors.New("invalid username or password")
-	ErrUserNotFound       = errors.New("user not found")
-	ErrAuthProviderFailed = errors.New("authentication provider failed")
-	ErrUserSyncFailed     = errors.New("failed to sync user from external provider")
-	ErrUsernameConflict   = errors.New("username already exists")
+	ErrInvalidCredentials        = errors.New("invalid username or password")
+	ErrUserNotFound              = errors.New("user not found")
+	ErrAuthProviderFailed        = errors.New("authentication provider failed")
+	ErrUserSyncFailed            = errors.New("failed to sync user from external provider")
+	ErrUsernameConflict          = errors.New("username already exists")
+	ErrOAuthAutoRegisterDisabled = errors.New("OAuth auto-registration is disabled")
 )
 
 type UserService struct {
-	store           *store.Store
-	localProvider   *auth.LocalAuthProvider
-	httpAPIProvider *auth.HTTPAPIAuthProvider
-	authMode        string
+	store             *store.Store
+	localProvider     *auth.LocalAuthProvider
+	httpAPIProvider   *auth.HTTPAPIAuthProvider
+	authMode          string
+	oauthAutoRegister bool
 }
 
 func NewUserService(
@@ -43,12 +45,14 @@ func NewUserService(
 	localProvider *auth.LocalAuthProvider,
 	httpAPIProvider *auth.HTTPAPIAuthProvider,
 	authMode string,
+	oauthAutoRegister bool,
 ) *UserService {
 	return &UserService{
-		store:           s,
-		localProvider:   localProvider,
-		httpAPIProvider: httpAPIProvider,
-		authMode:        authMode,
+		store:             s,
+		localProvider:     localProvider,
+		httpAPIProvider:   httpAPIProvider,
+		authMode:          authMode,
+		oauthAutoRegister: oauthAutoRegister,
 	}
 }
 
@@ -215,7 +219,12 @@ func (s *UserService) AuthenticateWithOAuth(
 		return s.linkOAuthToExistingUser(user, provider, oauthUserInfo, token)
 	}
 
-	// 3. Create new user with OAuth
+	// 3. Check if auto-registration is enabled
+	if !s.oauthAutoRegister {
+		return nil, ErrOAuthAutoRegisterDisabled
+	}
+
+	// 4. Create new user with OAuth
 	return s.createUserWithOAuth(provider, oauthUserInfo, token)
 }
 

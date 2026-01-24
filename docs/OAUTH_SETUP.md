@@ -6,7 +6,7 @@ This guide explains how to integrate GitHub and Gitea OAuth authentication with 
 
 - **Multiple OAuth Providers**: Support for GitHub, Gitea, and extensible to other providers
 - **Email-based Account Linking**: Automatically links OAuth accounts to existing users with the same email
-- **Auto-registration**: New users can be automatically created via OAuth
+- **Auto-registration**: New users can be automatically created via OAuth (controlled by `OAUTH_AUTO_REGISTER` config)
 - **Multiple Authentication Methods**: Users can have both password and OAuth authentication
 - **Profile Sync**: Avatar and profile information synced from OAuth providers
 
@@ -42,7 +42,7 @@ type OAuthConnection struct {
 
 1. **Existing OAuth Connection**: User clicks "Sign in with GitHub" → Already linked → Login immediately
 2. **Existing User (same email)**: OAuth email matches existing user → Automatically link and login
-3. **New User**: No existing user or connection → Create new user account
+3. **New User**: No existing user or connection → Create new user account (if `OAUTH_AUTO_REGISTER=true`), otherwise show error
 
 ## GitHub OAuth Setup
 
@@ -248,6 +248,8 @@ OAuth authentication adds these endpoints:
 | `OAUTH_AUTO_REGISTER`        | No         | `true`       | Allow auto-creation of accounts          |
 | `OAUTH_TIMEOUT`              | No         | `15s`        | HTTP client timeout for OAuth requests   |
 | `OAUTH_INSECURE_SKIP_VERIFY` | No         | `false`      | Skip TLS verification (dev/testing only) |
+
+**Note on Auto-Registration**: When `OAUTH_AUTO_REGISTER=false`, only users with existing accounts (matched by email) can login via OAuth. New users attempting to login will see an error message asking them to contact the administrator. This is useful for organizations that want to restrict OAuth access to pre-approved users only.
 
 ## Adding More OAuth Providers
 
