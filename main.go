@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"embed"
 	"errors"
 	"flag"
@@ -23,6 +22,7 @@ import (
 	"github.com/appleboy/authgate/internal/store"
 	"github.com/appleboy/authgate/internal/token"
 	"github.com/appleboy/authgate/internal/version"
+	"github.com/appleboy/go-httpclient"
 
 	"github.com/appleboy/graceful"
 	"github.com/gin-contrib/sessions"
@@ -417,30 +417,12 @@ func getProviderNames(providers map[string]*auth.OAuthProvider) []string {
 
 // createOAuthHTTPClient creates an HTTP client for OAuth requests with retry support
 func createOAuthHTTPClient(cfg *config.Config) *http.Client {
-	// #nosec G402 -- InsecureSkipVerify is user-configurable for development/testing
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: cfg.OAuthInsecureSkipVerify,
-		},
-		MaxIdleConns:        10,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     30 * time.Second,
-	}
-
-	baseClient := &http.Client{
-		Timeout:   cfg.OAuthTimeout,
-		Transport: transport,
-	}
-
-	// Note: We don't use retry.Client here because the oauth2 library requires
-	// *http.Client, and retry.Client is not compatible with that interface.
-	// OAuth flows are interactive and providers are generally reliable, so
-	// automatic retry is less critical than for API calls. The baseClient already
-	// has proper timeout and TLS configuration.
-
 	if cfg.OAuthInsecureSkipVerify {
 		log.Printf("WARNING: OAuth TLS verification is disabled (OAUTH_INSECURE_SKIP_VERIFY=true)")
 	}
 
-	return baseClient
+	return httpclient.NewAuthClient(httpclient.AuthModeNone, "",
+		httpclient.WithTimeout(cfg.OAuthTimeout),
+		httpclient.WithInsecureSkipVerify(cfg.OAuthInsecureSkipVerify),
+	)
 }
