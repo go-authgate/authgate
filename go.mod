@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/appleboy/com v1.1.1
-	github.com/appleboy/go-httpclient v0.5.0
+	github.com/appleboy/go-httpclient v0.6.0
 	github.com/appleboy/go-httpretry v0.4.0
 	github.com/appleboy/graceful v1.2.1
 	github.com/gin-contrib/sessions v1.0.4
