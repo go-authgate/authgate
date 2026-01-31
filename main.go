@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"embed"
 	"errors"
 	"flag"
@@ -453,21 +452,13 @@ func createRetryClient(
 	maxRetries int,
 	retryDelay, maxRetryDelay time.Duration,
 	authHeader string,
-) (*retry.Client, error) {
-	// #nosec G402 -- InsecureSkipVerify is user-configurable for development/testing
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: insecureSkipVerify,
-		},
-	}
-
-	// Create HTTP client with automatic authentication
+) (*retry.Client, error) { // Create HTTP client with automatic authentication
 	client, err := httpclient.NewAuthClient(
 		authMode,
 		authSecret,
 		httpclient.WithTimeout(timeout),
-		httpclient.WithTransport(transport),
 		httpclient.WithHeaderName(authHeader),
+		httpclient.WithInsecureSkipVerify(insecureSkipVerify),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auth client: %w", err)
