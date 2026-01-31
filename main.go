@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"embed"
 	"errors"
 	"flag"
@@ -23,6 +24,7 @@ import (
 	"github.com/appleboy/authgate/internal/token"
 	"github.com/appleboy/authgate/internal/version"
 	"github.com/appleboy/go-httpclient"
+	retry "github.com/appleboy/go-httpretry"
 
 	"github.com/appleboy/graceful"
 	"github.com/gin-contrib/sessions"
@@ -102,7 +104,21 @@ func runServer() {
 
 	var httpAPIProvider *auth.HTTPAPIAuthProvider
 	if cfg.AuthMode == config.AuthModeHTTPAPI {
-		httpAPIProvider = auth.NewHTTPAPIAuthProvider(cfg)
+		// Create retry client for HTTP API authentication
+		authRetryClient, err := createRetryClient(
+			cfg.HTTPAPIAuthMode,
+			cfg.HTTPAPIAuthSecret,
+			cfg.HTTPAPITimeout,
+			cfg.HTTPAPIInsecureSkipVerify,
+			cfg.HTTPAPIMaxRetries,
+			cfg.HTTPAPIRetryDelay,
+			cfg.HTTPAPIMaxRetryDelay,
+			cfg.HTTPAPIAuthHeader,
+		)
+		if err != nil {
+			log.Fatalf("Failed to create HTTP API auth client: %v", err)
+		}
+		httpAPIProvider = auth.NewHTTPAPIAuthProvider(cfg, authRetryClient)
 		log.Printf("HTTP API authentication enabled: %s", cfg.HTTPAPIURL)
 	}
 
@@ -111,7 +127,21 @@ func runServer() {
 
 	var httpTokenProvider *token.HTTPTokenProvider
 	if cfg.TokenProviderMode == config.TokenProviderModeHTTPAPI {
-		httpTokenProvider = token.NewHTTPTokenProvider(cfg)
+		// Create retry client for token API
+		tokenRetryClient, err := createRetryClient(
+			cfg.TokenAPIAuthMode,
+			cfg.TokenAPIAuthSecret,
+			cfg.TokenAPITimeout,
+			cfg.TokenAPIInsecureSkipVerify,
+			cfg.TokenAPIMaxRetries,
+			cfg.TokenAPIRetryDelay,
+			cfg.TokenAPIMaxRetryDelay,
+			cfg.TokenAPIAuthHeader,
+		)
+		if err != nil {
+			log.Fatalf("Failed to create token API client: %v", err)
+		}
+		httpTokenProvider = token.NewHTTPTokenProvider(cfg, tokenRetryClient)
 		log.Printf("HTTP API token provider enabled: %s", cfg.TokenAPIURL)
 	}
 
@@ -415,14 +445,61 @@ func getProviderNames(providers map[string]*auth.OAuthProvider) []string {
 	return names
 }
 
+// createRetryClient creates an HTTP client with retry support and authentication
+func createRetryClient(
+	authMode, authSecret string,
+	timeout time.Duration,
+	insecureSkipVerify bool,
+	maxRetries int,
+	retryDelay, maxRetryDelay time.Duration,
+	authHeader string,
+) (*retry.Client, error) {
+	// #nosec G402 -- InsecureSkipVerify is user-configurable for development/testing
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: insecureSkipVerify,
+		},
+	}
+
+	// Create HTTP client with automatic authentication
+	client, err := httpclient.NewAuthClient(
+		authMode,
+		authSecret,
+		httpclient.WithTimeout(timeout),
+		httpclient.WithTransport(transport),
+		httpclient.WithHeaderName(authHeader),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create auth client: %w", err)
+	}
+
+	// Wrap with retry client
+	retryClient, err := retry.NewRealtimeClient(
+		retry.WithHTTPClient(client),
+		retry.WithMaxRetries(maxRetries),
+		retry.WithInitialRetryDelay(retryDelay),
+		retry.WithMaxRetryDelay(maxRetryDelay),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create retry client: %w", err)
+	}
+
+	return retryClient, nil
+}
+
 // createOAuthHTTPClient creates an HTTP client for OAuth requests with retry support
 func createOAuthHTTPClient(cfg *config.Config) *http.Client {
 	if cfg.OAuthInsecureSkipVerify {
 		log.Printf("WARNING: OAuth TLS verification is disabled (OAUTH_INSECURE_SKIP_VERIFY=true)")
 	}
 
-	return httpclient.NewAuthClient(httpclient.AuthModeNone, "",
+	client, err := httpclient.NewAuthClient(httpclient.AuthModeNone, "",
 		httpclient.WithTimeout(cfg.OAuthTimeout),
 		httpclient.WithInsecureSkipVerify(cfg.OAuthInsecureSkipVerify),
 	)
+	if err != nil {
+		log.Fatalf("Failed to create OAuth HTTP client: %v", err)
+	}
+
+	return client
 }

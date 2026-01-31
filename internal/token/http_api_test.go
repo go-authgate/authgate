@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -13,6 +14,9 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	httpclient "github.com/appleboy/go-httpclient"
+	retry "github.com/appleboy/go-httpretry"
 
 	"github.com/appleboy/authgate/internal/config"
 	"github.com/stretchr/testify/assert"
@@ -27,6 +31,56 @@ func testConfig(url string) *config.Config {
 		JWTExpiration:      1 * time.Hour,
 		TokenAPIMaxRetries: 0, // Disable retries for predictable test behavior
 	}
+}
+
+// createTestRetryClient creates a retry client for testing
+func createTestRetryClient(cfg *config.Config) (*retry.Client, error) {
+	// #nosec G402 -- InsecureSkipVerify is user-configurable for development/testing
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: cfg.TokenAPIInsecureSkipVerify,
+		},
+	}
+
+	// Create HTTP client with automatic authentication
+	client, err := httpclient.NewAuthClient(
+		cfg.TokenAPIAuthMode,
+		cfg.TokenAPIAuthSecret,
+		httpclient.WithTimeout(cfg.TokenAPITimeout),
+		httpclient.WithTransport(transport),
+		httpclient.WithHeaderName(cfg.TokenAPIAuthHeader),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Custom retry checker: only retry on network errors, not HTTP status codes
+	retryChecker := func(err error, resp *http.Response) bool {
+		return err != nil
+	}
+
+	// Wrap with retry client
+	retryClient, err := retry.NewRealtimeClient(
+		retry.WithHTTPClient(client),
+		retry.WithMaxRetries(cfg.TokenAPIMaxRetries),
+		retry.WithInitialRetryDelay(cfg.TokenAPIRetryDelay),
+		retry.WithMaxRetryDelay(cfg.TokenAPIMaxRetryDelay),
+		retry.WithRetryableChecker(retryChecker),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return retryClient, nil
+}
+
+// createTestProvider is a helper function for tests to create a provider
+func createTestProvider(cfg *config.Config) *HTTPTokenProvider {
+	retryClient, err := createTestRetryClient(cfg)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create test retry client: %v", err))
+	}
+	return NewHTTPTokenProvider(cfg, retryClient)
 }
 
 func TestHTTPTokenProvider_GenerateToken_Success(t *testing.T) {
@@ -62,7 +116,7 @@ func TestHTTPTokenProvider_GenerateToken_Success(t *testing.T) {
 
 	cfg := testConfig(server.URL)
 
-	provider := NewHTTPTokenProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.GenerateToken(
 		context.Background(),
 		"user123",
@@ -94,7 +148,7 @@ func TestHTTPTokenProvider_GenerateToken_MissingAccessToken(t *testing.T) {
 
 	cfg := testConfig(server.URL)
 
-	provider := NewHTTPTokenProvider(cfg)
+	provider := createTestProvider(cfg)
 	_, err := provider.GenerateToken(context.Background(), "user123", "client456", "read")
 
 	assert.Error(t, err)
@@ -116,7 +170,7 @@ func TestHTTPTokenProvider_GenerateToken_Non2xxStatus(t *testing.T) {
 
 	cfg := testConfig(server.URL)
 
-	provider := NewHTTPTokenProvider(cfg)
+	provider := createTestProvider(cfg)
 	_, err := provider.GenerateToken(context.Background(), "user123", "client456", "read")
 
 	assert.Error(t, err)
@@ -135,7 +189,7 @@ func TestHTTPTokenProvider_GenerateToken_InvalidJSON(t *testing.T) {
 
 	cfg := testConfig(server.URL)
 
-	provider := NewHTTPTokenProvider(cfg)
+	provider := createTestProvider(cfg)
 	_, err := provider.GenerateToken(context.Background(), "user123", "client456", "read")
 
 	assert.Error(t, err)
@@ -173,7 +227,7 @@ func TestHTTPTokenProvider_ValidateToken_Success(t *testing.T) {
 
 	cfg := testConfig(server.URL)
 
-	provider := NewHTTPTokenProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.ValidateToken(context.Background(), "mock-jwt-token")
 
 	require.NoError(t, err)
@@ -198,7 +252,7 @@ func TestHTTPTokenProvider_ValidateToken_Invalid(t *testing.T) {
 
 	cfg := testConfig(server.URL)
 
-	provider := NewHTTPTokenProvider(cfg)
+	provider := createTestProvider(cfg)
 	_, err := provider.ValidateToken(context.Background(), "invalid-token")
 
 	assert.Error(t, err)
@@ -222,7 +276,7 @@ func TestHTTPTokenProvider_ValidateToken_Expired(t *testing.T) {
 
 	cfg := testConfig(server.URL)
 
-	provider := NewHTTPTokenProvider(cfg)
+	provider := createTestProvider(cfg)
 	_, err := provider.ValidateToken(context.Background(), "expired-token")
 
 	assert.Error(t, err)
@@ -239,7 +293,7 @@ func TestHTTPTokenProvider_ValidateToken_Non2xxStatus(t *testing.T) {
 
 	cfg := testConfig(server.URL)
 
-	provider := NewHTTPTokenProvider(cfg)
+	provider := createTestProvider(cfg)
 	_, err := provider.ValidateToken(context.Background(), "token")
 
 	assert.Error(t, err)
@@ -257,7 +311,7 @@ func TestHTTPTokenProvider_ValidateToken_InvalidJSON(t *testing.T) {
 
 	cfg := testConfig(server.URL)
 
-	provider := NewHTTPTokenProvider(cfg)
+	provider := createTestProvider(cfg)
 	_, err := provider.ValidateToken(context.Background(), "token")
 
 	assert.Error(t, err)
@@ -266,7 +320,7 @@ func TestHTTPTokenProvider_ValidateToken_InvalidJSON(t *testing.T) {
 
 func TestHTTPTokenProvider_Name(t *testing.T) {
 	cfg := testConfig("http://localhost:9000")
-	provider := NewHTTPTokenProvider(cfg)
+	provider := createTestProvider(cfg)
 
 	assert.Equal(t, "http_api", provider.Name())
 }
@@ -291,7 +345,7 @@ func testGenerateTokenError(t *testing.T, statusCode int, errorMessage string) {
 
 	cfg := testConfig(server.URL)
 
-	provider := NewHTTPTokenProvider(cfg)
+	provider := createTestProvider(cfg)
 	_, err := provider.GenerateToken(context.Background(), "user123", "client456", "read")
 
 	assert.Error(t, err)
@@ -331,7 +385,7 @@ func TestHTTPTokenProvider_SimpleAuth_DefaultHeader(t *testing.T) {
 	cfg.TokenAPIAuthSecret = testSecret
 	// TokenAPIAuthHeader not set, should default to "X-API-Secret"
 
-	provider := NewHTTPTokenProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.GenerateToken(context.Background(), "user123", "client456", "read")
 
 	require.NoError(t, err)
@@ -373,7 +427,7 @@ func TestHTTPTokenProvider_SimpleAuth_CustomHeader(t *testing.T) {
 	cfg.TokenAPIAuthSecret = testSecret
 	cfg.TokenAPIAuthHeader = customHeader
 
-	provider := NewHTTPTokenProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.ValidateToken(context.Background(), "mock-jwt-token")
 
 	require.NoError(t, err)
@@ -459,7 +513,7 @@ func TestHTTPTokenProvider_HMACAuth_ValidSignature(t *testing.T) {
 	cfg.TokenAPIAuthMode = "hmac"
 	cfg.TokenAPIAuthSecret = testSecret
 
-	provider := NewHTTPTokenProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.GenerateToken(context.Background(), "user123", "client456", "read")
 
 	require.NoError(t, err)
@@ -497,7 +551,7 @@ func TestHTTPTokenProvider_HMACAuth_MissingHeaders(t *testing.T) {
 	cfg.TokenAPIAuthMode = "hmac"
 	cfg.TokenAPIAuthSecret = "test-secret"
 
-	provider := NewHTTPTokenProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.ValidateToken(context.Background(), "token")
 
 	require.NoError(t, err)
@@ -527,7 +581,7 @@ func TestHTTPTokenProvider_NoAuth_NoHeaders(t *testing.T) {
 	cfg := testConfig(server.URL)
 	// TokenAPIAuthMode not set or set to "none" (default)
 
-	provider := NewHTTPTokenProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.GenerateToken(context.Background(), "user123", "client456", "read")
 
 	require.NoError(t, err)

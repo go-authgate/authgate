@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -14,10 +15,63 @@ import (
 	"testing"
 	"time"
 
+	httpclient "github.com/appleboy/go-httpclient"
+	retry "github.com/appleboy/go-httpretry"
+
 	"github.com/appleboy/authgate/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// createTestRetryClient creates a retry client for testing
+func createTestRetryClient(cfg *config.Config) (*retry.Client, error) {
+	// #nosec G402 -- InsecureSkipVerify is user-configurable for development/testing
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: cfg.HTTPAPIInsecureSkipVerify,
+		},
+	}
+
+	// Create HTTP client with automatic authentication
+	client, err := httpclient.NewAuthClient(
+		cfg.HTTPAPIAuthMode,
+		cfg.HTTPAPIAuthSecret,
+		httpclient.WithTimeout(cfg.HTTPAPITimeout),
+		httpclient.WithTransport(transport),
+		httpclient.WithHeaderName(cfg.HTTPAPIAuthHeader),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Custom retry checker: only retry on network errors, not HTTP status codes
+	retryChecker := func(err error, resp *http.Response) bool {
+		return err != nil
+	}
+
+	// Wrap with retry client (disable retries for predictable test behavior)
+	retryClient, err := retry.NewRealtimeClient(
+		retry.WithHTTPClient(client),
+		retry.WithMaxRetries(cfg.HTTPAPIMaxRetries),
+		retry.WithInitialRetryDelay(cfg.HTTPAPIRetryDelay),
+		retry.WithMaxRetryDelay(cfg.HTTPAPIMaxRetryDelay),
+		retry.WithRetryableChecker(retryChecker),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return retryClient, nil
+}
+
+// createTestProvider is a helper function for tests to create a provider
+func createTestProvider(cfg *config.Config) *HTTPAPIAuthProvider {
+	retryClient, err := createTestRetryClient(cfg)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create test retry client: %v", err))
+	}
+	return NewHTTPAPIAuthProvider(cfg, retryClient)
+}
 
 func TestHTTPAPIAuthProvider_Authenticate_Success(t *testing.T) {
 	// Mock external API server
@@ -38,7 +92,7 @@ func TestHTTPAPIAuthProvider_Authenticate_Success(t *testing.T) {
 		HTTPAPITimeout: 10 * 1000000000, // 10 seconds in nanoseconds
 	}
 
-	provider := NewHTTPAPIAuthProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.Authenticate(context.Background(), "testuser", "password123")
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
@@ -80,7 +134,7 @@ func TestHTTPAPIAuthProvider_Authenticate_MissingUserID(t *testing.T) {
 		HTTPAPITimeout: 10 * 1000000000,
 	}
 
-	provider := NewHTTPAPIAuthProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.Authenticate(context.Background(), "testuser", "password123")
 
 	if err == nil {
@@ -114,7 +168,7 @@ func TestHTTPAPIAuthProvider_Authenticate_AuthFailed(t *testing.T) {
 		HTTPAPITimeout: 10 * 1000000000,
 	}
 
-	provider := NewHTTPAPIAuthProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.Authenticate(context.Background(), "testuser", "wrongpassword")
 
 	if err == nil {
@@ -143,7 +197,7 @@ func TestHTTPAPIAuthProvider_Authenticate_Non2xxStatus(t *testing.T) {
 		HTTPAPITimeout: 10 * 1000000000,
 	}
 
-	provider := NewHTTPAPIAuthProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.Authenticate(context.Background(), "testuser", "password123")
 
 	if err == nil {
@@ -169,7 +223,7 @@ func TestHTTPAPIAuthProvider_Authenticate_InvalidJSON(t *testing.T) {
 		HTTPAPITimeout: 10 * 1000000000,
 	}
 
-	provider := NewHTTPAPIAuthProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.Authenticate(context.Background(), "testuser", "password123")
 
 	if err == nil {
@@ -183,7 +237,7 @@ func TestHTTPAPIAuthProvider_Authenticate_InvalidJSON(t *testing.T) {
 
 func TestHTTPAPIAuthProvider_Name(t *testing.T) {
 	cfg := &config.Config{}
-	provider := NewHTTPAPIAuthProvider(cfg)
+	provider := createTestProvider(cfg)
 
 	if provider.Name() != "http_api" {
 		t.Errorf("Expected provider name 'http_api', got '%s'", provider.Name())
@@ -225,7 +279,7 @@ func TestHTTPAPIAuthProvider_SimpleAuth_DefaultHeader(t *testing.T) {
 		// HTTPAPIAuthHeader not set, should default to "X-API-Secret"
 	}
 
-	provider := NewHTTPAPIAuthProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.Authenticate(context.Background(), "testuser", "password123")
 
 	require.NoError(t, err)
@@ -269,7 +323,7 @@ func TestHTTPAPIAuthProvider_SimpleAuth_CustomHeader(t *testing.T) {
 		HTTPAPIAuthHeader: customHeader,
 	}
 
-	provider := NewHTTPAPIAuthProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.Authenticate(context.Background(), "testuser", "password123")
 
 	require.NoError(t, err)
@@ -362,7 +416,7 @@ func TestHTTPAPIAuthProvider_HMACAuth_ValidSignature(t *testing.T) {
 		HTTPAPIAuthSecret: testSecret,
 	}
 
-	provider := NewHTTPAPIAuthProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.Authenticate(context.Background(), "testuser", "password123")
 
 	require.NoError(t, err)
@@ -400,7 +454,7 @@ func TestHTTPAPIAuthProvider_HMACAuth_HeadersPresent(t *testing.T) {
 		HTTPAPIAuthSecret: "test-secret",
 	}
 
-	provider := NewHTTPAPIAuthProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.Authenticate(context.Background(), "testuser", "password123")
 
 	require.NoError(t, err)
@@ -433,7 +487,7 @@ func TestHTTPAPIAuthProvider_NoAuth_NoHeaders(t *testing.T) {
 		// HTTPAPIAuthMode not set or set to "none" (default)
 	}
 
-	provider := NewHTTPAPIAuthProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.Authenticate(context.Background(), "testuser", "password123")
 
 	require.NoError(t, err)
@@ -473,7 +527,7 @@ func TestHTTPAPIAuthProvider_SimpleAuth_Unauthorized(t *testing.T) {
 		HTTPAPIAuthSecret: "wrong-secret",
 	}
 
-	provider := NewHTTPAPIAuthProvider(cfg)
+	provider := createTestProvider(cfg)
 	result, err := provider.Authenticate(context.Background(), "testuser", "password123")
 
 	assert.Error(t, err)

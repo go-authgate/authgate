@@ -3,13 +3,10 @@ package auth
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 
-	httpclient "github.com/appleboy/go-httpclient"
 	retry "github.com/appleboy/go-httpretry"
 
 	"github.com/appleboy/authgate/internal/config"
@@ -22,34 +19,7 @@ type HTTPAPIAuthProvider struct {
 }
 
 // NewHTTPAPIAuthProvider creates a new HTTP API authentication provider
-func NewHTTPAPIAuthProvider(cfg *config.Config) *HTTPAPIAuthProvider {
-	// #nosec G402 -- InsecureSkipVerify is user-configurable for development/testing
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: cfg.HTTPAPIInsecureSkipVerify,
-		},
-	}
-
-	// Create HTTP client with automatic authentication
-	client := httpclient.NewAuthClient(
-		cfg.HTTPAPIAuthMode,
-		cfg.HTTPAPIAuthSecret,
-		httpclient.WithTimeout(cfg.HTTPAPITimeout),
-		httpclient.WithTransport(transport),
-		httpclient.WithHeaderName(cfg.HTTPAPIAuthHeader),
-	)
-
-	// Wrap with retry client
-	retryClient, err := retry.NewClient(
-		retry.WithHTTPClient(client),
-		retry.WithMaxRetries(cfg.HTTPAPIMaxRetries),
-		retry.WithInitialRetryDelay(cfg.HTTPAPIRetryDelay),
-		retry.WithMaxRetryDelay(cfg.HTTPAPIMaxRetryDelay),
-	)
-	if err != nil {
-		panic(fmt.Sprintf("failed to create retry client: %v", err))
-	}
-
+func NewHTTPAPIAuthProvider(cfg *config.Config, retryClient *retry.Client) *HTTPAPIAuthProvider {
 	return &HTTPAPIAuthProvider{
 		config:      cfg,
 		retryClient: retryClient,
@@ -86,21 +56,13 @@ func (p *HTTPAPIAuthProvider) Authenticate(
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(
-		ctx,
-		"POST",
-		p.config.HTTPAPIURL,
-		bytes.NewBuffer(jsonData),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrHTTPAPIConnection, err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
 	// Authentication headers are automatically added by the HTTP client
 	// Retry client handles retries with exponential backoff
-	resp, err := p.retryClient.Do(ctx, req)
+	resp, err := p.retryClient.Post(
+		ctx,
+		p.config.HTTPAPIURL,
+		retry.WithBody("application/json", bytes.NewBuffer(jsonData)),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrHTTPAPIConnection, err)
 	}

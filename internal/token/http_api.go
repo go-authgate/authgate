@@ -3,14 +3,11 @@ package token
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"time"
 
-	httpclient "github.com/appleboy/go-httpclient"
 	retry "github.com/appleboy/go-httpretry"
 
 	"github.com/appleboy/authgate/internal/config"
@@ -23,70 +20,29 @@ type HTTPTokenProvider struct {
 }
 
 // NewHTTPTokenProvider creates a new HTTP API token provider
-func NewHTTPTokenProvider(cfg *config.Config) *HTTPTokenProvider {
-	// #nosec G402 -- InsecureSkipVerify is user-configurable for development/testing
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: cfg.TokenAPIInsecureSkipVerify,
-		},
-	}
-
-	// Create HTTP client with automatic authentication
-	client := httpclient.NewAuthClient(
-		cfg.TokenAPIAuthMode,
-		cfg.TokenAPIAuthSecret,
-		httpclient.WithTimeout(cfg.TokenAPITimeout),
-		httpclient.WithTransport(transport),
-		httpclient.WithHeaderName(cfg.TokenAPIAuthHeader),
-	)
-
-	// Wrap with retry client
-	retryClient, err := retry.NewClient(
-		retry.WithHTTPClient(client),
-		retry.WithMaxRetries(cfg.TokenAPIMaxRetries),
-		retry.WithInitialRetryDelay(cfg.TokenAPIRetryDelay),
-		retry.WithMaxRetryDelay(cfg.TokenAPIMaxRetryDelay),
-	)
-	if err != nil {
-		panic(fmt.Sprintf("failed to create retry client: %v", err))
-	}
-
+func NewHTTPTokenProvider(cfg *config.Config, retryClient *retry.Client) *HTTPTokenProvider {
 	return &HTTPTokenProvider{
 		config:      cfg,
 		retryClient: retryClient,
 	}
 }
 
-// callValidateAPI is a helper function to validate tokens via HTTP API
-func (p *HTTPTokenProvider) callValidateAPI(
+// doPostRequest is a helper function to perform POST requests with JSON body
+func (p *HTTPTokenProvider) doPostRequest(
 	ctx context.Context,
-	tokenString string,
-	invalidErr, expiredErr error,
-) (*TokenValidationResult, error) {
-	reqBody := APITokenValidateRequest{
-		Token: tokenString,
-	}
-
+	endpoint string,
+	reqBody any,
+) ([]byte, error) {
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(
+	resp, err := p.retryClient.Post(
 		ctx,
-		"POST",
-		p.config.TokenAPIURL+"/validate",
-		bytes.NewBuffer(jsonData),
+		p.config.TokenAPIURL+endpoint,
+		retry.WithBody("application/json", bytes.NewBuffer(jsonData)),
 	)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrHTTPTokenConnection, err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	// Authentication headers are automatically added by the HTTP client
-	// Retry client handles retries with exponential backoff
-	resp, err := p.retryClient.Do(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrHTTPTokenConnection, err)
 	}
@@ -99,7 +55,76 @@ func (p *HTTPTokenProvider) callValidateAPI(
 
 	// Check HTTP status code
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("%w: HTTP %d", invalidErr, resp.StatusCode)
+		return body, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	return body, nil
+}
+
+// handleGenerateError handles error responses from token generation endpoints
+func handleGenerateError(body []byte, statusCode string) error {
+	var apiResp APITokenGenerateResponse
+	if err := json.Unmarshal(body, &apiResp); err == nil && apiResp.Message != "" {
+		return fmt.Errorf("%w: %s - %s", ErrHTTPTokenAuthFailed, statusCode, apiResp.Message)
+	}
+	bodyPreview := string(body)
+	if len(bodyPreview) > 200 {
+		bodyPreview = bodyPreview[:200] + "..."
+	}
+	return fmt.Errorf("%w: %s - %s", ErrHTTPTokenInvalidResp, statusCode, bodyPreview)
+}
+
+// parseGenerateResponse parses and validates token generation response
+func parseGenerateResponse(body []byte) (*TokenResult, error) {
+	var apiResp APITokenGenerateResponse
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrHTTPTokenInvalidResp, err)
+	}
+
+	if !apiResp.Success {
+		return nil, fmt.Errorf("%w: %s", ErrHTTPTokenAuthFailed, apiResp.Message)
+	}
+
+	if apiResp.AccessToken == "" {
+		return nil, fmt.Errorf(
+			"%w: external API returned success=true but missing access_token",
+			ErrHTTPTokenInvalidResp,
+		)
+	}
+
+	tokenType := apiResp.TokenType
+	if tokenType == "" {
+		tokenType = TokenTypeBearer
+	}
+
+	expiresAt := time.Now().Add(time.Duration(apiResp.ExpiresIn) * time.Second)
+
+	return &TokenResult{
+		TokenString: apiResp.AccessToken,
+		TokenType:   tokenType,
+		ExpiresAt:   expiresAt,
+		Claims:      apiResp.Claims,
+		Success:     true,
+	}, nil
+}
+
+// callValidateAPI is a helper function to validate tokens via HTTP API
+func (p *HTTPTokenProvider) callValidateAPI(
+	ctx context.Context,
+	tokenString string,
+	invalidErr, expiredErr error,
+) (*TokenValidationResult, error) {
+	reqBody := APITokenValidateRequest{
+		Token: tokenString,
+	}
+
+	body, err := p.doPostRequest(ctx, "/validate", reqBody)
+	if err != nil {
+		// Check if it's an HTTP error
+		if body != nil {
+			return nil, fmt.Errorf("%w: %s", invalidErr, err.Error())
+		}
+		return nil, err
 	}
 
 	var apiResp APITokenValidateResponse
@@ -163,102 +188,37 @@ type APITokenValidateResponse struct {
 	Message   string         `json:"message,omitempty"`
 }
 
-// GenerateToken requests token generation from external API
-func (p *HTTPTokenProvider) GenerateToken(
+// generateTokenInternal is a helper to generate tokens with custom expiration
+func (p *HTTPTokenProvider) generateTokenInternal(
 	ctx context.Context,
 	userID, clientID, scopes string,
+	expiration time.Duration,
 ) (*TokenResult, error) {
 	reqBody := APITokenGenerateRequest{
 		UserID:    userID,
 		ClientID:  clientID,
 		Scopes:    scopes,
-		ExpiresIn: int(p.config.JWTExpiration.Seconds()),
+		ExpiresIn: int(expiration.Seconds()),
 	}
 
-	jsonData, err := json.Marshal(reqBody)
+	body, err := p.doPostRequest(ctx, "/generate", reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(
-		ctx,
-		"POST",
-		p.config.TokenAPIURL+"/generate",
-		bytes.NewBuffer(jsonData),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrHTTPTokenConnection, err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	// Authentication headers are automatically added by the HTTP client
-	// Retry client handles retries with exponential backoff
-	resp, err := p.retryClient.Do(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrHTTPTokenConnection, err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to read response", ErrHTTPTokenInvalidResp)
-	}
-
-	// Check HTTP status code
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		var apiResp APITokenGenerateResponse
-		if err := json.Unmarshal(body, &apiResp); err == nil && apiResp.Message != "" {
-			return nil, fmt.Errorf(
-				"%w: HTTP %d - %s",
-				ErrHTTPTokenAuthFailed,
-				resp.StatusCode,
-				apiResp.Message,
-			)
+		// Check if it's an HTTP error (contains "HTTP")
+		if body != nil {
+			return nil, handleGenerateError(body, err.Error())
 		}
-		bodyPreview := string(body)
-		if len(bodyPreview) > 200 {
-			bodyPreview = bodyPreview[:200] + "..."
-		}
-		return nil, fmt.Errorf(
-			"%w: HTTP %d - %s",
-			ErrHTTPTokenInvalidResp,
-			resp.StatusCode,
-			bodyPreview,
-		)
+		return nil, err
 	}
 
-	var apiResp APITokenGenerateResponse
-	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrHTTPTokenInvalidResp, err)
-	}
+	return parseGenerateResponse(body)
+}
 
-	if !apiResp.Success {
-		return nil, fmt.Errorf("%w: %s", ErrHTTPTokenAuthFailed, apiResp.Message)
-	}
-
-	// Validate that access_token is provided
-	if apiResp.AccessToken == "" {
-		return nil, fmt.Errorf(
-			"%w: external API returned success=true but missing access_token",
-			ErrHTTPTokenInvalidResp,
-		)
-	}
-
-	tokenType := apiResp.TokenType
-	if tokenType == "" {
-		tokenType = TokenTypeBearer
-	}
-
-	expiresAt := time.Now().Add(time.Duration(apiResp.ExpiresIn) * time.Second)
-
-	return &TokenResult{
-		TokenString: apiResp.AccessToken,
-		TokenType:   tokenType,
-		ExpiresAt:   expiresAt,
-		Claims:      apiResp.Claims,
-		Success:     true,
-	}, nil
+// GenerateToken requests token generation from external API
+func (p *HTTPTokenProvider) GenerateToken(
+	ctx context.Context,
+	userID, clientID, scopes string,
+) (*TokenResult, error) {
+	return p.generateTokenInternal(ctx, userID, clientID, scopes, p.config.JWTExpiration)
 }
 
 // ValidateToken requests token validation from external API
@@ -300,88 +260,7 @@ func (p *HTTPTokenProvider) GenerateRefreshToken(
 	ctx context.Context,
 	userID, clientID, scopes string,
 ) (*TokenResult, error) {
-	// Reuse GenerateToken but request longer expiration
-	reqBody := APITokenGenerateRequest{
-		UserID:    userID,
-		ClientID:  clientID,
-		Scopes:    scopes,
-		ExpiresIn: int(p.config.RefreshTokenExpiration.Seconds()),
-	}
-
-	jsonData, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(
-		ctx,
-		"POST",
-		p.config.TokenAPIURL+"/generate",
-		bytes.NewBuffer(jsonData),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrHTTPTokenConnection, err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	// Authentication headers are automatically added by the HTTP client
-	// Retry client handles retries with exponential backoff
-	resp, err := p.retryClient.Do(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrHTTPTokenConnection, err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to read response", ErrHTTPTokenInvalidResp)
-	}
-
-	// Check HTTP status code
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		var apiResp APITokenGenerateResponse
-		if err := json.Unmarshal(body, &apiResp); err == nil && apiResp.Message != "" {
-			return nil, fmt.Errorf(
-				"%w: HTTP %d - %s",
-				ErrHTTPTokenAuthFailed,
-				resp.StatusCode,
-				apiResp.Message,
-			)
-		}
-		return nil, fmt.Errorf("%w: HTTP %d", ErrHTTPTokenInvalidResp, resp.StatusCode)
-	}
-
-	var apiResp APITokenGenerateResponse
-	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrHTTPTokenInvalidResp, err)
-	}
-
-	if !apiResp.Success {
-		return nil, fmt.Errorf("%w: %s", ErrHTTPTokenAuthFailed, apiResp.Message)
-	}
-
-	if apiResp.AccessToken == "" {
-		return nil, fmt.Errorf(
-			"%w: external API returned success=true but missing access_token",
-			ErrHTTPTokenInvalidResp,
-		)
-	}
-
-	tokenType := apiResp.TokenType
-	if tokenType == "" {
-		tokenType = TokenTypeBearer
-	}
-
-	expiresAt := time.Now().Add(time.Duration(apiResp.ExpiresIn) * time.Second)
-
-	return &TokenResult{
-		TokenString: apiResp.AccessToken,
-		TokenType:   tokenType,
-		ExpiresAt:   expiresAt,
-		Claims:      apiResp.Claims,
-		Success:     true,
-	}, nil
+	return p.generateTokenInternal(ctx, userID, clientID, scopes, p.config.RefreshTokenExpiration)
 }
 
 // ValidateRefreshToken requests refresh token validation from external API
@@ -412,48 +291,23 @@ func (p *HTTPTokenProvider) RefreshAccessToken(
 		EnableRotation: enableRotation,
 	}
 
-	jsonData, err := json.Marshal(reqBody)
+	body, err := p.doPostRequest(ctx, "/refresh", reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(
-		ctx,
-		"POST",
-		p.config.TokenAPIURL+"/refresh",
-		bytes.NewBuffer(jsonData),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrHTTPTokenConnection, err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	// Authentication headers are automatically added by the HTTP client
-	// Retry client handles retries with exponential backoff
-	resp, err := p.retryClient.Do(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrHTTPTokenConnection, err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to read response", ErrHTTPTokenInvalidResp)
-	}
-
-	// Check HTTP status code
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		var apiResp APIRefreshResponse
-		if err := json.Unmarshal(body, &apiResp); err == nil && apiResp.Message != "" {
-			return nil, fmt.Errorf(
-				"%w: HTTP %d - %s",
-				ErrHTTPTokenAuthFailed,
-				resp.StatusCode,
-				apiResp.Message,
-			)
+		// Check if it's an HTTP error (contains "HTTP")
+		if body != nil {
+			var apiResp APIRefreshResponse
+			if unmarshalErr := json.Unmarshal(body, &apiResp); unmarshalErr == nil &&
+				apiResp.Message != "" {
+				return nil, fmt.Errorf(
+					"%w: %s - %s",
+					ErrHTTPTokenAuthFailed,
+					err.Error(),
+					apiResp.Message,
+				)
+			}
+			return nil, fmt.Errorf("%w: %s", ErrHTTPTokenInvalidResp, err.Error())
 		}
-		return nil, fmt.Errorf("%w: HTTP %d", ErrHTTPTokenInvalidResp, resp.StatusCode)
+		return nil, err
 	}
 
 	var apiResp APIRefreshResponse
@@ -465,7 +319,6 @@ func (p *HTTPTokenProvider) RefreshAccessToken(
 		return nil, fmt.Errorf("%w: %s", ErrHTTPTokenAuthFailed, apiResp.Message)
 	}
 
-	// Validate that access_token is provided
 	if apiResp.AccessToken == "" {
 		return nil, fmt.Errorf(
 			"%w: external API returned success=true but missing access_token",
