@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
-	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -15,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	httpclient "github.com/appleboy/go-httpclient"
-	retry "github.com/appleboy/go-httpretry"
-
+	"github.com/appleboy/authgate/internal/client"
 	"github.com/appleboy/authgate/internal/config"
+
+	retry "github.com/appleboy/go-httpretry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,43 +34,16 @@ func testConfig(url string) *config.Config {
 
 // createTestRetryClient creates a retry client for testing
 func createTestRetryClient(cfg *config.Config) (*retry.Client, error) {
-	// #nosec G402 -- InsecureSkipVerify is user-configurable for development/testing
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: cfg.TokenAPIInsecureSkipVerify,
-		},
-	}
-
-	// Create HTTP client with automatic authentication
-	client, err := httpclient.NewAuthClient(
+	return client.CreateRetryClient(
 		cfg.TokenAPIAuthMode,
 		cfg.TokenAPIAuthSecret,
-		httpclient.WithTimeout(cfg.TokenAPITimeout),
-		httpclient.WithTransport(transport),
-		httpclient.WithHeaderName(cfg.TokenAPIAuthHeader),
+		cfg.TokenAPITimeout,
+		cfg.TokenAPIInsecureSkipVerify,
+		cfg.TokenAPIMaxRetries,
+		cfg.TokenAPIRetryDelay,
+		cfg.TokenAPIMaxRetryDelay,
+		cfg.TokenAPIAuthHeader,
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Custom retry checker: only retry on network errors, not HTTP status codes
-	retryChecker := func(err error, resp *http.Response) bool {
-		return err != nil
-	}
-
-	// Wrap with retry client
-	retryClient, err := retry.NewRealtimeClient(
-		retry.WithHTTPClient(client),
-		retry.WithMaxRetries(cfg.TokenAPIMaxRetries),
-		retry.WithInitialRetryDelay(cfg.TokenAPIRetryDelay),
-		retry.WithMaxRetryDelay(cfg.TokenAPIMaxRetryDelay),
-		retry.WithRetryableChecker(retryChecker),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return retryClient, nil
 }
 
 // createTestProvider is a helper function for tests to create a provider
@@ -174,9 +146,9 @@ func TestHTTPTokenProvider_GenerateToken_Non2xxStatus(t *testing.T) {
 	_, err := provider.GenerateToken(context.Background(), "user123", "client456", "read")
 
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrHTTPTokenInvalidResp)
-	// With retry client, error message format may vary
-	assert.Contains(t, err.Error(), "invalid response from token API")
+	// HTTP 500 is treated as a connection error by the retry client
+	assert.ErrorIs(t, err, ErrHTTPTokenConnection)
+	assert.Contains(t, err.Error(), "failed to connect to token API")
 }
 
 func TestHTTPTokenProvider_GenerateToken_InvalidJSON(t *testing.T) {

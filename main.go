@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/appleboy/authgate/internal/auth"
+	"github.com/appleboy/authgate/internal/client"
 	"github.com/appleboy/authgate/internal/config"
 	"github.com/appleboy/authgate/internal/handlers"
 	"github.com/appleboy/authgate/internal/middleware"
@@ -22,9 +23,8 @@ import (
 	"github.com/appleboy/authgate/internal/store"
 	"github.com/appleboy/authgate/internal/token"
 	"github.com/appleboy/authgate/internal/version"
-	"github.com/appleboy/go-httpclient"
-	retry "github.com/appleboy/go-httpretry"
 
+	"github.com/appleboy/go-httpclient"
 	"github.com/appleboy/graceful"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -104,7 +104,7 @@ func runServer() {
 	var httpAPIProvider *auth.HTTPAPIAuthProvider
 	if cfg.AuthMode == config.AuthModeHTTPAPI {
 		// Create retry client for HTTP API authentication
-		authRetryClient, err := createRetryClient(
+		authRetryClient, err := client.CreateRetryClient(
 			cfg.HTTPAPIAuthMode,
 			cfg.HTTPAPIAuthSecret,
 			cfg.HTTPAPITimeout,
@@ -127,7 +127,7 @@ func runServer() {
 	var httpTokenProvider *token.HTTPTokenProvider
 	if cfg.TokenProviderMode == config.TokenProviderModeHTTPAPI {
 		// Create retry client for token API
-		tokenRetryClient, err := createRetryClient(
+		tokenRetryClient, err := client.CreateRetryClient(
 			cfg.TokenAPIAuthMode,
 			cfg.TokenAPIAuthSecret,
 			cfg.TokenAPITimeout,
@@ -442,40 +442,6 @@ func getProviderNames(providers map[string]*auth.OAuthProvider) []string {
 		names = append(names, name)
 	}
 	return names
-}
-
-// createRetryClient creates an HTTP client with retry support and authentication
-func createRetryClient(
-	authMode, authSecret string,
-	timeout time.Duration,
-	insecureSkipVerify bool,
-	maxRetries int,
-	retryDelay, maxRetryDelay time.Duration,
-	authHeader string,
-) (*retry.Client, error) { // Create HTTP client with automatic authentication
-	client, err := httpclient.NewAuthClient(
-		authMode,
-		authSecret,
-		httpclient.WithTimeout(timeout),
-		httpclient.WithHeaderName(authHeader),
-		httpclient.WithInsecureSkipVerify(insecureSkipVerify),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create auth client: %w", err)
-	}
-
-	// Wrap with retry client
-	retryClient, err := retry.NewRealtimeClient(
-		retry.WithHTTPClient(client),
-		retry.WithMaxRetries(maxRetries),
-		retry.WithInitialRetryDelay(retryDelay),
-		retry.WithMaxRetryDelay(maxRetryDelay),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create retry client: %w", err)
-	}
-
-	return retryClient, nil
 }
 
 // createOAuthHTTPClient creates an HTTP client for OAuth requests with retry support

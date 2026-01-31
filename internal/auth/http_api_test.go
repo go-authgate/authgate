@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
-	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -15,53 +14,26 @@ import (
 	"testing"
 	"time"
 
-	httpclient "github.com/appleboy/go-httpclient"
-	retry "github.com/appleboy/go-httpretry"
-
+	"github.com/appleboy/authgate/internal/client"
 	"github.com/appleboy/authgate/internal/config"
+
+	retry "github.com/appleboy/go-httpretry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // createTestRetryClient creates a retry client for testing
 func createTestRetryClient(cfg *config.Config) (*retry.Client, error) {
-	// #nosec G402 -- InsecureSkipVerify is user-configurable for development/testing
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: cfg.HTTPAPIInsecureSkipVerify,
-		},
-	}
-
-	// Create HTTP client with automatic authentication
-	client, err := httpclient.NewAuthClient(
+	return client.CreateRetryClient(
 		cfg.HTTPAPIAuthMode,
 		cfg.HTTPAPIAuthSecret,
-		httpclient.WithTimeout(cfg.HTTPAPITimeout),
-		httpclient.WithTransport(transport),
-		httpclient.WithHeaderName(cfg.HTTPAPIAuthHeader),
+		cfg.HTTPAPITimeout,
+		cfg.HTTPAPIInsecureSkipVerify,
+		cfg.HTTPAPIMaxRetries,
+		cfg.HTTPAPIRetryDelay,
+		cfg.HTTPAPIMaxRetryDelay,
+		cfg.HTTPAPIAuthHeader,
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Custom retry checker: only retry on network errors, not HTTP status codes
-	retryChecker := func(err error, resp *http.Response) bool {
-		return err != nil
-	}
-
-	// Wrap with retry client (disable retries for predictable test behavior)
-	retryClient, err := retry.NewRealtimeClient(
-		retry.WithHTTPClient(client),
-		retry.WithMaxRetries(cfg.HTTPAPIMaxRetries),
-		retry.WithInitialRetryDelay(cfg.HTTPAPIRetryDelay),
-		retry.WithMaxRetryDelay(cfg.HTTPAPIMaxRetryDelay),
-		retry.WithRetryableChecker(retryChecker),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return retryClient, nil
 }
 
 // createTestProvider is a helper function for tests to create a provider
