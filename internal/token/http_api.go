@@ -120,7 +120,9 @@ func (p *HTTPTokenProvider) callValidateAPI(
 
 	body, err := p.doPostRequest(ctx, "/validate", reqBody)
 	if err != nil {
-		// Check if it's an HTTP error
+		// If we got a response body along with an error, the HTTP call reached the server
+		// and the remote API reported a validation/HTTP error (for example, a 4xx status).
+		// In that case, treat it as an "invalid token" condition rather than a transport failure.
 		if body != nil {
 			return nil, fmt.Errorf("%w: %s", invalidErr, err.Error())
 		}
@@ -203,7 +205,7 @@ func (p *HTTPTokenProvider) generateTokenInternal(
 
 	body, err := p.doPostRequest(ctx, "/generate", reqBody)
 	if err != nil {
-		// Check if it's an HTTP error (contains "HTTP")
+		// Check if we got a response body (indicates HTTP error vs connection error)
 		if body != nil {
 			return nil, handleGenerateError(body, err.Error())
 		}
@@ -293,7 +295,7 @@ func (p *HTTPTokenProvider) RefreshAccessToken(
 
 	body, err := p.doPostRequest(ctx, "/refresh", reqBody)
 	if err != nil {
-		// Check if it's an HTTP error (contains "HTTP")
+		// Check if we got a response body (indicates HTTP error vs connection error)
 		if body != nil {
 			var apiResp APIRefreshResponse
 			if unmarshalErr := json.Unmarshal(body, &apiResp); unmarshalErr == nil &&
