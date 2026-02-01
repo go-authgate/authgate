@@ -162,21 +162,30 @@ func testBasicOperations(t *testing.T, driver string, pgContainer *postgres.Post
 	t.Run("CreateAndGetDeviceCode", func(t *testing.T) {
 		store := createFreshStore(t, driver, pgContainer)
 
+		// Generate test device code with hash
+		plaintext := "0123456789abcdef0123456789abcdef01234567"
+		salt := "testsalt12345678"
+		hash := "testhash"
+
 		deviceCode := &models.DeviceCode{
-			DeviceCode: uuid.New().String(),
-			UserCode:   "ABCD1234",
-			ClientID:   uuid.New().String(),
-			Scopes:     "read write",
-			ExpiresAt:  time.Now().Add(30 * time.Minute),
-			Interval:   5,
+			DeviceCodeHash: hash,
+			DeviceCodeSalt: salt,
+			DeviceCodeID:   plaintext[len(plaintext)-8:],
+			UserCode:       "ABCD1234",
+			ClientID:       uuid.New().String(),
+			Scopes:         "read write",
+			ExpiresAt:      time.Now().Add(30 * time.Minute),
+			Interval:       5,
 		}
 		err := store.CreateDeviceCode(deviceCode)
 		require.NoError(t, err)
 
-		retrieved, err := store.GetDeviceCode(deviceCode.DeviceCode)
+		// Verify retrieval by ID
+		retrieved, err := store.GetDeviceCodesByID(deviceCode.DeviceCodeID)
 		require.NoError(t, err)
-		assert.Equal(t, deviceCode.DeviceCode, retrieved.DeviceCode)
-		assert.Equal(t, deviceCode.UserCode, retrieved.UserCode)
+		assert.Len(t, retrieved, 1)
+		assert.Equal(t, deviceCode.UserCode, retrieved[0].UserCode)
+		assert.Equal(t, deviceCode.DeviceCodeHash, retrieved[0].DeviceCodeHash)
 	})
 
 	t.Run("CreateAndGetAccessToken", func(t *testing.T) {
@@ -227,13 +236,16 @@ func testBasicOperations(t *testing.T, driver string, pgContainer *postgres.Post
 		store := createFreshStore(t, driver, pgContainer)
 
 		// Create expired device code
+		plaintext := "0123456789abcdef0123456789abcdef01234567"
 		expiredCode := &models.DeviceCode{
-			DeviceCode: uuid.New().String(),
-			UserCode:   "EXPIRED1",
-			ClientID:   uuid.New().String(),
-			Scopes:     "read write",
-			ExpiresAt:  time.Now().Add(-1 * time.Hour), // Already expired
-			Interval:   5,
+			DeviceCodeHash: "expiredhash",
+			DeviceCodeSalt: "expiredsalt",
+			DeviceCodeID:   plaintext[len(plaintext)-8:],
+			UserCode:       "EXPIRED1",
+			ClientID:       uuid.New().String(),
+			Scopes:         "read write",
+			ExpiresAt:      time.Now().Add(-1 * time.Hour), // Already expired
+			Interval:       5,
 		}
 		err := store.CreateDeviceCode(expiredCode)
 		require.NoError(t, err)
@@ -243,8 +255,9 @@ func testBasicOperations(t *testing.T, driver string, pgContainer *postgres.Post
 		require.NoError(t, err)
 
 		// Verify device code was deleted
-		_, err = store.GetDeviceCode(expiredCode.DeviceCode)
-		assert.Error(t, err)
+		retrieved, err := store.GetDeviceCodesByID(expiredCode.DeviceCodeID)
+		require.NoError(t, err)
+		assert.Len(t, retrieved, 0, "Expired device code should be deleted")
 	})
 
 	t.Run("HealthCheck", func(t *testing.T) {

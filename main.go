@@ -156,6 +156,7 @@ func runServer() {
 	tokenService := services.NewTokenService(
 		db,
 		cfg,
+		deviceService,
 		localTokenProvider,
 		httpTokenProvider,
 		cfg.TokenProviderMode,

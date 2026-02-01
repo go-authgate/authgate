@@ -33,6 +33,7 @@ var (
 type TokenService struct {
 	store              *store.Store
 	config             *config.Config
+	deviceService      *DeviceService
 	localTokenProvider *token.LocalTokenProvider
 	httpTokenProvider  *token.HTTPTokenProvider
 	tokenProviderMode  string
@@ -48,6 +49,7 @@ type JWTClaims struct {
 func NewTokenService(
 	s *store.Store,
 	cfg *config.Config,
+	ds *DeviceService,
 	localProvider *token.LocalTokenProvider,
 	httpProvider *token.HTTPTokenProvider,
 	providerMode string,
@@ -55,6 +57,7 @@ func NewTokenService(
 	return &TokenService{
 		store:              s,
 		config:             cfg,
+		deviceService:      ds,
 		localTokenProvider: localProvider,
 		httpTokenProvider:  httpProvider,
 		tokenProviderMode:  providerMode,
@@ -66,14 +69,11 @@ func (s *TokenService) ExchangeDeviceCode(
 	ctx context.Context,
 	deviceCode, clientID string,
 ) (*models.AccessToken, *models.AccessToken, error) {
-	dc, err := s.store.GetDeviceCode(deviceCode)
+	dc, err := s.deviceService.GetDeviceCode(deviceCode)
 	if err != nil {
-		return nil, nil, ErrExpiredToken
-	}
-
-	// Check if expired
-	if dc.IsExpired() {
-		_ = s.store.DeleteDeviceCode(deviceCode)
+		if errors.Is(err, ErrDeviceCodeExpired) {
+			return nil, nil, ErrExpiredToken
+		}
 		return nil, nil, ErrExpiredToken
 	}
 
@@ -224,7 +224,7 @@ func (s *TokenService) ExchangeDeviceCode(
 	}
 
 	// Delete the used device code
-	_ = s.store.DeleteDeviceCode(deviceCode)
+	_ = s.store.DeleteDeviceCodeByID(dc.ID)
 
 	return accessToken, refreshToken, nil
 }

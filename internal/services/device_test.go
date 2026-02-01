@@ -197,6 +197,8 @@ func TestUserCodeNormalization(t *testing.T) {
 
 	assert.NoError(t, err1)
 	assert.NoError(t, err2)
-	assert.Equal(t, dc.DeviceCode, dc1.DeviceCode)
-	assert.Equal(t, dc.DeviceCode, dc2.DeviceCode)
+	// Compare by UserCode since DeviceCode field is not stored in DB (gorm:"-")
+	assert.Equal(t, dc.UserCode, dc1.UserCode)
+	assert.Equal(t, dc.UserCode, dc2.UserCode)
+	assert.Equal(t, dc1.ID, dc2.ID)
 }

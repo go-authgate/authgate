@@ -275,18 +275,23 @@ func (s *Store) DeleteClient(clientID string) error {
 }
 
 // Device Code operations
+
+// CreateDeviceCode creates a new device code
 func (s *Store) CreateDeviceCode(dc *models.DeviceCode) error {
 	return s.db.Create(dc).Error
 }
 
-func (s *Store) GetDeviceCode(deviceCode string) (*models.DeviceCode, error) {
-	var dc models.DeviceCode
-	if err := s.db.Where("device_code = ?", deviceCode).First(&dc).Error; err != nil {
+// GetDeviceCodesByID retrieves all device codes with matching ID suffix
+// Used for hash verification during token exchange
+func (s *Store) GetDeviceCodesByID(deviceCodeID string) ([]*models.DeviceCode, error) {
+	var dcs []*models.DeviceCode
+	if err := s.db.Where("device_code_id = ?", deviceCodeID).Find(&dcs).Error; err != nil {
 		return nil, err
 	}
-	return &dc, nil
+	return dcs, nil
 }
 
+// GetDeviceCodeByUserCode retrieves a device code by user code
 func (s *Store) GetDeviceCodeByUserCode(userCode string) (*models.DeviceCode, error) {
 	var dc models.DeviceCode
 	if err := s.db.Where("user_code = ?", userCode).First(&dc).Error; err != nil {
@@ -295,12 +300,14 @@ func (s *Store) GetDeviceCodeByUserCode(userCode string) (*models.DeviceCode, er
 	return &dc, nil
 }
 
+// UpdateDeviceCode updates a device code
 func (s *Store) UpdateDeviceCode(dc *models.DeviceCode) error {
 	return s.db.Save(dc).Error
 }
 
-func (s *Store) DeleteDeviceCode(deviceCode string) error {
-	return s.db.Where("device_code = ?", deviceCode).Delete(&models.DeviceCode{}).Error
+// DeleteDeviceCodeByID deletes device code by ID (primary key)
+func (s *Store) DeleteDeviceCodeByID(id int64) error {
+	return s.db.Delete(&models.DeviceCode{}, id).Error
 }
 
 // Access Token operations

@@ -2,7 +2,10 @@ package services
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"math/big"
 	"strings"
 	"time"
@@ -10,8 +13,7 @@ import (
 	"github.com/appleboy/authgate/internal/config"
 	"github.com/appleboy/authgate/internal/models"
 	"github.com/appleboy/authgate/internal/store"
-
-	"github.com/google/uuid"
+	"github.com/appleboy/authgate/internal/util"
 )
 
 var (
@@ -44,14 +46,34 @@ func (s *DeviceService) GenerateDeviceCode(clientID, scope string) (*models.Devi
 		return nil, ErrClientInactive
 	}
 
+	// Generate cryptographically secure device code (20 bytes = 40 hex chars)
+	codeBytes, err := util.CryptoRandomBytes(20)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate device code: %w", err)
+	}
+	deviceCodePlaintext := hex.EncodeToString(codeBytes)
+
+	// Generate salt (20 hex chars)
+	salt, err := util.CryptoRandomString(20)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate salt: %w", err)
+	}
+
+	// Calculate hash and ID
+	deviceCodeHash := util.HashToken(deviceCodePlaintext, salt)
+	deviceCodeID := deviceCodePlaintext[len(deviceCodePlaintext)-8:] // Last 8 chars for indexing
+
 	deviceCode := &models.DeviceCode{
-		DeviceCode: uuid.New().String(),
-		UserCode:   generateUserCode(),
-		ClientID:   clientID,
-		Scopes:     scope,
-		ExpiresAt:  time.Now().Add(s.config.DeviceCodeExpiration),
-		Interval:   s.config.PollingInterval,
-		Authorized: false,
+		DeviceCode:     deviceCodePlaintext, // Set in struct but not saved to DB (gorm:"-")
+		DeviceCodeHash: deviceCodeHash,
+		DeviceCodeSalt: salt,
+		DeviceCodeID:   deviceCodeID,
+		UserCode:       generateUserCode(),
+		ClientID:       clientID,
+		Scopes:         scope,
+		ExpiresAt:      time.Now().Add(s.config.DeviceCodeExpiration),
+		Interval:       s.config.PollingInterval,
+		Authorized:     false,
 	}
 
 	if err := s.store.CreateDeviceCode(deviceCode); err != nil {
@@ -63,17 +85,46 @@ func (s *DeviceService) GenerateDeviceCode(clientID, scope string) (*models.Devi
 
 // GetDeviceCode retrieves a device code by its code
 func (s *DeviceService) GetDeviceCode(deviceCode string) (*models.DeviceCode, error) {
-	dc, err := s.store.GetDeviceCode(deviceCode)
+	// 1. Validate device code length (40 hex characters)
+	if len(deviceCode) != 40 {
+		return nil, ErrDeviceCodeNotFound
+	}
+
+	// 2. Validate hex characters only (prevents injection and invalid input)
+	for _, x := range []byte(deviceCode) {
+		if x < '0' || (x > '9' && x < 'a') || x > 'f' {
+			return nil, ErrDeviceCodeNotFound
+		}
+	}
+
+	// 3. Extract device code ID (last 8 chars) for indexed lookup
+	deviceCodeID := deviceCode[len(deviceCode)-8:]
+
+	// 4. Get all candidates with matching ID suffix
+	candidates, err := s.store.GetDeviceCodesByID(deviceCodeID)
 	if err != nil {
 		return nil, ErrDeviceCodeNotFound
 	}
 
-	if dc.IsExpired() {
-		_ = s.store.DeleteDeviceCode(deviceCode)
-		return nil, ErrDeviceCodeExpired
+	// 5. Verify hash for each candidate using constant-time comparison
+	for _, dc := range candidates {
+		tempHash := util.HashToken(deviceCode, dc.DeviceCodeSalt)
+
+		// Use constant-time comparison to prevent timing attacks
+		if subtle.ConstantTimeCompare([]byte(dc.DeviceCodeHash), []byte(tempHash)) == 1 {
+			// Check expiration
+			if dc.IsExpired() {
+				_ = s.store.DeleteDeviceCodeByID(dc.ID)
+				return nil, ErrDeviceCodeExpired
+			}
+
+			// Fill plaintext field for business logic use (not saved to DB)
+			dc.DeviceCode = deviceCode
+			return dc, nil
+		}
 	}
 
-	return dc, nil
+	return nil, ErrDeviceCodeNotFound
 }
 
 // GetDeviceCodeByUserCode retrieves a device code by user code
@@ -87,7 +138,7 @@ func (s *DeviceService) GetDeviceCodeByUserCode(userCode string) (*models.Device
 	}
 
 	if dc.IsExpired() {
-		_ = s.store.DeleteDeviceCode(dc.DeviceCode)
+		_ = s.store.DeleteDeviceCodeByID(dc.ID)
 		return nil, ErrDeviceCodeExpired
 	}
 

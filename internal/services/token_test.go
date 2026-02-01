@@ -16,8 +16,9 @@ import (
 )
 
 func createTestTokenService(s *store.Store, cfg *config.Config) *TokenService {
+	deviceService := NewDeviceService(s, cfg)
 	localProvider := token.NewLocalTokenProvider(cfg)
-	return NewTokenService(s, cfg, localProvider, nil, "local")
+	return NewTokenService(s, cfg, deviceService, localProvider, nil, "local")
 }
 
 func createAuthorizedDeviceCode(t *testing.T, s *store.Store, clientID string) *models.DeviceCode {
