@@ -376,7 +376,11 @@ func initializeOAuthProviders(cfg *config.Config) map[string]*auth.OAuthProvider
 			RedirectURL:  cfg.GiteaOAuthRedirectURL,
 			Scopes:       cfg.GiteaOAuthScopes,
 		}, cfg.GiteaURL)
-		log.Printf("Gitea OAuth configured: server=%s redirect=%s", cfg.GiteaURL, cfg.GiteaOAuthRedirectURL)
+		log.Printf(
+			"Gitea OAuth configured: server=%s redirect=%s",
+			cfg.GiteaURL,
+			cfg.GiteaOAuthRedirectURL,
+		)
 	}
 
 	return providers
@@ -393,8 +397,7 @@ func getProviderNames(providers map[string]*auth.OAuthProvider) []string {
 
 // createOAuthHTTPClient creates an HTTP client for OAuth requests with retry support
 func createOAuthHTTPClient(cfg *config.Config) *http.Client {
-	switch {
-	case cfg.OAuthInsecureSkipVerify:
+	if cfg.OAuthInsecureSkipVerify {
 		log.Printf("WARNING: OAuth TLS verification is disabled (OAUTH_INSECURE_SKIP_VERIFY=true)")
 	}
 
@@ -411,8 +414,7 @@ func createOAuthHTTPClient(cfg *config.Config) *http.Client {
 
 // logOAuthProvidersStatus logs enabled OAuth providers
 func logOAuthProvidersStatus(providers map[string]*auth.OAuthProvider) {
-	switch {
-	case len(providers) > 0:
+	if len(providers) > 0 {
 		log.Printf("OAuth providers enabled: %v", getProviderNames(providers))
 	}
 }
@@ -487,6 +489,8 @@ func createRateLimiters(cfg *config.Config) rateLimitMiddlewares {
 	switch storeType {
 	case middleware.RateLimitStoreRedis:
 		log.Printf("Redis rate limiting configured: %s (DB: %d)", cfg.RedisAddr, cfg.RedisDB)
+	case middleware.RateLimitStoreMemory:
+		log.Printf("In-memory rate limiting configured (single instance only)")
 	}
 
 	return rateLimitMiddlewares{
@@ -498,7 +502,11 @@ func createRateLimiters(cfg *config.Config) rateLimitMiddlewares {
 }
 
 // setupOAuthRoutes configures OAuth authentication routes
-func setupOAuthRoutes(r *gin.Engine, providers map[string]*auth.OAuthProvider, handler *handlers.OAuthHandler) {
+func setupOAuthRoutes(
+	r *gin.Engine,
+	providers map[string]*auth.OAuthProvider,
+	handler *handlers.OAuthHandler,
+) {
 	switch {
 	case len(providers) == 0:
 		return

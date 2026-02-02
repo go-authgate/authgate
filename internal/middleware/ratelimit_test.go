@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -108,7 +109,13 @@ func TestRateLimiter_DifferentIPs(t *testing.T) {
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
-		assert.Equal(t, http.StatusTooManyRequests, w.Code, "Third request from IP %s should be rate limited", ip)
+		assert.Equal(
+			t,
+			http.StatusTooManyRequests,
+			w.Code,
+			"Third request from IP %s should be rate limited",
+			ip,
+		)
 	}
 }
 
@@ -169,7 +176,6 @@ func TestNewRedisRateLimiter_Success(t *testing.T) {
 
 	// Try to create Redis rate limiter
 	limiter, err := NewRedisRateLimiter(5, "localhost:6379", "", 0)
-
 	// If Redis is not available, skip the test
 	if err != nil {
 		t.Skipf("Redis not available: %v", err)
@@ -261,7 +267,12 @@ func TestRedisRateLimiter_MultiInstance(t *testing.T) {
 	w := httptest.NewRecorder()
 	router1.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusTooManyRequests, w.Code, "Shared rate limit should be enforced across pods")
+	assert.Equal(
+		t,
+		http.StatusTooManyRequests,
+		w.Code,
+		"Shared rate limit should be enforced across pods",
+	)
 
 	// Cleanup Redis keys
 	ctx := context.Background()
@@ -284,4 +295,238 @@ func getRedisClientForTest() *redis.Client {
 		return nil
 	}
 	return client
+}
+
+// TestRateLimiter_HTMLErrorResponse tests that HTML error page is returned for browser requests
+func TestRateLimiter_HTMLErrorResponse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Create rate limiter (1 request per minute)
+	limiter, err := NewRateLimiter(RateLimitConfig{
+		RequestsPerMinute: 1,
+		StoreType:         RateLimitStoreMemory,
+	})
+	require.NoError(t, err)
+
+	router := gin.New()
+
+	// Set up HTML template for error page
+	tmpl := template.Must(template.New("error.html").Parse(`
+<!DOCTYPE html>
+<html>
+<head><title>Error</title></head>
+<body>
+<h1>{{.error}}</h1>
+<p>{{.message}}</p>
+</body>
+</html>`))
+	router.SetHTMLTemplate(tmpl)
+
+	router.Use(limiter)
+	router.GET("/test", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"message": "ok"})
+	})
+
+	// First request succeeds
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("X-Forwarded-For", "192.168.1.100")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Second request should be rate limited with HTML response
+	req = httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("X-Forwarded-For", "192.168.1.100")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusTooManyRequests, w.Code)
+	assert.Equal(t, "text/html; charset=utf-8", w.Header().Get("Content-Type"))
+	assert.Contains(t, w.Body.String(), "Rate Limit Exceeded")
+	assert.Contains(t, w.Body.String(), "Too many requests. Please try again later.")
+	assert.Contains(t, w.Body.String(), "<html>")
+}
+
+// TestRateLimiter_JSONErrorResponse tests that JSON error is returned for API requests
+func TestRateLimiter_JSONErrorResponse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Create rate limiter (1 request per minute)
+	limiter, err := NewRateLimiter(RateLimitConfig{
+		RequestsPerMinute: 1,
+		StoreType:         RateLimitStoreMemory,
+	})
+	require.NoError(t, err)
+
+	router := gin.New()
+	router.Use(limiter)
+	router.GET("/test", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"message": "ok"})
+	})
+
+	// First request succeeds
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("X-Forwarded-For", "192.168.1.200")
+	req.Header.Set("Accept", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Second request should be rate limited with JSON response
+	req = httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("X-Forwarded-For", "192.168.1.200")
+	req.Header.Set("Accept", "application/json")
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusTooManyRequests, w.Code)
+	assert.Equal(t, "application/json; charset=utf-8", w.Header().Get("Content-Type"))
+	assert.Contains(t, w.Body.String(), "rate_limit_exceeded")
+	assert.Contains(t, w.Body.String(), "Too many requests")
+	assert.NotContains(t, w.Body.String(), "<html>")
+}
+
+// TestRateLimiter_NoAcceptHeader tests default behavior with no Accept header
+func TestRateLimiter_NoAcceptHeader(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Create rate limiter (1 request per minute)
+	limiter, err := NewRateLimiter(RateLimitConfig{
+		RequestsPerMinute: 1,
+		StoreType:         RateLimitStoreMemory,
+	})
+	require.NoError(t, err)
+
+	router := gin.New()
+	router.Use(limiter)
+	router.GET("/test", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"message": "ok"})
+	})
+
+	// First request succeeds
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("X-Forwarded-For", "192.168.1.300")
+	// No Accept header set
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Second request should be rate limited with JSON response (default)
+	req = httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("X-Forwarded-For", "192.168.1.300")
+	// No Accept header set
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusTooManyRequests, w.Code)
+	assert.Equal(t, "application/json; charset=utf-8", w.Header().Get("Content-Type"))
+	assert.Contains(t, w.Body.String(), "rate_limit_exceeded")
+	assert.NotContains(t, w.Body.String(), "<html>")
+}
+
+// TestRateLimiter_MixedAcceptHeaders tests different Accept header variations
+func TestRateLimiter_MixedAcceptHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	testCases := []struct {
+		name               string
+		acceptHeader       string
+		expectedJSON       bool
+		expectedStatusCode int
+	}{
+		{
+			name:               "Browser Accept header",
+			acceptHeader:       "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+			expectedJSON:       false,
+			expectedStatusCode: http.StatusTooManyRequests,
+		},
+		{
+			name:               "API JSON Accept",
+			acceptHeader:       "application/json",
+			expectedJSON:       true,
+			expectedStatusCode: http.StatusTooManyRequests,
+		},
+		{
+			name:               "API with wildcard",
+			acceptHeader:       "*/*",
+			expectedJSON:       true,
+			expectedStatusCode: http.StatusTooManyRequests,
+		},
+		{
+			name:               "Plain text",
+			acceptHeader:       "text/plain",
+			expectedJSON:       true,
+			expectedStatusCode: http.StatusTooManyRequests,
+		},
+		{
+			name:               "XML only",
+			acceptHeader:       "application/xml",
+			expectedJSON:       true,
+			expectedStatusCode: http.StatusTooManyRequests,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create rate limiter (1 request per minute)
+			limiter, err := NewRateLimiter(RateLimitConfig{
+				RequestsPerMinute: 1,
+				StoreType:         RateLimitStoreMemory,
+			})
+			require.NoError(t, err)
+
+			router := gin.New()
+
+			// Set up HTML template if needed
+			if !tc.expectedJSON {
+				tmpl := template.Must(template.New("error.html").Parse(`
+<!DOCTYPE html>
+<html>
+<head><title>Error</title></head>
+<body>
+<h1>{{.error}}</h1>
+<p>{{.message}}</p>
+</body>
+</html>`))
+				router.SetHTMLTemplate(tmpl)
+			}
+
+			router.Use(limiter)
+			router.GET("/test", func(c *gin.Context) {
+				c.JSON(http.StatusOK, gin.H{"message": "ok"})
+			})
+
+			// Generate unique IP for this test case
+			testIP := "192.168.2." + string(rune(100+len(tc.name)))
+
+			// First request succeeds
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			req.Header.Set("X-Forwarded-For", testIP)
+			req.Header.Set("Accept", tc.acceptHeader)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusOK, w.Code)
+
+			// Second request should be rate limited
+			req = httptest.NewRequest(http.MethodGet, "/test", nil)
+			req.Header.Set("X-Forwarded-For", testIP)
+			req.Header.Set("Accept", tc.acceptHeader)
+			w = httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tc.expectedStatusCode, w.Code)
+
+			if tc.expectedJSON {
+				assert.Contains(t, w.Header().Get("Content-Type"), "application/json")
+				assert.Contains(t, w.Body.String(), "rate_limit_exceeded")
+				assert.NotContains(t, w.Body.String(), "<html>")
+			} else {
+				assert.Contains(t, w.Header().Get("Content-Type"), "text/html")
+				assert.Contains(t, w.Body.String(), "Rate Limit Exceeded")
+				assert.Contains(t, w.Body.String(), "<html>")
+			}
+		})
+	}
 }

@@ -1,5 +1,10 @@
 /* ===== Admin Panel Specific Styles ===== */
 
+/* Fix scrolling for admin pages with long content */
+body:has(.admin-layout) .main-content {
+    align-items: flex-start;
+}
+
 /* Container for admin pages - Wide layout with dynamic width */
 body:has(.admin-layout) .container {
     max-width: 1400px;

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -88,10 +89,21 @@ func NewRateLimiter(config RateLimitConfig) (gin.HandlerFunc, error) {
 
 	// Create Gin middleware with custom limit reached handler
 	middleware := mgin.NewMiddleware(instance, mgin.WithLimitReachedHandler(func(c *gin.Context) {
-		c.JSON(http.StatusTooManyRequests, gin.H{
-			"error":             "rate_limit_exceeded",
-			"error_description": "Too many requests. Please try again later.",
-		})
+		// Check if the request accepts HTML (browser request)
+		acceptHeader := c.GetHeader("Accept")
+		if strings.Contains(acceptHeader, "text/html") {
+			// Render HTML error page for browser requests
+			c.HTML(http.StatusTooManyRequests, "error.html", gin.H{
+				"error":   "Rate Limit Exceeded",
+				"message": "Too many requests. Please try again later.",
+			})
+		} else {
+			// Return JSON error for API requests
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error":             "rate_limit_exceeded",
+				"error_description": "Too many requests. Please try again later.",
+			})
+		}
 		c.Abort()
 	}))
 
@@ -108,7 +120,11 @@ func NewMemoryRateLimiter(requestsPerMinute int) (gin.HandlerFunc, error) {
 }
 
 // NewRedisRateLimiter creates a Redis-backed rate limiter (distributed, multi-pod)
-func NewRedisRateLimiter(requestsPerMinute int, redisAddr, redisPassword string, redisDB int) (gin.HandlerFunc, error) {
+func NewRedisRateLimiter(
+	requestsPerMinute int,
+	redisAddr, redisPassword string,
+	redisDB int,
+) (gin.HandlerFunc, error) {
 	return NewRateLimiter(RateLimitConfig{
 		RequestsPerMinute: requestsPerMinute,
 		StoreType:         RateLimitStoreRedis,

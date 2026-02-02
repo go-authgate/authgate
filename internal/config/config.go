@@ -98,17 +98,17 @@ type Config struct {
 	OAuthInsecureSkipVerify bool          // Skip TLS verification for OAuth (dev/testing only, default: false)
 
 	// Rate Limiting settings
-	EnableRateLimit               bool   // Enable rate limiting (default: true)
-	RateLimitStore                string // Rate limit store: "memory" or "redis" (default: "memory")
-	RateLimitCleanupInterval      time.Duration
-	LoginRateLimit                int // Requests per minute for /login endpoint (default: 5)
-	LoginRateLimitBurst           int // Burst size for /login (default: 2, deprecated for redis)
-	DeviceCodeRateLimit           int // Requests per minute for /oauth/device/code (default: 10)
-	DeviceCodeRateLimitBurst      int // Burst size for device code (default: 3, deprecated for redis)
-	TokenRateLimit                int // Requests per minute for /oauth/token (default: 20)
-	TokenRateLimitBurst           int // Burst size for token endpoint (default: 5, deprecated for redis)
-	DeviceVerifyRateLimit         int // Requests per minute for /device/verify (default: 10)
-	DeviceVerifyRateLimitBurst    int // Burst size for device verify (default: 3, deprecated for redis)
+	EnableRateLimit            bool   // Enable rate limiting (default: true)
+	RateLimitStore             string // Rate limit store: "memory" or "redis" (default: "memory")
+	RateLimitCleanupInterval   time.Duration
+	LoginRateLimit             int // Requests per minute for /login endpoint (default: 5)
+	LoginRateLimitBurst        int // Burst size for /login (default: 2, deprecated for redis)
+	DeviceCodeRateLimit        int // Requests per minute for /oauth/device/code (default: 10)
+	DeviceCodeRateLimitBurst   int // Burst size for device code (default: 3, deprecated for redis)
+	TokenRateLimit             int // Requests per minute for /oauth/token (default: 20)
+	TokenRateLimitBurst        int // Burst size for token endpoint (default: 5, deprecated for redis)
+	DeviceVerifyRateLimit      int // Requests per minute for /device/verify (default: 10)
+	DeviceVerifyRateLimitBurst int // Burst size for device verify (default: 3, deprecated for redis)
 
 	// Redis settings (only used when RateLimitStore = "redis")
 	RedisAddr     string // Redis address for rate limiting (e.g., "localhost:6379")
