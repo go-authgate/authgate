@@ -29,6 +29,7 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 )
 
 //go:embed internal/templates/*
@@ -203,7 +204,7 @@ func runServer() {
 	r.GET("/health", createHealthCheckHandler(db))
 
 	// Setup rate limiting
-	rateLimiters := setupRateLimiting(cfg)
+	rateLimiters, redisClient := setupRateLimiting(cfg)
 
 	// Public routes
 	r.GET("/", func(c *gin.Context) {
@@ -296,7 +297,7 @@ func runServer() {
 		return nil
 	})
 
-	// Add shutdown job
+	// Add shutdown job for HTTP server
 	m.AddShutdownJob(func() error {
 		log.Println("Shutting down server...")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -310,6 +311,19 @@ func runServer() {
 		log.Println("Server exited")
 		return nil
 	})
+
+	// Add shutdown job for Redis client (if used)
+	if redisClient != nil {
+		m.AddShutdownJob(func() error {
+			log.Println("Closing Redis connection...")
+			if err := redisClient.Close(); err != nil {
+				log.Printf("Error closing Redis client: %v", err)
+				return err
+			}
+			log.Println("Redis connection closed")
+			return nil
+		})
+	}
 
 	// Wait for graceful shutdown
 	<-m.Done()
@@ -451,7 +465,8 @@ type rateLimitMiddlewares struct {
 }
 
 // setupRateLimiting configures rate limiting middlewares based on configuration
-func setupRateLimiting(cfg *config.Config) rateLimitMiddlewares {
+// Returns rate limit middlewares and optional Redis client (needs cleanup on shutdown)
+func setupRateLimiting(cfg *config.Config) (rateLimitMiddlewares, *redis.Client) {
 	// Return no-op middlewares when rate limiting is disabled
 	noOpMiddleware := func(c *gin.Context) { c.Next() }
 	disabledLimiters := rateLimitMiddlewares{
@@ -463,22 +478,41 @@ func setupRateLimiting(cfg *config.Config) rateLimitMiddlewares {
 
 	switch {
 	case !cfg.EnableRateLimit:
-		return disabledLimiters
+		return disabledLimiters, nil
 	default:
 		return createRateLimiters(cfg)
 	}
 }
 
 // createRateLimiters creates rate limiting middlewares for all endpoints
-func createRateLimiters(cfg *config.Config) rateLimitMiddlewares {
+// Returns rate limit middlewares and optional shared Redis client
+func createRateLimiters(cfg *config.Config) (rateLimitMiddlewares, *redis.Client) {
 	log.Printf("Rate limiting enabled (store: %s)", cfg.RateLimitStore)
 
 	storeType := middleware.RateLimitStoreType(cfg.RateLimitStore)
+	var sharedRedisClient *redis.Client
+
+	// Create shared Redis client for all limiters when using Redis store
+	if storeType == middleware.RateLimitStoreRedis {
+		var err error
+		sharedRedisClient, err = middleware.CreateRedisClient(
+			cfg.RedisAddr,
+			cfg.RedisPassword,
+			cfg.RedisDB,
+		)
+		if err != nil {
+			log.Fatalf("Failed to create shared Redis client: %v", err)
+		}
+		log.Printf("Redis rate limiting configured: %s (DB: %d)", cfg.RedisAddr, cfg.RedisDB)
+	} else {
+		log.Printf("In-memory rate limiting configured (single instance only)")
+	}
 
 	createLimiter := func(requestsPerMinute int, endpoint string) gin.HandlerFunc {
 		limiter, err := middleware.NewRateLimiter(middleware.RateLimitConfig{
 			RequestsPerMinute: requestsPerMinute,
 			StoreType:         storeType,
+			RedisClient:       sharedRedisClient, // Shared client (nil for memory store)
 			RedisAddr:         cfg.RedisAddr,
 			RedisPassword:     cfg.RedisPassword,
 			RedisDB:           cfg.RedisDB,
@@ -490,20 +524,12 @@ func createRateLimiters(cfg *config.Config) rateLimitMiddlewares {
 		return limiter
 	}
 
-	// Log Redis configuration when applicable
-	switch storeType {
-	case middleware.RateLimitStoreRedis:
-		log.Printf("Redis rate limiting configured: %s (DB: %d)", cfg.RedisAddr, cfg.RedisDB)
-	case middleware.RateLimitStoreMemory:
-		log.Printf("In-memory rate limiting configured (single instance only)")
-	}
-
 	return rateLimitMiddlewares{
 		login:        createLimiter(cfg.LoginRateLimit, "/login"),
 		deviceCode:   createLimiter(cfg.DeviceCodeRateLimit, "/oauth/device/code"),
 		token:        createLimiter(cfg.TokenRateLimit, "/oauth/token"),
 		deviceVerify: createLimiter(cfg.DeviceVerifyRateLimit, "/device/verify"),
-	}
+	}, sharedRedisClient
 }
 
 // setupOAuthRoutes configures OAuth authentication routes

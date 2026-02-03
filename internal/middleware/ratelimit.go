@@ -35,9 +35,10 @@ type RateLimitConfig struct {
 	StoreType RateLimitStoreType // "memory" or "redis"
 
 	// Redis settings (only used when StoreType = "redis")
-	RedisAddr     string // Redis address (e.g., "localhost:6379")
-	RedisPassword string // Redis password (empty for no auth)
-	RedisDB       int    // Redis database number (default: 0)
+	RedisClient   *redis.Client // Optional: shared Redis client (recommended)
+	RedisAddr     string        // Redis address (e.g., "localhost:6379")
+	RedisPassword string        // Redis password (empty for no auth)
+	RedisDB       int           // Redis database number (default: 0)
 }
 
 // NewRateLimiter creates a new rate limiter with configurable store backend
@@ -53,18 +54,25 @@ func NewRateLimiter(config RateLimitConfig) (gin.HandlerFunc, error) {
 
 	switch config.StoreType {
 	case RateLimitStoreRedis:
-		// Create Redis client
-		client := redis.NewClient(&redis.Options{
-			Addr:     config.RedisAddr,
-			Password: config.RedisPassword,
-			DB:       config.RedisDB,
-		})
+		var client *redis.Client
 
-		// Test connection
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := client.Ping(ctx).Err(); err != nil {
-			return nil, fmt.Errorf("failed to connect to Redis at %s: %w", config.RedisAddr, err)
+		// Use provided client or create new one
+		if config.RedisClient != nil {
+			client = config.RedisClient
+		} else {
+			// Create Redis client (backward compatibility)
+			client = redis.NewClient(&redis.Options{
+				Addr:     config.RedisAddr,
+				Password: config.RedisPassword,
+				DB:       config.RedisDB,
+			})
+
+			// Test connection
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := client.Ping(ctx).Err(); err != nil {
+				return nil, fmt.Errorf("failed to connect to Redis at %s: %w", config.RedisAddr, err)
+			}
 		}
 
 		// Create Redis store
@@ -132,4 +140,22 @@ func NewRedisRateLimiter(
 		RedisDB:           redisDB,
 		CleanupInterval:   5 * time.Minute,
 	})
+}
+
+// CreateRedisClient creates and tests a Redis client connection
+func CreateRedisClient(redisAddr, redisPassword string, redisDB int) (*redis.Client, error) {
+	client := redis.NewClient(&redis.Options{
+		Addr:     redisAddr,
+		Password: redisPassword,
+		DB:       redisDB,
+	})
+
+	// Test connection
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := client.Ping(ctx).Err(); err != nil {
+		return nil, fmt.Errorf("failed to connect to Redis at %s: %w", redisAddr, err)
+	}
+
+	return client, nil
 }

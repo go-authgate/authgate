@@ -426,6 +426,132 @@ func TestRateLimiter_NoAcceptHeader(t *testing.T) {
 	assert.NotContains(t, w.Body.String(), "<html>")
 }
 
+// TestCreateRedisClient tests the CreateRedisClient helper function
+func TestCreateRedisClient(t *testing.T) {
+	// Test with invalid address
+	client, err := CreateRedisClient("invalid-host:9999", "", 0)
+	assert.Error(t, err)
+	assert.Nil(t, client)
+	assert.Contains(t, err.Error(), "failed to connect to Redis")
+
+	// Test with valid address (if Redis is available)
+	client, err = CreateRedisClient("localhost:6379", "", 0)
+	if err != nil {
+		t.Skipf("Redis not available: %v", err)
+		return
+	}
+	require.NotNil(t, client)
+	assert.NotNil(t, client)
+
+	// Verify connection works
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	err = client.Ping(ctx).Err()
+	assert.NoError(t, err)
+
+	// Cleanup
+	_ = client.Close()
+}
+
+// TestSharedRedisClient tests that multiple rate limiters can share a single Redis client
+func TestSharedRedisClient(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	gin.SetMode(gin.TestMode)
+
+	// Create a shared Redis client
+	sharedClient, err := CreateRedisClient("localhost:6379", "", 0)
+	if err != nil {
+		t.Skipf("Redis not available: %v", err)
+		return
+	}
+	defer sharedClient.Close()
+
+	// Create two rate limiters sharing the same Redis client
+	limiter1, err := NewRateLimiter(RateLimitConfig{
+		RequestsPerMinute: 5,
+		StoreType:         RateLimitStoreRedis,
+		RedisClient:       sharedClient,
+		CleanupInterval:   1 * time.Minute,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, limiter1)
+
+	limiter2, err := NewRateLimiter(RateLimitConfig{
+		RequestsPerMinute: 10,
+		StoreType:         RateLimitStoreRedis,
+		RedisClient:       sharedClient,
+		CleanupInterval:   1 * time.Minute,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, limiter2)
+
+	// Create two routers with different limiters
+	router1 := gin.New()
+	router1.Use(limiter1)
+	router1.GET("/test", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"message": "router1"})
+	})
+
+	router2 := gin.New()
+	router2.Use(limiter2)
+	router2.GET("/test", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"message": "router2"})
+	})
+
+	testIP := "192.168.77." + time.Now().Format("150405")
+
+	// Test router1 (5 req/min limit)
+	for i := range 5 {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("X-Forwarded-For", testIP)
+		w := httptest.NewRecorder()
+		router1.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code, "Router1 request %d should succeed", i+1)
+	}
+
+	// 6th request should be rate limited
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("X-Forwarded-For", testIP)
+	w := httptest.NewRecorder()
+	router1.ServeHTTP(w, req)
+	assert.Equal(
+		t,
+		http.StatusTooManyRequests,
+		w.Code,
+		"Router1 6th request should be rate limited",
+	)
+
+	// Test router2 with different IP (10 req/min limit)
+	testIP2 := "192.168.78." + time.Now().Format("150405")
+	for i := range 10 {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("X-Forwarded-For", testIP2)
+		w := httptest.NewRecorder()
+		router2.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code, "Router2 request %d should succeed", i+1)
+	}
+
+	// 11th request should be rate limited
+	req = httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("X-Forwarded-For", testIP2)
+	w = httptest.NewRecorder()
+	router2.ServeHTTP(w, req)
+	assert.Equal(
+		t,
+		http.StatusTooManyRequests,
+		w.Code,
+		"Router2 11th request should be rate limited",
+	)
+
+	// Cleanup
+	ctx := context.Background()
+	_ = sharedClient.Del(ctx, "ratelimit:"+testIP).Err()
+	_ = sharedClient.Del(ctx, "ratelimit:"+testIP2).Err()
+}
+
 // TestRateLimiter_MixedAcceptHeaders tests different Accept header variations
 func TestRateLimiter_MixedAcceptHeaders(t *testing.T) {
 	gin.SetMode(gin.TestMode)
