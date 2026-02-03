@@ -96,6 +96,14 @@ type Config struct {
 	GiteaOAuthRedirectURL string
 	GiteaOAuthScopes      []string
 
+	// Microsoft Entra ID OAuth
+	MicrosoftOAuthEnabled     bool
+	MicrosoftTenantID         string // "common", "organizations", or tenant UUID
+	MicrosoftClientID         string
+	MicrosoftClientSecret     string
+	MicrosoftOAuthRedirectURL string
+	MicrosoftOAuthScopes      []string
+
 	// OAuth Auto Registration
 	OAuthAutoRegister bool // Allow OAuth to auto-create accounts (default: true)
 
@@ -193,6 +201,17 @@ func Load() *Config {
 		GiteaClientSecret:     getEnv("GITEA_CLIENT_SECRET", ""),
 		GiteaOAuthRedirectURL: getEnv("GITEA_REDIRECT_URL", ""),
 		GiteaOAuthScopes:      getEnvSlice("GITEA_SCOPES", []string{"read:user"}),
+
+		// Microsoft Entra ID OAuth
+		MicrosoftOAuthEnabled:     getEnvBool("MICROSOFT_OAUTH_ENABLED", false),
+		MicrosoftTenantID:         getEnv("MICROSOFT_TENANT_ID", "common"),
+		MicrosoftClientID:         getEnv("MICROSOFT_CLIENT_ID", ""),
+		MicrosoftClientSecret:     getEnv("MICROSOFT_CLIENT_SECRET", ""),
+		MicrosoftOAuthRedirectURL: getEnv("MICROSOFT_REDIRECT_URL", ""),
+		MicrosoftOAuthScopes: getEnvSlice(
+			"MICROSOFT_SCOPES",
+			[]string{"openid", "profile", "email", "User.Read"},
+		),
 
 		// OAuth Auto Registration
 		OAuthAutoRegister: getEnvBool("OAUTH_AUTO_REGISTER", true),

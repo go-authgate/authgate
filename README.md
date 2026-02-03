@@ -195,7 +195,7 @@ Modern CLI tools and IoT devices need to access user resources securely, but tra
 🧩 Flexible Authentication & Token Flows
 
 - Session-based authentication with encrypted cookies (7‑day expiry)
-- OAuth 2.0 third-party login: GitHub, Gitea, and extensible to other providers
+- OAuth 2.0 third-party login: GitHub, Gitea, Microsoft Entra ID, and extensible to other providers
 - Email-based account linking: automatically links OAuth accounts with matching emails
 - Pluggable token providers: use embedded JWT or external token services
 - Hybrid authentication: supports both local and external identity providers
@@ -500,7 +500,7 @@ sequenceDiagram
 | `/account/sessions/revoke-all` | POST     | Yes (Session) | Revoke all user sessions                                            |
 | `/login`                       | GET/POST | No            | User login (creates session)                                        |
 | `/logout`                      | GET      | Yes (Session) | User logout (destroys session)                                      |
-| `/auth/login/:provider`        | GET      | No            | Initiate OAuth login (provider: github, gitea)                      |
+| `/auth/login/:provider`        | GET      | No            | Initiate OAuth login (provider: github, gitea, microsoft)           |
 | `/auth/callback/:provider`     | GET      | No            | OAuth callback endpoint                                             |
 
 #### Endpoint Details
@@ -632,6 +632,14 @@ GITEA_CLIENT_SECRET=your_gitea_client_secret
 GITEA_REDIRECT_URL=http://localhost:8080/auth/callback/gitea
 GITEA_SCOPES=read:user
 
+# Microsoft Entra ID (Azure AD) OAuth
+MICROSOFT_OAUTH_ENABLED=false
+MICROSOFT_TENANT_ID=common
+MICROSOFT_CLIENT_ID=
+MICROSOFT_CLIENT_SECRET=
+MICROSOFT_REDIRECT_URL=http://localhost:8080/oauth/callback/microsoft
+MICROSOFT_SCOPES=openid,profile,email,User.Read
+
 # OAuth Settings
 OAUTH_AUTO_REGISTER=true         # Allow OAuth to auto-create accounts (default: true)
 OAUTH_TIMEOUT=15s                # HTTP client timeout for OAuth requests (default: 15s)
@@ -676,6 +684,7 @@ AuthGate supports OAuth 2.0 authentication with third-party providers, allowing 
 
 - **GitHub** - Sign in with GitHub accounts
 - **Gitea** - Sign in with self-hosted or public Gitea instances
+- **Microsoft Entra ID (Azure AD)** - Sign in with Microsoft work, school, or personal accounts
 - **Extensible** - Easy to add GitLab, Google, or other OAuth 2.0 providers
 
 #### Key Features
@@ -704,6 +713,13 @@ GITEA_URL=https://gitea.example.com
 GITEA_CLIENT_ID=your_client_id
 GITEA_CLIENT_SECRET=your_client_secret
 GITEA_REDIRECT_URL=http://localhost:8080/auth/callback/gitea
+
+# Enable Microsoft Entra ID OAuth
+MICROSOFT_OAUTH_ENABLED=true
+MICROSOFT_TENANT_ID=common
+MICROSOFT_CLIENT_ID=your_client_id
+MICROSOFT_CLIENT_SECRET=your_client_secret
+MICROSOFT_REDIRECT_URL=http://localhost:8080/oauth/callback/microsoft
 ```
 
 3. **Restart server** and visit `/login` to see OAuth buttons
@@ -727,7 +743,7 @@ GITEA_REDIRECT_URL=http://localhost:8080/auth/callback/gitea
 
 **Scenario 3: Multiple OAuth Accounts**
 
-- User can link multiple OAuth providers (GitHub + Gitea)
+- User can link multiple OAuth providers (GitHub + Gitea + Microsoft)
 - All methods log into the same AuthGate account
 
 #### Security Considerations

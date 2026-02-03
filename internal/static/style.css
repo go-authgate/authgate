@@ -464,6 +464,18 @@ input[type="password"]:focus {
     box-shadow: var(--shadow-md);
 }
 
+.btn-oauth.btn-microsoft {
+    background-color: #2f2f2f;
+    color: white;
+    border: 1px solid #8c8c8c;
+}
+
+.btn-oauth.btn-microsoft:hover {
+    background-color: #1a1a1a;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
 /* OAuth/Local Auth Divider */
 .auth-divider {
     text-align: center;

@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
+	"golang.org/x/oauth2/microsoft"
 )
 
 // OAuthProviderConfig contains configuration for an OAuth provider
@@ -65,6 +67,20 @@ func NewGiteaProvider(cfg OAuthProviderConfig, giteaURL string) *OAuthProvider {
 	}
 }
 
+// NewMicrosoftProvider creates a new Microsoft Entra ID OAuth provider
+func NewMicrosoftProvider(cfg OAuthProviderConfig, tenantID string) *OAuthProvider {
+	return &OAuthProvider{
+		provider: "microsoft",
+		config: &oauth2.Config{
+			ClientID:     cfg.ClientID,
+			ClientSecret: cfg.ClientSecret,
+			RedirectURL:  cfg.RedirectURL,
+			Scopes:       cfg.Scopes,
+			Endpoint:     microsoft.AzureADEndpoint(tenantID),
+		},
+	}
+}
+
 // GetAuthURL returns the OAuth authorization URL
 func (p *OAuthProvider) GetAuthURL(state string) string {
 	return p.config.AuthCodeURL(state, oauth2.AccessTypeOffline)
@@ -85,6 +101,8 @@ func (p *OAuthProvider) GetUserInfo(
 		return p.getGitHubUserInfo(ctx, token)
 	case "gitea":
 		return p.getGiteaUserInfo(ctx, token)
+	case "microsoft":
+		return p.getMicrosoftUserInfo(ctx, token)
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", p.provider)
 	}
@@ -104,6 +122,8 @@ func (p *OAuthProvider) GetDisplayName() string {
 		return "Gitea"
 	case "gitlab":
 		return "GitLab"
+	case "microsoft":
+		return "Microsoft"
 	default:
 		// Capitalize first letter for unknown providers
 		if len(p.provider) == 0 {
@@ -278,5 +298,73 @@ func (p *OAuthProvider) getGiteaUserInfo(
 		Email:          user.Email,
 		FullName:       user.FullName,
 		AvatarURL:      user.AvatarURL,
+	}, nil
+}
+
+// Microsoft Graph API user info structure
+type microsoftUser struct {
+	ID                string `json:"id"`                // Object ID (UUID)
+	UserPrincipalName string `json:"userPrincipalName"` // user@domain.com
+	DisplayName       string `json:"displayName"`       // Full name
+	Mail              string `json:"mail"`              // Email (may be empty)
+	GivenName         string `json:"givenName"`         // First name
+	Surname           string `json:"surname"`           // Last name
+}
+
+// getMicrosoftUserInfo retrieves user info from Microsoft Graph API
+func (p *OAuthProvider) getMicrosoftUserInfo(
+	ctx context.Context,
+	token *oauth2.Token,
+) (*OAuthUserInfo, error) {
+	client := p.config.Client(ctx, token)
+
+	// Call Microsoft Graph API v1.0
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://graph.microsoft.com/v1.0/me", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user info: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("microsoft Graph API error: %s - %s", resp.Status, string(body))
+	}
+
+	var user microsoftUser
+	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+		return nil, fmt.Errorf("failed to decode user info: %w", err)
+	}
+
+	// Determine email: prefer mail, fallback to userPrincipalName
+	email := user.Mail
+	if email == "" {
+		email = user.UserPrincipalName
+	}
+
+	// Email is required
+	if email == "" {
+		return nil, fmt.Errorf("microsoft account has no email address")
+	}
+
+	// Build full name
+	fullName := user.DisplayName
+	if fullName == "" && (user.GivenName != "" || user.Surname != "") {
+		fullName = strings.TrimSpace(user.GivenName + " " + user.Surname)
+	}
+
+	// Extract username from email (part before @)
+	username := strings.Split(email, "@")[0]
+
+	return &OAuthUserInfo{
+		ProviderUserID: user.ID,
+		Username:       username,
+		Email:          email,
+		FullName:       fullName,
+		AvatarURL:      "", // Microsoft Graph /me doesn't include photo by default
 	}, nil
 }
