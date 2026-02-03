@@ -402,6 +402,26 @@ func initializeOAuthProviders(cfg *config.Config) map[string]*auth.OAuthProvider
 		)
 	}
 
+	// Microsoft Entra ID OAuth
+	switch {
+	case !cfg.MicrosoftOAuthEnabled:
+		// Skip Microsoft OAuth
+	case cfg.MicrosoftClientID == "" || cfg.MicrosoftClientSecret == "":
+		log.Printf("Warning: Microsoft OAuth enabled but CLIENT_ID or CLIENT_SECRET missing")
+	default:
+		providers["microsoft"] = auth.NewMicrosoftProvider(auth.OAuthProviderConfig{
+			ClientID:     cfg.MicrosoftClientID,
+			ClientSecret: cfg.MicrosoftClientSecret,
+			RedirectURL:  cfg.MicrosoftOAuthRedirectURL,
+			Scopes:       cfg.MicrosoftOAuthScopes,
+		}, cfg.MicrosoftTenantID)
+		log.Printf(
+			"Microsoft OAuth configured: tenant=%s redirect=%s",
+			cfg.MicrosoftTenantID,
+			cfg.MicrosoftOAuthRedirectURL,
+		)
+	}
+
 	return providers
 }
 

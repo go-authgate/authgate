@@ -546,6 +546,92 @@ JWT_SECRET=your-256-bit-secret-change-in-production
 - Auditing: Track when and for which clients tokens were issued
 - Client Association: Link tokens to OAuth clients for display in UI
 
+## OAuth Provider Configuration
+
+AuthGate supports third-party OAuth providers for user authentication, allowing users to sign in with their existing accounts.
+
+### Microsoft Entra ID OAuth
+
+To use Microsoft Entra ID (formerly Azure AD) for OAuth authentication, configure these environment variables:
+
+```bash
+MICROSOFT_OAUTH_ENABLED=true
+MICROSOFT_TENANT_ID=common                    # See tenant options below
+MICROSOFT_CLIENT_ID=12345678-1234-1234-1234-123456789abc
+MICROSOFT_CLIENT_SECRET=your-client-secret-value
+MICROSOFT_REDIRECT_URL=http://localhost:8080/auth/callback/microsoft
+MICROSOFT_SCOPES=openid,profile,email,User.Read
+```
+
+#### Tenant ID Options
+
+- `common` - Multi-tenant: any Microsoft account (personal or work/school)
+- `organizations` - Work or school accounts only
+- `consumers` - Personal Microsoft accounts only
+- `{tenant-uuid}` - Specific organization tenant ID (e.g., `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
+
+#### Azure Portal Setup
+
+1. Navigate to [Azure Portal](https://portal.azure.com) → Azure Active Directory → App registrations
+2. Click "New registration"
+   - Name: `AuthGate` (or your app name)
+   - Supported account types: Choose based on your tenant ID setting
+   - Redirect URI: `Web` → `http://localhost:8080/auth/callback/microsoft`
+3. Click "Register"
+4. Copy the "Application (client) ID" → set as `MICROSOFT_CLIENT_ID`
+5. Go to "Certificates & secrets" → "New client secret"
+   - Description: `AuthGate OAuth`
+   - Expires: Choose expiration period
+   - Copy the secret **value** (not ID) → set as `MICROSOFT_CLIENT_SECRET`
+6. Go to "API permissions"
+   - "Microsoft Graph" should already have `User.Read` permission
+   - If not: Click "Add a permission" → "Microsoft Graph" → "Delegated permissions" → Select `User.Read`
+   - Click "Grant admin consent" (if required by your organization)
+
+#### Microsoft Graph API
+
+AuthGate calls Microsoft Graph API v1.0 endpoint `/me` to retrieve user information:
+
+- User ID (object ID)
+- Email (from `mail` or `userPrincipalName`)
+- Display name
+- Given name and surname
+
+The `User.Read` scope is required for this API call.
+
+### GitHub OAuth
+
+Configure GitHub OAuth with:
+
+```bash
+GITHUB_OAUTH_ENABLED=true
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
+GITHUB_REDIRECT_URL=http://localhost:8080/oauth/callback/github
+GITHUB_SCOPES=user:email
+```
+
+### Gitea OAuth
+
+Configure Gitea OAuth with:
+
+```bash
+GITEA_OAUTH_ENABLED=true
+GITEA_URL=https://gitea.example.com
+GITEA_CLIENT_ID=your_gitea_client_id
+GITEA_CLIENT_SECRET=your_gitea_client_secret
+GITEA_REDIRECT_URL=http://localhost:8080/oauth/callback/gitea
+GITEA_SCOPES=read:user
+```
+
+### OAuth Settings
+
+```bash
+OAUTH_AUTO_REGISTER=true         # Allow OAuth to auto-create accounts (default: true)
+OAUTH_TIMEOUT=15s                # HTTP client timeout for OAuth requests (default: 15s)
+OAUTH_INSECURE_SKIP_VERIFY=false # Skip TLS verification for OAuth (dev/testing only)
+```
+
 ## Service-to-Service Authentication
 
 When using external HTTP APIs for authentication (`AUTH_MODE=http_api`) or token operations (`TOKEN_PROVIDER_MODE=http_api`), you can secure the communication between AuthGate and these services using service-to-service authentication.
