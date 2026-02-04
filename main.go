@@ -147,6 +147,7 @@ func runServer() {
 	oauthHandler := handlers.NewOAuthHandler(oauthProviders, userService, oauthHTTPClient)
 
 	// Setup Gin
+	setupGinMode(cfg)
 	r := gin.Default()
 
 	// Setup session middleware
@@ -155,8 +156,8 @@ func runServer() {
 		Path:     "/",
 		MaxAge:   86400 * 7, // 7 days
 		HttpOnly: true,
-		Secure:   false, // Set to true in production with HTTPS
-		SameSite: 2,     // Lax
+		Secure:   cfg.IsProduction, // Require HTTPS in production
+		SameSite: http.SameSiteStrictMode,
 	})
 	r.Use(sessions.Sessions("oauth_session", sessionStore))
 
@@ -614,4 +615,21 @@ func initializeHTTPTokenProvider(cfg *config.Config) *token.HTTPTokenProvider {
 	default:
 		return nil
 	}
+}
+
+// setupGinMode sets Gin mode based on environment configuration
+func setupGinMode(cfg *config.Config) {
+	mode := ginModeMap[cfg.IsProduction]
+	gin.SetMode(mode)
+	log.Printf("Gin mode: %s", ginModeLogMessage[cfg.IsProduction])
+}
+
+var ginModeMap = map[bool]string{
+	true:  gin.ReleaseMode,
+	false: gin.DebugMode,
+}
+
+var ginModeLogMessage = map[bool]string{
+	true:  "Release (production)",
+	false: "Debug (development)",
 }

@@ -32,6 +32,9 @@ type Config struct {
 	ServerAddr string
 	BaseURL    string
 
+	// Environment detection
+	IsProduction bool
+
 	// JWT settings
 	JWTSecret     string
 	JWTExpiration time.Duration
@@ -142,6 +145,7 @@ func Load() *Config {
 	return &Config{
 		ServerAddr:           getEnv("SERVER_ADDR", ":8080"),
 		BaseURL:              getEnv("BASE_URL", "http://localhost:8080"),
+		IsProduction:         getEnvBool("ENVIRONMENT", false) || getEnv("ENVIRONMENT", "") == "production",
 		JWTSecret:            getEnv("JWT_SECRET", "your-256-bit-secret-change-in-production"),
 		JWTExpiration:        time.Hour,
 		SessionSecret:        getEnv("SESSION_SECRET", "session-secret-change-in-production"),
