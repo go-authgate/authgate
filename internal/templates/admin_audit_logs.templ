@@ -7,61 +7,66 @@ import (
 
 templ AdminAuditLogs(props AuditLogsPageProps) {
 	@Layout("Audit Logs", LayoutAdminNavbar, &props.NavbarProps) {
+		<link rel="stylesheet" href="/static/css/pages/admin-audit-logs.css"/>
 		<div class="main-content">
 			<div class="card">
 				<!-- Page Header -->
-				<div class="admin-page-header">
-					<h1 class="title-with-icon">
-						<span>🔒</span>
+				<div class="audit-logs-header">
+					<h1 class="audit-logs-title">
+						<span class="audit-logs-title-icon">🔒</span>
 						<span>Audit Logs</span>
 					</h1>
 					if props.TotalItems > 0 {
-						<div class="pagination-info">
+						<div class="audit-logs-count">
 							<span>Total Events:</span>
-							<span class="pagination-info-total">{ fmt.Sprintf("%d", props.TotalItems) }</span>
+							<span class="audit-logs-count-number">{ fmt.Sprintf("%d", props.TotalItems) }</span>
 						</div>
 					}
 				</div>
 				<!-- Filters Form -->
-				<form method="GET" action="/admin/audit">
-					<!-- Search Bar -->
-					<div class="search-filters">
-						<div class="search-group">
-							<label class="search-label">Search</label>
-							<div class="search-input-wrapper">
-								<span class="search-icon">🔍</span>
-								<input
-									type="text"
-									name="search"
-									class="search-input"
-									placeholder="Search action, resource, username..."
-									value={ props.Search }
-								/>
+				<div class="audit-filters-section">
+					<form method="GET" action="/admin/audit">
+						<!-- Search Bar -->
+						<div class="audit-search-bar">
+							<div class="audit-search-group">
+								<label class="audit-filter-label">Search</label>
+								<div class="audit-search-input-wrapper">
+									<span class="audit-search-icon">🔍</span>
+									<input
+										type="text"
+										name="search"
+										class="audit-search-input"
+										placeholder="Search action, resource, username..."
+										value={ props.Search }
+									/>
+								</div>
+							</div>
+							<div class="audit-search-group">
+								<label class="audit-filter-label">Items Per Page</label>
+								<select name="page_size" class="audit-page-size-select" onchange="this.form.submit()">
+									<option value="20" selected?={ props.PageSize == 20 }>20 items</option>
+									<option value="50" selected?={ props.PageSize == 50 }>50 items</option>
+									<option value="100" selected?={ props.PageSize == 100 }>100 items</option>
+								</select>
+							</div>
+							<div class="audit-search-buttons">
+								<button type="submit" class="audit-btn audit-btn-primary">
+									Apply Filters
+								</button>
+								<a href="/admin/audit" class="audit-btn audit-btn-secondary">
+									Clear
+								</a>
+								<a href={ templ.URL("/admin/audit/export?" + props.QueryString) } class="audit-btn audit-btn-export">
+									<span>📥</span>
+									<span>Export CSV</span>
+								</a>
 							</div>
 						</div>
-						<div class="page-size-group">
-							<label class="search-label">Items Per Page</label>
-							<select name="page_size" class="page-size-select" onchange="this.form.submit()">
-								<option value="20" selected?={ props.PageSize == 20 }>20 items</option>
-								<option value="50" selected?={ props.PageSize == 50 }>50 items</option>
-								<option value="100" selected?={ props.PageSize == 100 }>100 items</option>
-							</select>
-						</div>
-						<div class="search-actions">
-							<button type="submit" class="btn-search">Apply Filters</button>
-							<a href="/admin/audit" class="btn-clear">Clear</a>
-							<a href={ templ.URL("/admin/audit/export?" + props.QueryString) } class="btn-export">
-								<span>📥</span>
-								<span>Export CSV</span>
-							</a>
-						</div>
-					</div>
-
-					<!-- Advanced Filters -->
-					<div class="audit-filters">
-						<div class="filter-group">
-							<label class="filter-label">Event Type</label>
-							<select name="event_type" class="form-select">
+						<!-- Advanced Filters -->
+						<div class="audit-advanced-filters">
+						<div class="audit-filter-group">
+							<label class="audit-filter-label">Event Type</label>
+							<select name="event_type" class="audit-filter-select">
 								<option value="">All Events</option>
 								<option value="AUTHENTICATION_SUCCESS" selected?={ props.EventType == "AUTHENTICATION_SUCCESS" }>Auth Success</option>
 								<option value="AUTHENTICATION_FAILURE" selected?={ props.EventType == "AUTHENTICATION_FAILURE" }>Auth Failure</option>
@@ -81,9 +86,9 @@ templ AdminAuditLogs(props AuditLogsPageProps) {
 								<option value="RATE_LIMIT_EXCEEDED" selected?={ props.EventType == "RATE_LIMIT_EXCEEDED" }>Rate Limit Exceeded</option>
 							</select>
 						</div>
-						<div class="filter-group">
-							<label class="filter-label">Severity</label>
-							<select name="severity" class="form-select">
+						<div class="audit-filter-group">
+							<label class="audit-filter-label">Severity</label>
+							<select name="severity" class="audit-filter-select">
 								<option value="">All</option>
 								<option value="INFO" selected?={ props.Severity == "INFO" }>Info</option>
 								<option value="WARNING" selected?={ props.Severity == "WARNING" }>Warning</option>
@@ -91,24 +96,25 @@ templ AdminAuditLogs(props AuditLogsPageProps) {
 								<option value="CRITICAL" selected?={ props.Severity == "CRITICAL" }>Critical</option>
 							</select>
 						</div>
-						<div class="filter-group">
-							<label class="filter-label">Status</label>
-							<select name="success" class="form-select">
+						<div class="audit-filter-group">
+							<label class="audit-filter-label">Status</label>
+							<select name="success" class="audit-filter-select">
 								<option value="">All</option>
 								<option value="true" selected?={ props.Success == "true" }>Success</option>
 								<option value="false" selected?={ props.Success == "false" }>Failed</option>
 							</select>
 						</div>
-						<div class="filter-group">
-							<label class="filter-label">Actor IP</label>
-							<input type="text" name="actor_ip" class="form-input" placeholder="e.g., 192.168.1.1" value={ props.ActorIP }/>
+						<div class="audit-filter-group">
+							<label class="audit-filter-label">Actor IP</label>
+							<input type="text" name="actor_ip" class="audit-filter-input" placeholder="e.g., 192.168.1.1" value={ props.ActorIP }/>
 						</div>
 					</div>
-				</form>
+					</form>
+				</div>
 				<!-- Table -->
 				if len(props.Logs) > 0 {
-					<div class="table-wrapper">
-						<table class="audit-table">
+					<div class="audit-table-wrapper">
+						<table class="audit-logs-table">
 							<thead>
 								<tr>
 									<th>Time</th>
@@ -134,27 +140,26 @@ templ AdminAuditLogs(props AuditLogsPageProps) {
 					}
 				} else {
 					<!-- Empty State -->
-					<div class="empty-state">
-						<div class="empty-state-icon">
+					<div class="audit-empty-state">
+						<div class="audit-empty-icon">
 							if props.Search != "" {
 								🔍
 							} else {
 								📋
 							}
 						</div>
-						<h3 class="empty-state-title">
+						<h3 class="audit-empty-title">
 							if props.Search != "" {
 								No audit logs found
 							} else {
 								No Audit Logs Yet
 							}
 						</h3>
-						<p class="empty-state-text">
+						<p class="audit-empty-text">
 							if props.Search != "" {
 								Try adjusting your search terms or filters to find what you're looking for.
 							} else {
-								Audit logs will appear here as actions are performed in the system.<br/>
-								Activities like authentication, token operations, and admin actions are logged automatically.
+								Audit logs will appear here as actions are performed in the system. Activities like authentication, token operations, and admin actions are logged automatically.
 							}
 						</p>
 					</div>
@@ -166,54 +171,56 @@ templ AdminAuditLogs(props AuditLogsPageProps) {
 
 templ AuditLogRow(log *models.AuditLog) {
 	<tr>
-		<td class="col-timestamp">
-			<div style="font-weight: 600; color: var(--color-text-primary);">{ log.EventTime.Format("2006-01-02") }</div>
-			<div style="font-size: var(--text-xs); color: var(--color-text-secondary);">{ log.EventTime.Format("15:04:05") }</div>
+		<td class="audit-timestamp-cell">
+			<div class="audit-timestamp-date">{ log.EventTime.Format("2006-01-02") }</div>
+			<div class="audit-timestamp-time">{ log.EventTime.Format("15:04:05") }</div>
 		</td>
 		<td>
-			<span class="event-type">{ log.EventType }</span>
+			<span class="audit-event-type">{ log.EventType }</span>
 		</td>
 		<td>
 			if log.Severity == "INFO" {
-				<span class="severity-badge severity-info">{ log.Severity }</span>
+				<span class="audit-severity-badge severity-info">{ log.Severity }</span>
 			} else if log.Severity == "WARNING" {
-				<span class="severity-badge severity-warning">{ log.Severity }</span>
+				<span class="audit-severity-badge severity-warning">{ log.Severity }</span>
 			} else if log.Severity == "ERROR" {
-				<span class="severity-badge severity-error">{ log.Severity }</span>
+				<span class="audit-severity-badge severity-error">{ log.Severity }</span>
 			} else if log.Severity == "CRITICAL" {
-				<span class="severity-badge severity-critical">{ log.Severity }</span>
+				<span class="audit-severity-badge severity-critical">{ log.Severity }</span>
 			}
 		</td>
 		<td>
 			if log.ActorUsername != "" {
-				{ log.ActorUsername }
+				<span class="audit-actor">{ log.ActorUsername }</span>
 			} else {
-				<span style="color: var(--color-text-secondary); font-style: italic;">System</span>
+				<span class="audit-actor-system">System</span>
 			}
 		</td>
 		<td>
-			<div>{ log.Action }</div>
+			<div class="audit-action">{ log.Action }</div>
 			if log.ErrorMessage != "" {
-				<div style="font-size: var(--text-xs); color: var(--color-error); font-family: var(--font-mono); margin-top: var(--space-1);">
+				<div class="audit-error-message">
 					{ log.ErrorMessage }
 				</div>
 			}
 		</td>
-		<td style="font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-secondary);">
+		<td class="audit-resource">
 			if log.ResourceName != "" {
 				{ log.ResourceName }
 			} else if log.ResourceID != "" {
 				{ log.ResourceID }
 			} else {
-				<span style="color: var(--color-gray-400);">—</span>
+				<span class="audit-resource-empty">—</span>
 			}
 		</td>
-		<td style="font-family: var(--font-mono); font-size: var(--text-xs);">{ log.ActorIP }</td>
+		<td>
+			<span class="audit-ip">{ log.ActorIP }</span>
+		</td>
 		<td style="text-align: center;">
 			if log.Success {
-				<span class="badge badge-active">✓</span>
+				<span class="audit-status-badge status-success">✓</span>
 			} else {
-				<span class="badge badge-revoked">✗</span>
+				<span class="audit-status-badge status-failed">✗</span>
 			}
 		</td>
 	</tr>

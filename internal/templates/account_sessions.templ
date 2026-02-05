@@ -8,72 +8,90 @@ import (
 
 templ AccountSessions(props SessionsPageProps) {
 	@Layout("Active Sessions", LayoutHasNavbar, &props.NavbarProps) {
+		<link rel="stylesheet" href="/static/css/pages/account-sessions.css"/>
 		<div class="main-content">
-			<div class="container">
+			<div class="sessions-page-container">
 				<div class="card">
-					<div class="header">
-						<h1>Active Sessions</h1>
+					<!-- Card Header -->
+					<div class="sessions-card-header">
+						<h1 class="sessions-title">Active Sessions</h1>
+						<p class="sessions-subtitle">Manage devices that have access to your account</p>
 					</div>
-					<p class="subtitle">Manage devices that have access to your account</p>
 					<!-- Search and Filters -->
-					<form method="GET" action="/account/sessions" class="search-filters">
-						<div class="search-group">
-							<label for="search" class="search-label">Search</label>
-							<div class="search-input-wrapper">
-								<span class="search-icon">🔍</span>
-								<input
-									type="text"
-									id="search"
-									name="search"
-									class="search-input"
-									placeholder="Search by client name or scopes..."
-									value={ props.Search }
-								/>
+					<div class="sessions-search-section">
+						<form method="GET" action="/account/sessions" class="sessions-search-grid">
+							<div>
+								<label for="search" class="search-label">Search</label>
+								<div class="sessions-search-input-wrapper">
+									<span class="sessions-search-icon">🔍</span>
+									<input
+										type="text"
+										id="search"
+										name="search"
+										class="sessions-search-input"
+										placeholder="Search by client name or scopes..."
+										value={ props.Search }
+									/>
+								</div>
 							</div>
-						</div>
-						<div class="page-size-group">
-							<label for="page_size" class="search-label">Items per page</label>
-							<select name="page_size" id="page_size" class="page-size-select" onchange="this.form.submit()">
-								<option value="10" selected?={ props.PageSize == 10 }>10 items</option>
-								<option value="20" selected?={ props.PageSize == 20 }>20 items</option>
-								<option value="50" selected?={ props.PageSize == 50 }>50 items</option>
-							</select>
-						</div>
-						<div class="search-actions">
-							<button type="submit" class="btn-search">Search</button>
-							<a href="/account/sessions" class="btn-clear">Clear</a>
-						</div>
-					</form>
+							<div>
+								<label for="page_size" class="search-label">Items per page</label>
+								<select name="page_size" id="page_size" class="page-size-select" onchange="this.form.submit()">
+									<option value="10" selected?={ props.PageSize == 10 }>10 items</option>
+									<option value="20" selected?={ props.PageSize == 20 }>20 items</option>
+									<option value="50" selected?={ props.PageSize == 50 }>50 items</option>
+								</select>
+							</div>
+							<div class="search-actions">
+								<button type="submit" class="btn-search">Search</button>
+								<a href="/account/sessions" class="btn-clear">Clear</a>
+							</div>
+						</form>
+					</div>
 					if len(props.Sessions) > 0 {
-						<div class="sessions-list">
-							<div class="sessions-header">
-								<h3>Authorized Devices</h3>
-								<form method="POST" action="/account/sessions/revoke-all">
-									<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
-									<button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to revoke all sessions? This will log out all your devices.')">
-										Revoke All
-									</button>
-								</form>
-							</div>
-							<div class="sessions-grid">
-								for _, session := range props.Sessions {
-									@SessionCard(session, props.CSRFToken)
-								}
-							</div>
-							<!-- Pagination Controls -->
-							@SessionsPagination(props.Pagination, props.PageSize, props.Search)
+						<div class="sessions-list-header">
+							<h3 class="sessions-count">{ fmt.Sprintf("%d", len(props.Sessions)) } Active Sessions</h3>
+							<form method="POST" action="/account/sessions/revoke-all" style="margin: 0;">
+								<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+								<button type="submit" class="sessions-revoke-all-btn" onclick="return confirm('Are you sure you want to revoke all sessions? This will log out all your devices.')">
+									Revoke All
+								</button>
+							</form>
 						</div>
+						<!-- Sessions Table -->
+						<div class="sessions-table-wrapper">
+							<table class="sessions-table">
+								<thead>
+									<tr>
+										<th>Client</th>
+										<th>Type / Status</th>
+										<th>Scopes</th>
+										<th>Created</th>
+										<th>Expires</th>
+										<th>Last Used</th>
+										<th>Actions</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, session := range props.Sessions {
+										@SessionTableRow(session, props.CSRFToken)
+									}
+								</tbody>
+							</table>
+						</div>
+						<!-- Pagination Controls -->
+						@SessionsPagination(props.Pagination, props.PageSize, props.Search)
 					} else {
-						<div class="empty-state-with-search">
-							<div class="empty-state-icon-large">📭</div>
-							<h3 class="empty-state-title-large">
+						<div class="sessions-empty-state">
+							<div class="sessions-empty-icon">📭</div>
+							<h3 class="sessions-empty-title">
 								if props.Search != "" {
 									No sessions found
 								} else {
 									No Active Sessions
 								}
 							</h3>
-							<p class="empty-state-text">
+							<p class="sessions-empty-text">
 								if props.Search != "" {
 									Try adjusting your search terms or clear the filter.
 								} else {
@@ -88,80 +106,93 @@ templ AccountSessions(props SessionsPageProps) {
 	}
 }
 
-templ SessionCard(session services.TokenWithClient, csrfToken string) {
-	<div
+templ SessionTableRow(session services.TokenWithClient, csrfToken string) {
+	<tr
 		class={
 			templ.Classes(
-				"session-item",
 				templ.KV("expired", session.IsExpired()),
 				templ.KV("disabled", session.Status == "disabled"),
 				templ.KV("revoked", session.Status == "revoked"),
 			),
 		}
 	>
-		<div class="session-actions-top">
-			if session.Status == "active" {
-				<form method="POST" action={ templ.URL("/account/sessions/" + session.ID + "/disable") }>
-					<input type="hidden" name="csrf_token" value={ csrfToken }/>
-					<button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Disable this token? You can re-enable it later.')">
-						Disable
-					</button>
-				</form>
-			} else if session.Status == "disabled" {
-				<form method="POST" action={ templ.URL("/account/sessions/" + session.ID + "/enable") }>
-					<input type="hidden" name="csrf_token" value={ csrfToken }/>
-					<button type="submit" class="btn btn-success btn-sm">
-						Enable
-					</button>
-				</form>
-			}
-			if session.Status != "revoked" {
-				<form method="POST" action={ templ.URL("/account/sessions/" + session.ID + "/revoke") }>
-					<input type="hidden" name="csrf_token" value={ csrfToken }/>
-					<button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Permanently revoke this token? This action cannot be undone.')">
-						Revoke
-					</button>
-				</form>
-			}
-		</div>
-		<div class="session-info">
-			<div class="session-header-row">
-				<div class="session-client">
-					<strong>Client:</strong> <span class="client-name">{ session.ClientName }</span>
-				</div>
-				<div class="token-badges">
-					if session.TokenCategory == "refresh" {
-						<span class="badge badge-token-type badge-refresh">Refresh Token</span>
-					} else {
-						<span class="badge badge-token-type badge-access">Access Token</span>
-					}
-					if session.Status == "active" {
-						<span class="badge badge-status badge-active">Active</span>
-					} else if session.Status == "disabled" {
-						<span class="badge badge-status badge-disabled">Disabled</span>
-					} else if session.Status == "revoked" {
-						<span class="badge badge-status badge-revoked">Revoked</span>
-					}
-				</div>
-			</div>
-			<div class="session-client-id">
-				<strong>Client ID:</strong> <span class="client-id-text">{ session.ClientID }</span>
-			</div>
-			<div class="session-scopes">
-				<strong>Scopes:</strong> <span class="badge">{ session.Scopes }</span>
-			</div>
-			<div class="session-dates">
-				<div><strong>Created:</strong> { session.CreatedAt.Format("2006-01-02 15:04:05") }</div>
-				<div><strong>Expires:</strong> { session.ExpiresAt.Format("2006-01-02 15:04:05") }</div>
-				if session.TokenCategory == "refresh" && !session.LastUsedAt.IsZero() {
-					<div><strong>Last Used:</strong> { session.LastUsedAt.Format("2006-01-02 15:04:05") }</div>
+		<!-- Client Name & ID -->
+		<td class="session-table-client">
+			<span class="session-table-client-name">{ session.ClientName }</span>
+			<span class="session-table-client-id">{ session.ClientID }</span>
+		</td>
+		<!-- Type & Status Badges -->
+		<td>
+			<div class="session-table-badges">
+				if session.TokenCategory == "refresh" {
+					<span class="session-table-badge token-refresh">Refresh</span>
+				} else {
+					<span class="session-table-badge token-access">Access</span>
+				}
+				if session.Status == "active" {
+					<span class="session-table-badge status-active">Active</span>
+				} else if session.Status == "disabled" {
+					<span class="session-table-badge status-disabled">Disabled</span>
+				} else if session.Status == "revoked" {
+					<span class="session-table-badge status-revoked">Revoked</span>
+				}
+				if session.IsExpired() {
+					<span class="session-table-expired-badge">⚠ Expired</span>
 				}
 			</div>
-			if session.IsExpired() {
-				<div class="session-expiry-warning">⚠ Token Expired</div>
+		</td>
+		<!-- Scopes -->
+		<td class="session-table-scopes">
+			{ session.Scopes }
+		</td>
+		<!-- Created Date -->
+		<td class="session-table-date">
+			<span class="session-table-date-label">Created</span>
+			<span class="session-table-date-value">{ session.CreatedAt.Format("2006-01-02 15:04") }</span>
+		</td>
+		<!-- Expires Date -->
+		<td class="session-table-date">
+			<span class="session-table-date-label">Expires</span>
+			<span class="session-table-date-value">{ session.ExpiresAt.Format("2006-01-02 15:04") }</span>
+		</td>
+		<!-- Last Used -->
+		<td class="session-table-date">
+			if session.TokenCategory == "refresh" && !session.LastUsedAt.IsZero() {
+				<span class="session-table-date-label">Last Used</span>
+				<span class="session-table-date-value">{ session.LastUsedAt.Format("2006-01-02 15:04") }</span>
+			} else {
+				<span style="color: var(--color-text-tertiary);">—</span>
 			}
-		</div>
-	</div>
+		</td>
+		<!-- Actions -->
+		<td>
+			<div class="session-table-actions">
+				if session.Status == "active" {
+					<form method="POST" action={ templ.URL("/account/sessions/" + session.ID + "/disable") } style="margin: 0;">
+						<input type="hidden" name="csrf_token" value={ csrfToken }/>
+						<button type="submit" class="session-table-action-btn disable" onclick="return confirm('Disable this token? You can re-enable it later.')">
+							Disable
+						</button>
+					</form>
+				} else if session.Status == "disabled" {
+					<form method="POST" action={ templ.URL("/account/sessions/" + session.ID + "/enable") } style="margin: 0;">
+						<input type="hidden" name="csrf_token" value={ csrfToken }/>
+						<button type="submit" class="session-table-action-btn enable">
+							Enable
+						</button>
+					</form>
+				}
+				if session.Status != "revoked" {
+					<form method="POST" action={ templ.URL("/account/sessions/" + session.ID + "/revoke") } style="margin: 0;">
+						<input type="hidden" name="csrf_token" value={ csrfToken }/>
+						<button type="submit" class="session-table-action-btn revoke" onclick="return confirm('Permanently revoke this token? This action cannot be undone.')">
+							Revoke
+						</button>
+					</form>
+				}
+			</div>
+		</td>
+	</tr>
 }
 
 func buildSessionsPaginationURL(page, pageSize int, search string) string {
@@ -173,42 +204,42 @@ func buildSessionsPaginationURL(page, pageSize int, search string) string {
 }
 
 templ SessionsPagination(pagination store.PaginationResult, pageSize int, search string) {
-	<div class="pagination-container">
-		<div class="pagination-info">
+	<div class="sessions-pagination">
+		<div class="sessions-pagination-info">
 			<span>Showing</span>
-			<span class="pagination-info-total">{ fmt.Sprintf("%d", pagination.Total) }</span>
+			<span class="sessions-pagination-info-number">{ fmt.Sprintf("%d", pagination.Total) }</span>
 			<span>total sessions</span>
 		</div>
-		<div class="pagination-controls">
+		<div class="sessions-pagination-controls">
 			if pagination.HasPrev {
 				<a
 					href={ templ.URL(buildSessionsPaginationURL(pagination.PrevPage, pageSize, search)) }
-					class="pagination-button"
+					class="sessions-pagination-btn"
 				>
-					<span class="pagination-button-icon">←</span>
+					<span>←</span>
 					<span>Previous</span>
 				</a>
 			} else {
-				<button class="pagination-button" disabled>
-					<span class="pagination-button-icon">←</span>
+				<button class="sessions-pagination-btn" disabled>
+					<span>←</span>
 					<span>Previous</span>
 				</button>
 			}
-			<span class="pagination-current">
+			<span class="sessions-pagination-current">
 				Page { fmt.Sprintf("%d", pagination.CurrentPage) } of { fmt.Sprintf("%d", pagination.TotalPages) }
 			</span>
 			if pagination.HasNext {
 				<a
 					href={ templ.URL(buildSessionsPaginationURL(pagination.NextPage, pageSize, search)) }
-					class="pagination-button"
+					class="sessions-pagination-btn"
 				>
 					<span>Next</span>
-					<span class="pagination-button-icon">→</span>
+					<span>→</span>
 				</a>
 			} else {
-				<button class="pagination-button" disabled>
+				<button class="sessions-pagination-btn" disabled>
 					<span>Next</span>
-					<span class="pagination-button-icon">→</span>
+					<span>→</span>
 				</button>
 			}
 		</div>

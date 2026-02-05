@@ -8,52 +8,59 @@ import (
 
 templ AdminClients(props ClientsPageProps) {
 	@Layout("OAuth Clients", LayoutAdminNavbar, &props.NavbarProps) {
+		<link rel="stylesheet" href="/static/css/pages/admin-clients.css"/>
 		<div class="main-content">
 			<div class="container">
 				<div class="card">
-					<div class="header">
-						<h1 class="title-with-icon">
+					<!-- Page Header -->
+					<div class="admin-clients-header">
+						<h1 class="admin-clients-title">
+							<span class="admin-clients-title-icon">🔑</span>
 							<span>OAuth Clients</span>
 						</h1>
-					</div>
-					<div class="page-actions">
-						<a href="/admin/clients/new" class="btn btn-primary">
+						<a href="/admin/clients/new" class="admin-create-btn">
+							<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<line x1="12" y1="5" x2="12" y2="19"></line>
+								<line x1="5" y1="12" x2="19" y2="12"></line>
+							</svg>
 							Create New Client
 						</a>
 					</div>
 					@Alert(props.Success, AlertSuccess)
 					<!-- Search and Filters -->
-					<form method="GET" action="/admin/clients" class="search-filters">
-						<div class="search-group">
-							<label for="search" class="search-label">Search</label>
-							<div class="search-input-wrapper">
-								<span class="search-icon">🔍</span>
-								<input
-									type="text"
-									id="search"
-									name="search"
-									class="search-input"
-									placeholder="Search by name, client ID, or description..."
-									value={ props.Search }
-								/>
+					<div class="admin-search-section">
+						<form method="GET" action="/admin/clients" class="admin-search-grid">
+							<div class="admin-search-group">
+								<label for="search" class="admin-search-label">Search</label>
+								<div class="admin-search-input-wrapper">
+									<span class="admin-search-icon">🔍</span>
+									<input
+										type="text"
+										id="search"
+										name="search"
+										class="admin-search-input"
+										placeholder="Search by name, client ID, or description..."
+										value={ props.Search }
+									/>
+								</div>
 							</div>
-						</div>
-						<div class="page-size-group">
-							<label for="page_size" class="search-label">Items per page</label>
-							<select name="page_size" id="page_size" class="page-size-select" onchange="this.form.submit()">
-								<option value="10" selected?={ props.PageSize == 10 }>10 items</option>
-								<option value="20" selected?={ props.PageSize == 20 }>20 items</option>
-								<option value="50" selected?={ props.PageSize == 50 }>50 items</option>
-							</select>
-						</div>
-						<div class="search-actions">
-							<button type="submit" class="btn-search">Search</button>
-							<a href="/admin/clients" class="btn-clear">Clear</a>
-						</div>
-					</form>
+							<div class="admin-search-group">
+								<label for="page_size" class="admin-search-label">Items per page</label>
+								<select name="page_size" id="page_size" class="admin-page-size-select" onchange="this.form.submit()">
+									<option value="10" selected?={ props.PageSize == 10 }>10 items</option>
+									<option value="20" selected?={ props.PageSize == 20 }>20 items</option>
+									<option value="50" selected?={ props.PageSize == 50 }>50 items</option>
+								</select>
+							</div>
+							<div class="admin-search-buttons">
+								<button type="submit" class="admin-search-btn">Search</button>
+								<a href="/admin/clients" class="admin-clear-btn">Clear</a>
+							</div>
+						</form>
+					</div>
 					if len(props.Clients) > 0 {
-						<div class="table-wrapper">
-							<table class="clients-table">
+						<div class="admin-clients-table-wrapper">
+							<table class="admin-clients-table">
 								<thead>
 									<tr>
 										<th class="col-client-name">
@@ -103,31 +110,34 @@ templ AdminClients(props ClientsPageProps) {
 						<!-- Pagination Controls -->
 						@ClientsPagination(props.Pagination, props.PageSize, props.Search)
 					} else {
-						<div class="empty-state-with-search">
-							<div class="empty-state-icon-large">
+						<div class="admin-empty-state">
+							<div class="admin-empty-icon">
 								if props.Search != "" {
 									🔍
 								} else {
 									🔑
 								}
 							</div>
-							<h3 class="empty-state-title-large">
+							<h3 class="admin-empty-title">
 								if props.Search != "" {
 									No clients found
 								} else {
 									No OAuth Clients Yet
 								}
 							</h3>
-							<p class="empty-state-text">
+							<p class="admin-empty-text">
 								if props.Search != "" {
 									Try adjusting your search terms or clear the filter.
 								} else {
-									Get started by creating your first OAuth client.<br/>
-									Clients are used to authenticate applications that access your resources.
+									Get started by creating your first OAuth client. Clients are used to authenticate applications that access your resources.
 								}
 							</p>
 							if props.Search == "" {
-								<a href="/admin/clients/new" class="btn btn-primary">
+								<a href="/admin/clients/new" class="admin-create-btn">
+									<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<line x1="12" y1="5" x2="12" y2="19"></line>
+										<line x1="5" y1="12" x2="19" y2="12"></line>
+									</svg>
 									Create Your First Client
 								</a>
 							}

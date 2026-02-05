@@ -2,20 +2,19 @@ package templates
 
 templ AdminClientCreated(props ClientCreatedPageProps) {
 	@Layout("OAuth Client", LayoutAdminNavbar, &props.NavbarProps) {
+		<link rel="stylesheet" href="/static/css/pages/admin-forms.css"/>
 		<div class="main-content">
-			<div class="container">
+			<div class="admin-form-container">
 				<div class="card">
-					<div class="header">
-						<h1 class="page-title-with-icon">
-							<span>OAuth Client Created Successfully</span>
-						</h1>
+					<div class="admin-form-header">
+						<h1 class="admin-form-title">Client Created Successfully</h1>
 					</div>
-					<div class="alert alert-success alert-success-spaced">
+					<div class="admin-success-banner">
 						Client "<strong>{ props.Client.ClientName }</strong>" has been created successfully!
 					</div>
-					<div class="warning-box warning-box-enhanced">
-						<div class="warning-icon">⚠</div>
-						<div class="warning-content">
+					<div class="admin-warning-box">
+						<div class="admin-warning-icon">⚠</div>
+						<div class="admin-warning-content">
 							<strong>Important Security Notice</strong>
 							<p>
 								The client secret is shown only once for security reasons.
@@ -23,51 +22,51 @@ templ AdminClientCreated(props ClientCreatedPageProps) {
 							</p>
 						</div>
 					</div>
-					<div class="secret-box secret-box-enhanced">
-						<div class="secret-header">
-							<strong class="secret-title">Client Secret</strong>
-							<p class="secret-description">
+					<div class="admin-secret-box">
+						<div class="admin-secret-header">
+							<strong class="admin-secret-title">Client Secret</strong>
+							<p class="admin-secret-description">
 								Copy this secret and store it securely. You won't be able to see it again.
 							</p>
 						</div>
-						<div class="secret-value secret-value-enhanced" id="clientSecret">{ props.ClientSecret }</div>
-						<button onclick="copySecret()" class="btn btn-secondary btn-small copy-button-spaced">
-							Copy to Clipboard
+						<div class="admin-secret-value" id="clientSecret">{ props.ClientSecret }</div>
+						<button onclick="copySecret()" class="admin-copy-button">
+							📋 Copy to Clipboard
 						</button>
 					</div>
-					<h3 class="client-details-title">Client Details</h3>
-					<div class="client-details-section">
-						<div class="info-row">
-							<div class="info-label">Client ID:</div>
-							<div class="info-value">{ props.Client.ClientID }</div>
+					<h3 class="admin-form-title" style="margin-bottom: var(--space-6);">Client Details</h3>
+					<div class="admin-detail-section">
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Client ID</div>
+							<div class="admin-detail-value">{ props.Client.ClientID }</div>
 						</div>
-						<div class="info-row">
-							<div class="info-label">Client Name:</div>
-							<div class="info-value">{ props.Client.ClientName }</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Client Name</div>
+							<div class="admin-detail-value">{ props.Client.ClientName }</div>
 						</div>
 						if props.Client.Description != "" {
-							<div class="info-row">
-								<div class="info-label">Description:</div>
-								<div class="info-value">{ props.Client.Description }</div>
+							<div class="admin-detail-row">
+								<div class="admin-detail-label">Description</div>
+								<div class="admin-detail-value">{ props.Client.Description }</div>
 							</div>
 						}
-						<div class="info-row">
-							<div class="info-label">Scopes:</div>
-							<div class="info-value">{ props.Client.Scopes }</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Scopes</div>
+							<div class="admin-detail-value">{ props.Client.Scopes }</div>
 						</div>
-						<div class="info-row">
-							<div class="info-label">Grant Types:</div>
-							<div class="info-value">{ props.Client.GrantTypes }</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Grant Types</div>
+							<div class="admin-detail-value">{ props.Client.GrantTypes }</div>
 						</div>
 						if props.Client.RedirectURIs != "" {
-							<div class="info-row">
-								<div class="info-label">Redirect URIs:</div>
-								<div class="info-value">{ props.Client.RedirectURIs }</div>
+							<div class="admin-detail-row">
+								<div class="admin-detail-label">Redirect URIs</div>
+								<div class="admin-detail-value">{ props.Client.RedirectURIs }</div>
 							</div>
 						}
-						<div class="info-row">
-							<div class="info-label">Status:</div>
-							<div class="info-value">
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Status</div>
+							<div class="admin-detail-value">
 								if props.Client.IsActive {
 									<span class="status-badge status-active">Active</span>
 								} else {
@@ -76,8 +75,10 @@ templ AdminClientCreated(props ClientCreatedPageProps) {
 							</div>
 						</div>
 					</div>
-					<div class="back-button-section">
-						<a href="/admin/clients" class="btn btn-primary">Back to Clients List</a>
+					<div class="admin-action-buttons">
+						<a href="/admin/clients" class="admin-action-btn primary">
+							Back to Clients List
+						</a>
 					</div>
 				</div>
 			</div>

@@ -1,0 +1,537 @@
+/* ============================================
+   Account Sessions Page - Session Management
+   Modern card-based session listing
+   ============================================ */
+
+/* Sessions container */
+.sessions-page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Enhanced card header */
+.sessions-card-header {
+  text-align: center;
+  margin-bottom: var(--space-8);
+  padding-bottom: var(--space-6);
+  border-bottom: 2px solid var(--color-border);
+  animation: slideDown 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+}
+
+.sessions-title {
+  font-size: var(--text-4xl);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-3);
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #0072ff, #00c6ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.sessions-subtitle {
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+/* Search and filters section */
+.sessions-search-section {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  margin-bottom: var(--space-8);
+  animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.4s both;
+}
+
+.sessions-search-grid {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--space-4);
+  align-items: end;
+}
+
+.sessions-search-input-wrapper {
+  position: relative;
+}
+
+.sessions-search-icon {
+  position: absolute;
+  left: var(--space-4);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: var(--text-lg);
+  opacity: 0.5;
+}
+
+.sessions-search-input {
+  width: 100%;
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-12);
+  font-size: var(--text-base);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.sessions-search-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(0, 114, 255, 0.1);
+}
+
+/* Sessions list header */
+.sessions-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-6);
+  padding: var(--space-4) 0;
+  border-bottom: 2px solid var(--color-border);
+  animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.6s both;
+}
+
+.sessions-count {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+}
+
+.sessions-revoke-all-btn {
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(135deg, #EF4444, #DC2626);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.sessions-revoke-all-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+/* Sessions table */
+.sessions-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.6s both;
+  background: var(--color-bg-primary);
+  margin-bottom: var(--space-8);
+}
+
+.sessions-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.sessions-table thead {
+  background: var(--color-bg-secondary);
+  border-bottom: 2px solid var(--color-border);
+}
+
+.sessions-table th {
+  padding: var(--space-4) var(--space-4);
+  text-align: left;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  text-transform: uppercase;
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.sessions-table tbody tr {
+  border-bottom: 1px solid var(--color-border);
+  transition: all var(--transition-fast);
+}
+
+.sessions-table tbody tr:hover {
+  background: var(--color-bg-secondary);
+}
+
+.sessions-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.sessions-table tbody tr.expired {
+  opacity: 0.6;
+}
+
+.sessions-table tbody tr.disabled {
+  opacity: 0.8;
+}
+
+.sessions-table tbody tr.revoked {
+  opacity: 0.5;
+}
+
+.sessions-table td {
+  padding: var(--space-4);
+  vertical-align: middle;
+}
+
+/* Table cell: Client name */
+.session-table-client {
+  min-width: 180px;
+}
+
+.session-table-client-name {
+  font-weight: 700;
+  color: var(--color-text-primary);
+  font-size: var(--text-base);
+  display: block;
+  margin-bottom: var(--space-1);
+}
+
+.session-table-client-id {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  display: block;
+}
+
+/* Table cell: Badges */
+.session-table-badges {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 100px;
+}
+
+.session-table-badge {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  display: inline-block;
+  text-align: center;
+}
+
+.session-table-badge.token-refresh {
+  background: rgba(0, 114, 255, 0.1);
+  color: #0072ff;
+  border: 1px solid rgba(0, 114, 255, 0.3);
+}
+
+.session-table-badge.token-access {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10B981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.session-table-badge.status-active {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.session-table-badge.status-disabled {
+  background: rgba(245, 158, 11, 0.1);
+  color: #D97706;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.session-table-badge.status-revoked {
+  background: rgba(239, 68, 68, 0.1);
+  color: #DC2626;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Table cell: Scopes */
+.session-table-scopes {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  min-width: 100px;
+}
+
+/* Table cell: Dates */
+.session-table-date {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  min-width: 130px;
+}
+
+.session-table-date-label {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  display: block;
+  margin-bottom: var(--space-1);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.session-table-date-value {
+  font-weight: 600;
+}
+
+/* Table cell: Actions */
+.session-table-actions {
+  display: flex;
+  gap: var(--space-2);
+  white-space: nowrap;
+  min-width: 180px;
+}
+
+.session-table-action-btn {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: center;
+}
+
+.session-table-action-btn.enable {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.session-table-action-btn.enable:hover {
+  background: rgba(16, 185, 129, 0.2);
+  transform: translateY(-1px);
+}
+
+.session-table-action-btn.disable {
+  background: rgba(245, 158, 11, 0.1);
+  color: #D97706;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.session-table-action-btn.disable:hover {
+  background: rgba(245, 158, 11, 0.2);
+  transform: translateY(-1px);
+}
+
+.session-table-action-btn.revoke {
+  background: rgba(239, 68, 68, 0.1);
+  color: #DC2626;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.session-table-action-btn.revoke:hover {
+  background: rgba(239, 68, 68, 0.2);
+  transform: translateY(-1px);
+}
+
+/* Expired warning badge */
+.session-table-expired-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: #D97706;
+}
+
+/* Empty state */
+.sessions-empty-state {
+  text-align: center;
+  padding: var(--space-16) var(--space-8);
+  animation: fadeIn 0.6s ease 0.8s both;
+}
+
+.sessions-empty-icon {
+  font-size: 5rem;
+  margin-bottom: var(--space-6);
+  opacity: 0.5;
+}
+
+.sessions-empty-title {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-3);
+}
+
+.sessions-empty-text {
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+
+@keyframes sessionCardAppear {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Pagination */
+.sessions-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) 0;
+  animation: fadeIn 0.6s ease 0.8s both;
+}
+
+.sessions-pagination-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.sessions-pagination-info-number {
+  font-weight: 700;
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+}
+
+.sessions-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.sessions-pagination-btn {
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sessions-pagination-btn:hover:not(:disabled) {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-primary);
+  transform: translateY(-1px);
+  color: var(--color-text-primary);
+}
+
+.sessions-pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sessions-pagination-current {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+
+@media (max-width: 1024px) {
+  .sessions-table {
+    font-size: var(--text-xs);
+  }
+
+  .sessions-table th,
+  .sessions-table td {
+    padding: var(--space-3);
+  }
+}
+
+@media (max-width: 768px) {
+  .sessions-search-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sessions-table-wrapper {
+    overflow-x: scroll;
+  }
+
+  .sessions-pagination {
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .sessions-pagination-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+/* ============================================
+   Accessibility
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .sessions-card-header,
+  .sessions-search-section,
+  .sessions-list-header,
+  .sessions-table-wrapper,
+  .sessions-pagination {
+    animation: none !important;
+  }
+
+  .sessions-pagination-btn:hover,
+  .session-table-action-btn:hover {
+    transform: none !important;
+  }
+}

@@ -1,0 +1,457 @@
+/* ============================================
+   Login Page - Secure Authentication Aesthetic
+   Professional login interface with OAuth support
+   ============================================ */
+
+/* Login container */
+.login-container {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4);
+}
+
+/* Enhanced login card */
+.login-card {
+  background: var(--color-bg-primary);
+  border: 2px solid transparent;
+  border-radius: var(--radius-xl);
+  padding: var(--space-12) var(--space-10);
+  box-shadow:
+    0 20px 50px -12px rgba(0, 114, 255, 0.12),
+    0 0 0 1px rgba(0, 114, 255, 0.06);
+  position: relative;
+  overflow: hidden;
+  animation: loginCardAppear 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Top gradient accent */
+.login-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    #0072ff 0%,
+    #00c6ff 50%,
+    #0072ff 100%
+  );
+  background-size: 200% 100%;
+  animation: gradientShift 8s ease infinite;
+}
+
+/* Radial accent background */
+.login-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(
+    circle at center,
+    rgba(0, 114, 255, 0.06) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  animation: pulse 4s ease-in-out infinite;
+}
+
+/* Login header */
+.login-header {
+  text-align: center;
+  margin-bottom: var(--space-8);
+  animation: slideDown 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+}
+
+.login-title {
+  font-size: var(--text-4xl);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-3);
+  letter-spacing: -0.03em;
+}
+
+.login-subtitle {
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* OAuth section */
+.login-oauth-section {
+  animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.4s both;
+}
+
+.login-oauth-label {
+  text-align: center;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-4);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.login-oauth-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.login-oauth-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  font-size: var(--text-base);
+  font-weight: 600;
+  border-radius: var(--radius-lg);
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-oauth-btn svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.login-oauth-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.15),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+.login-oauth-btn:hover::before {
+  left: 100%;
+}
+
+.login-oauth-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.login-oauth-btn:active {
+  transform: translateY(0);
+}
+
+/* GitHub button */
+.login-oauth-btn.github {
+  background: #24292e;
+  color: white;
+  box-shadow: 0 4px 12px rgba(36, 41, 46, 0.3);
+}
+
+.login-oauth-btn.github:hover {
+  background: #2f363d;
+  box-shadow: 0 6px 20px rgba(36, 41, 46, 0.4);
+  color: white;
+}
+
+/* Gitea button */
+.login-oauth-btn.gitea {
+  background: #609926;
+  color: white;
+  box-shadow: 0 4px 12px rgba(96, 153, 38, 0.3);
+}
+
+.login-oauth-btn.gitea svg {
+  width: 24px;
+  height: 24px;
+}
+
+.login-oauth-btn.gitea:hover {
+  background: #6fb829;
+  box-shadow: 0 6px 20px rgba(96, 153, 38, 0.4);
+  color: white;
+}
+
+/* Microsoft button */
+.login-oauth-btn.microsoft {
+  background: #2f2f2f;
+  color: white;
+  border: 1px solid #8c8c8c;
+  box-shadow: 0 4px 12px rgba(47, 47, 47, 0.3);
+}
+
+.login-oauth-btn.microsoft:hover {
+  background: #1a1a1a;
+  box-shadow: 0 6px 20px rgba(47, 47, 47, 0.4);
+  color: white;
+}
+
+/* Divider */
+.login-divider {
+  position: relative;
+  text-align: center;
+  margin: var(--space-8) 0;
+  animation: fadeIn 0.6s ease 0.6s both;
+}
+
+.login-divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.login-divider-text {
+  position: relative;
+  display: inline-block;
+  padding: 0 var(--space-4);
+  background: var(--color-bg-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Login form */
+.login-form {
+  animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.8s both;
+}
+
+.login-form-group {
+  margin-bottom: var(--space-6);
+}
+
+.login-form-label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.login-form-input {
+  width: 100%;
+  padding: var(--space-4) var(--space-5);
+  font-size: var(--text-base);
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
+  background: var(--color-bg-secondary);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.login-form-input:hover {
+  border-color: var(--color-gray-400);
+  background: var(--color-bg-primary);
+}
+
+.login-form-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  background: var(--color-bg-primary);
+  box-shadow:
+    0 0 0 4px rgba(0, 114, 255, 0.1),
+    0 0 20px rgba(0, 114, 255, 0.15);
+}
+
+.login-form-input::placeholder {
+  color: var(--color-gray-400);
+}
+
+/* Submit button */
+.login-submit-btn {
+  width: 100%;
+  padding: var(--space-5) var(--space-8);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: white;
+  background: linear-gradient(135deg, #0072ff 0%, #0059cc 100%);
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow:
+    0 4px 16px rgba(0, 114, 255, 0.3),
+    0 8px 24px rgba(0, 114, 255, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+.login-submit-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+.login-submit-btn:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 6px 24px rgba(0, 114, 255, 0.4),
+    0 12px 36px rgba(0, 114, 255, 0.2);
+}
+
+.login-submit-btn:hover::before {
+  left: 100%;
+}
+
+.login-submit-btn:active {
+  transform: translateY(0);
+  box-shadow:
+    0 2px 8px rgba(0, 114, 255, 0.3),
+    0 4px 16px rgba(0, 114, 255, 0.15);
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+
+@keyframes loginCardAppear {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes gradientShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+
+@media (max-width: 640px) {
+  .login-container {
+    max-width: 100%;
+    padding: var(--space-4);
+  }
+
+  .login-card {
+    padding: var(--space-8) var(--space-6);
+  }
+
+  .login-title {
+    font-size: var(--text-3xl);
+  }
+
+  .login-submit-btn {
+    padding: var(--space-4) var(--space-6);
+    font-size: var(--text-base);
+  }
+}
+
+/* ============================================
+   Accessibility
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .login-card,
+  .login-header,
+  .login-oauth-section,
+  .login-divider,
+  .login-form,
+  .login-oauth-btn,
+  .login-submit-btn {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .login-oauth-btn:hover,
+  .login-submit-btn:hover {
+    transform: none !important;
+  }
+}
+
+@media (prefers-contrast: high) {
+  .login-card {
+    border: 3px solid var(--color-primary);
+  }
+
+  .login-form-input {
+    border-width: 3px;
+  }
+}

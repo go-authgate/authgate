@@ -2,24 +2,24 @@ package templates
 
 templ AdminClientForm(props ClientFormPageProps) {
 	@Layout(props.Title, LayoutAdminNavbar, &props.NavbarProps) {
+		<link rel="stylesheet" href="/static/css/pages/admin-forms.css"/>
 		<div class="main-content">
-			<div class="container">
+			<div class="admin-form-container">
 				<div class="card">
-					<div class="header">
-						<h1 class="page-title-with-icon">
-							<span>{ props.Title }</span>
-						</h1>
+					<div class="admin-form-header">
+						<h1 class="admin-form-title">{ props.Title }</h1>
 					</div>
 					@Alert(props.Error, AlertError)
-					<form method={ props.Method } action={ templ.URL(props.Action) } class="client-form">
+					<form method={ props.Method } action={ templ.URL(props.Action) } class="admin-form">
 						<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
-						<div class="form-group">
-							<label for="client_name">Client Name *</label>
+						<div class="admin-form-group">
+							<label for="client_name" class="admin-form-label admin-form-label-required">Client Name</label>
 							if props.Client != nil {
 								<input
 									type="text"
 									id="client_name"
 									name="client_name"
+									class="admin-form-input"
 									value={ props.Client.ClientName }
 									required
 								/>
@@ -28,27 +28,29 @@ templ AdminClientForm(props ClientFormPageProps) {
 									type="text"
 									id="client_name"
 									name="client_name"
+									class="admin-form-input"
 									required
 								/>
 							}
-							<small class="hint">A human-readable name for this OAuth client</small>
+							<small class="admin-form-hint">A human-readable name for this OAuth client</small>
 						</div>
-						<div class="form-group">
-							<label for="description">Description</label>
+						<div class="admin-form-group">
+							<label for="description" class="admin-form-label">Description</label>
 							if props.Client != nil {
-								<textarea id="description" name="description" rows="3">{ props.Client.Description }</textarea>
+								<textarea id="description" name="description" class="admin-form-textarea" rows="3">{ props.Client.Description }</textarea>
 							} else {
-								<textarea id="description" name="description" rows="3"></textarea>
+								<textarea id="description" name="description" class="admin-form-textarea" rows="3"></textarea>
 							}
-							<small class="hint">Optional description of this client's purpose</small>
+							<small class="admin-form-hint">Optional description of this client's purpose</small>
 						</div>
-						<div class="form-group">
-							<label for="scopes">Scopes</label>
+						<div class="admin-form-group">
+							<label for="scopes" class="admin-form-label">Scopes</label>
 							if props.Client != nil {
 								<input
 									type="text"
 									id="scopes"
 									name="scopes"
+									class="admin-form-input"
 									value={ props.Client.Scopes }
 								/>
 							} else {
@@ -56,41 +58,42 @@ templ AdminClientForm(props ClientFormPageProps) {
 									type="text"
 									id="scopes"
 									name="scopes"
+									class="admin-form-input"
 									value="read write"
 								/>
 							}
-							<small class="hint">Space-separated list of scopes (e.g., "read write")</small>
+							<small class="admin-form-hint">Space-separated list of scopes (e.g., "read write")</small>
 						</div>
-						<div class="form-group">
-							<label for="grant_types">Grant Types</label>
-							<select id="grant_types" name="grant_types">
+						<div class="admin-form-group">
+							<label for="grant_types" class="admin-form-label">Grant Types</label>
+							<select id="grant_types" name="grant_types" class="admin-form-select">
 								<option value="device_code" selected>
 									Device Code Flow (RFC 8628)
 								</option>
 							</select>
-							<small class="hint">Currently only Device Code Flow is supported</small>
+							<small class="admin-form-hint">Currently only Device Code Flow is supported</small>
 						</div>
-						<div class="form-group">
-							<label for="redirect_uris">Redirect URIs</label>
+						<div class="admin-form-group">
+							<label for="redirect_uris" class="admin-form-label">Redirect URIs</label>
 							if props.Client != nil {
-								<textarea id="redirect_uris" name="redirect_uris" rows="3">{ props.Client.RedirectURIs }</textarea>
+								<textarea id="redirect_uris" name="redirect_uris" class="admin-form-textarea" rows="3">{ props.Client.RedirectURIs }</textarea>
 							} else {
-								<textarea id="redirect_uris" name="redirect_uris" rows="3"></textarea>
+								<textarea id="redirect_uris" name="redirect_uris" class="admin-form-textarea" rows="3"></textarea>
 							}
-							<small class="hint">Comma-separated redirect URIs (optional for device flow)</small>
+							<small class="admin-form-hint">Comma-separated redirect URIs (optional for device flow)</small>
 						</div>
 						if props.IsEdit {
-							<div class="form-group">
-								<label for="is_active">Status</label>
-								<select id="is_active" name="is_active">
+							<div class="admin-form-group">
+								<label for="is_active" class="admin-form-label">Status</label>
+								<select id="is_active" name="is_active" class="admin-form-select">
 									<option value="true" selected?={ props.Client != nil && props.Client.IsActive }>Active</option>
 									<option value="false" selected?={ props.Client != nil && !props.Client.IsActive }>Inactive</option>
 								</select>
-								<small class="hint">Inactive clients cannot be used for authorization</small>
+								<small class="admin-form-hint">Inactive clients cannot be used for authorization</small>
 							</div>
-							<div class="form-group">
-								<label>Client Secret</label>
-								<div class="secret-info-box">
+							<div class="admin-form-group">
+								<label class="admin-form-label">Client Secret</label>
+								<div class="admin-secret-info-box">
 									<p>
 										The client secret is encrypted and cannot be displayed.
 										<a
@@ -103,15 +106,15 @@ templ AdminClientForm(props ClientFormPageProps) {
 								</div>
 							</div>
 						}
-						<div class="form-actions">
-							<button type="submit" class="btn btn-primary">
+						<div class="admin-form-actions">
+							<button type="submit" class="admin-form-submit-btn">
 								if props.IsEdit {
 									Update Client
 								} else {
 									Create Client
 								}
 							</button>
-							<a href="/admin/clients" class="btn btn-secondary">Cancel</a>
+							<a href="/admin/clients" class="admin-form-cancel-btn">Cancel</a>
 						</div>
 					</form>
 				</div>

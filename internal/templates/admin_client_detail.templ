@@ -2,46 +2,45 @@ package templates
 
 templ AdminClientDetail(props ClientDetailPageProps) {
 	@Layout("Client Details", LayoutAdminNavbar, &props.NavbarProps) {
+		<link rel="stylesheet" href="/static/css/pages/admin-forms.css"/>
 		<div class="main-content">
-			<div class="container">
+			<div class="admin-form-container">
 				<div class="card">
-					<div class="header">
-						<h1 class="page-title-with-icon">
-							<span>Client Details</span>
-						</h1>
+					<div class="admin-form-header">
+						<h1 class="admin-form-title">Client Details</h1>
 					</div>
-					<div class="client-details-section">
-						<div class="info-row">
-							<div class="info-label">Client ID:</div>
-							<div class="info-value">{ props.Client.ClientID }</div>
+					<div class="admin-detail-section">
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Client ID</div>
+							<div class="admin-detail-value">{ props.Client.ClientID }</div>
 						</div>
-						<div class="info-row">
-							<div class="info-label">Client Name:</div>
-							<div class="info-value">{ props.Client.ClientName }</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Client Name</div>
+							<div class="admin-detail-value">{ props.Client.ClientName }</div>
 						</div>
 						if props.Client.Description != "" {
-							<div class="info-row">
-								<div class="info-label">Description:</div>
-								<div class="info-value">{ props.Client.Description }</div>
+							<div class="admin-detail-row">
+								<div class="admin-detail-label">Description</div>
+								<div class="admin-detail-value">{ props.Client.Description }</div>
 							</div>
 						}
-						<div class="info-row">
-							<div class="info-label">Scopes:</div>
-							<div class="info-value">{ props.Client.Scopes }</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Scopes</div>
+							<div class="admin-detail-value">{ props.Client.Scopes }</div>
 						</div>
-						<div class="info-row">
-							<div class="info-label">Grant Types:</div>
-							<div class="info-value">{ props.Client.GrantTypes }</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Grant Types</div>
+							<div class="admin-detail-value">{ props.Client.GrantTypes }</div>
 						</div>
 						if len(props.Client.RedirectURIs) > 0 {
-							<div class="info-row">
-								<div class="info-label">Redirect URIs:</div>
-								<div class="info-value">{ props.Client.RedirectURIs.Join(", ") }</div>
+							<div class="admin-detail-row">
+								<div class="admin-detail-label">Redirect URIs</div>
+								<div class="admin-detail-value">{ props.Client.RedirectURIs.Join(", ") }</div>
 							</div>
 						}
-						<div class="info-row">
-							<div class="info-label">Device Flow:</div>
-							<div class="info-value">
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Device Flow</div>
+							<div class="admin-detail-value">
 								if props.Client.EnableDeviceFlow {
 									<span class="status-badge status-active">Enabled</span>
 								} else {
@@ -49,9 +48,9 @@ templ AdminClientDetail(props ClientDetailPageProps) {
 								}
 							</div>
 						</div>
-						<div class="info-row">
-							<div class="info-label">Status:</div>
-							<div class="info-value">
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Status</div>
+							<div class="admin-detail-value">
 								if props.Client.IsActive {
 									<span class="status-badge status-active">Active</span>
 								} else {
@@ -59,28 +58,28 @@ templ AdminClientDetail(props ClientDetailPageProps) {
 								}
 							</div>
 						</div>
-						<div class="info-row">
-							<div class="info-label">Created At:</div>
-							<div class="info-value">{ props.Client.CreatedAt.Format("2006-01-02 15:04:05") }</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Created At</div>
+							<div class="admin-detail-value">{ props.Client.CreatedAt.Format("2006-01-02 15:04:05") }</div>
 						</div>
-						<div class="info-row">
-							<div class="info-label">Updated At:</div>
-							<div class="info-value">{ props.Client.UpdatedAt.Format("2006-01-02 15:04:05") }</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Updated At</div>
+							<div class="admin-detail-value">{ props.Client.UpdatedAt.Format("2006-01-02 15:04:05") }</div>
 						</div>
 					</div>
-					<div class="action-buttons-section">
-						<a href={ templ.URL("/admin/clients/" + props.Client.ClientID + "/edit") } class="btn btn-primary">
-							Edit Client
+					<div class="admin-action-buttons">
+						<a href={ templ.URL("/admin/clients/" + props.Client.ClientID + "/edit") } class="admin-action-btn primary">
+							✏️ Edit Client
 						</a>
 						<a
 							href={ templ.URL("/admin/clients/" + props.Client.ClientID + "/regenerate-secret") }
-							class="btn btn-secondary"
+							class="admin-action-btn secondary"
 							onclick="return confirm('Are you sure? This will invalidate the current secret.');"
 						>
-							Regenerate Secret
+							🔄 Regenerate Secret
 						</a>
-						<a href="/admin/clients" class="btn btn-secondary">
-							Back to List
+						<a href="/admin/clients" class="admin-action-btn secondary">
+							← Back to List
 						</a>
 					</div>
 				</div>
