@@ -38,6 +38,10 @@ const (
 	// Security events
 	EventRateLimitExceeded  EventType = "RATE_LIMIT_EXCEEDED"
 	EventSuspiciousActivity EventType = "SUSPICIOUS_ACTIVITY"
+
+	// Audit events
+	EventTypeAuditLogView     EventType = "AUDIT_LOG_VIEWED"
+	EventTypeAuditLogExported EventType = "AUDIT_LOG_EXPORTED"
 )
 
 // EventSeverity represents the severity level of an audit event

@@ -168,7 +168,7 @@ func (h *AuditHandler) ListAuditLogs(c *gin.Context) {
 	if userID, exists := c.Get("user_id"); exists {
 		if username, usernameExists := c.Get("username"); usernameExists {
 			h.auditService.Log(c.Request.Context(), services.AuditLogEntry{
-				EventType:     "AUDIT_LOG_VIEWED",
+				EventType:     models.EventTypeAuditLogView,
 				Severity:      models.SeverityInfo,
 				ActorUserID:   userID.(string),
 				ActorUsername: username.(string),
@@ -328,7 +328,7 @@ func (h *AuditHandler) ExportAuditLogs(c *gin.Context) {
 	if userID, exists := c.Get("user_id"); exists {
 		if username, usernameExists := c.Get("username"); usernameExists {
 			h.auditService.Log(c.Request.Context(), services.AuditLogEntry{
-				EventType:     "AUDIT_LOG_EXPORTED",
+				EventType:     models.EventTypeAuditLogExported,
 				Severity:      models.SeverityInfo,
 				ActorUserID:   userID.(string),
 				ActorUsername: username.(string),
