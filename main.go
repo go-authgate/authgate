@@ -140,7 +140,7 @@ func runServer() {
 	oauthHTTPClient := createOAuthHTTPClient(cfg)
 
 	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(userService)
+	authHandler := handlers.NewAuthHandler(userService, cfg.BaseURL)
 	deviceHandler := handlers.NewDeviceHandler(deviceService, userService, cfg)
 	tokenHandler := handlers.NewTokenHandler(tokenService, cfg)
 	clientHandler := handlers.NewClientHandler(clientService)
