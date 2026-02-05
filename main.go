@@ -36,9 +36,6 @@ import (
 //go:embed internal/templates/*
 var templatesFS embed.FS
 
-//go:embed internal/static/*
-var staticFS embed.FS
-
 func main() {
 	// Define flags
 	showVersion := flag.Bool("version", false, "Show version information")
@@ -205,7 +202,7 @@ func runServer() {
 	r.SetHTMLTemplate(tmpl)
 
 	// Serve embedded static files
-	staticSubFS, err := fs.Sub(staticFS, "internal/static")
+	staticSubFS, err := fs.Sub(templatesFS, "internal/templates/static")
 	if err != nil {
 		log.Fatalf("Failed to create static sub filesystem: %v", err)
 	}
