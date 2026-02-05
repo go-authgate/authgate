@@ -1,0 +1,548 @@
+/* ============================================
+   Error Page - Alert Aesthetic
+   Bold error state with warning elements
+   ============================================ */
+
+/* Error page container */
+.error-container {
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+/* Enhanced error card */
+.error-card {
+  background: var(--color-bg-primary);
+  border: 2px solid transparent;
+  border-radius: var(--radius-xl);
+  padding: var(--space-12) var(--space-10);
+  box-shadow:
+    0 20px 50px -12px rgba(239, 68, 68, 0.15),
+    0 0 0 1px rgba(239, 68, 68, 0.08);
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  animation: errorCardAppear 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Error gradient accent */
+.error-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    #EF4444 0%,
+    #F87171 50%,
+    #EF4444 100%
+  );
+  background-size: 200% 100%;
+  animation: gradientShift 8s ease infinite;
+}
+
+/* Radial accent */
+.error-card::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(
+    circle at center,
+    rgba(239, 68, 68, 0.06) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  animation: errorPulse 4s ease-in-out infinite;
+}
+
+/* Error icon with advanced styling */
+.error-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto var(--space-8);
+  animation: iconShake 0.8s cubic-bezier(0.36, 0.07, 0.19, 0.97) 0.3s both;
+}
+
+.error-icon {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4rem;
+  color: #FFFFFF;
+  background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+  border-radius: 50%;
+  box-shadow:
+    0 10px 40px rgba(239, 68, 68, 0.3),
+    0 20px 60px rgba(239, 68, 68, 0.15),
+    inset 0 2px 4px rgba(255, 255, 255, 0.2);
+  animation: iconPulse 2s ease-in-out infinite;
+}
+
+/* Error icon SVG styling */
+.error-icon svg {
+  width: 60px;
+  height: 60px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.error-icon-circle {
+  position: absolute;
+  inset: -12px;
+  border: 3px solid rgba(239, 68, 68, 0.2);
+  border-radius: 50%;
+  animation: circlePulseError 2s ease-out infinite;
+}
+
+.error-icon-circle:nth-child(2) {
+  animation-delay: 0.5s;
+}
+
+/* Error header */
+.error-header {
+  margin-bottom: var(--space-8);
+  animation: slideUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.5s both;
+}
+
+.error-title {
+  font-size: var(--text-4xl);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-4);
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.error-title-highlight {
+  background: linear-gradient(135deg, #EF4444, #DC2626);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Error message box */
+.error-message-box {
+  background: linear-gradient(
+    135deg,
+    rgba(239, 68, 68, 0.08) 0%,
+    rgba(248, 113, 113, 0.05) 100%
+  );
+  border: 1.5px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6) var(--space-8);
+  margin-bottom: var(--space-8);
+  animation: slideUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.6s both;
+  position: relative;
+  overflow: hidden;
+}
+
+.error-message-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, #EF4444, #DC2626);
+}
+
+.error-message-label {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-error);
+  margin-bottom: var(--space-3);
+  font-family: var(--font-mono);
+  text-align: left;
+  padding-left: var(--space-4);
+}
+
+.error-message-text {
+  display: block;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  line-height: 1.6;
+  text-align: left;
+  padding-left: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.error-message-detail {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.7;
+  text-align: left;
+  padding-left: var(--space-4);
+  font-family: var(--font-mono);
+}
+
+/* Info box */
+.error-info-box {
+  background: var(--color-bg-secondary);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-5) var(--space-6);
+  margin-bottom: var(--space-8);
+  animation: slideUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.7s both;
+}
+
+.error-info-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  margin: 0;
+}
+
+.error-info-text::before {
+  content: '!';
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: var(--color-warning);
+  color: white;
+  border-radius: 50%;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Action buttons */
+.error-actions {
+  display: flex;
+  gap: var(--space-4);
+  justify-content: center;
+  flex-wrap: wrap;
+  animation: slideUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.8s both;
+}
+
+.error-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-8);
+  font-size: var(--text-base);
+  font-weight: 600;
+  font-family: var(--font-sans);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  text-decoration: none;
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Primary action button */
+.error-btn-primary {
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  border: 2px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.error-btn-primary:hover {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-gray-400);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  color: var(--color-text-primary);
+}
+
+.error-btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Try again button */
+.error-btn-retry {
+  background: linear-gradient(135deg, #0072ff 0%, #005bb5 100%);
+  color: white;
+  border: none;
+  box-shadow:
+    0 4px 16px rgba(0, 114, 255, 0.3),
+    0 8px 24px rgba(0, 114, 255, 0.15);
+}
+
+.error-btn-retry::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+.error-btn-retry:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 6px 24px rgba(0, 114, 255, 0.4),
+    0 12px 36px rgba(0, 114, 255, 0.2);
+  color: white;
+}
+
+.error-btn-retry:hover::before {
+  left: 100%;
+}
+
+.error-btn-retry:active {
+  transform: translateY(0);
+}
+
+/* Status footer */
+.error-footer {
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border);
+  animation: fadeIn 0.6s ease 0.9s both;
+}
+
+.error-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.error-status::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: var(--color-error);
+  border-radius: 50%;
+  animation: statusPulse 2s ease-in-out infinite;
+  box-shadow: 0 0 10px var(--color-error);
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+
+@keyframes errorCardAppear {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes iconShake {
+  0%, 100% {
+    opacity: 1;
+    transform: translateX(0) rotate(0deg) scale(1);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px) rotate(-5deg) scale(1.05);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px) rotate(5deg) scale(1.05);
+  }
+}
+
+@keyframes iconPulse {
+  0%, 100% {
+    box-shadow:
+      0 10px 40px rgba(239, 68, 68, 0.3),
+      0 20px 60px rgba(239, 68, 68, 0.15),
+      inset 0 2px 4px rgba(255, 255, 255, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 15px 50px rgba(239, 68, 68, 0.4),
+      0 25px 70px rgba(239, 68, 68, 0.2),
+      inset 0 2px 4px rgba(255, 255, 255, 0.2);
+  }
+}
+
+@keyframes circlePulseError {
+  0% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes errorPulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+}
+
+@keyframes gradientShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes statusPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+
+@media (max-width: 768px) {
+  .error-card {
+    padding: var(--space-8) var(--space-6);
+  }
+
+  .error-icon {
+    width: 100px;
+    height: 100px;
+    font-size: 3rem;
+  }
+
+  .error-icon svg {
+    width: 50px;
+    height: 50px;
+  }
+
+  .error-title {
+    font-size: var(--text-3xl);
+  }
+
+  .error-message-text {
+    font-size: var(--text-base);
+  }
+
+  .error-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .error-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .error-container {
+    max-width: 100%;
+    padding: 0 var(--space-4);
+  }
+
+  .error-card {
+    padding: var(--space-6) var(--space-4);
+  }
+
+  .error-title {
+    font-size: var(--text-2xl);
+  }
+
+  .error-icon {
+    width: 80px;
+    height: 80px;
+    font-size: 2.5rem;
+  }
+
+  .error-icon svg {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* ============================================
+   Accessibility
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .error-card,
+  .error-icon-wrapper,
+  .error-header,
+  .error-message-box,
+  .error-info-box,
+  .error-actions,
+  .error-footer,
+  .error-icon,
+  .error-btn {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .error-btn:hover {
+    transform: none !important;
+  }
+
+  .error-icon-circle {
+    animation: none !important;
+  }
+}
+
+@media (prefers-contrast: high) {
+  .error-card {
+    border: 3px solid var(--color-error);
+  }
+
+  .error-btn-primary {
+    border-width: 3px;
+  }
+}

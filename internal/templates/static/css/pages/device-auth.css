@@ -1,0 +1,484 @@
+/* ============================================
+   Device Authorization Page - Security Terminal
+   Bold, technical aesthetic with gradient accents
+   ============================================ */
+
+/* Override container width for device page */
+.device-auth-container {
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+/* Enhanced card with gradient border effect */
+.device-auth-card {
+  background: var(--color-bg-primary);
+  border: 2px solid transparent;
+  border-radius: var(--radius-xl);
+  padding: var(--space-12) var(--space-10);
+  box-shadow:
+    0 20px 50px -12px rgba(0, 114, 255, 0.15),
+    0 0 0 1px rgba(0, 114, 255, 0.08);
+  position: relative;
+  overflow: hidden;
+  animation: cardAppear 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Gradient background accent */
+.device-auth-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    #0072ff 0%,
+    #00c6ff 50%,
+    #0072ff 100%
+  );
+  background-size: 200% 100%;
+  animation: gradientShift 8s ease infinite;
+}
+
+/* Animated corner accents */
+.device-auth-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(
+    circle at center,
+    rgba(0, 114, 255, 0.08) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  animation: pulse 4s ease-in-out infinite;
+}
+
+/* Header with technical styling */
+.device-auth-header {
+  text-align: center;
+  margin-bottom: var(--space-8);
+  animation: slideDown 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+}
+
+.device-auth-title {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-3);
+  letter-spacing: -0.03em;
+  position: relative;
+  display: inline-block;
+}
+
+/* Subtle glow effect on title */
+.device-auth-title::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #0072ff, transparent);
+  border-radius: 2px;
+}
+
+.device-auth-subtitle {
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* Client info banner with enhanced styling */
+.device-client-info {
+  background: linear-gradient(
+    135deg,
+    rgba(0, 114, 255, 0.08) 0%,
+    rgba(0, 198, 255, 0.05) 100%
+  );
+  border: 1.5px solid rgba(0, 114, 255, 0.2);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  margin-bottom: var(--space-6);
+  text-align: center;
+  animation: slideInRight 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.4s both;
+  position: relative;
+  overflow: hidden;
+}
+
+.device-client-info::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: shimmer 3s infinite;
+}
+
+.device-client-label {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-primary);
+  margin-bottom: var(--space-2);
+  font-family: var(--font-mono);
+}
+
+.device-client-name {
+  display: block;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  letter-spacing: -0.01em;
+}
+
+.device-client-desc {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  margin-top: var(--space-2);
+  line-height: 1.5;
+}
+
+/* Form section */
+.device-form {
+  animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.6s both;
+}
+
+/* Enhanced code input with glow effect */
+.device-code-group {
+  margin-bottom: var(--space-8);
+  position: relative;
+}
+
+.device-code-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-4);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: var(--font-mono);
+}
+
+.device-code-label::before,
+.device-code-label::after {
+  content: '';
+  width: 40px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-border), transparent);
+}
+
+.device-code-input-wrapper {
+  position: relative;
+}
+
+.device-code-input {
+  width: 100%;
+  padding: var(--space-6) var(--space-8);
+  font-family: var(--font-mono);
+  font-size: 2.5rem !important;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--color-text-primary);
+  background: var(--color-bg-secondary);
+  border: 3px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.device-code-input:hover {
+  border-color: var(--color-gray-400);
+  background: var(--color-bg-primary);
+}
+
+.device-code-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  background: var(--color-bg-primary);
+  box-shadow:
+    0 0 0 4px rgba(0, 114, 255, 0.1),
+    0 0 30px rgba(0, 114, 255, 0.2),
+    inset 0 2px 8px rgba(0, 114, 255, 0.05);
+  transform: scale(1.02);
+}
+
+/* Placeholder with fade effect */
+.device-code-input::placeholder {
+  color: var(--color-gray-400);
+  opacity: 0.5;
+  letter-spacing: 0.3em;
+}
+
+/* Hint text with icon */
+.device-code-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+  margin-top: var(--space-3);
+  font-family: var(--font-mono);
+}
+
+.device-code-hint::before {
+  content: '→';
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+/* Enhanced submit button */
+.device-submit-btn {
+  width: 100%;
+  padding: var(--space-5) var(--space-8);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  font-family: var(--font-sans);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: white;
+  background: linear-gradient(
+    135deg,
+    #0072ff 0%,
+    #0059cc 100%
+  );
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow:
+    0 4px 16px rgba(0, 114, 255, 0.3),
+    0 8px 24px rgba(0, 114, 255, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Button shine effect */
+.device-submit-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+.device-submit-btn:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 6px 24px rgba(0, 114, 255, 0.4),
+    0 12px 36px rgba(0, 114, 255, 0.2);
+}
+
+.device-submit-btn:hover::before {
+  left: 100%;
+}
+
+.device-submit-btn:active {
+  transform: translateY(0);
+  box-shadow:
+    0 2px 8px rgba(0, 114, 255, 0.3),
+    0 4px 16px rgba(0, 114, 255, 0.15);
+}
+
+/* Status indicator (optional enhancement) */
+.device-status-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+  padding: var(--space-3);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.device-status-indicator::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: var(--color-success);
+  border-radius: 50%;
+  animation: statusPulse 2s ease-in-out infinite;
+  box-shadow: 0 0 10px var(--color-success);
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+
+@keyframes cardAppear {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes gradientShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+@keyframes statusPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+
+@media (max-width: 768px) {
+  .device-auth-card {
+    padding: var(--space-8) var(--space-6);
+  }
+
+  .device-auth-title {
+    font-size: var(--text-2xl);
+  }
+
+  .device-code-input {
+    padding: var(--space-5) var(--space-4);
+    font-size: 1.75rem !important;
+    letter-spacing: 0.25em;
+  }
+
+  .device-submit-btn {
+    padding: var(--space-4) var(--space-6);
+    font-size: var(--text-base);
+  }
+}
+
+@media (max-width: 640px) {
+  .device-auth-container {
+    max-width: 100%;
+    padding: 0 var(--space-4);
+  }
+
+  .device-code-input {
+    font-size: 1.5rem !important;
+    letter-spacing: 0.2em;
+  }
+
+  .device-client-name {
+    font-size: var(--text-base);
+  }
+}
+
+/* ============================================
+   Accessibility
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .device-auth-card,
+  .device-auth-header,
+  .device-client-info,
+  .device-form,
+  .device-code-input,
+  .device-submit-btn {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .device-submit-btn:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-contrast: high) {
+  .device-auth-card {
+    border: 3px solid var(--color-primary);
+  }
+
+  .device-code-input {
+    border-width: 3px;
+  }
+}

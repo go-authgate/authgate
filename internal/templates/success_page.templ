@@ -2,22 +2,71 @@ package templates
 
 templ SuccessPage(props SuccessPageProps) {
 	@Layout("Authorization Successful", LayoutHasNavbar, nil) {
-		<div class="container container-narrow">
-			<div class="card">
-				<div class="success-icon">&#10003;</div>
-				<h1>Authorization Successful</h1>
-				if props.ClientName != "" {
-					<p class="subtitle">
-						You have successfully authorized
-						<span class="client-name">{ props.ClientName }</span>.
-					</p>
-				} else {
-					<p class="subtitle">Your device has been authorized.</p>
-				}
-				<p class="info">You can now close this browser window and return to your CLI tool.</p>
-				<div class="actions">
-					<a href="/device" class="btn btn-secondary">Authorize Another Device</a>
-					<a href="/logout" class="btn btn-outline">Logout</a>
+		<link rel="stylesheet" href="/static/css/pages/success-page.css"/>
+		<div class="main-content">
+			<div class="success-container">
+				<div class="success-card">
+					<!-- Success Icon with Pulse Animation -->
+					<div class="success-icon-wrapper">
+						<div class="success-icon">
+							<!-- Checkmark SVG Icon -->
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+								<polyline points="20 6 9 17 4 12"></polyline>
+							</svg>
+						</div>
+						<div class="success-icon-circle"></div>
+						<div class="success-icon-circle"></div>
+					</div>
+					<!-- Success Header -->
+					<div class="success-header">
+						<h1 class="success-title">
+							<span class="success-title-highlight">Authorization Successful</span>
+						</h1>
+					</div>
+					<!-- Client Information -->
+					if props.ClientName != "" {
+						<div class="success-client-section">
+							<span class="success-client-label">Authorized Application</span>
+							<span class="success-client-name">{ props.ClientName }</span>
+						</div>
+						<p class="success-message">
+							You have successfully authorized <strong>{ props.ClientName }</strong> to access your account. The application can now authenticate on your behalf.
+						</p>
+					} else {
+						<p class="success-message">
+							Your device has been successfully authorized. You can now use the application to access your account.
+						</p>
+					}
+					<!-- Info Box -->
+					<div class="success-info-box">
+						<p class="success-info-text">
+							You can now close this browser window and return to your CLI tool
+						</p>
+					</div>
+					<!-- Action Buttons -->
+					<div class="success-actions">
+						<a href="/device" class="success-btn success-btn-primary">
+							<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+								<path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+							</svg>
+							Authorize Another Device
+						</a>
+						<a href="/logout" class="success-btn success-btn-secondary">
+							<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+								<polyline points="16 17 21 12 16 7"></polyline>
+								<line x1="21" y1="12" x2="9" y2="12"></line>
+							</svg>
+							Logout
+						</a>
+					</div>
+					<!-- Status Footer -->
+					<div class="success-footer">
+						<div class="success-status">
+							Secure Connection Active
+						</div>
+					</div>
 				</div>
 			</div>
 		</div>

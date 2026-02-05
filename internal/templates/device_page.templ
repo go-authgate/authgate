@@ -2,38 +2,57 @@ package templates
 
 templ DevicePage(props DevicePageProps) {
 	@Layout("Device Authorization", LayoutHasNavbar, &props.NavbarProps) {
+		<link rel="stylesheet" href="/static/css/pages/device-auth.css"/>
 		<div class="main-content">
-			<div class="container container-narrow">
-				<div class="card">
-					<div class="header">
-						<h1>Device Authorization</h1>
+			<div class="device-auth-container">
+				<div class="device-auth-card">
+					<!-- Header -->
+					<div class="device-auth-header">
+						<h1 class="device-auth-title">Device Authorization</h1>
+						<p class="device-auth-subtitle">Enter the code displayed on your device</p>
 					</div>
-					<p class="subtitle">Enter the code displayed on your device</p>
+					<!-- Client Info Banner -->
 					if props.ClientName != "" {
-						<div class="alert alert-info">
-							<span class="client-name">{ props.ClientName }</span> is requesting authorization to access your account.
+						<div class="device-client-info">
+							<span class="device-client-label">Requesting Access</span>
+							<span class="device-client-name">{ props.ClientName }</span>
+							<span class="device-client-desc">This application is requesting authorization to access your account</span>
 						</div>
 					}
+					<!-- Error Alert -->
 					@Alert(props.Error, AlertError)
-					<form method="POST" action="/device/verify">
+					<!-- Authorization Form -->
+					<form method="POST" action="/device/verify" class="device-form">
 						<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
-						<div class="form-group">
-							<label for="user_code">Device Code</label>
-							<input
-								type="text"
-								id="user_code"
-								name="user_code"
-								value={ props.UserCode }
-								placeholder="XXXX-XXXX"
-								class="code-input"
-								maxlength="9"
-								required
-								autofocus
-							/>
-							<small class="hint">Enter the code shown in your CLI tool</small>
+						<div class="device-code-group">
+							<label for="user_code" class="device-code-label">
+								Enter Device Code
+							</label>
+							<div class="device-code-input-wrapper">
+								<input
+									type="text"
+									id="user_code"
+									name="user_code"
+									value={ props.UserCode }
+									placeholder="XXXX-XXXX"
+									class="device-code-input"
+									maxlength="9"
+									required
+									autofocus
+									autocomplete="off"
+									spellcheck="false"
+								/>
+							</div>
+							<small class="device-code-hint">Enter the code shown in your CLI tool</small>
 						</div>
-						<button type="submit" class="btn btn-primary">Authorize Device</button>
+						<button type="submit" class="device-submit-btn">
+							Authorize Device
+						</button>
 					</form>
+					<!-- Status Indicator -->
+					<div class="device-status-indicator">
+						System Ready
+					</div>
 				</div>
 			</div>
 		</div>
