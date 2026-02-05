@@ -1284,11 +1284,11 @@ authgate/
 │   ├── driver.go    # Database driver factory (SQLite, PostgreSQL)
 │   ├── sqlite.go    # Database initialization, migrations, seed data, batch queries
 │   └── audit_filters.go  # Audit log filtering and pagination
-├── templates/       # HTML templates (embedded via go:embed)
-│   ├── account/     # User account templates
-│   │   └── sessions.html  # Active sessions management page
-│   └── admin/       # Admin panel templates
-├── static/          # Static files (embedded via go:embed)
+├── templates/       # Type-safe templ templates (compiled to Go code)
+│   ├── *.templ      # Templ template files (generate *_templ.go files)
+│   ├── props.go     # Type-safe template props structures
+│   ├── render.go    # Templ rendering helper for Gin
+│   └── generate.go  # Go generate directive for templ
 ├── docker/          # Docker configuration
 │   └── Dockerfile   # Alpine-based multi-arch image
 ├── docs/            # Documentation
@@ -1306,6 +1306,7 @@ authgate/
 ### Technology Stack
 
 - **Web Framework:** [Gin](https://gin-gonic.com/) - Fast HTTP router
+- **Templates:** [templ](https://templ.guide/) - Type-safe HTML templating with compile-time validation
 - **ORM:** [GORM](https://gorm.io/) - Database abstraction
 - **Database:** SQLite - Embedded database
 - **Sessions:** [gin-contrib/sessions](https://github.com/gin-contrib/sessions) - Cookie sessions
