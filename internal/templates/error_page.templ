@@ -1,0 +1,23 @@
+package templates
+
+templ ErrorPage(props ErrorPageProps) {
+	@Layout("Error", LayoutNoNavbar, nil) {
+		<div class="container container-narrow">
+			<div class="card">
+				<div class="error-icon-container">
+					<span class="error-icon">✕</span>
+					<h1 class="error-title">Error</h1>
+				</div>
+				<div class="alert alert-error">
+					<strong>{ props.Error }</strong>
+					if props.Message != "" {
+						<p class="error-message">{ props.Message }</p>
+					}
+				</div>
+				<div class="error-actions">
+					<a href="/" class="btn btn-secondary">Go Back</a>
+				</div>
+			</div>
+		</div>
+	}
+}

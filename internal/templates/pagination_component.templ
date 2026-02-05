@@ -1,0 +1,50 @@
+package templates
+
+import (
+	"fmt"
+	"net/url"
+)
+
+templ Pagination(props PaginationProps) {
+	<div class="pagination-container">
+		<div class="pagination-info">
+			<span>Showing</span>
+			<span class="pagination-info-total">{ fmt.Sprintf("%d", props.Pagination.Total) }</span>
+			<span>total items</span>
+		</div>
+		<div class="pagination-controls">
+			@PaginationButton(
+				buildPaginationURL(props.BaseURL, props.Pagination.PrevPage, props.QueryParams),
+				"← Previous",
+				props.Pagination.HasPrev,
+			)
+			<span class="pagination-current">
+				Page { fmt.Sprintf("%d", props.Pagination.CurrentPage) } of { fmt.Sprintf("%d", props.Pagination.TotalPages) }
+			</span>
+			@PaginationButton(
+				buildPaginationURL(props.BaseURL, props.Pagination.NextPage, props.QueryParams),
+				"Next →",
+				props.Pagination.HasNext,
+			)
+		</div>
+	</div>
+}
+
+templ PaginationButton(href, label string, enabled bool) {
+	if enabled {
+		<a href={ templ.URL(href) } class="pagination-button">{ label }</a>
+	} else {
+		<button class="pagination-button" disabled>{ label }</button>
+	}
+}
+
+func buildPaginationURL(baseURL string, page int, queryParams map[string]string) string {
+	u, _ := url.Parse(baseURL)
+	q := u.Query()
+	q.Set("page", fmt.Sprintf("%d", page))
+	for k, v := range queryParams {
+		q.Set(k, v)
+	}
+	u.RawQuery = q.Encode()
+	return u.String()
+}

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"net/http"
 
+	"github.com/appleboy/authgate/internal/templates"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
@@ -26,9 +27,13 @@ func CSRFMiddleware() gin.HandlerFunc {
 			token = generateCSRFToken()
 			session.Set(csrfTokenKey, token)
 			if err := session.Save(); err != nil {
-				c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-					"error": "Failed to save CSRF token: " + err.Error(),
-				})
+				templates.RenderTempl(
+					c,
+					http.StatusInternalServerError,
+					templates.ErrorPage(templates.ErrorPageProps{
+						Error: "Failed to save CSRF token: " + err.Error(),
+					}),
+				)
 				c.Abort()
 				return
 			}
@@ -50,9 +55,13 @@ func CSRFMiddleware() gin.HandlerFunc {
 
 			// Validate token
 			if submittedToken == "" || submittedToken != token {
-				c.HTML(http.StatusForbidden, "error.html", gin.H{
-					"error": "CSRF token validation failed. Please refresh the page and try again.",
-				})
+				templates.RenderTempl(
+					c,
+					http.StatusForbidden,
+					templates.ErrorPage(templates.ErrorPageProps{
+						Error: "CSRF token validation failed. Please refresh the page and try again.",
+					}),
+				)
 				c.Abort()
 				return
 			}

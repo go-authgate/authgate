@@ -1,0 +1,18 @@
+package templates
+
+type AlertType string
+
+const (
+	AlertError   AlertType = "alert-error"
+	AlertSuccess AlertType = "alert-success"
+	AlertInfo    AlertType = "alert-info"
+	AlertWarning AlertType = "alert-warning"
+)
+
+templ Alert(message string, alertType AlertType) {
+	if message != "" {
+		<div class={ templ.Classes("alert", string(alertType)) }>
+			{ message }
+		</div>
+	}
+}

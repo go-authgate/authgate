@@ -1,0 +1,25 @@
+package templates
+
+templ SuccessPage(props SuccessPageProps) {
+	@Layout("Authorization Successful", LayoutNoNavbar, nil) {
+		<div class="container container-narrow">
+			<div class="card">
+				<div class="success-icon">&#10003;</div>
+				<h1>Authorization Successful</h1>
+				if props.ClientName != "" {
+					<p class="subtitle">
+						You have successfully authorized
+						<span class="client-name">{ props.ClientName }</span>.
+					</p>
+				} else {
+					<p class="subtitle">Your device has been authorized.</p>
+				}
+				<p class="info">You can now close this browser window and return to your CLI tool.</p>
+				<div class="actions">
+					<a href="/device" class="btn btn-secondary">Authorize Another Device</a>
+					<a href="/logout" class="btn btn-outline">Logout</a>
+				</div>
+			</div>
+		</div>
+	}
+}

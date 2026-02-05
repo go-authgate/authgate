@@ -10,6 +10,7 @@ import (
 
 	"github.com/appleboy/authgate/internal/auth"
 	"github.com/appleboy/authgate/internal/services"
+	"github.com/appleboy/authgate/internal/templates"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -43,10 +44,13 @@ func (h *OAuthHandler) LoginWithProvider(c *gin.Context) {
 	// Check if provider exists
 	oauthProvider, exists := h.providers[provider]
 	if !exists {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{
-			"error":   "Unsupported OAuth provider",
-			"message": "The requested OAuth provider is not configured.",
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusBadRequest,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "Unsupported OAuth provider. The requested OAuth provider is not configured.",
+			}),
+		)
 		return
 	}
 
@@ -54,10 +58,13 @@ func (h *OAuthHandler) LoginWithProvider(c *gin.Context) {
 	state, err := generateRandomState(32)
 	if err != nil {
 		log.Printf("[OAuth] Failed to generate state: %v", err)
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error":   "Internal server error",
-			"message": "Failed to initiate OAuth login.",
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusInternalServerError,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "Internal server error. Failed to initiate OAuth login.",
+			}),
+		)
 		return
 	}
 
@@ -73,10 +80,13 @@ func (h *OAuthHandler) LoginWithProvider(c *gin.Context) {
 
 	if err := session.Save(); err != nil {
 		log.Printf("[OAuth] Failed to save session: %v", err)
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error":   "Internal server error",
-			"message": "Failed to save session.",
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusInternalServerError,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "Internal server error. Failed to save session.",
+			}),
+		)
 		return
 	}
 
@@ -94,10 +104,13 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 	// Verify provider exists
 	oauthProvider, exists := h.providers[provider]
 	if !exists {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{
-			"error":   "Invalid provider",
-			"message": "OAuth provider not found.",
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusBadRequest,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "Invalid provider. OAuth provider not found.",
+			}),
+		)
 		return
 	}
 
@@ -107,18 +120,24 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 	savedProvider := session.Get("oauth_provider")
 
 	if savedState == nil || savedProvider == nil {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{
-			"error":   "Invalid session",
-			"message": "OAuth session expired or invalid. Please try again.",
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusBadRequest,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "Invalid session. OAuth session expired or invalid. Please try again.",
+			}),
+		)
 		return
 	}
 
 	if state != savedState.(string) || provider != savedProvider.(string) {
-		c.HTML(http.StatusBadRequest, "error.html", gin.H{
-			"error":   "Invalid state",
-			"message": "CSRF validation failed. Please try again.",
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusBadRequest,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "Invalid state. CSRF validation failed. Please try again.",
+			}),
+		)
 		return
 	}
 
@@ -129,10 +148,13 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 	token, err := oauthProvider.ExchangeCode(ctx, code)
 	if err != nil {
 		log.Printf("[OAuth] Failed to exchange code: %v", err)
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error":   "OAuth error",
-			"message": "Failed to exchange authorization code.",
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusInternalServerError,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "OAuth error. Failed to exchange authorization code.",
+			}),
+		)
 		return
 	}
 
@@ -140,10 +162,13 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 	userInfo, err := oauthProvider.GetUserInfo(ctx, token)
 	if err != nil {
 		log.Printf("[OAuth] Failed to get user info: %v", err)
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error":   "OAuth error",
-			"message": "Failed to retrieve user information from provider.",
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusInternalServerError,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "OAuth error. Failed to retrieve user information from provider.",
+			}),
+		)
 		return
 	}
 
@@ -159,18 +184,24 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 
 		// Handle specific errors
 		if errors.Is(err, services.ErrOAuthAutoRegisterDisabled) {
-			c.HTML(http.StatusForbidden, "error.html", gin.H{
-				"error":   "Registration Disabled",
-				"message": "New account registration via OAuth is currently disabled. Please contact your administrator.",
-			})
+			templates.RenderTempl(
+				c,
+				http.StatusForbidden,
+				templates.ErrorPage(templates.ErrorPageProps{
+					Error: "Registration Disabled. New account registration via OAuth is currently disabled. Please contact your administrator.",
+				}),
+			)
 			return
 		}
 
 		// Generic error
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error":   "Authentication failed",
-			"message": "Unable to authenticate your account at this time. Please try again later.",
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusInternalServerError,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "Authentication failed. Unable to authenticate your account at this time. Please try again later.",
+			}),
+		)
 		return
 	}
 
@@ -190,10 +221,13 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 
 	if err := session.Save(); err != nil {
 		log.Printf("[OAuth] Failed to save session: %v", err)
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error":   "Internal server error",
-			"message": "Failed to save session.",
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusInternalServerError,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "Internal server error. Failed to save session.",
+			}),
+		)
 		return
 	}
 

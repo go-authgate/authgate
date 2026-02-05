@@ -35,3 +35,6 @@ coverage.txt
 # Tokens
 *.authgate-tokens.json
 .authgate-tokens.json
+
+# templ generated files
+*_templ.go

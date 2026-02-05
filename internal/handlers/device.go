@@ -7,6 +7,7 @@ import (
 	"github.com/appleboy/authgate/internal/config"
 	"github.com/appleboy/authgate/internal/middleware"
 	"github.com/appleboy/authgate/internal/services"
+	"github.com/appleboy/authgate/internal/templates"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -103,31 +104,41 @@ func (h *DeviceHandler) DevicePage(c *gin.Context) {
 	userID := session.Get(SessionUserID)
 	userCode := c.Query("user_code")
 
-	data := gin.H{
-		"username":   username,
-		"user_code":  userCode,
-		"error":      c.Query("error"),
-		"is_admin":   false,
-		"csrf_token": middleware.GetCSRFToken(c),
+	usernameStr := ""
+	if username != nil {
+		usernameStr = username.(string)
 	}
 
+	isAdmin := false
 	// Check if user is admin
 	if userID != nil {
 		user, err := h.userService.GetUserByID(userID.(string))
 		if err == nil && user.IsAdmin() {
-			data["is_admin"] = true
+			isAdmin = true
 		}
 	}
 
+	clientName := ""
 	// If user_code is provided, try to get the client name
 	if userCode != "" {
-		clientName, err := h.deviceService.GetClientNameByUserCode(userCode)
+		name, err := h.deviceService.GetClientNameByUserCode(userCode)
 		if err == nil {
-			data["client_name"] = clientName
+			clientName = name
 		}
 	}
 
-	c.HTML(http.StatusOK, "device.html", data)
+	templates.RenderTempl(c, http.StatusOK, templates.DevicePage(templates.DevicePageProps{
+		BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		NavbarProps: templates.NavbarProps{
+			Username:   usernameStr,
+			IsAdmin:    isAdmin,
+			ActiveLink: "device",
+		},
+		Username:   usernameStr,
+		UserCode:   userCode,
+		ClientName: clientName,
+		Error:      c.Query("error"),
+	}))
 }
 
 // DeviceVerify handles the user code verification and authorization
@@ -141,23 +152,45 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 
 	username := session.Get(SessionUsername)
 	userCode := c.PostForm("user_code")
+
+	usernameStr := ""
+	if username != nil {
+		usernameStr = username.(string)
+	}
+
+	// Check if user is admin for navbar
+	isAdmin := false
+	user, err := h.userService.GetUserByID(userID.(string))
+	if err == nil && user.IsAdmin() {
+		isAdmin = true
+	}
+
 	if userCode == "" {
-		c.HTML(http.StatusBadRequest, "device.html", gin.H{
-			"username":   username,
-			"error":      "Please enter a user code",
-			"csrf_token": middleware.GetCSRFToken(c),
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusBadRequest,
+			templates.DevicePage(templates.DevicePageProps{
+				BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				NavbarProps: templates.NavbarProps{
+					Username:   usernameStr,
+					IsAdmin:    isAdmin,
+					ActiveLink: "device",
+				},
+				Username: usernameStr,
+				Error:    "Please enter a user code",
+			}),
+		)
 		return
 	}
 
 	// Get client name before authorizing
 	clientName, _ := h.deviceService.GetClientNameByUserCode(userCode)
 
-	err := h.deviceService.AuthorizeDeviceCode(
+	err = h.deviceService.AuthorizeDeviceCode(
 		c.Request.Context(),
 		userCode,
 		userID.(string),
-		username.(string),
+		usernameStr,
 	)
 	if err != nil {
 		var errorMsg string
@@ -170,18 +203,28 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 			errorMsg = "Invalid or expired code"
 		}
 
-		c.HTML(http.StatusBadRequest, "device.html", gin.H{
-			"username":   session.Get(SessionUsername),
-			"user_code":  userCode,
-			"error":      errorMsg,
-			"csrf_token": middleware.GetCSRFToken(c),
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusBadRequest,
+			templates.DevicePage(templates.DevicePageProps{
+				BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				NavbarProps: templates.NavbarProps{
+					Username:   usernameStr,
+					IsAdmin:    isAdmin,
+					ActiveLink: "device",
+				},
+				Username:   usernameStr,
+				UserCode:   userCode,
+				ClientName: clientName,
+				Error:      errorMsg,
+			}),
+		)
 		return
 	}
 
-	c.HTML(http.StatusOK, "success.html", gin.H{
-		"username":    session.Get(SessionUsername),
-		"client_name": clientName,
-		"csrf_token":  middleware.GetCSRFToken(c),
-	})
+	templates.RenderTempl(c, http.StatusOK, templates.SuccessPage(templates.SuccessPageProps{
+		BaseProps:  templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		Username:   usernameStr,
+		ClientName: clientName,
+	}))
 }

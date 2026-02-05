@@ -1,0 +1,30 @@
+package templates
+
+type LayoutType string
+
+const (
+	LayoutNoNavbar    LayoutType = "no-navbar"
+	LayoutHasNavbar   LayoutType = "has-navbar"
+	LayoutAdminNavbar LayoutType = "admin-layout has-navbar"
+)
+
+templ Layout(title string, layoutType LayoutType, navbar *NavbarProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ title } - AuthGate</title>
+			<link rel="stylesheet" href="/static/style.css"/>
+			if layoutType == LayoutAdminNavbar {
+				<link rel="stylesheet" href="/static/admin.css"/>
+			}
+		</head>
+		<body class={ string(layoutType) }>
+			if navbar != nil {
+				@Navbar(navbar)
+			}
+			{ children... }
+		</body>
+	</html>
+}

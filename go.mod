@@ -3,6 +3,7 @@ module github.com/appleboy/authgate
 go 1.24.0
 
 require (
+	github.com/a-h/templ v0.3.977
 	github.com/appleboy/com v1.1.1
 	github.com/appleboy/go-httpclient v0.9.0
 	github.com/appleboy/go-httpretry v0.7.0

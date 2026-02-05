@@ -1,0 +1,41 @@
+package templates
+
+templ Navbar(props *NavbarProps) {
+	<nav class="navbar">
+		<div class="navbar-container">
+			<div class="navbar-brand">
+				<a href="/device">AuthGate</a>
+			</div>
+			<button class="navbar-toggle" onclick="toggleMenu()">☰</button>
+			<div class="navbar-menu" id="navbarMenu">
+				<div class="navbar-links">
+					@NavLink("/device", "Device Authorization", props.ActiveLink == "device")
+					@NavLink("/account/sessions", "Active Sessions", props.ActiveLink == "sessions")
+					if props.IsAdmin {
+						@NavLink("/admin/clients", "OAuth Clients", props.ActiveLink == "clients")
+						@NavLink("/admin/audit", "Audit Logs", props.ActiveLink == "audit")
+					}
+				</div>
+				<div class="navbar-user">
+					<span class="navbar-username">{ props.Username }</span>
+					<a href="/logout" class="navbar-logout">Logout</a>
+				</div>
+			</div>
+		</div>
+	</nav>
+	<script>
+		function toggleMenu() {
+			const menu = document.getElementById('navbarMenu');
+			menu.classList.toggle('active');
+		}
+	</script>
+}
+
+templ NavLink(href, label string, isActive bool) {
+	<a
+		href={ templ.URL(href) }
+		class={ templ.Classes("navbar-link", templ.KV("active", isActive)) }
+	>
+		{ label }
+	</a>
+}

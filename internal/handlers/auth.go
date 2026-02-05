@@ -5,7 +5,9 @@ import (
 	"net/http"
 
 	"github.com/appleboy/authgate/internal/auth"
+	"github.com/appleboy/authgate/internal/middleware"
 	"github.com/appleboy/authgate/internal/services"
+	"github.com/appleboy/authgate/internal/templates"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -44,19 +46,20 @@ func (h *AuthHandler) LoginPageWithOAuth(
 	redirectTo := c.Query("redirect")
 
 	// Prepare OAuth provider data for template
-	providers := []map[string]string{}
+	providers := []templates.OAuthProvider{}
 	for _, provider := range oauthProviders {
-		providers = append(providers, map[string]string{
-			"name":        provider.GetProvider(),
-			"displayName": provider.GetDisplayName(),
+		providers = append(providers, templates.OAuthProvider{
+			Name:        provider.GetProvider(),
+			DisplayName: provider.GetDisplayName(),
 		})
 	}
 
-	c.HTML(http.StatusOK, "login.html", gin.H{
-		"redirect":       redirectTo,
-		"error":          c.Query("error"),
-		"oauthProviders": providers,
-	})
+	templates.RenderTempl(c, http.StatusOK, templates.LoginPage(templates.LoginPageProps{
+		BaseProps:      templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		Redirect:       redirectTo,
+		Error:          c.Query("error"),
+		OAuthProviders: providers,
+	}))
 }
 
 // Login handles the login form submission
@@ -76,10 +79,15 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			errorMsg = "Invalid username or password"
 		}
 
-		c.HTML(http.StatusUnauthorized, "login.html", gin.H{
-			"error":    errorMsg,
-			"redirect": redirectTo,
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusUnauthorized,
+			templates.LoginPage(templates.LoginPageProps{
+				BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				Error:     errorMsg,
+				Redirect:  redirectTo,
+			}),
+		)
 		return
 	}
 
@@ -88,9 +96,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	session.Set(SessionUserID, user.ID)
 	session.Set(SessionUsername, user.Username)
 	if err := session.Save(); err != nil {
-		c.HTML(http.StatusInternalServerError, "login.html", gin.H{
-			"error": "Failed to create session",
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusInternalServerError,
+			templates.LoginPage(templates.LoginPageProps{
+				BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				Error:     "Failed to create session",
+			}),
+		)
 		return
 	}
 

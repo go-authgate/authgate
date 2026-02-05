@@ -10,6 +10,7 @@ import (
 	"github.com/appleboy/authgate/internal/models"
 	"github.com/appleboy/authgate/internal/services"
 	"github.com/appleboy/authgate/internal/store"
+	"github.com/appleboy/authgate/internal/templates"
 	"github.com/gin-gonic/gin"
 )
 
@@ -81,9 +82,13 @@ func (h *AuditHandler) ShowAuditLogsPage(c *gin.Context) {
 	// Get audit logs
 	logs, pagination, err := h.auditService.GetAuditLogs(params, filters)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Failed to retrieve audit logs",
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusInternalServerError,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "Failed to retrieve audit logs",
+			}),
+		)
 		return
 	}
 

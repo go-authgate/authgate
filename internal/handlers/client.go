@@ -8,6 +8,7 @@ import (
 	"github.com/appleboy/authgate/internal/middleware"
 	"github.com/appleboy/authgate/internal/services"
 	"github.com/appleboy/authgate/internal/store"
+	"github.com/appleboy/authgate/internal/templates"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -50,9 +51,13 @@ func (h *ClientHandler) ShowClientsPage(c *gin.Context) {
 	// Get paginated clients with creator information
 	clients, pagination, err := h.clientService.ListClientsPaginatedWithCreator(params)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Failed to load clients: " + err.Error(),
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusInternalServerError,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "Failed to load clients: " + err.Error(),
+			}),
+		)
 		return
 	}
 
@@ -159,9 +164,9 @@ func (h *ClientHandler) ShowEditClientPage(c *gin.Context) {
 
 	client, err := h.clientService.GetClient(clientID)
 	if err != nil {
-		c.HTML(http.StatusNotFound, "error.html", gin.H{
-			"error": "Client not found",
-		})
+		templates.RenderTempl(c, http.StatusNotFound, templates.ErrorPage(templates.ErrorPageProps{
+			Error: "Client not found",
+		}))
 		return
 	}
 
@@ -239,9 +244,13 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 	session := sessions.Default(c)
 	session.AddFlash("Client updated successfully")
 	if err := session.Save(); err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Failed to save session: " + err.Error(),
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusInternalServerError,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "Failed to save session: " + err.Error(),
+			}),
+		)
 		return
 	}
 
@@ -255,9 +264,13 @@ func (h *ClientHandler) DeleteClient(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	err := h.clientService.DeleteClient(c.Request.Context(), clientID, userID.(string))
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Failed to delete client: " + err.Error(),
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusInternalServerError,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "Failed to delete client: " + err.Error(),
+			}),
+		)
 		return
 	}
 
@@ -265,9 +278,13 @@ func (h *ClientHandler) DeleteClient(c *gin.Context) {
 	session := sessions.Default(c)
 	session.AddFlash("Client deleted successfully")
 	if err := session.Save(); err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Failed to save session: " + err.Error(),
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusInternalServerError,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "Failed to save session: " + err.Error(),
+			}),
+		)
 		return
 	}
 
@@ -285,9 +302,13 @@ func (h *ClientHandler) RegenerateSecret(c *gin.Context) {
 		userID.(string),
 	)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-			"error": "Failed to regenerate secret: " + err.Error(),
-		})
+		templates.RenderTempl(
+			c,
+			http.StatusInternalServerError,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "Failed to regenerate secret: " + err.Error(),
+			}),
+		)
 		return
 	}
 
@@ -308,9 +329,9 @@ func (h *ClientHandler) ViewClient(c *gin.Context) {
 
 	client, err := h.clientService.GetClient(clientID)
 	if err != nil {
-		c.HTML(http.StatusNotFound, "error.html", gin.H{
-			"error": "Client not found",
-		})
+		templates.RenderTempl(c, http.StatusNotFound, templates.ErrorPage(templates.ErrorPageProps{
+			Error: "Client not found",
+		}))
 		return
 	}
 
