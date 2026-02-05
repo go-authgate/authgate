@@ -1,0 +1,285 @@
+package templates
+
+import (
+	"fmt"
+	"github.com/appleboy/authgate/internal/services"
+	"github.com/appleboy/authgate/internal/store"
+)
+
+templ AdminClients(props ClientsPageProps) {
+	@Layout("OAuth Clients", LayoutAdminNavbar, &props.NavbarProps) {
+		<div class="main-content">
+			<div class="container">
+				<div class="card">
+					<div class="header">
+						<h1 class="title-with-icon">
+							<span>OAuth Clients</span>
+						</h1>
+					</div>
+					<div class="page-actions">
+						<a href="/admin/clients/new" class="btn btn-primary">
+							Create New Client
+						</a>
+					</div>
+					@Alert(props.Success, AlertSuccess)
+					<!-- Search and Filters -->
+					<form method="GET" action="/admin/clients" class="search-filters">
+						<div class="search-group">
+							<label for="search" class="search-label">Search</label>
+							<div class="search-input-wrapper">
+								<span class="search-icon">🔍</span>
+								<input
+									type="text"
+									id="search"
+									name="search"
+									class="search-input"
+									placeholder="Search by name, client ID, or description..."
+									value={ props.Search }
+								/>
+							</div>
+						</div>
+						<div class="page-size-group">
+							<label for="page_size" class="search-label">Items per page</label>
+							<select name="page_size" id="page_size" class="page-size-select" onchange="this.form.submit()">
+								<option value="10" selected?={ props.PageSize == 10 }>10 items</option>
+								<option value="20" selected?={ props.PageSize == 20 }>20 items</option>
+								<option value="50" selected?={ props.PageSize == 50 }>50 items</option>
+							</select>
+						</div>
+						<div class="search-actions">
+							<button type="submit" class="btn-search">Search</button>
+							<a href="/admin/clients" class="btn-clear">Clear</a>
+						</div>
+					</form>
+					if len(props.Clients) > 0 {
+						<div class="table-wrapper">
+							<table class="clients-table">
+								<thead>
+									<tr>
+										<th class="col-client-name">
+											<div class="table-header-with-icon">
+												<span>Client Name</span>
+											</div>
+										</th>
+										<th class="col-client-id">
+											<div class="table-header-with-icon">
+												<span>Client ID</span>
+											</div>
+										</th>
+										<th class="col-grant-types">
+											<div class="table-header-with-icon">
+												<span>Grant Types</span>
+											</div>
+										</th>
+										<th class="col-status">
+											<div class="table-header-with-icon">
+												<span>Status</span>
+											</div>
+										</th>
+										<th class="col-created">
+											<div class="table-header-with-icon">
+												<span>Created</span>
+											</div>
+										</th>
+										<th class="col-creator">
+											<div class="table-header-with-icon">
+												<span>Creator</span>
+											</div>
+										</th>
+										<th class="col-actions">
+											<div class="table-header-with-icon">
+												<span>Actions</span>
+											</div>
+										</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, client := range props.Clients {
+										@ClientTableRow(client, props.CSRFToken)
+									}
+								</tbody>
+							</table>
+						</div>
+						<!-- Pagination Controls -->
+						@ClientsPagination(props.Pagination, props.PageSize, props.Search)
+					} else {
+						<div class="empty-state-with-search">
+							<div class="empty-state-icon-large">
+								if props.Search != "" {
+									🔍
+								} else {
+									🔑
+								}
+							</div>
+							<h3 class="empty-state-title-large">
+								if props.Search != "" {
+									No clients found
+								} else {
+									No OAuth Clients Yet
+								}
+							</h3>
+							<p class="empty-state-text">
+								if props.Search != "" {
+									Try adjusting your search terms or clear the filter.
+								} else {
+									Get started by creating your first OAuth client.<br/>
+									Clients are used to authenticate applications that access your resources.
+								}
+							</p>
+							if props.Search == "" {
+								<a href="/admin/clients/new" class="btn btn-primary">
+									Create Your First Client
+								</a>
+							}
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+		<script>
+			// Toggle client description
+			function toggleDescription(button) {
+				const cell = button.closest('.client-name-cell');
+				const description = cell.querySelector('.client-description');
+				const icon = button.querySelector('.toggle-icon');
+
+				if (description.style.display === 'none') {
+					description.style.display = 'block';
+					button.classList.add('expanded');
+					// Animate height
+					description.style.maxHeight = '0';
+					description.style.opacity = '0';
+					setTimeout(() => {
+						description.style.maxHeight = description.scrollHeight + 'px';
+						description.style.opacity = '1';
+					}, 10);
+				} else {
+					description.style.maxHeight = '0';
+					description.style.opacity = '0';
+					button.classList.remove('expanded');
+					setTimeout(() => {
+						description.style.display = 'none';
+					}, 300);
+				}
+			}
+		</script>
+	}
+}
+
+templ ClientTableRow(client services.ClientWithCreator, csrfToken string) {
+	<tr>
+		<td>
+			<div class="client-name-cell">
+				<div class="client-name-row">
+					<strong class="client-name-title">{ client.ClientName }</strong>
+					if client.Description != "" {
+						<button type="button" class="description-toggle" onclick="toggleDescription(this)" aria-label="Toggle description">
+							<svg class="toggle-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+								<path d="M6 8L10 12L14 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+							</svg>
+						</button>
+					}
+				</div>
+				if client.Description != "" {
+					<div class="client-description" style="display: none;">
+						{ client.Description }
+					</div>
+				}
+			</div>
+		</td>
+		<td>
+			<div class="client-id client-id-box">
+				{ client.ClientID }
+			</div>
+		</td>
+		<td>
+			<code class="grant-types-code">
+				{ client.GrantTypes }
+			</code>
+		</td>
+		<td>
+			if client.IsActive {
+				<span class="status-badge status-active">Active</span>
+			} else {
+				<span class="status-badge status-inactive">Inactive</span>
+			}
+		</td>
+		<td class="created-date-cell">
+			<div class="date-display">
+				<span class="date-display-day">{ client.CreatedAt.Format("2006-01-02") }</span>
+				<span class="date-display-time">{ client.CreatedAt.Format("15:04") }</span>
+			</div>
+		</td>
+		<td>
+			if client.CreatorUsername != "" {
+				<span class="creator-username">{ client.CreatorUsername }</span>
+			} else {
+				<span class="creator-username-unknown">Unknown</span>
+			}
+		</td>
+		<td>
+			<div class="actions">
+				<a href={ templ.URL("/admin/clients/" + client.ClientID + "/edit") } class="btn btn-secondary btn-small" title="Edit client">
+					Edit
+				</a>
+				<form method="POST" action={ templ.URL("/admin/clients/" + client.ClientID + "/delete") } onsubmit="return confirm('Are you sure you want to delete this client?\n\nThis action cannot be undone and will revoke all access tokens.');">
+					<input type="hidden" name="csrf_token" value={ csrfToken }/>
+					<button type="submit" class="btn btn-danger btn-small" title="Delete client">
+						Delete
+					</button>
+				</form>
+			</div>
+		</td>
+	</tr>
+}
+
+func buildClientsPaginationURL(page, pageSize int, search string) string {
+	searchParam := ""
+	if search != "" {
+		searchParam = "&search=" + search
+	}
+	return fmt.Sprintf("/admin/clients?page=%d&page_size=%d%s", page, pageSize, searchParam)
+}
+
+templ ClientsPagination(pagination store.PaginationResult, pageSize int, search string) {
+	<div class="pagination-container">
+		<div class="pagination-info">
+			<span>Showing</span>
+			<span class="pagination-info-total">{ fmt.Sprintf("%d", pagination.Total) }</span>
+			<span>total clients</span>
+		</div>
+		<div class="pagination-controls">
+			if pagination.HasPrev {
+				<a
+					href={ templ.URL(buildClientsPaginationURL(pagination.PrevPage, pageSize, search)) }
+					class="pagination-button"
+				>
+					<span class="pagination-button-icon">←</span>
+					<span>Previous</span>
+				</a>
+			} else {
+				<button class="pagination-button" disabled>
+					<span class="pagination-button-icon">←</span>
+					<span>Previous</span>
+				</button>
+			}
+			<span class="pagination-current">
+				Page { fmt.Sprintf("%d", pagination.CurrentPage) } of { fmt.Sprintf("%d", pagination.TotalPages) }
+			</span>
+			if pagination.HasNext {
+				<a
+					href={ templ.URL(buildClientsPaginationURL(pagination.NextPage, pageSize, search)) }
+					class="pagination-button"
+				>
+					<span>Next</span>
+					<span class="pagination-button-icon">→</span>
+				</a>
+			} else {
+				<button class="pagination-button" disabled>
+					<span>Next</span>
+					<span class="pagination-button-icon">→</span>
+				</button>
+			}
+		</div>
+	</div>
+}

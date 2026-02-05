@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/appleboy/authgate/internal/middleware"
 	"github.com/appleboy/authgate/internal/services"
 	"github.com/appleboy/authgate/internal/store"
 	"github.com/appleboy/authgate/internal/templates"
@@ -74,18 +75,18 @@ func (h *SessionHandler) ListSessions(c *gin.Context) {
 		return
 	}
 
-	// Get CSRF token from context (set by middleware)
-	csrfToken, _ := c.Get("csrf_token")
-
-	c.HTML(http.StatusOK, "account/sessions.html", gin.H{
-		"Sessions":   tokens,
-		"Pagination": pagination,
-		"Search":     search,
-		"PageSize":   pageSize,
-		"csrf_token": csrfToken,
-		"username":   user.Username,
-		"is_admin":   user.IsAdmin(),
-	})
+	templates.RenderTempl(c, http.StatusOK, templates.AccountSessions(templates.SessionsPageProps{
+		BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		NavbarProps: templates.NavbarProps{
+			Username:   user.Username,
+			IsAdmin:    user.IsAdmin(),
+			ActiveLink: "sessions",
+		},
+		Sessions:   tokens,
+		Pagination: pagination,
+		Search:     search,
+		PageSize:   pageSize,
+	}))
 }
 
 // validateTokenOwnership checks if the current user owns the specified token

@@ -78,15 +78,22 @@ func (h *ClientHandler) ShowClientsPage(c *gin.Context) {
 	}
 
 	user, _ := c.Get("user")
-	c.HTML(http.StatusOK, "admin/clients.html", gin.H{
-		"clients":    clients,
-		"Pagination": pagination,
-		"Search":     search,
-		"PageSize":   pageSize,
-		"user":       user,
-		"success":    successMsg,
-		"csrf_token": middleware.GetCSRFToken(c),
-	})
+	userModel := user.(*models.User)
+
+	templates.RenderTempl(c, http.StatusOK, templates.AdminClients(templates.ClientsPageProps{
+		BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		NavbarProps: templates.NavbarProps{
+			Username:   userModel.Username,
+			IsAdmin:    userModel.IsAdmin(),
+			ActiveLink: "clients",
+		},
+		User:       userModel,
+		Clients:    clients,
+		Pagination: pagination,
+		Search:     search,
+		PageSize:   pageSize,
+		Success:    successMsg,
+	}))
 }
 
 // ShowCreateClientPage displays the form to create a new client
