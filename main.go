@@ -159,9 +159,9 @@ func runServer() {
 	sessionStore := cookie.NewStore([]byte(cfg.SessionSecret))
 	sessionStore.Options(sessions.Options{
 		Path:     "/",
-		MaxAge:   86400 * 7, // 7 days
+		MaxAge:   cfg.SessionMaxAge, // Configurable session lifetime (default: 1 hour)
 		HttpOnly: true,
-		Secure:   cfg.IsProduction, // Require HTTPS in production
+		Secure:   cfg.IsProduction,     // Require HTTPS in production
 		SameSite: http.SameSiteLaxMode, // Lax mode required for OAuth callbacks
 	})
 	r.Use(sessions.Sessions("oauth_session", sessionStore))
