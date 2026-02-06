@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/appleboy/authgate/internal/config"
 	"github.com/appleboy/authgate/internal/models"
 
 	"github.com/google/uuid"
@@ -16,6 +17,13 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 	"gorm.io/gorm"
 )
+
+// getTestConfig returns a minimal config for testing
+func getTestConfig() *config.Config {
+	return &config.Config{
+		DefaultAdminPassword: "", // Use random password in tests
+	}
+}
 
 // TestStoreWithSQLite tests store operations with SQLite
 func TestStoreWithSQLite(t *testing.T) {
@@ -109,7 +117,7 @@ func createFreshStore(t *testing.T, driver string, pgContainer *postgres.Postgre
 		t.Fatalf("unsupported driver: %s", driver)
 	}
 
-	store, err := New(driver, dsn)
+	store, err := New(driver, dsn, getTestConfig())
 	require.NoError(t, err)
 	require.NotNil(t, store)
 
@@ -324,7 +332,7 @@ func TestRegisterDriver(t *testing.T) {
 
 // BenchmarkStoreOperations benchmarks basic store operations
 func BenchmarkStoreOperations(b *testing.B) {
-	store, err := New("sqlite", ":memory:")
+	store, err := New("sqlite", ":memory:", getTestConfig())
 	require.NoError(b, err)
 
 	b.Run("CreateUser", func(b *testing.B) {
@@ -358,7 +366,7 @@ func BenchmarkStoreOperations(b *testing.B) {
 
 // TestUpsertExternalUser_UsernameConflict_OnCreate tests username conflict detection when creating new users
 func TestUpsertExternalUser_UsernameConflict_OnCreate(t *testing.T) {
-	store, err := New("sqlite", ":memory:")
+	store, err := New("sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
 	// Create a local user first
@@ -388,7 +396,7 @@ func TestUpsertExternalUser_UsernameConflict_OnCreate(t *testing.T) {
 
 // TestUpsertExternalUser_UsernameConflict_OnUpdate tests username conflict when updating existing user
 func TestUpsertExternalUser_UsernameConflict_OnUpdate(t *testing.T) {
-	store, err := New("sqlite", ":memory:")
+	store, err := New("sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
 	// Create first external user
@@ -434,7 +442,7 @@ func TestUpsertExternalUser_UsernameConflict_OnUpdate(t *testing.T) {
 
 // TestUpsertExternalUser_SameUserKeepsUsername tests that same user can keep their username
 func TestUpsertExternalUser_SameUserKeepsUsername(t *testing.T) {
-	store, err := New("sqlite", ":memory:")
+	store, err := New("sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
 	// Create external user
@@ -464,7 +472,7 @@ func TestUpsertExternalUser_SameUserKeepsUsername(t *testing.T) {
 
 // TestUpsertExternalUser_Success_NewUser tests successful creation of new external user
 func TestUpsertExternalUser_Success_NewUser(t *testing.T) {
-	store, err := New("sqlite", ":memory:")
+	store, err := New("sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
 	user, err := store.UpsertExternalUser(
@@ -488,7 +496,7 @@ func TestUpsertExternalUser_Success_NewUser(t *testing.T) {
 
 // TestUpsertExternalUser_Success_UpdateExisting tests successful update of existing external user
 func TestUpsertExternalUser_Success_UpdateExisting(t *testing.T) {
-	store, err := New("sqlite", ":memory:")
+	store, err := New("sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
 	// Create user

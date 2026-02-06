@@ -594,6 +594,11 @@ DATABASE_DSN=oauth.db            # Connection string (file path for SQLite, DSN 
 # DATABASE_DRIVER=postgres
 # DATABASE_DSN="host=localhost user=authgate password=secret dbname=authgate port=5432 sslmode=disable"
 
+# Default Admin User
+# Set a custom password for the default admin user created on first startup
+# If not set, a random 16-character password will be generated and logged
+# DEFAULT_ADMIN_PASSWORD=your-secure-admin-password
+
 # Authentication Mode
 # Options: local, http_api
 # Default: local
@@ -690,14 +695,14 @@ The server initializes with default test accounts:
 #### User Account
 
 - Username: `admin`
-- Password: Auto-generated 16-character random password (shown in server logs on first run)
+- Password: Set via `DEFAULT_ADMIN_PASSWORD` environment variable, or auto-generated 16-character random password (shown in server logs on first run)
 
 #### OAuth Client
 
 - Name: `AuthGate CLI`
 - Client ID: Auto-generated UUID (shown in server logs)
 
-**⚠️ Security Warning:** Note the admin password from server logs on first run and change it in production!
+**⚠️ Security Warning:** Set a secure admin password via `DEFAULT_ADMIN_PASSWORD` environment variable. If not set, a random password will be generated and logged on first run.
 
 ### OAuth Third-Party Login
 
@@ -1560,7 +1565,7 @@ Access audit logs through the admin panel:
 - [ ] Change `JWT_SECRET` to a strong random value (32+ characters)
 - [ ] Change `SESSION_SECRET` to a strong random value (32+ characters)
 - [ ] Use HTTPS (set `BASE_URL` to `https://...`)
-- [ ] Change default admin user password (check server logs for initial random password)
+- [ ] Set `DEFAULT_ADMIN_PASSWORD` to a secure password (or change the auto-generated password after first login)
 - [ ] Set appropriate `DeviceCodeExpiration` (default: 30 minutes)
 - [ ] Set appropriate `JWTExpiration` (default: 1 hour)
 - [ ] Configure firewall rules

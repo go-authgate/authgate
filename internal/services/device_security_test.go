@@ -16,13 +16,14 @@ import (
 )
 
 func setupTestService(t *testing.T) (*DeviceService, *models.OAuthApplication) {
-	st, err := store.New("sqlite", ":memory:")
-	require.NoError(t, err)
-
 	cfg := &config.Config{
+		DefaultAdminPassword: "", // Use random password in tests
 		DeviceCodeExpiration: 30 * time.Minute,
 		PollingInterval:      5,
 	}
+
+	st, err := store.New("sqlite", ":memory:", cfg)
+	require.NoError(t, err)
 	service := NewDeviceService(st, cfg, nil)
 
 	// Create test client

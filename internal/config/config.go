@@ -50,6 +50,9 @@ type Config struct {
 	DatabaseDriver string // "sqlite" or "postgres"
 	DatabaseDSN    string // Database connection string (DSN or path)
 
+	// Default Admin User
+	DefaultAdminPassword string // Default admin password (if empty, random password is generated)
+
 	// Authentication
 	AuthMode string // "local" or "http_api"
 
@@ -160,6 +163,9 @@ func Load() *Config {
 		PollingInterval:      5,
 		DatabaseDriver:       driver,
 		DatabaseDSN:          dsn,
+
+		// Default Admin User
+		DefaultAdminPassword: getEnv("DEFAULT_ADMIN_PASSWORD", ""),
 
 		// Authentication
 		AuthMode: getEnv("AUTH_MODE", AuthModeLocal),

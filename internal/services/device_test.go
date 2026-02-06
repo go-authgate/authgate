@@ -16,7 +16,10 @@ import (
 
 func setupTestStore(t *testing.T) *store.Store {
 	// Use in-memory SQLite database for testing
-	s, err := store.New("sqlite", ":memory:")
+	cfg := &config.Config{
+		DefaultAdminPassword: "", // Use random password in tests
+	}
+	s, err := store.New("sqlite", ":memory:", cfg)
 	require.NoError(t, err)
 	return s
 }
