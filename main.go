@@ -473,15 +473,18 @@ func getProviderNames(providers map[string]*auth.OAuthProvider) []string {
 	return names
 }
 
-// createOAuthHTTPClient creates an HTTP client for OAuth requests with retry support
+// createOAuthHTTPClient creates an HTTP client for OAuth requests with optimized connection pool
 func createOAuthHTTPClient(cfg *config.Config) *http.Client {
 	if cfg.OAuthInsecureSkipVerify {
 		log.Printf("WARNING: OAuth TLS verification is disabled (OAUTH_INSECURE_SKIP_VERIFY=true)")
 	}
 
+	// Create optimized transport with connection pool settings
+	transport := client.CreateOptimizedTransport(cfg.OAuthInsecureSkipVerify)
+
 	client, err := httpclient.NewAuthClient(httpclient.AuthModeNone, "",
 		httpclient.WithTimeout(cfg.OAuthTimeout),
-		httpclient.WithInsecureSkipVerify(cfg.OAuthInsecureSkipVerify),
+		httpclient.WithTransport(transport),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create OAuth HTTP client: %v", err)

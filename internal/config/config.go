@@ -54,6 +54,12 @@ type Config struct {
 	DatabaseDriver string // "sqlite" or "postgres"
 	DatabaseDSN    string // Database connection string (DSN or path)
 
+	// Database connection pool settings
+	DBMaxOpenConns    int           // Maximum number of open connections (default: 25)
+	DBMaxIdleConns    int           // Maximum number of idle connections (default: 10)
+	DBConnMaxLifetime time.Duration // Maximum connection lifetime (default: 5 minutes)
+	DBConnMaxIdleTime time.Duration // Maximum connection idle time (default: 10 minutes)
+
 	// Default Admin User
 	DefaultAdminPassword string // Default admin password (if empty, random password is generated)
 
@@ -174,6 +180,10 @@ func Load() *Config {
 		PollingInterval:      5,
 		DatabaseDriver:       driver,
 		DatabaseDSN:          dsn,
+		DBMaxOpenConns:       getEnvInt("DB_MAX_OPEN_CONNS", 25),
+		DBMaxIdleConns:       getEnvInt("DB_MAX_IDLE_CONNS", 10),
+		DBConnMaxLifetime:    getEnvDuration("DB_CONN_MAX_LIFETIME", 5*time.Minute),
+		DBConnMaxIdleTime:    getEnvDuration("DB_CONN_MAX_IDLE_TIME", 10*time.Minute),
 
 		// Default Admin User
 		DefaultAdminPassword: getEnv("DEFAULT_ADMIN_PASSWORD", ""),

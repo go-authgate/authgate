@@ -47,6 +47,38 @@ func New(driver, dsn string, cfg *config.Config) (*Store, error) {
 		return nil, err
 	}
 
+	// Configure connection pool (after AutoMigrate)
+	// Only configure if values are provided (non-zero)
+	if cfg.DBMaxOpenConns > 0 || cfg.DBMaxIdleConns > 0 ||
+		cfg.DBConnMaxLifetime > 0 || cfg.DBConnMaxIdleTime > 0 {
+		sqlDB, err := db.DB()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get database instance: %w", err)
+		}
+
+		// Set connection pool parameters
+		if cfg.DBMaxOpenConns > 0 {
+			sqlDB.SetMaxOpenConns(cfg.DBMaxOpenConns)
+		}
+		if cfg.DBMaxIdleConns > 0 {
+			sqlDB.SetMaxIdleConns(cfg.DBMaxIdleConns)
+		}
+		if cfg.DBConnMaxLifetime > 0 {
+			sqlDB.SetConnMaxLifetime(cfg.DBConnMaxLifetime)
+		}
+		if cfg.DBConnMaxIdleTime > 0 {
+			sqlDB.SetConnMaxIdleTime(cfg.DBConnMaxIdleTime)
+		}
+
+		log.Printf(
+			"Database connection pool configured: MaxOpen=%d, MaxIdle=%d, MaxLifetime=%v, MaxIdleTime=%v",
+			cfg.DBMaxOpenConns,
+			cfg.DBMaxIdleConns,
+			cfg.DBConnMaxLifetime,
+			cfg.DBConnMaxIdleTime,
+		)
+	}
+
 	store := &Store{db: db}
 
 	// Seed default data
