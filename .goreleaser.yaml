@@ -1,6 +1,7 @@
 version: 2
 before:
   hooks:
+    - make generate
     - go mod tidy
 
 builds:
