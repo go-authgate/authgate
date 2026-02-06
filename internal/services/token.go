@@ -13,7 +13,6 @@ import (
 	"github.com/appleboy/authgate/internal/store"
 	"github.com/appleboy/authgate/internal/token"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
@@ -38,13 +37,6 @@ type TokenService struct {
 	httpTokenProvider  *token.HTTPTokenProvider
 	tokenProviderMode  string
 	auditService       *AuditService
-}
-
-type JWTClaims struct {
-	UserID   string `json:"user_id"`
-	ClientID string `json:"client_id"`
-	Scopes   string `json:"scope"`
-	jwt.RegisteredClaims
 }
 
 func NewTokenService(
