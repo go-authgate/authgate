@@ -162,7 +162,7 @@ func runServer() {
 		MaxAge:   86400 * 7, // 7 days
 		HttpOnly: true,
 		Secure:   cfg.IsProduction, // Require HTTPS in production
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode, // Lax mode required for OAuth callbacks
 	})
 	r.Use(sessions.Sessions("oauth_session", sessionStore))
 
