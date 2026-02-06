@@ -18,17 +18,17 @@ templ AccountSessions(props SessionsPageProps) {
 						<p class="sessions-subtitle">Manage devices that have access to your account</p>
 					</div>
 					<!-- Search and Filters -->
-					<div class="sessions-search-section">
-						<form method="GET" action="/account/sessions" class="sessions-search-grid">
+					<div class="search-section">
+						<form method="GET" action="/account/sessions" class="search-grid">
 							<div>
 								<label for="search" class="search-label">Search</label>
-								<div class="sessions-search-input-wrapper">
-									<span class="sessions-search-icon">🔍</span>
+								<div class="search-input-wrapper">
+									<span class="search-icon">🔍</span>
 									<input
 										type="text"
 										id="search"
 										name="search"
-										class="sessions-search-input"
+										class="search-input"
 										placeholder="Search by client name or scopes..."
 										value={ props.Search }
 									/>
@@ -42,9 +42,9 @@ templ AccountSessions(props SessionsPageProps) {
 									<option value="50" selected?={ props.PageSize == 50 }>50 items</option>
 								</select>
 							</div>
-							<div class="search-actions">
-								<button type="submit" class="btn-search">Search</button>
-								<a href="/account/sessions" class="btn-clear">Clear</a>
+							<div class="search-buttons">
+								<button type="submit" class="search-btn">Search</button>
+								<a href="/account/sessions" class="clear-btn">Clear</a>
 							</div>
 						</form>
 					</div>
@@ -82,16 +82,16 @@ templ AccountSessions(props SessionsPageProps) {
 						<!-- Pagination Controls -->
 						@SessionsPagination(props.Pagination, props.PageSize, props.Search)
 					} else {
-						<div class="sessions-empty-state">
-							<div class="sessions-empty-icon">📭</div>
-							<h3 class="sessions-empty-title">
+						<div class="empty-state">
+							<div class="empty-icon">📭</div>
+							<h3 class="empty-title">
 								if props.Search != "" {
 									No sessions found
 								} else {
 									No Active Sessions
 								}
 							</h3>
-							<p class="sessions-empty-text">
+							<p class="empty-text">
 								if props.Search != "" {
 									Try adjusting your search terms or clear the filter.
 								} else {

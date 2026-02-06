@@ -28,33 +28,33 @@ templ AdminClients(props ClientsPageProps) {
 					</div>
 					@Alert(props.Success, AlertSuccess)
 					<!-- Search and Filters -->
-					<div class="admin-search-section">
-						<form method="GET" action="/admin/clients" class="admin-search-grid">
-							<div class="admin-search-group">
-								<label for="search" class="admin-search-label">Search</label>
-								<div class="admin-search-input-wrapper">
-									<span class="admin-search-icon">🔍</span>
+					<div class="search-section">
+						<form method="GET" action="/admin/clients" class="search-grid">
+							<div class="search-group">
+								<label for="search" class="search-label">Search</label>
+								<div class="search-input-wrapper">
+									<span class="search-icon">🔍</span>
 									<input
 										type="text"
 										id="search"
 										name="search"
-										class="admin-search-input"
+										class="search-input"
 										placeholder="Search by name, client ID, or description..."
 										value={ props.Search }
 									/>
 								</div>
 							</div>
-							<div class="admin-search-group">
-								<label for="page_size" class="admin-search-label">Items per page</label>
-								<select name="page_size" id="page_size" class="admin-page-size-select" onchange="this.form.submit()">
+							<div class="search-group">
+								<label for="page_size" class="search-label">Items per page</label>
+								<select name="page_size" id="page_size" class="page-size-select" onchange="this.form.submit()">
 									<option value="10" selected?={ props.PageSize == 10 }>10 items</option>
 									<option value="20" selected?={ props.PageSize == 20 }>20 items</option>
 									<option value="50" selected?={ props.PageSize == 50 }>50 items</option>
 								</select>
 							</div>
-							<div class="admin-search-buttons">
-								<button type="submit" class="admin-search-btn">Search</button>
-								<a href="/admin/clients" class="admin-clear-btn">Clear</a>
+							<div class="search-buttons">
+								<button type="submit" class="search-btn">Search</button>
+								<a href="/admin/clients" class="clear-btn">Clear</a>
 							</div>
 						</form>
 					</div>
@@ -110,22 +110,22 @@ templ AdminClients(props ClientsPageProps) {
 						<!-- Pagination Controls -->
 						@ClientsPagination(props.Pagination, props.PageSize, props.Search)
 					} else {
-						<div class="admin-empty-state">
-							<div class="admin-empty-icon">
+						<div class="empty-state">
+							<div class="empty-icon">
 								if props.Search != "" {
 									🔍
 								} else {
 									🔑
 								}
 							</div>
-							<h3 class="admin-empty-title">
+							<h3 class="empty-title">
 								if props.Search != "" {
 									No clients found
 								} else {
 									No OAuth Clients Yet
 								}
 							</h3>
-							<p class="admin-empty-text">
+							<p class="empty-text">
 								if props.Search != "" {
 									Try adjusting your search terms or clear the filter.
 								} else {

@@ -27,29 +27,29 @@ templ AdminAuditLogs(props AuditLogsPageProps) {
 				<div class="audit-filters-section">
 					<form method="GET" action="/admin/audit">
 						<!-- Search Bar -->
-						<div class="audit-search-bar">
-							<div class="audit-search-group">
-								<label class="audit-filter-label">Search</label>
-								<div class="audit-search-input-wrapper">
-									<span class="audit-search-icon">🔍</span>
+						<div class="search-grid">
+							<div class="search-group">
+								<label class="search-label">Search</label>
+								<div class="search-input-wrapper">
+									<span class="search-icon">🔍</span>
 									<input
 										type="text"
 										name="search"
-										class="audit-search-input"
+										class="search-input search-input-sm"
 										placeholder="Search action, resource, username..."
 										value={ props.Search }
 									/>
 								</div>
 							</div>
-							<div class="audit-search-group">
-								<label class="audit-filter-label">Items Per Page</label>
-								<select name="page_size" class="audit-page-size-select" onchange="this.form.submit()">
+							<div class="search-group">
+								<label class="search-label">Items Per Page</label>
+								<select name="page_size" class="page-size-select" onchange="this.form.submit()">
 									<option value="20" selected?={ props.PageSize == 20 }>20 items</option>
 									<option value="50" selected?={ props.PageSize == 50 }>50 items</option>
 									<option value="100" selected?={ props.PageSize == 100 }>100 items</option>
 								</select>
 							</div>
-							<div class="audit-search-buttons">
+							<div class="search-buttons">
 								<button type="submit" class="audit-btn audit-btn-primary">
 									Apply Filters
 								</button>
@@ -65,7 +65,7 @@ templ AdminAuditLogs(props AuditLogsPageProps) {
 						<!-- Advanced Filters -->
 						<div class="audit-advanced-filters">
 						<div class="audit-filter-group">
-							<label class="audit-filter-label">Event Type</label>
+							<label class="search-label">Event Type</label>
 							<select name="event_type" class="audit-filter-select">
 								<option value="">All Events</option>
 								<option value="AUTHENTICATION_SUCCESS" selected?={ props.EventType == "AUTHENTICATION_SUCCESS" }>Auth Success</option>
@@ -87,7 +87,7 @@ templ AdminAuditLogs(props AuditLogsPageProps) {
 							</select>
 						</div>
 						<div class="audit-filter-group">
-							<label class="audit-filter-label">Severity</label>
+							<label class="search-label">Severity</label>
 							<select name="severity" class="audit-filter-select">
 								<option value="">All</option>
 								<option value="INFO" selected?={ props.Severity == "INFO" }>Info</option>
@@ -97,7 +97,7 @@ templ AdminAuditLogs(props AuditLogsPageProps) {
 							</select>
 						</div>
 						<div class="audit-filter-group">
-							<label class="audit-filter-label">Status</label>
+							<label class="search-label">Status</label>
 							<select name="success" class="audit-filter-select">
 								<option value="">All</option>
 								<option value="true" selected?={ props.Success == "true" }>Success</option>
@@ -105,7 +105,7 @@ templ AdminAuditLogs(props AuditLogsPageProps) {
 							</select>
 						</div>
 						<div class="audit-filter-group">
-							<label class="audit-filter-label">Actor IP</label>
+							<label class="search-label">Actor IP</label>
 							<input type="text" name="actor_ip" class="audit-filter-input" placeholder="e.g., 192.168.1.1" value={ props.ActorIP }/>
 						</div>
 					</div>
@@ -140,22 +140,22 @@ templ AdminAuditLogs(props AuditLogsPageProps) {
 					}
 				} else {
 					<!-- Empty State -->
-					<div class="audit-empty-state">
-						<div class="audit-empty-icon">
+					<div class="empty-state">
+						<div class="empty-icon">
 							if props.Search != "" {
 								🔍
 							} else {
 								📋
 							}
 						</div>
-						<h3 class="audit-empty-title">
+						<h3 class="empty-title">
 							if props.Search != "" {
 								No audit logs found
 							} else {
 								No Audit Logs Yet
 							}
 						</h3>
-						<p class="audit-empty-text">
+						<p class="empty-text">
 							if props.Search != "" {
 								Try adjusting your search terms or filters to find what you're looking for.
 							} else {
