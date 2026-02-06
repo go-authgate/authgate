@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -524,4 +526,84 @@ func TestUpsertExternalUser_Success_UpdateExisting(t *testing.T) {
 	assert.Equal(t, "bob", updatedUser.Username)
 	assert.Equal(t, "bob.builder@example.com", updatedUser.Email)
 	assert.Equal(t, "Robert Builder", updatedUser.FullName)
+}
+
+// TestDefaultAdminPassword_WhitespaceHandling tests that whitespace-only passwords are treated as empty
+func TestDefaultAdminPassword_WhitespaceHandling(t *testing.T) {
+	tests := []struct {
+		name                 string
+		defaultAdminPassword string
+		shouldUseConfigured  bool
+	}{
+		{
+			name:                 "valid password",
+			defaultAdminPassword: "MyPassword123",
+			shouldUseConfigured:  true,
+		},
+		{
+			name:                 "password with leading/trailing spaces",
+			defaultAdminPassword: "  MyPassword123  ",
+			shouldUseConfigured:  true,
+		},
+		{
+			name:                 "empty string",
+			defaultAdminPassword: "",
+			shouldUseConfigured:  false,
+		},
+		{
+			name:                 "only spaces",
+			defaultAdminPassword: "   ",
+			shouldUseConfigured:  false,
+		},
+		{
+			name:                 "only tabs",
+			defaultAdminPassword: "\t\t\t",
+			shouldUseConfigured:  false,
+		},
+		{
+			name:                 "mixed whitespace",
+			defaultAdminPassword: " \t\n\r ",
+			shouldUseConfigured:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				DefaultAdminPassword: tt.defaultAdminPassword,
+			}
+
+			store, err := New("sqlite", ":memory:", cfg)
+			require.NoError(t, err)
+			require.NotNil(t, store)
+
+			// Get the created admin user
+			admin, err := store.GetUserByUsername("admin")
+			require.NoError(t, err)
+			require.NotNil(t, admin)
+
+			// Verify the password works
+			if tt.shouldUseConfigured {
+				// Should use the trimmed configured password
+				err = bcrypt.CompareHashAndPassword(
+					[]byte(admin.PasswordHash),
+					[]byte(strings.TrimSpace(tt.defaultAdminPassword)),
+				)
+				assert.NoError(t, err, "configured password should work after trimming")
+			} else {
+				// Should have generated a random password (we can't verify the exact password,
+				// but we can verify it's not an empty password)
+				assert.NotEmpty(t, admin.PasswordHash)
+
+				// Verify that whitespace-only password does NOT work
+				if tt.defaultAdminPassword != "" {
+					err = bcrypt.CompareHashAndPassword(
+						[]byte(admin.PasswordHash),
+						[]byte(tt.defaultAdminPassword),
+					)
+					assert.Error(t, err, "whitespace-only password should not work")
+				}
+			}
+		})
+	}
 }

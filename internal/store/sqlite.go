@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/appleboy/authgate/internal/config"
@@ -75,9 +76,10 @@ func (s *Store) seedData(cfg *config.Config) error {
 		var password string
 		var err error
 
-		// Use configured password if set, otherwise generate random password
-		if cfg.DefaultAdminPassword != "" {
-			password = cfg.DefaultAdminPassword
+		// Use configured password if set (after trimming whitespace), otherwise generate random password
+		configuredPassword := strings.TrimSpace(cfg.DefaultAdminPassword)
+		if configuredPassword != "" {
+			password = configuredPassword
 		} else {
 			password, err = generateRandomPassword(16)
 			if err != nil {
@@ -101,7 +103,7 @@ func (s *Store) seedData(cfg *config.Config) error {
 		}
 
 		// Log password creation differently based on source
-		if cfg.DefaultAdminPassword != "" {
+		if configuredPassword != "" {
 			log.Printf("Created default user: admin / [configured password] (role: admin)")
 		} else {
 			log.Printf("Created default user: admin / %s (role: admin)", password)
