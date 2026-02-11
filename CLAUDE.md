@@ -191,6 +191,8 @@ docker build -f docker/Dockerfile -t authgate .
 | GITEA_CLIENT_SECRET          | (none)                | Gitea OAuth client secret                               |
 | OAUTH_AUTO_REGISTER          | true                  | Allow OAuth auto-registration                           |
 | OAUTH_TIMEOUT                | 15s                   | OAuth HTTP client timeout                               |
+| **METRICS_ENABLED**          | false                 | Enable Prometheus metrics endpoint                      |
+| METRICS_TOKEN                | (empty)               | Bearer token for /metrics endpoint (empty = no auth)    |
 
 ## Default Test Data
 

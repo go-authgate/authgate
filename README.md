@@ -75,7 +75,7 @@ Modern CLI tools and IoT devices need secure user authentication, but traditiona
 
 - **OAuth 2.0 Compliance**: Full implementation of Device Authorization Grant (RFC 8628), Refresh Tokens (RFC 6749), and Token Revocation (RFC 7009)
 - **Security First**: Rate limiting, audit logging, CSRF protection, and session management built-in
-- **Production Ready**: Built-in monitoring, health checks, and comprehensive audit trails
+- **Production Ready**: Built-in monitoring with Prometheus metrics, health checks, and comprehensive audit trails
 - **Zero Dependencies**: Single static binary with SQLite embedded, or use PostgreSQL for scale
 - **Multi-Auth Support**: Local authentication, external HTTP API, OAuth providers (GitHub, Gitea, Microsoft)
 - **Flexible Deployment**: Docker-ready, cloud-friendly, runs anywhere
@@ -162,6 +162,7 @@ The CLI demonstrates the complete device authorization flow with automatic token
 ### Operations
 
 - **[Monitoring Guide](docs/MONITORING.md)** - Health checks, metrics, audit logging, alerting
+- **[Prometheus Metrics](docs/METRICS.md)** - Metrics endpoint, authentication, Grafana dashboards
 - **[Security Guide](docs/SECURITY.md)** - Production checklist, threat model, secrets management
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues, debug mode, FAQ
 
@@ -208,8 +209,9 @@ sequenceDiagram
 | `/account/sessions`  | GET    | View and manage active sessions   |
 | `/login`             | POST   | User login                        |
 | `/health`            | GET    | Health check (monitoring)         |
+| `/metrics`           | GET    | Prometheus metrics (optional auth)|
 
-**[Full API Reference →](docs/ARCHITECTURE.md#key-endpoints)**
+**[Full API Reference →](docs/ARCHITECTURE.md#key-endpoints)** | **[Metrics Documentation →](docs/METRICS.md)**
 
 ---
 
@@ -262,6 +264,10 @@ DEFAULT_ADMIN_PASSWORD=your-secure-password
 # Features
 ENABLE_RATE_LIMIT=true          # Brute force protection
 ENABLE_AUDIT_LOGGING=true       # Comprehensive audit trails
+
+# Monitoring (Optional - disabled by default)
+# METRICS_ENABLED=true            # Enable Prometheus metrics endpoint
+# METRICS_TOKEN=your-bearer-token # Bearer token for /metrics (optional)
 ```
 
 **[Complete Configuration Guide →](docs/CONFIGURATION.md)**

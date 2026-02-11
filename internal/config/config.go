@@ -146,6 +146,10 @@ type Config struct {
 	AuditLogRetention       time.Duration // Retention period for audit logs (default: 90 days)
 	AuditLogBufferSize      int           // Async buffer size (default: 1000)
 	AuditLogCleanupInterval time.Duration // Cleanup interval (default: 24 hours)
+
+	// Prometheus Metrics settings
+	MetricsEnabled bool   // Enable Prometheus metrics endpoint (default: false)
+	MetricsToken   string // Bearer token for /metrics (empty = no auth, recommended for production)
 }
 
 func Load() *Config {
@@ -277,6 +281,10 @@ func Load() *Config {
 		AuditLogRetention:       getEnvDuration("AUDIT_LOG_RETENTION", 90*24*time.Hour), // 90 days
 		AuditLogBufferSize:      getEnvInt("AUDIT_LOG_BUFFER_SIZE", 1000),
 		AuditLogCleanupInterval: getEnvDuration("AUDIT_LOG_CLEANUP_INTERVAL", 24*time.Hour),
+
+		// Prometheus Metrics settings
+		MetricsEnabled: getEnvBool("METRICS_ENABLED", false),
+		MetricsToken:   getEnv("METRICS_TOKEN", ""),
 	}
 }
 
