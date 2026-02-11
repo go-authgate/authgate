@@ -475,6 +475,7 @@ curl http://localhost:8080/metrics | grep -E "(oauth|auth|http_request)"
    ```
 
 4. **Record both success and failure**: Always track outcomes
+
    ```go
    if err != nil {
        s.metrics.RecordTokenRefresh(false)
