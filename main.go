@@ -41,6 +41,7 @@ import (
 	"github.com/appleboy/authgate/internal/client"
 	"github.com/appleboy/authgate/internal/config"
 	"github.com/appleboy/authgate/internal/handlers"
+	"github.com/appleboy/authgate/internal/metrics"
 	"github.com/appleboy/authgate/internal/middleware"
 	"github.com/appleboy/authgate/internal/services"
 	"github.com/appleboy/authgate/internal/store"
@@ -53,6 +54,7 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -129,6 +131,10 @@ func runServer() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
+	// Initialize Prometheus metrics
+	prometheusMetrics := metrics.Init()
+	log.Println("Prometheus metrics initialized")
+
 	// Initialize audit service
 	auditService := services.NewAuditService(db, cfg.EnableAuditLogging, cfg.AuditLogBufferSize)
 
@@ -192,6 +198,9 @@ func runServer() {
 	setupGinMode(cfg)
 	r := gin.Default()
 
+	// Setup Prometheus metrics middleware (must be before other routes)
+	r.Use(metrics.HTTPMetricsMiddleware(prometheusMetrics))
+
 	// Setup IP middleware (for audit logging)
 	r.Use(util.IPMiddleware())
 
@@ -219,6 +228,22 @@ func runServer() {
 
 	// Health check endpoint
 	r.GET("/health", createHealthCheckHandler(db))
+
+	// Prometheus metrics endpoint (with optional authentication)
+	switch {
+	case !cfg.MetricsEnabled:
+		log.Printf("Prometheus metrics disabled")
+	case cfg.MetricsToken != "":
+		log.Printf("Prometheus metrics enabled at /metrics with Bearer token authentication")
+		r.GET(
+			"/metrics",
+			middleware.MetricsAuthMiddleware(cfg.MetricsToken),
+			gin.WrapH(promhttp.Handler()),
+		)
+	default:
+		log.Printf("Prometheus metrics enabled at /metrics (no authentication)")
+		r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	}
 
 	// Setup rate limiting
 	rateLimiters, redisClient := setupRateLimiting(cfg, auditService)
