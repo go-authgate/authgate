@@ -259,8 +259,6 @@ func (s *AuditService) Shutdown(ctx context.Context) error {
 		return nil
 	}
 
-	log.Println("Shutting down audit service...")
-
 	// Stop ticker
 	s.batchTicker.Stop()
 
