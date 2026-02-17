@@ -31,4 +31,7 @@ type MetricsRecorder interface {
 	SetActiveTokensCount(tokenType string, count int)
 	SetActiveDeviceCodesCount(total, pending int)
 	SetActiveSessionsCount(count int)
+
+	// Database Operations
+	RecordDatabaseQueryError(operation string)
 }

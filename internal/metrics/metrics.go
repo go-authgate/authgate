@@ -48,6 +48,9 @@ type Metrics struct {
 	HTTPRequestsTotal    *prometheus.CounterVec
 	HTTPRequestDuration  *prometheus.HistogramVec
 	HTTPRequestsInFlight prometheus.Gauge
+
+	// Database Query Metrics
+	DatabaseQueryErrorsTotal *prometheus.CounterVec
 }
 
 var (
@@ -302,6 +305,15 @@ func initMetrics() *Metrics {
 				Name: "http_requests_in_flight",
 				Help: "Current number of HTTP requests being served",
 			},
+		),
+
+		// Database Query Metrics
+		DatabaseQueryErrorsTotal: promauto.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "database_query_errors_total",
+				Help: "Total number of database query errors during metric collection",
+			},
+			[]string{"operation"}, // count_access_tokens, count_refresh_tokens, count_device_codes
 		),
 	}
 

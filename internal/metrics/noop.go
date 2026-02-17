@@ -59,3 +59,6 @@ func (n *NoopMetrics) RecordSessionInvalidated(reason string)                   
 func (n *NoopMetrics) SetActiveTokensCount(tokenType string, count int) {}
 func (n *NoopMetrics) SetActiveDeviceCodesCount(total, pending int)     {}
 func (n *NoopMetrics) SetActiveSessionsCount(count int)                 {}
+
+// Database Operations - noop implementations
+func (n *NoopMetrics) RecordDatabaseQueryError(operation string) {}

@@ -72,6 +72,34 @@ func TestStoreWithPostgres(t *testing.T) {
 	testBasicOperations(t, "postgres", pgContainer)
 }
 
+// createTestDeviceCodes creates multiple test device codes with the given parameters
+func createTestDeviceCodes(
+	t *testing.T,
+	store *Store,
+	count int,
+	prefix string,
+	authorized bool,
+	expiresIn time.Duration,
+) {
+	t.Helper()
+	for i := 0; i < count; i++ {
+		plaintext := fmt.Sprintf("%s%d123456789abcdef0123456789abcdef012345", prefix, i)
+		code := &models.DeviceCode{
+			DeviceCodeHash: fmt.Sprintf("%shash%d", prefix, i),
+			DeviceCodeSalt: fmt.Sprintf("%ssalt%d", prefix, i),
+			DeviceCodeID:   plaintext[len(plaintext)-8:],
+			UserCode:       fmt.Sprintf("%s%04d", strings.ToUpper(prefix), i),
+			ClientID:       uuid.New().String(),
+			Scopes:         "read",
+			ExpiresAt:      time.Now().Add(expiresIn),
+			Interval:       5,
+			Authorized:     authorized,
+		}
+		err := store.CreateDeviceCode(code)
+		require.NoError(t, err)
+	}
+}
+
 // createFreshStore creates a new store instance for test isolation
 // For SQLite, each call creates a fresh :memory: database
 // For PostgreSQL, each call creates a uniquely-named database in the container
@@ -292,40 +320,10 @@ func testBasicOperations(t *testing.T, driver string, pgContainer *postgres.Post
 		store := createFreshStore(t, driver, pgContainer)
 
 		// Create 2 authorized non-expired codes
-		for i := 0; i < 2; i++ {
-			plaintext := fmt.Sprintf("code%d123456789abcdef0123456789abcdef012345", i)
-			code := &models.DeviceCode{
-				DeviceCodeHash: fmt.Sprintf("hash%d", i),
-				DeviceCodeSalt: fmt.Sprintf("salt%d", i),
-				DeviceCodeID:   plaintext[len(plaintext)-8:],
-				UserCode:       fmt.Sprintf("AUTH%04d", i),
-				ClientID:       uuid.New().String(),
-				Scopes:         "read",
-				ExpiresAt:      time.Now().Add(30 * time.Minute),
-				Interval:       5,
-				Authorized:     true,
-			}
-			err := store.CreateDeviceCode(code)
-			require.NoError(t, err)
-		}
+		createTestDeviceCodes(t, store, 2, "code", true, 30*time.Minute)
 
 		// Create 3 pending (not authorized) non-expired codes
-		for i := 0; i < 3; i++ {
-			plaintext := fmt.Sprintf("pend%d123456789abcdef0123456789abcdef012345", i)
-			code := &models.DeviceCode{
-				DeviceCodeHash: fmt.Sprintf("pendhash%d", i),
-				DeviceCodeSalt: fmt.Sprintf("pendsalt%d", i),
-				DeviceCodeID:   plaintext[len(plaintext)-8:],
-				UserCode:       fmt.Sprintf("PEND%04d", i),
-				ClientID:       uuid.New().String(),
-				Scopes:         "read",
-				ExpiresAt:      time.Now().Add(30 * time.Minute),
-				Interval:       5,
-				Authorized:     false,
-			}
-			err := store.CreateDeviceCode(code)
-			require.NoError(t, err)
-		}
+		createTestDeviceCodes(t, store, 3, "pend", false, 30*time.Minute)
 
 		total, pending, err := store.CountDeviceCodes()
 		require.NoError(t, err)
@@ -395,23 +393,10 @@ func testBasicOperations(t *testing.T, driver string, pgContainer *postgres.Post
 	t.Run("CountDeviceCodes_AllExpired", func(t *testing.T) {
 		store := createFreshStore(t, driver, pgContainer)
 
-		// Create 3 expired codes
-		for i := 0; i < 3; i++ {
-			plaintext := fmt.Sprintf("expr%d123456789abcdef0123456789abcdef012345", i)
-			code := &models.DeviceCode{
-				DeviceCodeHash: fmt.Sprintf("exphash%d", i),
-				DeviceCodeSalt: fmt.Sprintf("expsalt%d", i),
-				DeviceCodeID:   plaintext[len(plaintext)-8:],
-				UserCode:       fmt.Sprintf("EXPR%04d", i),
-				ClientID:       uuid.New().String(),
-				Scopes:         "read",
-				ExpiresAt:      time.Now().Add(-1 * time.Hour), // All expired
-				Interval:       5,
-				Authorized:     i%2 == 0, // Mix of authorized and pending
-			}
-			err := store.CreateDeviceCode(code)
-			require.NoError(t, err)
-		}
+		// Create expired authorized codes
+		createTestDeviceCodes(t, store, 2, "expa", true, -1*time.Hour)
+		// Create expired pending codes
+		createTestDeviceCodes(t, store, 1, "expp", false, -1*time.Hour)
 
 		total, pending, err := store.CountDeviceCodes()
 		require.NoError(t, err)
@@ -423,22 +408,7 @@ func testBasicOperations(t *testing.T, driver string, pgContainer *postgres.Post
 		store := createFreshStore(t, driver, pgContainer)
 
 		// Create 4 authorized non-expired codes
-		for i := 0; i < 4; i++ {
-			plaintext := fmt.Sprintf("auth%d123456789abcdef0123456789abcdef012345", i)
-			code := &models.DeviceCode{
-				DeviceCodeHash: fmt.Sprintf("authhash%d", i),
-				DeviceCodeSalt: fmt.Sprintf("authsalt%d", i),
-				DeviceCodeID:   plaintext[len(plaintext)-8:],
-				UserCode:       fmt.Sprintf("AUTH%04d", i),
-				ClientID:       uuid.New().String(),
-				Scopes:         "read",
-				ExpiresAt:      time.Now().Add(30 * time.Minute),
-				Interval:       5,
-				Authorized:     true,
-			}
-			err := store.CreateDeviceCode(code)
-			require.NoError(t, err)
-		}
+		createTestDeviceCodes(t, store, 4, "auth", true, 30*time.Minute)
 
 		total, pending, err := store.CountDeviceCodes()
 		require.NoError(t, err)
@@ -450,22 +420,7 @@ func testBasicOperations(t *testing.T, driver string, pgContainer *postgres.Post
 		store := createFreshStore(t, driver, pgContainer)
 
 		// Create 3 pending (not authorized) non-expired codes
-		for i := 0; i < 3; i++ {
-			plaintext := fmt.Sprintf("pend%d123456789abcdef0123456789abcdef012345", i)
-			code := &models.DeviceCode{
-				DeviceCodeHash: fmt.Sprintf("pendhash%d", i),
-				DeviceCodeSalt: fmt.Sprintf("pendsalt%d", i),
-				DeviceCodeID:   plaintext[len(plaintext)-8:],
-				UserCode:       fmt.Sprintf("PEND%04d", i),
-				ClientID:       uuid.New().String(),
-				Scopes:         "read",
-				ExpiresAt:      time.Now().Add(30 * time.Minute),
-				Interval:       5,
-				Authorized:     false,
-			}
-			err := store.CreateDeviceCode(code)
-			require.NoError(t, err)
-		}
+		createTestDeviceCodes(t, store, 3, "pend", false, 30*time.Minute)
 
 		total, pending, err := store.CountDeviceCodes()
 		require.NoError(t, err)

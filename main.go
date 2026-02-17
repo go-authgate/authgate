@@ -781,19 +781,52 @@ var ginModeLogMessage = map[bool]string{
 	false: "Debug (development)",
 }
 
+// errorLogger handles rate-limited error logging
+type errorLogger struct {
+	lastErrorTimes  map[string]time.Time
+	rateLimitWindow time.Duration
+}
+
+// newErrorLogger creates a new error logger with rate limiting
+func newErrorLogger() *errorLogger {
+	return &errorLogger{
+		lastErrorTimes:  make(map[string]time.Time),
+		rateLimitWindow: 5 * time.Minute, // Log at most once per 5 minutes per operation
+	}
+}
+
+// logIfNeeded logs an error only if rate limit allows
+func (e *errorLogger) logIfNeeded(operation string, err error) {
+	now := time.Now()
+	lastTime, exists := e.lastErrorTimes[operation]
+
+	if !exists || now.Sub(lastTime) >= e.rateLimitWindow {
+		log.Printf("Database query failed for %s: %v (further errors will be suppressed for %v)",
+			operation, err, e.rateLimitWindow)
+		e.lastErrorTimes[operation] = now
+	}
+}
+
+var gaugeErrorLogger = newErrorLogger()
+
 // updateGaugeMetrics updates gauge metrics with current database state
+// Errors are recorded via metrics and rate-limited logs to avoid log noise during outages
+// Processing continues even if one query fails to maximize available metrics
 func updateGaugeMetrics(db *store.Store, m metrics.MetricsRecorder) {
-	// Update active tokens count
+	// Update active access tokens count
 	activeAccessTokens, err := db.CountActiveTokensByCategory("access")
 	if err != nil {
-		log.Printf("Failed to count access tokens: %v", err)
+		m.RecordDatabaseQueryError("count_access_tokens")
+		gaugeErrorLogger.logIfNeeded("count_access_tokens", err)
 	} else {
 		m.SetActiveTokensCount("access", int(activeAccessTokens))
 	}
 
+	// Update active refresh tokens count
 	activeRefreshTokens, err := db.CountActiveTokensByCategory("refresh")
 	if err != nil {
-		log.Printf("Failed to count refresh tokens: %v", err)
+		m.RecordDatabaseQueryError("count_refresh_tokens")
+		gaugeErrorLogger.logIfNeeded("count_refresh_tokens", err)
 	} else {
 		m.SetActiveTokensCount("refresh", int(activeRefreshTokens))
 	}
@@ -801,7 +834,8 @@ func updateGaugeMetrics(db *store.Store, m metrics.MetricsRecorder) {
 	// Update active device codes count
 	totalDeviceCodes, pendingDeviceCodes, err := db.CountDeviceCodes()
 	if err != nil {
-		log.Printf("Failed to count device codes: %v", err)
+		m.RecordDatabaseQueryError("count_device_codes")
+		gaugeErrorLogger.logIfNeeded("count_device_codes", err)
 	} else {
 		m.SetActiveDeviceCodesCount(int(totalDeviceCodes), int(pendingDeviceCodes))
 	}

@@ -187,6 +187,15 @@ func TestSetActiveSessionsCount(t *testing.T) {
 	// No error means success
 }
 
+func TestRecordDatabaseQueryError(t *testing.T) {
+	m := Init(true)
+
+	m.RecordDatabaseQueryError("count_access_tokens")
+	m.RecordDatabaseQueryError("count_refresh_tokens")
+	m.RecordDatabaseQueryError("count_device_codes")
+	// No error means success
+}
+
 func TestNormalizePath(t *testing.T) {
 	tests := []struct {
 		name     string

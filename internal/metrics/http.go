@@ -213,6 +213,11 @@ func (m *Metrics) SetActiveSessionsCount(count int) {
 	m.SessionsActive.Set(float64(count))
 }
 
+// RecordDatabaseQueryError records a database query error during metric collection
+func (m *Metrics) RecordDatabaseQueryError(operation string) {
+	m.DatabaseQueryErrorsTotal.WithLabelValues(operation).Inc()
+}
+
 // String formats the metrics for logging
 func (m *Metrics) String() string {
 	return "Metrics{DeviceCodes: active, Tokens: active, HTTP: enabled}"
