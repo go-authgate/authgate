@@ -588,7 +588,11 @@ func exchangeDeviceCode(
 	}
 
 	// Validate token response
-	if err := validateTokenResponse(tokenResp.AccessToken, tokenResp.TokenType, tokenResp.ExpiresIn); err != nil {
+	if err := validateTokenResponse(
+		tokenResp.AccessToken,
+		tokenResp.TokenType,
+		tokenResp.ExpiresIn,
+	); err != nil {
 		return nil, fmt.Errorf("invalid token response: %w", err)
 	}
 
@@ -781,7 +785,11 @@ func refreshAccessToken(refreshToken string) (*TokenStorage, error) {
 	}
 
 	// Validate token response
-	if err := validateTokenResponse(tokenResp.AccessToken, tokenResp.TokenType, tokenResp.ExpiresIn); err != nil {
+	if err := validateTokenResponse(
+		tokenResp.AccessToken,
+		tokenResp.TokenType,
+		tokenResp.ExpiresIn,
+	); err != nil {
 		return nil, fmt.Errorf("invalid token response: %w", err)
 	}
 

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/appleboy/authgate/internal/config"
+	"github.com/appleboy/authgate/internal/metrics"
 	"github.com/appleboy/authgate/internal/models"
 	"github.com/appleboy/authgate/internal/store"
 	"github.com/appleboy/authgate/internal/util"
@@ -29,17 +30,20 @@ type DeviceService struct {
 	store        *store.Store
 	config       *config.Config
 	auditService *AuditService
+	metrics      metrics.MetricsRecorder
 }
 
 func NewDeviceService(
 	s *store.Store,
 	cfg *config.Config,
 	auditService *AuditService,
+	m metrics.MetricsRecorder,
 ) *DeviceService {
 	return &DeviceService{
 		store:        s,
 		config:       cfg,
 		auditService: auditService,
+		metrics:      m,
 	}
 }
 
@@ -90,8 +94,13 @@ func (s *DeviceService) GenerateDeviceCode(
 	}
 
 	if err := s.store.CreateDeviceCode(deviceCode); err != nil {
+		// Record failure
+		s.metrics.RecordOAuthDeviceCodeGenerated(false)
 		return nil, err
 	}
+
+	// Record success
+	s.metrics.RecordOAuthDeviceCodeGenerated(true)
 
 	// Log device code generation
 	if s.auditService != nil {
@@ -193,6 +202,10 @@ func (s *DeviceService) AuthorizeDeviceCode(
 	if err != nil {
 		return err
 	}
+
+	// Record authorization with duration
+	authDuration := time.Since(dc.CreatedAt)
+	s.metrics.RecordOAuthDeviceCodeAuthorized(authDuration)
 
 	// Log device code authorization
 	if s.auditService != nil {

@@ -194,7 +194,9 @@ func (s *Store) GetUserByID(id string) (*models.User, error) {
 // GetUserByExternalID finds a user by their external ID and auth source
 func (s *Store) GetUserByExternalID(externalID, authSource string) (*models.User, error) {
 	var user models.User
-	if err := s.db.Where("external_id = ? AND auth_source = ?", externalID, authSource).First(&user).Error; err != nil {
+	if err := s.db.Where("external_id = ? AND auth_source = ?", externalID, authSource).
+		First(&user).
+		Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
@@ -770,4 +772,35 @@ func (s *Store) GetAuditLogStats(startTime, endTime time.Time) (AuditLogStats, e
 	}
 
 	return stats, nil
+}
+
+// CountActiveTokensByCategory counts active, non-expired tokens by category
+func (s *Store) CountActiveTokensByCategory(category string) (int64, error) {
+	var count int64
+	err := s.db.Model(&models.AccessToken{}).
+		Where("token_category = ? AND status = ? AND expires_at > ?",
+			category, "active", time.Now()).
+		Count(&count).
+		Error
+	return count, err
+}
+
+// CountDeviceCodes returns (total active, pending authorization)
+func (s *Store) CountDeviceCodes() (total int64, pending int64, err error) {
+	// Count all non-expired device codes
+	err = s.db.Model(&models.DeviceCode{}).
+		Where("expires_at > ?", time.Now()).
+		Count(&total).
+		Error
+	if err != nil {
+		return 0, 0, err
+	}
+
+	// Count pending (not yet authorized)
+	err = s.db.Model(&models.DeviceCode{}).
+		Where("expires_at > ? AND authorized = ?", time.Now(), false).
+		Count(&pending).
+		Error
+
+	return total, pending, err
 }

@@ -334,7 +334,10 @@ func (s *ClientService) VerifyClientSecret(clientID, clientSecret string) error 
 		return ErrClientNotFound
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(client.ClientSecret), []byte(clientSecret)); err != nil {
+	if err := bcrypt.CompareHashAndPassword(
+		[]byte(client.ClientSecret),
+		[]byte(clientSecret),
+	); err != nil {
 		return errors.New("invalid client secret")
 	}
 

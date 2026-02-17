@@ -14,7 +14,23 @@ const (
 )
 
 // HTTPMetricsMiddleware creates a Gin middleware that records HTTP metrics
-func HTTPMetricsMiddleware(m *Metrics) gin.HandlerFunc {
+func HTTPMetricsMiddleware(m MetricsRecorder) gin.HandlerFunc {
+	// If NoopMetrics, return a lightweight middleware that does nothing
+	if _, ok := m.(*NoopMetrics); ok {
+		return func(c *gin.Context) {
+			c.Next()
+		}
+	}
+
+	// Type assert to concrete Metrics for Prometheus access
+	metrics, ok := m.(*Metrics)
+	if !ok {
+		// Fallback if unknown implementation
+		return func(c *gin.Context) {
+			c.Next()
+		}
+	}
+
 	return func(c *gin.Context) {
 		// Skip metrics endpoint to avoid self-recording
 		if c.Request.URL.Path == "/metrics" {
@@ -25,8 +41,8 @@ func HTTPMetricsMiddleware(m *Metrics) gin.HandlerFunc {
 		start := time.Now()
 
 		// Increment in-flight counter
-		m.HTTPRequestsInFlight.Inc()
-		defer m.HTTPRequestsInFlight.Dec()
+		metrics.HTTPRequestsInFlight.Inc()
+		defer metrics.HTTPRequestsInFlight.Dec()
 
 		// Process request
 		c.Next()
@@ -38,10 +54,10 @@ func HTTPMetricsMiddleware(m *Metrics) gin.HandlerFunc {
 		status := strconv.Itoa(c.Writer.Status())
 
 		// Record request count
-		m.HTTPRequestsTotal.WithLabelValues(method, path, status).Inc()
+		metrics.HTTPRequestsTotal.WithLabelValues(method, path, status).Inc()
 
 		// Record request duration
-		m.HTTPRequestDuration.WithLabelValues(method, path).Observe(duration)
+		metrics.HTTPRequestDuration.WithLabelValues(method, path).Observe(duration)
 	}
 }
 

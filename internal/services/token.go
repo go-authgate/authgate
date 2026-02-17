@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/appleboy/authgate/internal/config"
+	"github.com/appleboy/authgate/internal/metrics"
 	"github.com/appleboy/authgate/internal/models"
 	"github.com/appleboy/authgate/internal/store"
 	"github.com/appleboy/authgate/internal/token"
@@ -37,6 +38,7 @@ type TokenService struct {
 	httpTokenProvider  *token.HTTPTokenProvider
 	tokenProviderMode  string
 	auditService       *AuditService
+	metrics            metrics.MetricsRecorder
 }
 
 func NewTokenService(
@@ -47,6 +49,7 @@ func NewTokenService(
 	httpProvider *token.HTTPTokenProvider,
 	providerMode string,
 	auditService *AuditService,
+	m metrics.MetricsRecorder,
 ) *TokenService {
 	return &TokenService{
 		store:              s,
@@ -56,6 +59,7 @@ func NewTokenService(
 		httpTokenProvider:  httpProvider,
 		tokenProviderMode:  providerMode,
 		auditService:       auditService,
+		metrics:            m,
 	}
 }
 
@@ -66,6 +70,12 @@ func (s *TokenService) ExchangeDeviceCode(
 ) (*models.AccessToken, *models.AccessToken, error) {
 	dc, err := s.deviceService.GetDeviceCode(deviceCode)
 	if err != nil {
+		// Record validation result
+		result := "invalid"
+		if errors.Is(err, ErrDeviceCodeExpired) {
+			result = "expired"
+		}
+		s.metrics.RecordOAuthDeviceCodeValidation(result)
 		if errors.Is(err, ErrDeviceCodeExpired) {
 			return nil, nil, ErrExpiredToken
 		}
@@ -74,24 +84,32 @@ func (s *TokenService) ExchangeDeviceCode(
 
 	// Check if client matches
 	if dc.ClientID != clientID {
+		s.metrics.RecordOAuthDeviceCodeValidation("invalid")
 		return nil, nil, ErrAccessDenied
 	}
 
 	// Check if client is active
 	client, err := s.store.GetClient(clientID)
 	if err != nil {
+		s.metrics.RecordOAuthDeviceCodeValidation("invalid")
 		return nil, nil, ErrAccessDenied
 	}
 	if !client.IsActive {
+		s.metrics.RecordOAuthDeviceCodeValidation("invalid")
 		return nil, nil, ErrAccessDenied
 	}
 
 	// Check if authorized
 	if !dc.Authorized {
+		s.metrics.RecordOAuthDeviceCodeValidation("pending")
 		return nil, nil, ErrAuthorizationPending
 	}
 
+	// Record successful validation
+	s.metrics.RecordOAuthDeviceCodeValidation("success")
+
 	// Generate access token using provider
+	start := time.Now()
 	var accessTokenResult *token.TokenResult
 	var providerErr error
 
@@ -218,6 +236,11 @@ func (s *TokenService) ExchangeDeviceCode(
 		return nil, nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
+	// Record token issuance metrics
+	duration := time.Since(start)
+	s.metrics.RecordTokenIssued("access", "device_code", duration, s.tokenProviderMode)
+	s.metrics.RecordTokenIssued("refresh", "device_code", duration, s.tokenProviderMode)
+
 	// Delete the used device code
 	_ = s.store.DeleteDeviceCodeByID(dc.ID)
 
@@ -335,6 +358,9 @@ func (s *TokenService) RevokeTokenByID(ctx context.Context, tokenID, actorUserID
 		}
 		return err
 	}
+
+	// Record revocation
+	s.metrics.RecordTokenRevoked(token.TokenCategory, "user_request")
 
 	// Log token revocation
 	if s.auditService != nil {
@@ -468,29 +494,35 @@ func (s *TokenService) RefreshAccessToken(
 	// 1. Get refresh token from database
 	refreshToken, err := s.store.GetAccessToken(refreshTokenString)
 	if err != nil {
+		s.metrics.RecordTokenRefresh(false)
 		return nil, nil, token.ErrInvalidRefreshToken
 	}
 
 	// 2. Verify token category and status
 	if refreshToken.TokenCategory != "refresh" {
+		s.metrics.RecordTokenRefresh(false)
 		return nil, nil, token.ErrInvalidRefreshToken
 	}
 	if refreshToken.Status != "active" {
+		s.metrics.RecordTokenRefresh(false)
 		return nil, nil, token.ErrInvalidRefreshToken // Token disabled or revoked
 	}
 
 	// 3. Verify expiration
 	if refreshToken.IsExpired() {
+		s.metrics.RecordTokenRefresh(false)
 		return nil, nil, token.ErrExpiredRefreshToken
 	}
 
 	// 4. Verify client_id
 	if refreshToken.ClientID != clientID {
+		s.metrics.RecordTokenRefresh(false)
 		return nil, nil, ErrAccessDenied
 	}
 
 	// 5. Verify scope (cannot upgrade)
 	if !s.validateScopes(refreshToken.Scopes, requestedScopes) {
+		s.metrics.RecordTokenRefresh(false)
 		return nil, nil, token.ErrInvalidScope
 	}
 
@@ -524,10 +556,12 @@ func (s *TokenService) RefreshAccessToken(
 
 	if providerErr != nil {
 		log.Printf("[Token] Refresh failed provider=%s: %v", s.tokenProviderMode, providerErr)
+		s.metrics.RecordTokenRefresh(false)
 		return nil, nil, providerErr
 	}
 
 	if !refreshResult.Success {
+		s.metrics.RecordTokenRefresh(false)
 		return nil, nil, fmt.Errorf("token refresh unsuccessful")
 	}
 
@@ -598,8 +632,12 @@ func (s *TokenService) RefreshAccessToken(
 	}
 
 	if err := tx.Commit().Error; err != nil {
+		s.metrics.RecordTokenRefresh(false)
 		return nil, nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
+
+	// Record successful refresh
+	s.metrics.RecordTokenRefresh(true)
 
 	// Log token refresh
 	if s.auditService != nil {

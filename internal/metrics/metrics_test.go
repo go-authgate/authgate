@@ -8,12 +8,25 @@ import (
 )
 
 func TestInit(t *testing.T) {
-	m := Init()
+	m := Init(true)
 	assert.NotNil(t, m)
-	assert.NotNil(t, m.DeviceCodesTotal)
-	assert.NotNil(t, m.TokensIssuedTotal)
-	assert.NotNil(t, m.AuthAttemptsTotal)
-	assert.NotNil(t, m.HTTPRequestsTotal)
+
+	// Type assert to concrete Metrics to access fields
+	metrics, ok := m.(*Metrics)
+	assert.True(t, ok, "Init(true) should return *Metrics")
+	assert.NotNil(t, metrics.DeviceCodesTotal)
+	assert.NotNil(t, metrics.TokensIssuedTotal)
+	assert.NotNil(t, metrics.AuthAttemptsTotal)
+	assert.NotNil(t, metrics.HTTPRequestsTotal)
+}
+
+func TestInitNoop(t *testing.T) {
+	m := Init(false)
+	assert.NotNil(t, m)
+
+	// Type assert to NoopMetrics
+	_, ok := m.(*NoopMetrics)
+	assert.True(t, ok, "Init(false) should return *NoopMetrics")
 }
 
 func TestGetMetrics(t *testing.T) {
@@ -26,21 +39,21 @@ func TestGetMetrics(t *testing.T) {
 }
 
 func TestRecordOAuthDeviceCodeGenerated(t *testing.T) {
-	m := Init()
+	m := Init(true)
 
 	m.RecordOAuthDeviceCodeGenerated(true)
 	// No error means success - prometheus metrics don't return errors for recording
 }
 
 func TestRecordOAuthDeviceCodeAuthorized(t *testing.T) {
-	m := Init()
+	m := Init(true)
 
 	m.RecordOAuthDeviceCodeAuthorized(5 * time.Second)
 	// No error means success
 }
 
 func TestRecordOAuthDeviceCodeValidation(t *testing.T) {
-	m := Init()
+	m := Init(true)
 
 	// First generate a device code
 	m.RecordOAuthDeviceCodeGenerated(true)
@@ -51,7 +64,7 @@ func TestRecordOAuthDeviceCodeValidation(t *testing.T) {
 }
 
 func TestRecordTokenIssued(t *testing.T) {
-	m := Init()
+	m := Init(true)
 
 	m.RecordTokenIssued("access", "device_code", 100*time.Millisecond, "local")
 	m.RecordTokenIssued("refresh", "device_code", 150*time.Millisecond, "local")
@@ -59,7 +72,7 @@ func TestRecordTokenIssued(t *testing.T) {
 }
 
 func TestRecordTokenRevoked(t *testing.T) {
-	m := Init()
+	m := Init(true)
 
 	// First issue a token
 	m.RecordTokenIssued("access", "device_code", 100*time.Millisecond, "local")
@@ -70,7 +83,7 @@ func TestRecordTokenRevoked(t *testing.T) {
 }
 
 func TestRecordTokenRefresh(t *testing.T) {
-	m := Init()
+	m := Init(true)
 
 	m.RecordTokenRefresh(true)
 	m.RecordTokenRefresh(false)
@@ -78,7 +91,7 @@ func TestRecordTokenRefresh(t *testing.T) {
 }
 
 func TestRecordTokenValidation(t *testing.T) {
-	m := Init()
+	m := Init(true)
 
 	m.RecordTokenValidation("valid", 50*time.Millisecond, "local")
 	m.RecordTokenValidation("invalid", 30*time.Millisecond, "local")
@@ -87,7 +100,7 @@ func TestRecordTokenValidation(t *testing.T) {
 }
 
 func TestRecordAuthAttempt(t *testing.T) {
-	m := Init()
+	m := Init(true)
 
 	m.RecordAuthAttempt("local", true, 200*time.Millisecond)
 	m.RecordAuthAttempt("local", false, 150*time.Millisecond)
@@ -96,7 +109,7 @@ func TestRecordAuthAttempt(t *testing.T) {
 }
 
 func TestRecordLogin(t *testing.T) {
-	m := Init()
+	m := Init(true)
 
 	m.RecordLogin("local", true)
 	m.RecordLogin("local", false)
@@ -105,7 +118,7 @@ func TestRecordLogin(t *testing.T) {
 }
 
 func TestRecordLogout(t *testing.T) {
-	m := Init()
+	m := Init(true)
 
 	// First create a session
 	m.RecordLogin("local", true)
@@ -116,7 +129,7 @@ func TestRecordLogout(t *testing.T) {
 }
 
 func TestRecordOAuthCallback(t *testing.T) {
-	m := Init()
+	m := Init(true)
 
 	m.RecordOAuthCallback("microsoft", true)
 	m.RecordOAuthCallback("github", false)
@@ -124,14 +137,14 @@ func TestRecordOAuthCallback(t *testing.T) {
 }
 
 func TestRecordExternalAPICall(t *testing.T) {
-	m := Init()
+	m := Init(true)
 
 	m.RecordExternalAPICall("http_api", 300*time.Millisecond)
 	// No error means success
 }
 
 func TestRecordSessionExpired(t *testing.T) {
-	m := Init()
+	m := Init(true)
 
 	// First create a session
 	m.RecordLogin("local", true)
@@ -142,7 +155,7 @@ func TestRecordSessionExpired(t *testing.T) {
 }
 
 func TestRecordSessionInvalidated(t *testing.T) {
-	m := Init()
+	m := Init(true)
 
 	// First create a session
 	m.RecordLogin("local", true)
@@ -153,7 +166,7 @@ func TestRecordSessionInvalidated(t *testing.T) {
 }
 
 func TestSetActiveTokensCount(t *testing.T) {
-	m := Init()
+	m := Init(true)
 
 	m.SetActiveTokensCount("access", 100)
 	m.SetActiveTokensCount("refresh", 50)
@@ -161,14 +174,14 @@ func TestSetActiveTokensCount(t *testing.T) {
 }
 
 func TestSetActiveDeviceCodesCount(t *testing.T) {
-	m := Init()
+	m := Init(true)
 
 	m.SetActiveDeviceCodesCount(20, 5)
 	// No error means success
 }
 
 func TestSetActiveSessionsCount(t *testing.T) {
-	m := Init()
+	m := Init(true)
 
 	m.SetActiveSessionsCount(42)
 	// No error means success

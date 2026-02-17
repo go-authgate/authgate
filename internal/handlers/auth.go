@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/appleboy/authgate/internal/auth"
+	"github.com/appleboy/authgate/internal/metrics"
 	"github.com/appleboy/authgate/internal/middleware"
 	"github.com/appleboy/authgate/internal/services"
 	"github.com/appleboy/authgate/internal/templates"
@@ -97,6 +98,7 @@ type AuthHandler struct {
 	baseURL                     string
 	sessionFingerprintEnabled   bool
 	sessionFingerprintIncludeIP bool
+	metrics                     metrics.MetricsRecorder
 }
 
 func NewAuthHandler(
@@ -104,12 +106,14 @@ func NewAuthHandler(
 	baseURL string,
 	fingerprintEnabled bool,
 	fingerprintIncludeIP bool,
+	m metrics.MetricsRecorder,
 ) *AuthHandler {
 	return &AuthHandler{
 		userService:                 us,
 		baseURL:                     baseURL,
 		sessionFingerprintEnabled:   fingerprintEnabled,
 		sessionFingerprintIncludeIP: fingerprintIncludeIP,
+		metrics:                     m,
 	}
 }
 
@@ -170,6 +174,7 @@ func (h *AuthHandler) LoginPageWithOAuth(
 func (h *AuthHandler) Login(c *gin.Context,
 	oauthProviders map[string]*auth.OAuthProvider,
 ) {
+	start := time.Now()
 	username := c.PostForm("username")
 	password := c.PostForm("password")
 	redirectTo := c.PostForm("redirect")
@@ -181,6 +186,11 @@ func (h *AuthHandler) Login(c *gin.Context,
 
 	user, err := h.userService.Authenticate(c.Request.Context(), username, password)
 	if err != nil {
+		// Record failed login
+		duration := time.Since(start)
+		h.metrics.RecordLogin("local", false)
+		h.metrics.RecordAuthAttempt("local", false, duration)
+
 		var errorMsg string
 
 		// Check for specific error types
@@ -211,6 +221,15 @@ func (h *AuthHandler) Login(c *gin.Context,
 		)
 		return
 	}
+
+	// Record successful login
+	duration := time.Since(start)
+	authSource := user.AuthSource
+	if authSource == "" {
+		authSource = "local"
+	}
+	h.metrics.RecordLogin(authSource, true)
+	h.metrics.RecordAuthAttempt(authSource, true, duration)
 
 	// Set session
 	session := sessions.Default(c)
@@ -249,6 +268,16 @@ func (h *AuthHandler) Login(c *gin.Context,
 // Logout clears the session and redirects to login
 func (h *AuthHandler) Logout(c *gin.Context) {
 	session := sessions.Default(c)
+
+	// Calculate session duration if available
+	var sessionDuration time.Duration
+	if createdAtUnix := session.Get(SessionLastActivity); createdAtUnix != nil {
+		if createdAtInt64, ok := createdAtUnix.(int64); ok {
+			createdAt := time.Unix(createdAtInt64, 0)
+			sessionDuration = time.Since(createdAt)
+		}
+	}
+
 	session.Clear()
 	if err := session.Save(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -256,5 +285,9 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		})
 		return
 	}
+
+	// Record logout
+	h.metrics.RecordLogout(sessionDuration)
+
 	c.Redirect(http.StatusFound, "/login")
 }

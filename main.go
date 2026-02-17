@@ -131,9 +131,13 @@ func runServer() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
-	// Initialize Prometheus metrics
-	prometheusMetrics := metrics.Init()
-	log.Println("Prometheus metrics initialized")
+	// Initialize metrics
+	prometheusMetrics := metrics.Init(cfg.MetricsEnabled)
+	if cfg.MetricsEnabled {
+		log.Println("Prometheus metrics initialized")
+	} else {
+		log.Println("Metrics disabled (using noop implementation)")
+	}
 
 	// Initialize audit service
 	auditService := services.NewAuditService(db, cfg.EnableAuditLogging, cfg.AuditLogBufferSize)
@@ -155,7 +159,7 @@ func runServer() {
 		cfg.OAuthAutoRegister,
 		auditService,
 	)
-	deviceService := services.NewDeviceService(db, cfg, auditService)
+	deviceService := services.NewDeviceService(db, cfg, auditService, prometheusMetrics)
 	tokenService := services.NewTokenService(
 		db,
 		cfg,
@@ -164,6 +168,7 @@ func runServer() {
 		httpTokenProvider,
 		cfg.TokenProviderMode,
 		auditService,
+		prometheusMetrics,
 	)
 	clientService := services.NewClientService(db, auditService)
 
@@ -180,6 +185,7 @@ func runServer() {
 		cfg.BaseURL,
 		cfg.SessionFingerprint,
 		cfg.SessionFingerprintIP,
+		prometheusMetrics,
 	)
 	deviceHandler := handlers.NewDeviceHandler(deviceService, userService, cfg)
 	tokenHandler := handlers.NewTokenHandler(tokenService, cfg)
@@ -191,15 +197,16 @@ func runServer() {
 		oauthHTTPClient,
 		cfg.SessionFingerprint,
 		cfg.SessionFingerprintIP,
+		prometheusMetrics,
 	)
 	auditHandler := handlers.NewAuditHandler(auditService)
 
 	// Setup Gin
 	setupGinMode(cfg)
-	r := gin.Default()
-
+	r := gin.New()
 	// Setup Prometheus metrics middleware (must be before other routes)
 	r.Use(metrics.HTTPMetricsMiddleware(prometheusMetrics))
+	r.Use(gin.Logger(), gin.Recovery())
 
 	// Setup IP middleware (for audit logging)
 	r.Use(util.IPMiddleware())
@@ -413,11 +420,33 @@ func runServer() {
 			for {
 				select {
 				case <-ticker.C:
-					if deleted, err := auditService.CleanupOldLogs(cfg.AuditLogRetention); err != nil {
+					if deleted, err := auditService.CleanupOldLogs(
+						cfg.AuditLogRetention,
+					); err != nil {
 						log.Printf("Failed to cleanup old audit logs: %v", err)
 					} else if deleted > 0 {
 						log.Printf("Cleaned up %d old audit logs", deleted)
 					}
+				case <-ctx.Done():
+					return nil
+				}
+			}
+		})
+	}
+
+	// Add metrics gauge update job (runs every 30 seconds)
+	if cfg.MetricsEnabled {
+		m.AddRunningJob(func(ctx context.Context) error {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+
+			// Update immediately on startup
+			updateGaugeMetrics(db, prometheusMetrics)
+
+			for {
+				select {
+				case <-ticker.C:
+					updateGaugeMetrics(db, prometheusMetrics)
 				case <-ctx.Done():
 					return nil
 				}
@@ -750,4 +779,30 @@ var ginModeMap = map[bool]string{
 var ginModeLogMessage = map[bool]string{
 	true:  "Release (production)",
 	false: "Debug (development)",
+}
+
+// updateGaugeMetrics updates gauge metrics with current database state
+func updateGaugeMetrics(db *store.Store, m metrics.MetricsRecorder) {
+	// Update active tokens count
+	activeAccessTokens, err := db.CountActiveTokensByCategory("access")
+	if err != nil {
+		log.Printf("Failed to count access tokens: %v", err)
+	} else {
+		m.SetActiveTokensCount("access", int(activeAccessTokens))
+	}
+
+	activeRefreshTokens, err := db.CountActiveTokensByCategory("refresh")
+	if err != nil {
+		log.Printf("Failed to count refresh tokens: %v", err)
+	} else {
+		m.SetActiveTokensCount("refresh", int(activeRefreshTokens))
+	}
+
+	// Update active device codes count
+	totalDeviceCodes, pendingDeviceCodes, err := db.CountDeviceCodes()
+	if err != nil {
+		log.Printf("Failed to count device codes: %v", err)
+	} else {
+		m.SetActiveDeviceCodesCount(int(totalDeviceCodes), int(pendingDeviceCodes))
+	}
 }
