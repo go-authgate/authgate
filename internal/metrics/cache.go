@@ -53,7 +53,7 @@ func (m *MetricsCacheWrapper) GetActiveTokensCount(
 ) (int64, error) {
 	return m.getCountWithCache(
 		ctx,
-		fmt.Sprintf("metrics:tokens:%s", category),
+		fmt.Sprintf("tokens:%s", category),
 		ttl,
 		func() (int64, error) {
 			return m.store.CountActiveTokensByCategory(category)
@@ -118,7 +118,7 @@ func (m *MetricsCacheWrapper) GetTotalDeviceCodesCount(
 ) (int64, error) {
 	return m.getCountWithCache(
 		ctx,
-		"metrics:devices:total",
+		"devices:total",
 		ttl,
 		m.store.CountTotalDeviceCodes,
 	)
@@ -132,7 +132,7 @@ func (m *MetricsCacheWrapper) GetPendingDeviceCodesCount(
 ) (int64, error) {
 	return m.getCountWithCache(
 		ctx,
-		"metrics:devices:pending",
+		"devices:pending",
 		ttl,
 		m.store.CountPendingDeviceCodes,
 	)

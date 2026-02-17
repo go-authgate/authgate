@@ -389,11 +389,12 @@ func (c *Config) Validate() error {
 		)
 	}
 
-	// Validate redis-aside requires Redis configuration
-	if c.MetricsCacheType == MetricsCacheTypeRedisAside && c.RedisAddr == "" {
+	// Validate redis-based metrics cache types require Redis configuration
+	if (c.MetricsCacheType == MetricsCacheTypeRedis || c.MetricsCacheType == MetricsCacheTypeRedisAside) &&
+		c.RedisAddr == "" {
 		return fmt.Errorf(
 			"METRICS_CACHE_TYPE=%q requires REDIS_ADDR to be configured",
-			MetricsCacheTypeRedisAside,
+			c.MetricsCacheType,
 		)
 	}
 

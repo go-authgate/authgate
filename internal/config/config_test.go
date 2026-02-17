@@ -157,6 +157,7 @@ func TestMetricsCacheValidation(t *testing.T) {
 			},
 			expectError: true,
 			errorMsg:    `METRICS_CACHE_TYPE="redis" requires REDIS_ADDR`,
+		},
 	}
 
 	for _, tt := range tests {

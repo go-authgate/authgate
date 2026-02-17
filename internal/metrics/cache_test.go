@@ -102,7 +102,7 @@ func TestMetricsCacheWrapper_GetActiveTokensCount_CacheMiss(t *testing.T) {
 	}
 
 	// Verify cache was updated
-	cached, err := memCache.Get(ctx, "metrics:tokens:access")
+	cached, err := memCache.Get(ctx, "tokens:access")
 	if err != nil {
 		t.Fatalf("Expected cache to be updated, got error: %v", err)
 	}
