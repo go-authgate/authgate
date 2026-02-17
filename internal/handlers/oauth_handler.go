@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/appleboy/authgate/internal/auth"
+	"github.com/appleboy/authgate/internal/metrics"
 	"github.com/appleboy/authgate/internal/services"
 	"github.com/appleboy/authgate/internal/templates"
 
@@ -38,6 +39,7 @@ type OAuthHandler struct {
 	httpClient                  *http.Client // Custom HTTP client for OAuth requests
 	sessionFingerprintEnabled   bool
 	sessionFingerprintIncludeIP bool
+	metrics                     metrics.MetricsRecorder
 }
 
 // NewOAuthHandler creates a new OAuth handler
@@ -47,6 +49,7 @@ func NewOAuthHandler(
 	httpClient *http.Client,
 	fingerprintEnabled bool,
 	fingerprintIncludeIP bool,
+	m metrics.MetricsRecorder,
 ) *OAuthHandler {
 	return &OAuthHandler{
 		providers:                   providers,
@@ -54,6 +57,7 @@ func NewOAuthHandler(
 		httpClient:                  httpClient,
 		sessionFingerprintEnabled:   fingerprintEnabled,
 		sessionFingerprintIncludeIP: fingerprintIncludeIP,
+		metrics:                     m,
 	}
 }
 
@@ -200,6 +204,9 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 		token,
 	)
 	if err != nil {
+		// Record failure
+		h.metrics.RecordOAuthCallback(provider, false)
+
 		log.Printf("[OAuth] Authentication failed: %v", err)
 
 		// Handle specific errors
@@ -224,6 +231,9 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 		)
 		return
 	}
+
+	// Record success
+	h.metrics.RecordOAuthCallback(provider, true)
 
 	// Clear OAuth session data
 	session.Delete("oauth_state")

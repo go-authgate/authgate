@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/appleboy/authgate/internal/config"
+	"github.com/appleboy/authgate/internal/metrics"
 	"github.com/appleboy/authgate/internal/models"
 	"github.com/appleboy/authgate/internal/store"
 
@@ -56,7 +57,7 @@ func TestGenerateDeviceCode_ActiveClient(t *testing.T) {
 		DeviceCodeExpiration: 30 * time.Minute,
 		PollingInterval:      5,
 	}
-	deviceService := NewDeviceService(s, cfg, nil)
+	deviceService := NewDeviceService(s, cfg, nil, metrics.NewNoopMetrics())
 
 	// Create an active client
 	client := createTestClient(t, s, true)
@@ -80,7 +81,7 @@ func TestGenerateDeviceCode_InactiveClient(t *testing.T) {
 		DeviceCodeExpiration: 30 * time.Minute,
 		PollingInterval:      5,
 	}
-	deviceService := NewDeviceService(s, cfg, nil)
+	deviceService := NewDeviceService(s, cfg, nil, metrics.NewNoopMetrics())
 
 	// Create an inactive client
 	client := createTestClient(t, s, false)
@@ -105,7 +106,7 @@ func TestGenerateDeviceCode_InvalidClient(t *testing.T) {
 		DeviceCodeExpiration: 30 * time.Minute,
 		PollingInterval:      5,
 	}
-	deviceService := NewDeviceService(s, cfg, nil)
+	deviceService := NewDeviceService(s, cfg, nil, metrics.NewNoopMetrics())
 
 	// Try to generate device code with non-existent client
 	dc, err := deviceService.GenerateDeviceCode(
@@ -126,7 +127,7 @@ func TestAuthorizeDeviceCode_Success(t *testing.T) {
 		DeviceCodeExpiration: 30 * time.Minute,
 		PollingInterval:      5,
 	}
-	deviceService := NewDeviceService(s, cfg, nil)
+	deviceService := NewDeviceService(s, cfg, nil, metrics.NewNoopMetrics())
 
 	// Create an active client and device code
 	client := createTestClient(t, s, true)
@@ -154,7 +155,7 @@ func TestAuthorizeDeviceCode_InvalidUserCode(t *testing.T) {
 		DeviceCodeExpiration: 30 * time.Minute,
 		PollingInterval:      5,
 	}
-	deviceService := NewDeviceService(s, cfg, nil)
+	deviceService := NewDeviceService(s, cfg, nil, metrics.NewNoopMetrics())
 
 	// Try to authorize with invalid user code
 	err := deviceService.AuthorizeDeviceCode(
@@ -175,7 +176,7 @@ func TestGetClientNameByUserCode_Success(t *testing.T) {
 		DeviceCodeExpiration: 30 * time.Minute,
 		PollingInterval:      5,
 	}
-	deviceService := NewDeviceService(s, cfg, nil)
+	deviceService := NewDeviceService(s, cfg, nil, metrics.NewNoopMetrics())
 
 	// Create an active client and device code
 	client := createTestClient(t, s, true)
@@ -196,7 +197,7 @@ func TestUserCodeNormalization(t *testing.T) {
 		DeviceCodeExpiration: 30 * time.Minute,
 		PollingInterval:      5,
 	}
-	deviceService := NewDeviceService(s, cfg, nil)
+	deviceService := NewDeviceService(s, cfg, nil, metrics.NewNoopMetrics())
 
 	// Create an active client and device code
 	client := createTestClient(t, s, true)

@@ -7,6 +7,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+// Ensure Metrics implements MetricsRecorder interface at compile time
+var _ MetricsRecorder = (*Metrics)(nil)
+
 // Metrics holds all Prometheus metrics for the application
 type Metrics struct {
 	// OAuth Device Flow Metrics
@@ -52,9 +55,15 @@ var (
 	once           sync.Once
 )
 
-// Init initializes all Prometheus metrics
-// Uses sync.Once to ensure metrics are only registered once
-func Init() *Metrics {
+// Init initializes metrics based on enabled flag
+// If enabled=true, returns Prometheus-based Metrics
+// If enabled=false, returns NoopMetrics (zero overhead)
+// Uses sync.Once to ensure Prometheus metrics are only registered once
+func Init(enabled bool) MetricsRecorder {
+	if !enabled {
+		return NewNoopMetrics()
+	}
+
 	once.Do(func() {
 		defaultMetrics = initMetrics()
 	})
@@ -300,9 +309,13 @@ func initMetrics() *Metrics {
 }
 
 // GetMetrics returns the global metrics instance
+//
+// Deprecated: Use Init(true) instead
 func GetMetrics() *Metrics {
 	if defaultMetrics == nil {
-		return Init()
+		once.Do(func() {
+			defaultMetrics = initMetrics()
+		})
 	}
 	return defaultMetrics
 }

@@ -28,7 +28,10 @@ func (p *LocalAuthProvider) Authenticate(
 		return nil, ErrInvalidCredentials
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword(
+		[]byte(user.PasswordHash),
+		[]byte(password),
+	); err != nil {
 		return nil, ErrInvalidCredentials
 	}
 

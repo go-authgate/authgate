@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/appleboy/authgate/internal/config"
+	"github.com/appleboy/authgate/internal/metrics"
 	"github.com/appleboy/authgate/internal/models"
 	"github.com/appleboy/authgate/internal/store"
 	"github.com/appleboy/authgate/internal/util"
@@ -24,7 +25,7 @@ func setupTestService(t *testing.T) (*DeviceService, *models.OAuthApplication) {
 
 	st, err := store.New("sqlite", ":memory:", cfg)
 	require.NoError(t, err)
-	service := NewDeviceService(st, cfg, nil)
+	service := NewDeviceService(st, cfg, nil, metrics.NewNoopMetrics())
 
 	// Create test client
 	client := &models.OAuthApplication{
