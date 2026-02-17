@@ -149,14 +149,14 @@ func TestMetricsCacheValidation(t *testing.T) {
 			errorMsg:    `METRICS_CACHE_TYPE="redis-aside" requires REDIS_ADDR`,
 		},
 		{
-			name: "redis cache type without redis address (allowed)",
+			name: "redis cache type without redis address",
 			config: &Config{
 				RateLimitStore:   RateLimitStoreMemory,
 				MetricsCacheType: MetricsCacheTypeRedis,
 				RedisAddr:        "",
 			},
-			expectError: false,
-		},
+			expectError: true,
+			errorMsg:    `METRICS_CACHE_TYPE="redis" requires REDIS_ADDR`,
 	}
 
 	for _, tt := range tests {
