@@ -57,6 +57,31 @@ func (m *MemoryCache) Set(ctx context.Context, key string, value int64, ttl time
 	return nil
 }
 
+// GetWithFetch retrieves a value using cache-aside pattern.
+// On cache miss, calls fetchFunc to get the value and stores it in cache.
+func (m *MemoryCache) GetWithFetch(
+	ctx context.Context,
+	key string,
+	ttl time.Duration,
+	fetchFunc func(ctx context.Context, key string) (int64, error),
+) (int64, error) {
+	// Try cache first
+	if value, err := m.Get(ctx, key); err == nil {
+		return value, nil
+	}
+
+	// Cache miss - fetch from source
+	value, err := fetchFunc(ctx, key)
+	if err != nil {
+		return 0, err
+	}
+
+	// Update cache (fire-and-forget, ignore errors)
+	_ = m.Set(ctx, key, value, ttl)
+
+	return value, nil
+}
+
 // MGet retrieves multiple values from cache.
 func (m *MemoryCache) MGet(ctx context.Context, keys []string) (map[string]int64, error) {
 	m.mu.RLock()

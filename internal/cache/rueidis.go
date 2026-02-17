@@ -78,6 +78,32 @@ func (r *RueidisCache) Set(ctx context.Context, key string, value int64, ttl tim
 	return nil
 }
 
+// GetWithFetch retrieves a value using cache-aside pattern.
+// On cache miss, calls fetchFunc to get the value and stores it in cache.
+func (r *RueidisCache) GetWithFetch(
+	ctx context.Context,
+	key string,
+	ttl time.Duration,
+	fetchFunc func(ctx context.Context, key string) (int64, error),
+) (int64, error) {
+	// Try cache first
+	if value, err := r.Get(ctx, key); err == nil {
+		return value, nil
+	}
+	// On cache errors (non-ErrCacheMiss), continue with fetch for graceful degradation
+
+	// Cache miss - fetch from source
+	value, err := fetchFunc(ctx, key)
+	if err != nil {
+		return 0, err
+	}
+
+	// Update cache (fire-and-forget, ignore errors)
+	_ = r.Set(ctx, key, value, ttl)
+
+	return value, nil
+}
+
 // MGet retrieves multiple values from Redis.
 func (r *RueidisCache) MGet(ctx context.Context, keys []string) (map[string]int64, error) {
 	if len(keys) == 0 {

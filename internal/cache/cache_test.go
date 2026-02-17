@@ -235,3 +235,89 @@ func TestMemoryCache_Concurrent(t *testing.T) {
 		t.Errorf("Cache corrupted after concurrent access: %v", err)
 	}
 }
+
+func TestMemoryCache_GetWithFetch(t *testing.T) {
+	cache := NewMemoryCache()
+	ctx := context.Background()
+
+	fetchCount := 0
+	fetchFunc := func(ctx context.Context, key string) (int64, error) {
+		fetchCount++
+		return 42, nil
+	}
+
+	// First call - should fetch
+	value, err := cache.GetWithFetch(ctx, "test-key", time.Minute, fetchFunc)
+	if err != nil {
+		t.Fatalf("GetWithFetch failed: %v", err)
+	}
+	if value != 42 {
+		t.Errorf("Expected value 42, got %d", value)
+	}
+	if fetchCount != 1 {
+		t.Errorf("Expected fetch count 1, got %d", fetchCount)
+	}
+
+	// Second call - should use cache
+	value, err = cache.GetWithFetch(ctx, "test-key", time.Minute, fetchFunc)
+	if err != nil {
+		t.Fatalf("GetWithFetch failed: %v", err)
+	}
+	if value != 42 {
+		t.Errorf("Expected value 42, got %d", value)
+	}
+	if fetchCount != 1 {
+		t.Errorf("Expected fetch count 1 (cached), got %d", fetchCount)
+	}
+}
+
+func TestMemoryCache_GetWithFetchError(t *testing.T) {
+	cache := NewMemoryCache()
+	ctx := context.Background()
+
+	expectedErr := ErrCacheUnavailable
+	fetchFunc := func(ctx context.Context, key string) (int64, error) {
+		return 0, expectedErr
+	}
+
+	// Should return fetch error
+	_, err := cache.GetWithFetch(ctx, "test-key", time.Minute, fetchFunc)
+	if err != expectedErr {
+		t.Errorf("Expected error %v, got %v", expectedErr, err)
+	}
+}
+
+func TestMemoryCache_GetWithFetchExpiration(t *testing.T) {
+	cache := NewMemoryCache()
+	ctx := context.Background()
+
+	fetchCount := 0
+	fetchFunc := func(ctx context.Context, key string) (int64, error) {
+		fetchCount++
+		return int64(fetchCount * 10), nil
+	}
+
+	// First call - should fetch
+	value, err := cache.GetWithFetch(ctx, "expire-key", 50*time.Millisecond, fetchFunc)
+	if err != nil {
+		t.Fatalf("GetWithFetch failed: %v", err)
+	}
+	if value != 10 {
+		t.Errorf("Expected value 10, got %d", value)
+	}
+
+	// Wait for expiration
+	time.Sleep(100 * time.Millisecond)
+
+	// Should fetch again after expiration
+	value, err = cache.GetWithFetch(ctx, "expire-key", 50*time.Millisecond, fetchFunc)
+	if err != nil {
+		t.Fatalf("GetWithFetch failed: %v", err)
+	}
+	if value != 20 {
+		t.Errorf("Expected value 20 after expiration, got %d", value)
+	}
+	if fetchCount != 2 {
+		t.Errorf("Expected fetch count 2, got %d", fetchCount)
+	}
+}

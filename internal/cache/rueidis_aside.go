@@ -55,34 +55,27 @@ func NewRueidisAsideCache(
 }
 
 // Get retrieves a value from Redis with client-side caching.
-// For rueidisaside, this method returns ErrCacheMiss to maintain interface compatibility.
-// The wrapper layer (MetricsCacheWrapper) will handle the fetch logic and call Set.
+// Uses DoCache to leverage RESP3 client-side caching with automatic invalidation.
 func (r *RueidisAsideCache) Get(ctx context.Context, key string) (int64, error) {
 	fullKey := r.keyPrefix + key
 
-	// Use rueidisaside.Get with a fetch function that returns ErrCacheMiss
-	// This allows the client-side cache to work while maintaining our interface
-	val, err := r.client.Get(
-		ctx,
-		r.clientTTL,
-		fullKey,
-		func(ctx context.Context, key string) (val string, err error) {
-			// Return empty to indicate cache miss - wrapper will fetch from DB and call Set
-			return "", ErrCacheMiss
-		},
-	)
-	if err != nil {
-		if err == ErrCacheMiss {
+	// Use DoCache for client-side caching (RESP3 automatic invalidation)
+	cmd := r.client.Client().B().Get().Key(fullKey).Cache()
+	resp := r.client.Client().DoCache(ctx, cmd, r.clientTTL)
+
+	if err := resp.Error(); err != nil {
+		if rueidis.IsRedisNil(err) {
 			return 0, ErrCacheMiss
 		}
 		return 0, fmt.Errorf("%w: %v", ErrCacheUnavailable, err)
 	}
 
-	if val == "" {
-		return 0, ErrCacheMiss
+	str, err := resp.ToString()
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrInvalidValue, err)
 	}
 
-	value, err := strconv.ParseInt(val, 10, 64)
+	value, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("%w: %v", ErrInvalidValue, err)
 	}

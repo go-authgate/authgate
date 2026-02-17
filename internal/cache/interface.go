@@ -14,6 +14,18 @@ type Cache interface {
 	// Set stores a single value in cache with TTL
 	Set(ctx context.Context, key string, value int64, ttl time.Duration) error
 
+	// GetWithFetch retrieves a value using cache-aside pattern.
+	// On cache miss, calls fetchFunc to get the value and automatically stores it in cache.
+	// This method is part of the main interface to ensure all implementations provide
+	// optimal cache-aside support. RueidisAsideCache provides an optimized implementation
+	// using rueidisaside's automatic cache management.
+	GetWithFetch(
+		ctx context.Context,
+		key string,
+		ttl time.Duration,
+		fetchFunc func(ctx context.Context, key string) (int64, error),
+	) (int64, error)
+
 	// MGet retrieves multiple values from cache
 	// Returns a map of key->value for keys that exist
 	MGet(ctx context.Context, keys []string) (map[string]int64, error)

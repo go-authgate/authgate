@@ -3,7 +3,6 @@ package metrics
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/appleboy/authgate/internal/cache"
@@ -18,19 +17,9 @@ type metricsStore interface {
 	CountPendingDeviceCodes() (int64, error)
 }
 
-// cacheAsideSupport is an optional interface that cache implementations can provide
-// to enable more efficient cache-aside pattern (used by rueidisaside).
-type cacheAsideSupport interface {
-	GetWithFetch(
-		ctx context.Context,
-		key string,
-		ttl time.Duration,
-		fetchFunc func(ctx context.Context, key string) (int64, error),
-	) (int64, error)
-}
-
 // MetricsCacheWrapper provides a read-through cache for metrics data.
 // It queries the database on cache miss and updates the cache for subsequent requests.
+// Uses the cache's GetWithFetch method for optimal cache-aside pattern support.
 type MetricsCacheWrapper struct {
 	store metricsStore
 	cache cache.Cache
@@ -45,7 +34,7 @@ func NewMetricsCacheWrapper(store *store.Store, cache cache.Cache) *MetricsCache
 }
 
 // GetActiveTokensCount retrieves the count of active tokens by category.
-// It uses cache-aside pattern, automatically leveraging rueidisaside if available.
+// Uses cache-aside pattern via GetWithFetch for optimal performance.
 func (m *MetricsCacheWrapper) GetActiveTokensCount(
 	ctx context.Context,
 	category string,
@@ -62,56 +51,28 @@ func (m *MetricsCacheWrapper) GetActiveTokensCount(
 }
 
 // getCountWithCache is a generic helper for cache-aside pattern.
-// It automatically uses GetWithFetch if available (rueidisaside), otherwise falls back to manual cache-aside.
+// All cache implementations provide GetWithFetch for optimal cache-aside support.
 func (m *MetricsCacheWrapper) getCountWithCache(
 	ctx context.Context,
 	key string,
 	ttl time.Duration,
 	fetchFunc func() (int64, error),
 ) (int64, error) {
-	// If cache supports GetWithFetch (e.g., rueidisaside), use it for optimal cache-aside
-	if asideCache, ok := m.cache.(cacheAsideSupport); ok {
-		return asideCache.GetWithFetch(
-			ctx,
-			key,
-			ttl,
-			func(ctx context.Context, key string) (int64, error) {
-				return fetchFunc()
-			},
-		)
-	}
-
-	// Fallback to manual cache-aside pattern for simple caches (memory, basic redis)
-	// Try cache first
-	if count, err := m.cache.Get(ctx, key); err == nil {
-		return count, nil
-	} else if err != cache.ErrCacheMiss {
-		// Log cache errors but continue with DB query (graceful degradation)
-		slog.Warn("Cache error, falling back to database",
-			"error", err,
-			"key", key,
-		)
-	}
-
-	// Cache miss - query database
-	count, err := fetchFunc()
-	if err != nil {
-		return 0, err
-	}
-
-	// Update cache (fire-and-forget)
-	if setErr := m.cache.Set(ctx, key, count, ttl); setErr != nil {
-		slog.Debug("Failed to update cache",
-			"error", setErr,
-			"key", key,
-		)
-	}
-
-	return count, nil
+	// Use GetWithFetch for cache-aside pattern
+	// All cache implementations (MemoryCache, RueidisCache, RueidisAsideCache) provide this method.
+	// RueidisAsideCache uses an optimized implementation via rueidisaside.
+	return m.cache.GetWithFetch(
+		ctx,
+		key,
+		ttl,
+		func(ctx context.Context, key string) (int64, error) {
+			return fetchFunc()
+		},
+	)
 }
 
 // GetTotalDeviceCodesCount retrieves the count of total (non-expired) device codes.
-// Uses cache-aside pattern, automatically leveraging rueidisaside if available.
+// Uses cache-aside pattern via GetWithFetch for optimal performance.
 func (m *MetricsCacheWrapper) GetTotalDeviceCodesCount(
 	ctx context.Context,
 	ttl time.Duration,
@@ -125,7 +86,7 @@ func (m *MetricsCacheWrapper) GetTotalDeviceCodesCount(
 }
 
 // GetPendingDeviceCodesCount retrieves the count of pending (not yet authorized) device codes.
-// Uses cache-aside pattern, automatically leveraging rueidisaside if available.
+// Uses cache-aside pattern via GetWithFetch for optimal performance.
 func (m *MetricsCacheWrapper) GetPendingDeviceCodesCount(
 	ctx context.Context,
 	ttl time.Duration,
