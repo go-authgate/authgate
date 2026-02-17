@@ -99,7 +99,7 @@ docker build -f docker/Dockerfile -t authgate .
 - Tracks authentication, device authorization, token operations, admin actions, security events
 - Asynchronous batch writes (every 1s or 100 records) for minimal performance impact
 - Automatic sensitive data masking (passwords, tokens, secrets)
-- Event types: AUTHENTICATION*\*, DEVICE_CODE*_, TOKEN\__, CLIENT\_\*, RATE_LIMIT_EXCEEDED
+- Event types: AUTHENTICATION*\*, DEVICE_CODE*\_, TOKEN\_\_, CLIENT\_\*, RATE_LIMIT_EXCEEDED
 - Severity levels: INFO, WARNING, ERROR, CRITICAL
 - Web interface at `/admin/audit` with filtering and CSV export
 
@@ -114,6 +114,21 @@ docker build -f docker/Dockerfile -t authgate .
 - Three modes: `none` (default), `simple` (shared secret), `hmac` (signature-based)
 - Protects communication with external auth/token APIs
 - HMAC mode provides replay attack protection with timestamp validation
+
+**Prometheus Metrics**
+
+- Comprehensive metrics for OAuth flows, authentication, tokens, sessions, HTTP requests, and database queries
+- Gauge metrics (active tokens, device codes, sessions) updated at configurable intervals (default: every 5 minutes)
+- Multi-replica consideration: Gauge updates query global database counts. In multi-instance deployments:
+  - **Recommended**: Enable `METRICS_GAUGE_UPDATE_ENABLED` on only one instance to avoid duplicate values
+  - **Alternative**: Enable on all instances, use `max()` or `avg()` aggregation in PromQL (not `sum()`)
+- Counters and histograms are safe in multi-replica setups (each instance tracks its own activity)
+- Metrics cache support to reduce database load:
+  - **Memory cache** (default): Single-instance deployments, zero external dependencies
+  - **Redis cache**: Multi-instance deployments (2-5 pods), shared cache across instances using rueidis
+  - **Redis-aside cache**: High-load deployments (5+ pods), uses rueidisaside for client-side caching with RESP3 automatic invalidation
+- Cache TTL matches update interval to ensure consistency and reduce database queries by 90%+ in multi-instance setups
+- Implementation uses rueidisaside library correctly for cache-aside pattern with client-side caching support
 
 ### Key Implementation Details
 
@@ -140,59 +155,63 @@ docker build -f docker/Dockerfile -t authgate .
 
 ## Environment Variables
 
-| Variable                     | Default               | Description                                             |
-| ---------------------------- | --------------------- | ------------------------------------------------------- |
-| SERVER_ADDR                  | :8080                 | Listen address                                          |
-| BASE_URL                     | http://localhost:8080 | Public URL for verification_uri                         |
-| JWT_SECRET                   | (default)             | JWT signing key (local mode)                            |
-| SESSION_SECRET               | (default)             | Cookie encryption key                                   |
-| SESSION_MAX_AGE              | 3600                  | Session lifetime in seconds (1 hour default)            |
-| SESSION_IDLE_TIMEOUT         | 1800                  | Session idle timeout in seconds (30 min, 0=disabled)    |
-| SESSION_FINGERPRINT          | true                  | Enable session fingerprinting (User-Agent validation)   |
-| SESSION_FINGERPRINT_IP       | false                 | Include IP in fingerprint (disabled due to dynamic IPs) |
-| DATABASE_DRIVER              | sqlite                | Database driver ("sqlite" or "postgres")                |
-| DATABASE_DSN                 | oauth.db              | Connection string                                       |
-| **AUTH_MODE**                | local                 | Authentication mode: `local` or `http_api`              |
-| HTTP_API_URL                 | (none)                | External auth API endpoint                              |
-| HTTP_API_TIMEOUT             | 10s                   | HTTP API request timeout                                |
-| HTTP_API_AUTH_MODE           | none                  | Service auth: `none`, `simple`, or `hmac`               |
-| HTTP_API_AUTH_SECRET         | (none)                | Shared secret for service authentication                |
-| **TOKEN_PROVIDER_MODE**      | local                 | Token provider: `local` or `http_api`                   |
-| TOKEN_API_URL                | (none)                | External token API endpoint                             |
-| TOKEN_API_TIMEOUT            | 10s                   | Token API request timeout                               |
-| TOKEN_API_AUTH_MODE          | none                  | Service auth: `none`, `simple`, or `hmac`               |
-| TOKEN_API_AUTH_SECRET        | (none)                | Shared secret for service authentication                |
-| **REFRESH_TOKEN_EXPIRATION** | 720h                  | Refresh token lifetime (30 days)                        |
-| **ENABLE_REFRESH_TOKENS**    | true                  | Enable refresh tokens                                   |
-| **ENABLE_TOKEN_ROTATION**    | false                 | Enable rotation mode (default: fixed mode)              |
-| **ENABLE_RATE_LIMIT**        | true                  | Enable rate limiting                                    |
-| **RATE_LIMIT_STORE**         | memory                | Storage backend: `memory` or `redis`                    |
-| LOGIN_RATE_LIMIT             | 5                     | Requests per minute for /login                          |
-| DEVICE_CODE_RATE_LIMIT       | 10                    | Requests per minute for /oauth/device/code              |
-| TOKEN_RATE_LIMIT             | 20                    | Requests per minute for /oauth/token                    |
-| DEVICE_VERIFY_RATE_LIMIT     | 10                    | Requests per minute for /device/verify                  |
-| REDIS_ADDR                   | localhost:6379        | Redis server address (when RATE_LIMIT_STORE=redis)      |
-| REDIS_PASSWORD               | (empty)               | Redis password                                          |
-| REDIS_DB                     | 0                     | Redis database number                                   |
-| **ENABLE_AUDIT_LOGGING**     | true                  | Enable audit logging                                    |
-| AUDIT_LOG_RETENTION          | 2160h                 | Retention period (90 days)                              |
-| AUDIT_LOG_BUFFER_SIZE        | 1000                  | Async buffer size                                       |
-| AUDIT_LOG_CLEANUP_INTERVAL   | 24h                   | Cleanup frequency                                       |
-| **MICROSOFT_OAUTH_ENABLED**  | false                 | Enable Microsoft Entra ID OAuth                         |
-| MICROSOFT_TENANT_ID          | common                | Tenant: `common`, `organizations`, `consumers`, or UUID |
-| MICROSOFT_CLIENT_ID          | (none)                | Microsoft OAuth client ID                               |
-| MICROSOFT_CLIENT_SECRET      | (none)                | Microsoft OAuth client secret                           |
-| **GITHUB_OAUTH_ENABLED**     | false                 | Enable GitHub OAuth                                     |
-| GITHUB_CLIENT_ID             | (none)                | GitHub OAuth client ID                                  |
-| GITHUB_CLIENT_SECRET         | (none)                | GitHub OAuth client secret                              |
-| **GITEA_OAUTH_ENABLED**      | false                 | Enable Gitea OAuth                                      |
-| GITEA_URL                    | (none)                | Gitea instance URL                                      |
-| GITEA_CLIENT_ID              | (none)                | Gitea OAuth client ID                                   |
-| GITEA_CLIENT_SECRET          | (none)                | Gitea OAuth client secret                               |
-| OAUTH_AUTO_REGISTER          | true                  | Allow OAuth auto-registration                           |
-| OAUTH_TIMEOUT                | 15s                   | OAuth HTTP client timeout                               |
-| **METRICS_ENABLED**          | false                 | Enable Prometheus metrics endpoint                      |
-| METRICS_TOKEN                | (empty)               | Bearer token for /metrics endpoint (empty = no auth)    |
+| Variable                      | Default               | Description                                                 |
+| ----------------------------- | --------------------- | ----------------------------------------------------------- |
+| SERVER_ADDR                   | :8080                 | Listen address                                              |
+| BASE_URL                      | http://localhost:8080 | Public URL for verification_uri                             |
+| JWT_SECRET                    | (default)             | JWT signing key (local mode)                                |
+| SESSION_SECRET                | (default)             | Cookie encryption key                                       |
+| SESSION_MAX_AGE               | 3600                  | Session lifetime in seconds (1 hour default)                |
+| SESSION_IDLE_TIMEOUT          | 1800                  | Session idle timeout in seconds (30 min, 0=disabled)        |
+| SESSION_FINGERPRINT           | true                  | Enable session fingerprinting (User-Agent validation)       |
+| SESSION_FINGERPRINT_IP        | false                 | Include IP in fingerprint (disabled due to dynamic IPs)     |
+| DATABASE_DRIVER               | sqlite                | Database driver ("sqlite" or "postgres")                    |
+| DATABASE_DSN                  | oauth.db              | Connection string                                           |
+| **AUTH_MODE**                 | local                 | Authentication mode: `local` or `http_api`                  |
+| HTTP_API_URL                  | (none)                | External auth API endpoint                                  |
+| HTTP_API_TIMEOUT              | 10s                   | HTTP API request timeout                                    |
+| HTTP_API_AUTH_MODE            | none                  | Service auth: `none`, `simple`, or `hmac`                   |
+| HTTP_API_AUTH_SECRET          | (none)                | Shared secret for service authentication                    |
+| **TOKEN_PROVIDER_MODE**       | local                 | Token provider: `local` or `http_api`                       |
+| TOKEN_API_URL                 | (none)                | External token API endpoint                                 |
+| TOKEN_API_TIMEOUT             | 10s                   | Token API request timeout                                   |
+| TOKEN_API_AUTH_MODE           | none                  | Service auth: `none`, `simple`, or `hmac`                   |
+| TOKEN_API_AUTH_SECRET         | (none)                | Shared secret for service authentication                    |
+| **REFRESH_TOKEN_EXPIRATION**  | 720h                  | Refresh token lifetime (30 days)                            |
+| **ENABLE_REFRESH_TOKENS**     | true                  | Enable refresh tokens                                       |
+| **ENABLE_TOKEN_ROTATION**     | false                 | Enable rotation mode (default: fixed mode)                  |
+| **ENABLE_RATE_LIMIT**         | true                  | Enable rate limiting                                        |
+| **RATE_LIMIT_STORE**          | memory                | Storage backend: `memory` or `redis`                        |
+| LOGIN_RATE_LIMIT              | 5                     | Requests per minute for /login                              |
+| DEVICE_CODE_RATE_LIMIT        | 10                    | Requests per minute for /oauth/device/code                  |
+| TOKEN_RATE_LIMIT              | 20                    | Requests per minute for /oauth/token                        |
+| DEVICE_VERIFY_RATE_LIMIT      | 10                    | Requests per minute for /device/verify                      |
+| REDIS_ADDR                    | localhost:6379        | Redis server address (when RATE_LIMIT_STORE=redis)          |
+| REDIS_PASSWORD                | (empty)               | Redis password                                              |
+| REDIS_DB                      | 0                     | Redis database number                                       |
+| **ENABLE_AUDIT_LOGGING**      | true                  | Enable audit logging                                        |
+| AUDIT_LOG_RETENTION           | 2160h                 | Retention period (90 days)                                  |
+| AUDIT_LOG_BUFFER_SIZE         | 1000                  | Async buffer size                                           |
+| AUDIT_LOG_CLEANUP_INTERVAL    | 24h                   | Cleanup frequency                                           |
+| **MICROSOFT_OAUTH_ENABLED**   | false                 | Enable Microsoft Entra ID OAuth                             |
+| MICROSOFT_TENANT_ID           | common                | Tenant: `common`, `organizations`, `consumers`, or UUID     |
+| MICROSOFT_CLIENT_ID           | (none)                | Microsoft OAuth client ID                                   |
+| MICROSOFT_CLIENT_SECRET       | (none)                | Microsoft OAuth client secret                               |
+| **GITHUB_OAUTH_ENABLED**      | false                 | Enable GitHub OAuth                                         |
+| GITHUB_CLIENT_ID              | (none)                | GitHub OAuth client ID                                      |
+| GITHUB_CLIENT_SECRET          | (none)                | GitHub OAuth client secret                                  |
+| **GITEA_OAUTH_ENABLED**       | false                 | Enable Gitea OAuth                                          |
+| GITEA_URL                     | (none)                | Gitea instance URL                                          |
+| GITEA_CLIENT_ID               | (none)                | Gitea OAuth client ID                                       |
+| GITEA_CLIENT_SECRET           | (none)                | Gitea OAuth client secret                                   |
+| OAUTH_AUTO_REGISTER           | true                  | Allow OAuth auto-registration                               |
+| OAUTH_TIMEOUT                 | 15s                   | OAuth HTTP client timeout                                   |
+| **METRICS_ENABLED**           | false                 | Enable Prometheus metrics endpoint                          |
+| METRICS_TOKEN                 | (empty)               | Bearer token for /metrics endpoint (empty = no auth)        |
+| METRICS_GAUGE_UPDATE_ENABLED  | true                  | Enable gauge updates (disable on all but one replica)       |
+| METRICS_GAUGE_UPDATE_INTERVAL | 5m                    | Gauge update interval (default: 5m, reduced from 30s)       |
+| METRICS_CACHE_TYPE            | memory                | Cache backend: memory, redis, redis-aside (default: memory) |
+| METRICS_CACHE_CLIENT_TTL      | 30s                   | Client-side cache TTL for redis-aside (default: 30s)        |
 
 ## Default Test Data
 

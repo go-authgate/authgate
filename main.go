@@ -38,6 +38,7 @@ import (
 	"time"
 
 	"github.com/appleboy/authgate/internal/auth"
+	"github.com/appleboy/authgate/internal/cache"
 	"github.com/appleboy/authgate/internal/client"
 	"github.com/appleboy/authgate/internal/config"
 	"github.com/appleboy/authgate/internal/handlers"
@@ -137,6 +138,47 @@ func runServer() {
 		log.Println("Prometheus metrics initialized")
 	} else {
 		log.Println("Metrics disabled (using noop implementation)")
+	}
+
+	// Initialize metrics cache (only if metrics and gauge updates are enabled)
+	var metricsCache cache.Cache
+	var metricsCacheCloser func() error
+	if cfg.MetricsEnabled && cfg.MetricsGaugeUpdateEnabled {
+		var err error
+		switch cfg.MetricsCacheType {
+		case config.MetricsCacheTypeRedisAside:
+			metricsCache, err = cache.NewRueidisAsideCache(
+				cfg.RedisAddr,
+				cfg.RedisPassword,
+				cfg.RedisDB,
+				"metrics:",
+				cfg.MetricsCacheClientTTL,
+			)
+			if err != nil {
+				log.Fatalf("Failed to initialize redis-aside metrics cache: %v", err)
+			}
+			log.Printf(
+				"Metrics cache: redis-aside (addr=%s, db=%d, client_ttl=%s)",
+				cfg.RedisAddr,
+				cfg.RedisDB,
+				cfg.MetricsCacheClientTTL,
+			)
+		case config.MetricsCacheTypeRedis:
+			metricsCache, err = cache.NewRueidisCache(
+				cfg.RedisAddr,
+				cfg.RedisPassword,
+				cfg.RedisDB,
+				"metrics:",
+			)
+			if err != nil {
+				log.Fatalf("Failed to initialize redis metrics cache: %v", err)
+			}
+			log.Printf("Metrics cache: redis (addr=%s, db=%d)", cfg.RedisAddr, cfg.RedisDB)
+		default: // memory
+			metricsCache = cache.NewMemoryCache()
+			log.Println("Metrics cache: memory (single instance only)")
+		}
+		metricsCacheCloser = metricsCache.Close
 	}
 
 	// Initialize audit service
@@ -434,23 +476,48 @@ func runServer() {
 		})
 	}
 
-	// Add metrics gauge update job (runs every 30 seconds)
-	if cfg.MetricsEnabled {
+	// Add metrics gauge update job
+	if cfg.MetricsEnabled && cfg.MetricsGaugeUpdateEnabled {
 		m.AddRunningJob(func(ctx context.Context) error {
-			ticker := time.NewTicker(30 * time.Second)
+			ticker := time.NewTicker(cfg.MetricsGaugeUpdateInterval)
 			defer ticker.Stop()
 
+			// Create cache wrapper
+			cacheWrapper := metrics.NewMetricsCacheWrapper(db, metricsCache)
+
 			// Update immediately on startup
-			updateGaugeMetrics(db, prometheusMetrics)
+			updateGaugeMetricsWithCache(
+				ctx,
+				cacheWrapper,
+				prometheusMetrics,
+				cfg.MetricsGaugeUpdateInterval,
+			)
 
 			for {
 				select {
 				case <-ticker.C:
-					updateGaugeMetrics(db, prometheusMetrics)
+					updateGaugeMetricsWithCache(
+						ctx,
+						cacheWrapper,
+						prometheusMetrics,
+						cfg.MetricsGaugeUpdateInterval,
+					)
 				case <-ctx.Done():
 					return nil
 				}
 			}
+		})
+	}
+
+	// Add cache cleanup on shutdown
+	if metricsCacheCloser != nil {
+		m.AddShutdownJob(func() error {
+			if err := metricsCacheCloser(); err != nil {
+				log.Printf("Error closing metrics cache: %v", err)
+			} else {
+				log.Println("Metrics cache closed")
+			}
+			return nil
 		})
 	}
 
@@ -812,6 +879,8 @@ var gaugeErrorLogger = newErrorLogger()
 // updateGaugeMetrics updates gauge metrics with current database state
 // Errors are recorded via metrics and rate-limited logs to avoid log noise during outages
 // Processing continues even if one query fails to maximize available metrics
+//
+//nolint:unused // Kept for backward compatibility and direct database queries without cache
 func updateGaugeMetrics(db *store.Store, m metrics.MetricsRecorder) {
 	// Update active access tokens count
 	activeAccessTokens, err := db.CountActiveTokensByCategory("access")
@@ -839,4 +908,49 @@ func updateGaugeMetrics(db *store.Store, m metrics.MetricsRecorder) {
 	} else {
 		m.SetActiveDeviceCodesCount(int(totalDeviceCodes), int(pendingDeviceCodes))
 	}
+}
+
+// updateGaugeMetricsWithCache updates gauge metrics using a cache-backed store.
+// This reduces database load in multi-instance deployments by caching query results.
+// The cache TTL should match the update interval to ensure consistent behavior.
+func updateGaugeMetricsWithCache(
+	ctx context.Context,
+	cacheWrapper *metrics.MetricsCacheWrapper,
+	m metrics.MetricsRecorder,
+	cacheTTL time.Duration,
+) {
+	// Update active access tokens count
+	activeAccessTokens, err := cacheWrapper.GetActiveTokensCount(ctx, "access", cacheTTL)
+	if err != nil {
+		m.RecordDatabaseQueryError("count_access_tokens")
+		gaugeErrorLogger.logIfNeeded("count_access_tokens", err)
+	} else {
+		m.SetActiveTokensCount("access", int(activeAccessTokens))
+	}
+
+	// Update active refresh tokens count
+	activeRefreshTokens, err := cacheWrapper.GetActiveTokensCount(ctx, "refresh", cacheTTL)
+	if err != nil {
+		m.RecordDatabaseQueryError("count_refresh_tokens")
+		gaugeErrorLogger.logIfNeeded("count_refresh_tokens", err)
+	} else {
+		m.SetActiveTokensCount("refresh", int(activeRefreshTokens))
+	}
+
+	// Update active device codes count
+	totalDeviceCodes, err := cacheWrapper.GetTotalDeviceCodesCount(ctx, cacheTTL)
+	if err != nil {
+		m.RecordDatabaseQueryError("count_total_device_codes")
+		gaugeErrorLogger.logIfNeeded("count_total_device_codes", err)
+		totalDeviceCodes = 0
+	}
+
+	pendingDeviceCodes, err := cacheWrapper.GetPendingDeviceCodesCount(ctx, cacheTTL)
+	if err != nil {
+		m.RecordDatabaseQueryError("count_pending_device_codes")
+		gaugeErrorLogger.logIfNeeded("count_pending_device_codes", err)
+		pendingDeviceCodes = 0
+	}
+
+	m.SetActiveDeviceCodesCount(int(totalDeviceCodes), int(pendingDeviceCodes))
 }

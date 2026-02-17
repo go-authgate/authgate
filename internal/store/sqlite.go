@@ -804,3 +804,23 @@ func (s *Store) CountDeviceCodes() (total int64, pending int64, err error) {
 
 	return total, pending, err
 }
+
+// CountTotalDeviceCodes counts all non-expired device codes
+func (s *Store) CountTotalDeviceCodes() (int64, error) {
+	var count int64
+	err := s.db.Model(&models.DeviceCode{}).
+		Where("expires_at > ?", time.Now()).
+		Count(&count).
+		Error
+	return count, err
+}
+
+// CountPendingDeviceCodes counts pending (not yet authorized) device codes
+func (s *Store) CountPendingDeviceCodes() (int64, error) {
+	var count int64
+	err := s.db.Model(&models.DeviceCode{}).
+		Where("expires_at > ? AND authorized = ?", time.Now(), false).
+		Count(&count).
+		Error
+	return count, err
+}

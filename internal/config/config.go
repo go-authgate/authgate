@@ -27,6 +27,13 @@ const (
 	RateLimitStoreRedis  = "redis"
 )
 
+// Metrics cache type constants
+const (
+	MetricsCacheTypeMemory     = "memory"
+	MetricsCacheTypeRedis      = "redis"
+	MetricsCacheTypeRedisAside = "redis-aside"
+)
+
 type Config struct {
 	// Server settings
 	ServerAddr string
@@ -148,8 +155,12 @@ type Config struct {
 	AuditLogCleanupInterval time.Duration // Cleanup interval (default: 24 hours)
 
 	// Prometheus Metrics settings
-	MetricsEnabled bool   // Enable Prometheus metrics endpoint (default: false)
-	MetricsToken   string // Bearer token for /metrics (empty = no auth, recommended for production)
+	MetricsEnabled             bool          // Enable Prometheus metrics endpoint (default: false)
+	MetricsToken               string        // Bearer token for /metrics (empty = no auth, recommended for production)
+	MetricsGaugeUpdateEnabled  bool          // Enable gauge metric updates (default: true, disable on all but one replica)
+	MetricsGaugeUpdateInterval time.Duration // Gauge update interval (default: 5m, reduced from 30s)
+	MetricsCacheType           string        // Cache backend: memory, redis, redis-aside (default: memory)
+	MetricsCacheClientTTL      time.Duration // Client-side cache TTL for redis-aside (default: 30s)
 }
 
 func Load() *Config {
@@ -283,8 +294,12 @@ func Load() *Config {
 		AuditLogCleanupInterval: getEnvDuration("AUDIT_LOG_CLEANUP_INTERVAL", 24*time.Hour),
 
 		// Prometheus Metrics settings
-		MetricsEnabled: getEnvBool("METRICS_ENABLED", false),
-		MetricsToken:   getEnv("METRICS_TOKEN", ""),
+		MetricsEnabled:             getEnvBool("METRICS_ENABLED", false),
+		MetricsToken:               getEnv("METRICS_TOKEN", ""),
+		MetricsGaugeUpdateEnabled:  getEnvBool("METRICS_GAUGE_UPDATE_ENABLED", true),
+		MetricsGaugeUpdateInterval: getEnvDuration("METRICS_GAUGE_UPDATE_INTERVAL", 5*time.Minute),
+		MetricsCacheType:           getEnv("METRICS_CACHE_TYPE", MetricsCacheTypeMemory),
+		MetricsCacheClientTTL:      getEnvDuration("METRICS_CACHE_CLIENT_TTL", 30*time.Second),
 	}
 }
 
@@ -356,6 +371,27 @@ func (c *Config) Validate() error {
 			c.RateLimitStore,
 			RateLimitStoreMemory,
 			RateLimitStoreRedis,
+		)
+	}
+
+	// Validate metrics cache type
+	if c.MetricsCacheType != MetricsCacheTypeMemory &&
+		c.MetricsCacheType != MetricsCacheTypeRedis &&
+		c.MetricsCacheType != MetricsCacheTypeRedisAside {
+		return fmt.Errorf(
+			"invalid METRICS_CACHE_TYPE value: %q (must be %q, %q, or %q)",
+			c.MetricsCacheType,
+			MetricsCacheTypeMemory,
+			MetricsCacheTypeRedis,
+			MetricsCacheTypeRedisAside,
+		)
+	}
+
+	// Validate redis-aside requires Redis configuration
+	if c.MetricsCacheType == MetricsCacheTypeRedisAside && c.RedisAddr == "" {
+		return fmt.Errorf(
+			"METRICS_CACHE_TYPE=%q requires REDIS_ADDR to be configured",
+			MetricsCacheTypeRedisAside,
 		)
 	}
 
