@@ -72,34 +72,6 @@ func TestStoreWithPostgres(t *testing.T) {
 	testBasicOperations(t, "postgres", pgContainer)
 }
 
-// createTestDeviceCodes creates multiple test device codes with the given parameters
-func createTestDeviceCodes(
-	t *testing.T,
-	store *Store,
-	count int,
-	prefix string,
-	authorized bool,
-	expiresIn time.Duration,
-) {
-	t.Helper()
-	for i := 0; i < count; i++ {
-		plaintext := fmt.Sprintf("%s%d123456789abcdef0123456789abcdef012345", prefix, i)
-		code := &models.DeviceCode{
-			DeviceCodeHash: fmt.Sprintf("%shash%d", prefix, i),
-			DeviceCodeSalt: fmt.Sprintf("%ssalt%d", prefix, i),
-			DeviceCodeID:   plaintext[len(plaintext)-8:],
-			UserCode:       fmt.Sprintf("%s%04d", strings.ToUpper(prefix), i),
-			ClientID:       uuid.New().String(),
-			Scopes:         "read",
-			ExpiresAt:      time.Now().Add(expiresIn),
-			Interval:       5,
-			Authorized:     authorized,
-		}
-		err := store.CreateDeviceCode(code)
-		require.NoError(t, err)
-	}
-}
-
 // createFreshStore creates a new store instance for test isolation
 // For SQLite, each call creates a fresh :memory: database
 // For PostgreSQL, each call creates a uniquely-named database in the container
