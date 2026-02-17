@@ -158,9 +158,10 @@ type Config struct {
 	MetricsEnabled             bool          // Enable Prometheus metrics endpoint (default: false)
 	MetricsToken               string        // Bearer token for /metrics (empty = no auth, recommended for production)
 	MetricsGaugeUpdateEnabled  bool          // Enable gauge metric updates (default: true, disable on all but one replica)
-	MetricsGaugeUpdateInterval time.Duration // Gauge update interval (default: 5m, reduced from 30s)
+	MetricsGaugeUpdateInterval time.Duration // Gauge update interval (default: 5m)
 	MetricsCacheType           string        // Cache backend: memory, redis, redis-aside (default: memory)
 	MetricsCacheClientTTL      time.Duration // Client-side cache TTL for redis-aside (default: 30s)
+	MetricsCacheSizePerConn    int           // Client-side cache size per connection in MB for redis-aside (default: 32MB)
 }
 
 func Load() *Config {
@@ -300,6 +301,7 @@ func Load() *Config {
 		MetricsGaugeUpdateInterval: getEnvDuration("METRICS_GAUGE_UPDATE_INTERVAL", 5*time.Minute),
 		MetricsCacheType:           getEnv("METRICS_CACHE_TYPE", MetricsCacheTypeMemory),
 		MetricsCacheClientTTL:      getEnvDuration("METRICS_CACHE_CLIENT_TTL", 30*time.Second),
+		MetricsCacheSizePerConn:    getEnvInt("METRICS_CACHE_SIZE_PER_CONN", 32), // 32MB default
 	}
 }
 

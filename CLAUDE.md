@@ -129,6 +129,7 @@ docker build -f docker/Dockerfile -t authgate .
   - **Redis-aside cache**: High-load deployments (5+ pods), uses rueidisaside for client-side caching with RESP3 automatic invalidation
 - Cache TTL matches update interval to ensure consistency and reduce database queries by 90%+ in multi-instance setups
 - Implementation uses rueidisaside library correctly for cache-aside pattern with client-side caching support
+- **Memory considerations for redis-aside**: Client-side cache size is configurable via `METRICS_CACHE_SIZE_PER_CONN` (default: 32MB). Total memory usage is `cache_size * number_of_connections`. Rueidis typically maintains ~10 connections (based on GOMAXPROCS), so default usage is ~320MB. Adjust this value based on your deployment's memory constraints and cache hit requirements.
 
 ### Key Implementation Details
 
@@ -212,6 +213,7 @@ docker build -f docker/Dockerfile -t authgate .
 | METRICS_GAUGE_UPDATE_INTERVAL | 5m                    | Gauge update interval (default: 5m, reduced from 30s)       |
 | METRICS_CACHE_TYPE            | memory                | Cache backend: memory, redis, redis-aside (default: memory) |
 | METRICS_CACHE_CLIENT_TTL      | 30s                   | Client-side cache TTL for redis-aside (default: 30s)        |
+| METRICS_CACHE_SIZE_PER_CONN   | 32                    | Client-side cache size per connection in MB (redis-aside)   |
 
 ## Default Test Data
 

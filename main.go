@@ -153,15 +153,17 @@ func runServer() {
 				cfg.RedisDB,
 				"metrics:",
 				cfg.MetricsCacheClientTTL,
+				cfg.MetricsCacheSizePerConn,
 			)
 			if err != nil {
 				log.Fatalf("Failed to initialize redis-aside metrics cache: %v", err)
 			}
 			log.Printf(
-				"Metrics cache: redis-aside (addr=%s, db=%d, client_ttl=%s)",
+				"Metrics cache: redis-aside (addr=%s, db=%d, client_ttl=%s, cache_size_per_conn=%dMB)",
 				cfg.RedisAddr,
 				cfg.RedisDB,
 				cfg.MetricsCacheClientTTL,
+				cfg.MetricsCacheSizePerConn,
 			)
 		case config.MetricsCacheTypeRedis:
 			metricsCache, err = cache.NewRueidisCache(

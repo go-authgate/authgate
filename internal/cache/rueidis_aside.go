@@ -22,12 +22,17 @@ type RueidisAsideCache struct {
 // NewRueidisAsideCache creates a new Redis cache with client-side caching using rueidisaside.
 // clientTTL is the local cache TTL (e.g., 30s). Redis will automatically invalidate
 // the local cache when keys change.
+// cacheSizeMB is the client-side cache size per connection in megabytes.
+// Note: Rueidis uses connection pooling (typically ~10 connections based on GOMAXPROCS),
+// so total memory usage will be cacheSizeMB * number_of_connections.
 func NewRueidisAsideCache(
 	addr, password string,
 	db int,
 	keyPrefix string,
 	clientTTL time.Duration,
+	cacheSizeMB int,
 ) (*RueidisAsideCache, error) {
+	cacheSizeBytes := cacheSizeMB * 1024 * 1024
 	client, err := rueidisaside.NewClient(rueidisaside.ClientOption{
 		ClientOption: rueidis.ClientOption{
 			InitAddress:  []string{addr},
@@ -35,7 +40,7 @@ func NewRueidisAsideCache(
 			SelectDB:     db,
 			DisableCache: false, // Enable client-side caching
 			// Client-side cache configuration
-			CacheSizeEachConn: 128 * 1024 * 1024, // 128MB per connection
+			CacheSizeEachConn: cacheSizeBytes,
 		},
 	})
 	if err != nil {
