@@ -491,3 +491,114 @@ func TestUpdateClient_GrantTypesReflectFlags(t *testing.T) {
 	assert.True(t, updated.EnableAuthCodeFlow)
 	assert.Equal(t, "authorization_code", updated.GrantTypes)
 }
+
+// ============================================================
+// validateRedirectURIs
+// ============================================================
+
+func TestValidateRedirectURIs(t *testing.T) {
+	tests := []struct {
+		name    string
+		uris    []string
+		wantErr bool
+	}{
+		{
+			name:    "valid https URI",
+			uris:    []string{"https://example.com/callback"},
+			wantErr: false,
+		},
+		{
+			name:    "valid http localhost URI",
+			uris:    []string{"http://localhost:8080/callback"},
+			wantErr: false,
+		},
+		{
+			name:    "multiple valid URIs",
+			uris:    []string{"https://app.example.com/cb", "https://staging.example.com/cb"},
+			wantErr: false,
+		},
+		{
+			name:    "empty list is allowed",
+			uris:    []string{},
+			wantErr: false,
+		},
+		{
+			name:    "empty string URI",
+			uris:    []string{""},
+			wantErr: true,
+		},
+		{
+			name:    "non-http scheme",
+			uris:    []string{"ftp://example.com/callback"},
+			wantErr: true,
+		},
+		{
+			name:    "missing host",
+			uris:    []string{"https:///callback"},
+			wantErr: true,
+		},
+		{
+			name:    "URI with fragment",
+			uris:    []string{"https://example.com/callback#section"},
+			wantErr: true,
+		},
+		{
+			name:    "second URI invalid",
+			uris:    []string{"https://valid.example.com/cb", "not-a-uri"},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateRedirectURIs(tc.uris)
+			if tc.wantErr {
+				assert.ErrorIs(t, err, ErrInvalidRedirectURI)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCreateClient_InvalidRedirectURIRejected(t *testing.T) {
+	s := setupTestStore(t)
+	svc := NewClientService(s, nil)
+	userID := uuid.New().String()
+
+	req := CreateClientRequest{
+		ClientName:         "Bad URI Client",
+		UserID:             userID,
+		CreatedBy:          userID,
+		EnableAuthCodeFlow: true,
+		RedirectURIs:       []string{"ftp://evil.example.com/cb"},
+	}
+
+	_, err := svc.CreateClient(context.Background(), req)
+	assert.ErrorIs(t, err, ErrInvalidRedirectURI)
+}
+
+func TestUpdateClient_InvalidRedirectURIRejected(t *testing.T) {
+	s := setupTestStore(t)
+	svc := NewClientService(s, nil)
+	userID := uuid.New().String()
+
+	createReq := CreateClientRequest{
+		ClientName:       "URI Validation Client",
+		UserID:           userID,
+		CreatedBy:        userID,
+		EnableDeviceFlow: true,
+	}
+	resp, err := svc.CreateClient(context.Background(), createReq)
+	require.NoError(t, err)
+
+	updateReq := UpdateClientRequest{
+		ClientName:         "URI Validation Client",
+		IsActive:           true,
+		EnableAuthCodeFlow: true,
+		RedirectURIs:       []string{"https://example.com/callback#fragment"},
+	}
+
+	err = svc.UpdateClient(context.Background(), resp.ClientID, userID, updateReq)
+	assert.ErrorIs(t, err, ErrInvalidRedirectURI)
+}
