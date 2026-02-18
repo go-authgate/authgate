@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/appleboy/authgate/internal/models"
@@ -19,10 +21,38 @@ const (
 )
 
 var (
-	ErrClientNotFound     = errors.New("client not found")
-	ErrInvalidClientData  = errors.New("invalid client data")
-	ErrClientNameRequired = errors.New("client name is required")
+	ErrClientNotFound      = errors.New("client not found")
+	ErrInvalidClientData   = errors.New("invalid client data")
+	ErrClientNameRequired  = errors.New("client name is required")
+	ErrRedirectURIRequired = errors.New(
+		"at least one redirect URI is required when Authorization Code Flow is enabled",
+	)
+	ErrAtLeastOneGrantRequired = errors.New("at least one grant type must be enabled")
 )
+
+// validateRedirectURIs checks that every URI in the slice is an absolute http/https
+// URI without a fragment, as required by RFC 6749.
+func validateRedirectURIs(uris []string) error {
+	for _, raw := range uris {
+		if strings.TrimSpace(raw) == "" {
+			return fmt.Errorf("%w: URI must not be empty", ErrInvalidRedirectURI)
+		}
+		u, err := url.Parse(raw)
+		if err != nil {
+			return fmt.Errorf("%w: %q is not a valid URI", ErrInvalidRedirectURI, raw)
+		}
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return fmt.Errorf("%w: %q must use http or https scheme", ErrInvalidRedirectURI, raw)
+		}
+		if u.Host == "" {
+			return fmt.Errorf("%w: %q must have a host", ErrInvalidRedirectURI, raw)
+		}
+		if u.Fragment != "" {
+			return fmt.Errorf("%w: %q must not contain a fragment", ErrInvalidRedirectURI, raw)
+		}
+	}
+	return nil
+}
 
 type ClientService struct {
 	store        *store.Store
@@ -76,6 +106,14 @@ func (s *ClientService) CreateClient(
 ) (*ClientResponse, error) {
 	if strings.TrimSpace(req.ClientName) == "" {
 		return nil, ErrClientNameRequired
+	}
+
+	if req.EnableAuthCodeFlow && len(req.RedirectURIs) == 0 {
+		return nil, ErrRedirectURIRequired
+	}
+
+	if err := validateRedirectURIs(req.RedirectURIs); err != nil {
+		return nil, err
 	}
 
 	// Generate client ID and secret
@@ -171,6 +209,18 @@ func (s *ClientService) UpdateClient(
 		return ErrClientNameRequired
 	}
 
+	if !req.EnableDeviceFlow && !req.EnableAuthCodeFlow {
+		return ErrAtLeastOneGrantRequired
+	}
+
+	if req.EnableAuthCodeFlow && len(req.RedirectURIs) == 0 {
+		return ErrRedirectURIRequired
+	}
+
+	if err := validateRedirectURIs(req.RedirectURIs); err != nil {
+		return err
+	}
+
 	client, err := s.store.GetClient(clientID)
 	if err != nil {
 		return ErrClientNotFound
@@ -199,9 +249,7 @@ func (s *ClientService) UpdateClient(
 	if req.EnableAuthCodeFlow {
 		grants = append(grants, "authorization_code")
 	}
-	if len(grants) > 0 {
-		client.GrantTypes = strings.Join(grants, " ")
-	}
+	client.GrantTypes = strings.Join(grants, " ")
 
 	err = s.store.UpdateClient(client)
 	if err != nil {

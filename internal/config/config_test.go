@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -179,4 +180,29 @@ func TestMetricsCacheConstants(t *testing.T) {
 	assert.Equal(t, "memory", MetricsCacheTypeMemory)
 	assert.Equal(t, "redis", MetricsCacheTypeRedis)
 	assert.Equal(t, "redis-aside", MetricsCacheTypeRedisAside)
+}
+
+// ============================================================
+// Authorization Code Flow config (RFC 6749 + RFC 7636)
+// ============================================================
+
+func TestAuthCodeFlowConfigDefaults(t *testing.T) {
+	cfg := Load()
+
+	assert.Equal(t, 10*time.Minute, cfg.AuthCodeExpiration)
+	assert.False(t, cfg.PKCERequired)
+	assert.True(t, cfg.ConsentRemember)
+}
+
+func TestAuthCodeFlowConfigFields(t *testing.T) {
+	// Verify the fields exist and have sensible types/values
+	cfg := &Config{
+		AuthCodeExpiration: 5 * time.Minute,
+		PKCERequired:       true,
+		ConsentRemember:    false,
+	}
+
+	assert.Equal(t, 5*time.Minute, cfg.AuthCodeExpiration)
+	assert.True(t, cfg.PKCERequired)
+	assert.False(t, cfg.ConsentRemember)
 }

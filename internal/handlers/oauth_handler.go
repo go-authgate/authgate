@@ -138,6 +138,17 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 		return
 	}
 
+	if len(state) > maxStateLength {
+		templates.RenderTempl(
+			c,
+			http.StatusBadRequest,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "Invalid state parameter. State parameter exceeds maximum length.",
+			}),
+		)
+		return
+	}
+
 	// Verify state (CSRF protection)
 	session := sessions.Default(c)
 	savedState := session.Get("oauth_state")

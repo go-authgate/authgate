@@ -49,6 +49,17 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 	codeChallenge := c.Query("code_challenge")
 	codeChallengeMethod := c.Query("code_challenge_method")
 
+	if len(state) > maxStateLength {
+		h.redirectWithError(
+			c,
+			redirectURI,
+			"",
+			errInvalidRequest,
+			"state parameter exceeds maximum length",
+		)
+		return
+	}
+
 	// Validate the authorization request parameters
 	req, err := h.authorizationService.ValidateAuthorizationRequest(
 		clientID, redirectURI, responseType, scope, codeChallengeMethod,
@@ -112,6 +123,17 @@ func (h *AuthorizationHandler) HandleAuthorize(c *gin.Context) {
 	state := c.PostForm("state")
 	codeChallenge := c.PostForm("code_challenge")
 	codeChallengeMethod := c.PostForm("code_challenge_method")
+
+	if len(state) > maxStateLength {
+		h.redirectWithError(
+			c,
+			redirectURI,
+			"",
+			errInvalidRequest,
+			"state parameter exceeds maximum length",
+		)
+		return
+	}
 
 	// Deny path: redirect immediately with access_denied
 	if action != "approve" {
@@ -322,7 +344,10 @@ func (h *AuthorizationHandler) RevokeAuthorization(c *gin.Context) {
 // Helpers
 // ============================================================
 
-const errInvalidRequest = "invalid_request"
+const (
+	errInvalidRequest = "invalid_request"
+	maxStateLength    = 1024
+)
 
 // oauthErrorCode maps service errors to RFC 6749 error codes.
 func oauthErrorCode(err error) string {

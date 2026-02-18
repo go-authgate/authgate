@@ -6,7 +6,7 @@ import "time"
 // There is at most one active record per (UserID, ApplicationID) pair.
 type UserAuthorization struct {
 	ID   uint   `gorm:"primaryKey;autoIncrement"`
-	UUID string `gorm:"uniqueIndex;size:36;not null"` // 對外 API/UI 識別碼
+	UUID string `gorm:"uniqueIndex;size:36;not null"` // Public UUID for API/UI identification
 
 	// Relations (composite unique index ensures one grant per user+app)
 	UserID        string `gorm:"not null;uniqueIndex:idx_user_app"` // FK → User.ID

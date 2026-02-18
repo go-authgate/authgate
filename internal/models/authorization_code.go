@@ -6,7 +6,7 @@ import "time"
 // Codes are short-lived (default 10 minutes) and single-use.
 type AuthorizationCode struct {
 	ID   uint   `gorm:"primaryKey;autoIncrement"`
-	UUID string `gorm:"uniqueIndex;size:36;not null"` // 對外 API/UI 識別碼
+	UUID string `gorm:"uniqueIndex;size:36;not null"` // Public UUID for API/UI identification
 
 	// Code storage: SHA256 hash for security, prefix for quick lookup
 	CodeHash   string `gorm:"uniqueIndex;not null"`  // SHA256(plainCode)

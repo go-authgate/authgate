@@ -553,3 +553,176 @@ func TestVerifyPKCE_EmptyMethod(t *testing.T) {
 	// Empty method falls back to plain
 	assert.True(t, verifyPKCE(challenge, "", challenge))
 }
+
+func TestVerifyPKCE_UnknownMethod(t *testing.T) {
+	// Any unrecognised method must return false
+	assert.False(t, verifyPKCE("challenge", "RS256", "verifier"))
+	assert.False(t, verifyPKCE("challenge", "HS256", "verifier"))
+}
+
+// ============================================================
+// verifyClientSecret
+// ============================================================
+
+func TestVerifyClientSecret_CorrectSecret(t *testing.T) {
+	plain := testClientPlainSecret
+	hash, err := bcrypt.GenerateFromPassword([]byte(plain), bcrypt.MinCost)
+	require.NoError(t, err)
+
+	assert.True(t, verifyClientSecret(string(hash), plain))
+}
+
+func TestVerifyClientSecret_WrongSecret(t *testing.T) {
+	hash, err := bcrypt.GenerateFromPassword([]byte("correct"), bcrypt.MinCost)
+	require.NoError(t, err)
+
+	assert.False(t, verifyClientSecret(string(hash), "wrong"))
+}
+
+func TestVerifyClientSecret_EmptyHash(t *testing.T) {
+	assert.False(t, verifyClientSecret("", "any-secret"))
+}
+
+func TestVerifyClientSecret_EmptySecret(t *testing.T) {
+	hash, err := bcrypt.GenerateFromPassword([]byte("secret"), bcrypt.MinCost)
+	require.NoError(t, err)
+
+	assert.False(t, verifyClientSecret(string(hash), ""))
+}
+
+// ============================================================
+// ValidateAuthorizationRequest – global PKCE enforcement
+// ============================================================
+
+func TestValidateAuthorizationRequest_GlobalPKCERequired(t *testing.T) {
+	svc := createTestAuthorizationService(t)
+	svc.config.PKCERequired = true
+	client := createAuthCodeFlowClient(
+		t,
+		svc,
+		"confidential",
+	) // confidential, normally no PKCE needed
+
+	// Without PKCE → must fail
+	_, err := svc.ValidateAuthorizationRequest(
+		client.ClientID, "https://app.example.com/callback", "code", "read", "",
+	)
+	assert.ErrorIs(t, err, ErrPKCERequired)
+
+	// With S256 → must succeed
+	req, err := svc.ValidateAuthorizationRequest(
+		client.ClientID, "https://app.example.com/callback", "code", "read", "S256",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "S256", req.CodeChallengeMethod)
+}
+
+func TestValidateAuthorizationRequest_UnsupportedChallengeMethod(t *testing.T) {
+	svc := createTestAuthorizationService(t)
+	client := createAuthCodeFlowClient(t, svc, "confidential")
+
+	// "RS256" is not a valid code_challenge_method
+	_, err := svc.ValidateAuthorizationRequest(
+		client.ClientID, "https://app.example.com/callback", "code", "read", "RS256",
+	)
+	assert.ErrorIs(t, err, ErrInvalidAuthCodeRequest)
+}
+
+// ============================================================
+// ExchangeCode – additional error paths
+// ============================================================
+
+func TestExchangeCode_NotFound(t *testing.T) {
+	svc := createTestAuthorizationService(t)
+	client := createAuthCodeFlowClient(t, svc, "confidential")
+
+	_, err := svc.ExchangeCode(
+		context.Background(),
+		"nonexistent-code-that-was-never-created",
+		client.ClientID,
+		"https://app.example.com/callback",
+		testClientPlainSecret,
+		"",
+	)
+	assert.ErrorIs(t, err, ErrAuthCodeNotFound)
+}
+
+func TestExchangeCode_WrongClientID(t *testing.T) {
+	svc := createTestAuthorizationService(t)
+	client := createAuthCodeFlowClient(t, svc, "confidential")
+	userID := uuid.New().String()
+
+	plainCode, _, err := svc.CreateAuthorizationCode(
+		context.Background(),
+		client.ID, client.ClientID, userID,
+		"https://app.example.com/callback", "read", "", "",
+	)
+	require.NoError(t, err)
+
+	// Present correct code but wrong client_id → must fail (prevents cross-client reuse)
+	_, err = svc.ExchangeCode(
+		context.Background(),
+		plainCode,
+		"wrong-client-id",
+		"https://app.example.com/callback",
+		testClientPlainSecret,
+		"",
+	)
+	assert.ErrorIs(t, err, ErrAuthCodeNotFound)
+}
+
+func TestExchangeCode_PublicClientMissingCodeChallenge(t *testing.T) {
+	svc := createTestAuthorizationService(t)
+	client := createAuthCodeFlowClient(t, svc, "public")
+	userID := uuid.New().String()
+
+	// Create a code without a PKCE challenge (simulates a code stored without PKCE)
+	plainCode, _, err := svc.CreateAuthorizationCode(
+		context.Background(),
+		client.ID, client.ClientID, userID,
+		"https://app.example.com/callback", "read",
+		"", "", // no PKCE challenge
+	)
+	require.NoError(t, err)
+
+	// Exchange: public client with no stored challenge → ErrPKCERequired
+	_, err = svc.ExchangeCode(
+		context.Background(),
+		plainCode, client.ClientID,
+		"https://app.example.com/callback",
+		"", "some-verifier",
+	)
+	assert.ErrorIs(t, err, ErrPKCERequired)
+}
+
+// ============================================================
+// ListClientAuthorizations (admin view)
+// ============================================================
+
+func TestListClientAuthorizations_MultipleUsers(t *testing.T) {
+	svc := createTestAuthorizationService(t)
+	client := createAuthCodeFlowClient(t, svc, "confidential")
+
+	// Create 3 users and save consent for each
+	userIDs := make([]string, 3)
+	for i := range userIDs {
+		userIDs[i] = uuid.New().String()
+		_, err := svc.SaveUserAuthorization(
+			context.Background(), userIDs[i], client.ID, client.ClientID, "read",
+		)
+		require.NoError(t, err)
+	}
+
+	auths, err := svc.ListClientAuthorizations(context.Background(), client.ClientID)
+	require.NoError(t, err)
+	assert.Len(t, auths, 3)
+}
+
+func TestListClientAuthorizations_EmptyClient(t *testing.T) {
+	svc := createTestAuthorizationService(t)
+	client := createAuthCodeFlowClient(t, svc, "confidential")
+
+	auths, err := svc.ListClientAuthorizations(context.Background(), client.ClientID)
+	require.NoError(t, err)
+	assert.Empty(t, auths)
+}

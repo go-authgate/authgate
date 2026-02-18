@@ -622,3 +622,89 @@ func TestGetUserTokensWithClient_EmptyResult(t *testing.T) {
 	assert.NotNil(t, tokensWithClient)
 	assert.Len(t, tokensWithClient, 0)
 }
+
+// ============================================================
+// ExchangeAuthorizationCode
+// ============================================================
+
+func createTestAuthCodeRecord(
+	t *testing.T,
+	s *store.Store,
+	client *models.OAuthApplication,
+	userID string,
+) *models.AuthorizationCode {
+	t.Helper()
+	now := time.Now()
+	code := &models.AuthorizationCode{
+		UUID:          "test-uuid-" + uuid.New().String(),
+		CodeHash:      "hash-" + uuid.New().String(),
+		CodePrefix:    "testpfx1",
+		ApplicationID: client.ID,
+		ClientID:      client.ClientID,
+		UserID:        userID,
+		RedirectURI:   "https://app.example.com/callback",
+		Scopes:        "read write",
+		ExpiresAt:     now.Add(10 * time.Minute),
+	}
+	require.NoError(t, s.CreateAuthorizationCode(code))
+	return code
+}
+
+func TestExchangeAuthorizationCode_IssuesTokens(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		JWTExpiration:          1 * time.Hour,
+		JWTSecret:              "test-secret",
+		BaseURL:                "http://localhost:8080",
+		EnableRefreshTokens:    true,
+		RefreshTokenExpiration: 30 * 24 * time.Hour,
+	}
+	tokenService := createTestTokenService(s, cfg)
+
+	client := createTestClient(t, s, true)
+	userID := uuid.New().String()
+	authCode := createTestAuthCodeRecord(t, s, client, userID)
+
+	accessToken, refreshToken, err := tokenService.ExchangeAuthorizationCode(
+		context.Background(),
+		authCode,
+		nil, // no authorization ID
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, accessToken)
+	assert.NotEmpty(t, accessToken.Token)
+	assert.Equal(t, "Bearer", accessToken.TokenType)
+	assert.Equal(t, userID, accessToken.UserID)
+	assert.Equal(t, client.ClientID, accessToken.ClientID)
+	assert.Equal(t, "read write", accessToken.Scopes)
+	assert.NotNil(t, refreshToken)
+}
+
+func TestExchangeAuthorizationCode_WithAuthorizationID(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		JWTExpiration:          1 * time.Hour,
+		JWTSecret:              "test-secret",
+		BaseURL:                "http://localhost:8080",
+		EnableRefreshTokens:    true,
+		RefreshTokenExpiration: 30 * 24 * time.Hour,
+	}
+	tokenService := createTestTokenService(s, cfg)
+
+	client := createTestClient(t, s, true)
+	userID := uuid.New().String()
+	authCode := createTestAuthCodeRecord(t, s, client, userID)
+
+	// Simulate a UserAuthorization ID being set
+	authID := uint(42)
+	accessToken, _, err := tokenService.ExchangeAuthorizationCode(
+		context.Background(),
+		authCode,
+		&authID,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, accessToken)
+	assert.Equal(t, &authID, accessToken.AuthorizationID)
+}
