@@ -17,15 +17,28 @@ const (
 	GrantTypeDeviceCode = "urn:ietf:params:oauth:grant-type:device_code"
 	// https://datatracker.ietf.org/doc/html/rfc6749#section-6
 	GrantTypeRefreshToken = "refresh_token"
+	// https://datatracker.ietf.org/doc/html/rfc6749#section-4.1
+	GrantTypeAuthorizationCode = "authorization_code"
+	// errInvalidGrant is reused across authorization code grant error paths
+	errInvalidGrant = "invalid_grant"
 )
 
 type TokenHandler struct {
-	tokenService *services.TokenService
-	config       *config.Config
+	tokenService         *services.TokenService
+	authorizationService *services.AuthorizationService
+	config               *config.Config
 }
 
-func NewTokenHandler(ts *services.TokenService, cfg *config.Config) *TokenHandler {
-	return &TokenHandler{tokenService: ts, config: cfg}
+func NewTokenHandler(
+	ts *services.TokenService,
+	as *services.AuthorizationService,
+	cfg *config.Config,
+) *TokenHandler {
+	return &TokenHandler{
+		tokenService:         ts,
+		authorizationService: as,
+		config:               cfg,
+	}
 }
 
 // Token godoc
@@ -53,10 +66,12 @@ func (h *TokenHandler) Token(c *gin.Context) {
 		h.handleDeviceCodeGrant(c)
 	case GrantTypeRefreshToken:
 		h.handleRefreshTokenGrant(c)
+	case GrantTypeAuthorizationCode:
+		h.handleAuthorizationCodeGrant(c)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "unsupported_grant_type",
-			"error_description": "Supported grant types: device_code, refresh_token",
+			"error_description": "Supported grant types: device_code, refresh_token, authorization_code",
 		})
 	}
 }
@@ -258,4 +273,73 @@ func (h *TokenHandler) Revoke(c *gin.Context) {
 
 	// Success response (RFC 7009)
 	c.Status(http.StatusOK)
+}
+
+// handleAuthorizationCodeGrant handles the authorization_code grant type (RFC 6749 §4.1.3).
+func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
+	code := c.PostForm("code")
+	redirectURI := c.PostForm("redirect_uri")
+	clientID := c.PostForm("client_id")
+	clientSecret := c.PostForm("client_secret") // Empty for public clients
+	codeVerifier := c.PostForm("code_verifier") // PKCE; empty for confidential clients
+
+	if code == "" || redirectURI == "" || clientID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": "code, redirect_uri, and client_id are required",
+		})
+		return
+	}
+
+	// Validate and consume the authorization code
+	authCode, err := h.authorizationService.ExchangeCode(
+		c.Request.Context(),
+		code, clientID, redirectURI, clientSecret, codeVerifier,
+	)
+	if err != nil {
+		errCode := errInvalidGrant
+		if errors.Is(err, services.ErrUnauthorizedClient) {
+			errCode = "unauthorized_client"
+		}
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             errCode,
+			"error_description": err.Error(),
+		})
+		return
+	}
+
+	// Resolve the UserAuthorization ID so tokens can be cascade-revoked later
+	var authorizationID *uint
+	if ua, _ := h.authorizationService.GetUserAuthorization(
+		authCode.UserID, authCode.ApplicationID,
+	); ua != nil {
+		id := ua.ID
+		authorizationID = &id
+	}
+
+	// Issue access + refresh tokens
+	accessToken, refreshToken, err := h.tokenService.ExchangeAuthorizationCode(
+		c.Request.Context(),
+		authCode,
+		authorizationID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":             "server_error",
+			"error_description": "Failed to issue tokens",
+		})
+		return
+	}
+
+	resp := gin.H{
+		"access_token": accessToken.Token,
+		"token_type":   accessToken.TokenType,
+		"expires_in":   int(accessToken.ExpiresAt.Unix()),
+		"scope":        accessToken.Scopes,
+	}
+	if refreshToken != nil && h.config.EnableRefreshTokens {
+		resp["refresh_token"] = refreshToken.Token
+	}
+
+	c.JSON(http.StatusOK, resp)
 }

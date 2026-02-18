@@ -206,6 +206,13 @@ templ ClientTableRow(client services.ClientWithCreator, csrfToken string) {
 			<code class="grant-types-code">
 				{ client.GrantTypes }
 			</code>
+			<div style="margin-top:var(--space-1);">
+				if client.ClientType == "public" {
+					<span class="status-badge" style="background:rgba(245,158,11,0.1);color:#D97706;border:1px solid rgba(245,158,11,0.3);font-size:var(--text-xs);">Public</span>
+				} else {
+					<span class="status-badge" style="background:rgba(0,114,255,0.08);color:#0072ff;border:1px solid rgba(0,114,255,0.25);font-size:var(--text-xs);">Confidential</span>
+				}
+			</div>
 		</td>
 		<td>
 			if client.IsActive {

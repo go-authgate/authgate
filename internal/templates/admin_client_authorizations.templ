@@ -1,0 +1,77 @@
+package templates
+
+import "fmt"
+
+templ AdminClientAuthorizations(props ClientAuthorizationsPageProps) {
+	@Layout("Client Authorizations", LayoutAdminNavbar, &props.NavbarProps) {
+		<link rel="stylesheet" href="/static/css/pages/admin-tables.css"/>
+		<link rel="stylesheet" href="/static/css/pages/admin-forms.css"/>
+		<div class="main-content">
+			<div class="admin-form-container" style="max-width:1000px;">
+				<div class="card">
+					<div class="admin-form-header">
+						<h1 class="admin-form-title">Authorized Users</h1>
+						<p style="font-size:var(--text-sm);color:var(--color-text-secondary);margin-top:var(--space-2);">
+							Users who have granted access to <strong>{ props.Client.ClientName }</strong>
+						</p>
+					</div>
+					@Alert(props.Error, AlertError)
+					if len(props.Authorizations) > 0 {
+						<!-- Summary bar -->
+						<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-6);padding-bottom:var(--space-4);border-bottom:2px solid var(--color-border);">
+							<span style="font-family:var(--font-mono);font-size:var(--text-sm);font-weight:600;color:var(--color-text-primary);">
+								{ fmt.Sprintf("%d", len(props.Authorizations)) } active grant(s)
+							</span>
+							<a href={ templ.URL("/admin/clients/" + props.Client.ClientID) } class="admin-action-btn secondary" style="padding:var(--space-2) var(--space-4);font-size:var(--text-sm);">
+								← Back to Client
+							</a>
+						</div>
+						<!-- Table -->
+						<div class="admin-table-wrapper">
+							<table class="admin-table">
+								<thead>
+									<tr>
+										<th>User</th>
+										<th>Email</th>
+										<th>Scopes</th>
+										<th>Granted At</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, auth := range props.Authorizations {
+										<tr>
+											<td>
+												<span style="font-weight:600;color:var(--color-text-primary);">{ auth.Username }</span>
+												<span style="display:block;font-family:var(--font-mono);font-size:var(--text-xs);color:var(--color-text-tertiary);">{ auth.UserID }</span>
+											</td>
+											<td style="font-size:var(--text-sm);color:var(--color-text-secondary);">{ auth.Email }</td>
+											<td>
+												<span style="font-family:var(--font-mono);font-size:var(--text-xs);background:var(--color-bg-tertiary);padding:var(--space-1) var(--space-2);border-radius:var(--radius-sm);border:1px solid var(--color-border);">
+													{ auth.Scopes }
+												</span>
+											</td>
+											<td style="font-family:var(--font-mono);font-size:var(--text-sm);white-space:nowrap;">
+												{ auth.GrantedAt.Format("2006-01-02 15:04") }
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					} else {
+						<div class="empty-state">
+							<div class="empty-icon">🔓</div>
+							<h3 class="empty-title">No Authorized Users</h3>
+							<p class="empty-text">No users have granted access to this application yet.</p>
+						</div>
+						<div style="margin-top:var(--space-6);text-align:center;">
+							<a href={ templ.URL("/admin/clients/" + props.Client.ClientID) } class="admin-action-btn secondary">
+								← Back to Client
+							</a>
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}

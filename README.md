@@ -1,6 +1,6 @@
 # AuthGate
 
-> A lightweight OAuth 2.0 Device Authorization Grant server for CLI tools and browserless devices
+> A lightweight OAuth 2.0 Authorization Server supporting Device Authorization Grant (RFC 8628) and Authorization Code Flow with PKCE (RFC 6749 + RFC 7636)
 
 [![Security Scanning](https://github.com/appleboy/authgate/actions/workflows/security.yml/badge.svg)](https://github.com/appleboy/authgate/actions/workflows/security.yml)
 [![Lint and Testing](https://github.com/appleboy/authgate/actions/workflows/testing.yml/badge.svg)](https://github.com/appleboy/authgate/actions/workflows/testing.yml)
@@ -23,6 +23,8 @@
     - [Operations](#operations)
     - [Advanced Topics](#advanced-topics)
   - [🎯 How It Works](#-how-it-works)
+    - [Device Code Flow (RFC 8628) — for CLI / IoT](#device-code-flow-rfc-8628--for-cli--iot)
+    - [Authorization Code Flow (RFC 6749) — for Web / Mobile](#authorization-code-flow-rfc-6749--for-web--mobile)
   - [🎨 User Interface](#-user-interface)
     - [Login \& Authorization Flow](#login--authorization-flow)
     - [Session Management](#session-management)
@@ -50,6 +52,7 @@
     - [Q: How do I add user registration?](#q-how-do-i-add-user-registration)
     - [Q: Does it support refresh tokens?](#q-does-it-support-refresh-tokens)
     - [Q: How do users revoke device access?](#q-how-do-users-revoke-device-access)
+    - [Q: Does it support Authorization Code Flow for web apps?](#q-does-it-support-authorization-code-flow-for-web-apps)
   - [🤝 Contributing](#-contributing)
   - [📄 License](#-license)
   - [📚 References](#-references)
@@ -63,18 +66,19 @@ Modern CLI tools and IoT devices need secure user authentication, but traditiona
 
 **Perfect for:**
 
-- 🖥️ CLI tools (like `gh`, `aws-cli`)
-- 📺 Smart TVs and streaming devices
-- 🏠 IoT devices without input capabilities
-- 🤖 CI/CD pipelines and automation scripts
-- 🎮 Gaming consoles
+- 🖥️ CLI tools (like `gh`, `aws-cli`) — **Device Code Flow**
+- 📺 Smart TVs, IoT devices, gaming consoles — **Device Code Flow**
+- 🌐 Web applications with server-side backends — **Authorization Code Flow (confidential)**
+- 📱 Single-page apps and mobile apps — **Authorization Code Flow + PKCE (public)**
+- 🤖 CI/CD pipelines and automation scripts — **Device Code Flow**
 
 ---
 
 ## ✨ Key Features
 
-- **OAuth 2.0 Compliance**: Full implementation of Device Authorization Grant (RFC 8628), Refresh Tokens (RFC 6749), and Token Revocation (RFC 7009)
-- **Security First**: Rate limiting, audit logging, CSRF protection, and session management built-in
+- **Dual OAuth 2.0 Flows**: Device Authorization Grant (RFC 8628) for CLI/IoT tools, and Authorization Code Flow with PKCE (RFC 6749 + RFC 7636) for web and mobile apps
+- **User Consent Management**: Users can review and revoke per-app access at `/account/authorizations`; admins can force re-authentication for all users of any client
+- **Security First**: Rate limiting, audit logging, CSRF protection, PKCE enforcement, and session management built-in
 - **Production Ready**: Built-in monitoring with Prometheus metrics, health checks, and comprehensive audit trails
 - **Zero Dependencies**: Single static binary with SQLite embedded, or use PostgreSQL for scale
 - **Multi-Auth Support**: Local authentication, external HTTP API, OAuth providers (GitHub, Gitea, Microsoft)
@@ -168,6 +172,7 @@ The CLI demonstrates the complete device authorization flow with automatic token
 
 ### Advanced Topics
 
+- **[Authorization Code Flow Guide](docs/AUTHORIZATION_CODE_FLOW.md)** - Auth Code Flow, PKCE, user consent, admin controls
 - **[OAuth Setup Guide](docs/OAUTH_SETUP.md)** - GitHub, Gitea, Microsoft Entra ID integration
 - **[Rate Limiting Guide](docs/RATE_LIMITING.md)** - Protect against brute force and API abuse
 - **[Performance Guide](docs/PERFORMANCE.md)** - Scalability, optimization, benchmarks
@@ -176,6 +181,10 @@ The CLI demonstrates the complete device authorization flow with automatic token
 ---
 
 ## 🎯 How It Works
+
+AuthGate supports two OAuth 2.0 authorization flows.
+
+### Device Code Flow (RFC 8628) — for CLI / IoT
 
 ```mermaid
 sequenceDiagram
@@ -188,28 +197,48 @@ sequenceDiagram
 
     Note over CLI: Display: "Visit URL, Enter code"
 
-    User->>AuthGate: 2. Visit URL in browser
-    User->>AuthGate: 3. Login + Enter code
-    AuthGate-->>User: Success!
+    User->>AuthGate: 2. Visit URL, login, enter code
+    AuthGate-->>User: ✅ Success
 
-    CLI->>AuthGate: 4. Poll for token
+    CLI->>AuthGate: 3. Poll for token
     AuthGate-->>CLI: access_token + refresh_token
 ```
 
+### Authorization Code Flow (RFC 6749) — for Web / Mobile
+
+```mermaid
+sequenceDiagram
+    participant App as Web/Mobile App
+    participant Browser as Browser
+    participant AuthGate as AuthGate Server
+
+    App->>Browser: 1. Redirect to /oauth/authorize
+    Browser->>AuthGate: Login + Consent page
+    AuthGate->>Browser: 302 redirect_uri?code=XXXXX
+    Browser->>App: code delivered to callback
+    App->>AuthGate: 2. POST /oauth/token (code + secret or PKCE)
+    AuthGate-->>App: access_token + refresh_token
+```
+
+**[Authorization Code Flow Guide →](docs/AUTHORIZATION_CODE_FLOW.md)**
+
 **Key Endpoints:**
 
-| Endpoint             | Method | Purpose                           |
-| -------------------- | ------ | --------------------------------- |
-| `/oauth/device/code` | POST   | Request device code (CLI)         |
-| `/oauth/token`       | POST   | Get or refresh tokens             |
-| `/oauth/tokeninfo`   | GET    | Verify token validity             |
-| `/oauth/revoke`      | POST   | Revoke tokens (RFC 7009)          |
-| `/device`            | GET    | User authorization page (browser) |
-| `/device/verify`     | POST   | Complete authorization            |
-| `/account/sessions`  | GET    | View and manage active sessions   |
-| `/login`             | POST   | User login                        |
-| `/health`            | GET    | Health check (monitoring)         |
-| `/metrics`           | GET    | Prometheus metrics (optional auth)|
+| Endpoint                              | Method | Purpose                                      |
+| ------------------------------------- | ------ | -------------------------------------------- |
+| `/oauth/device/code`                  | POST   | Request device code (CLI)                    |
+| `/oauth/authorize`                    | GET    | Authorization consent page (web apps)        |
+| `/oauth/authorize`                    | POST   | Submit consent decision                      |
+| `/oauth/token`                        | POST   | Exchange code / device code / refresh token  |
+| `/oauth/tokeninfo`                    | GET    | Verify token validity                        |
+| `/oauth/revoke`                       | POST   | Revoke tokens (RFC 7009)                     |
+| `/device`                             | GET    | Device code entry page (browser)             |
+| `/account/sessions`                   | GET    | Manage active token sessions                 |
+| `/account/authorizations`             | GET    | Manage per-app consent grants                |
+| `/admin/clients/:id/authorizations`   | GET    | Admin: view all authorized users for a client|
+| `/admin/clients/:id/revoke-all`       | POST   | Admin: force re-auth for all users           |
+| `/health`                             | GET    | Health check                                 |
+| `/metrics`                            | GET    | Prometheus metrics (optional auth)           |
 
 **[Full API Reference →](docs/ARCHITECTURE.md#key-endpoints)** | **[Metrics Documentation →](docs/METRICS.md)**
 
@@ -238,6 +267,12 @@ Users can view and revoke active sessions at `/account/sessions`:
 - See client information and authorization times
 - Revoke specific devices or all at once
 - Monitor active vs expired sessions
+
+Users can manage per-app consent grants at `/account/authorizations`:
+
+- See which web/mobile apps have been granted access
+- View the approved scopes per app
+- Revoke access for any individual app (revokes all associated tokens)
 
 ---
 
@@ -454,6 +489,12 @@ Yes! AuthGate fully supports RFC 6749 refresh tokens with two modes:
 - CLI/API: Call `POST /oauth/revoke`
 - Bulk action: "Revoke All" button
 
+### Q: Does it support Authorization Code Flow for web apps?
+
+Yes. Enable it per-client in **Admin → OAuth Clients**. Public clients (SPAs, mobile apps) use PKCE instead of a client secret.
+
+**[Authorization Code Flow Guide →](docs/AUTHORIZATION_CODE_FLOW.md)**
+
 **[More FAQs →](docs/TROUBLESHOOTING.md#frequently-asked-questions-faq)**
 
 ---
@@ -479,7 +520,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📚 References
 
 - [RFC 8628 - OAuth 2.0 Device Authorization Grant](https://datatracker.ietf.org/doc/html/rfc8628)
-- [RFC 6749 - OAuth 2.0 Framework (Refresh Tokens)](https://datatracker.ietf.org/doc/html/rfc6749)
+- [RFC 6749 - OAuth 2.0 Authorization Framework](https://datatracker.ietf.org/doc/html/rfc6749)
+- [RFC 7636 - PKCE for OAuth Public Clients](https://datatracker.ietf.org/doc/html/rfc7636)
 - [RFC 7009 - OAuth 2.0 Token Revocation](https://datatracker.ietf.org/doc/html/rfc7009)
 - [RFC 8725 - JWT Best Practices](https://datatracker.ietf.org/doc/html/rfc8725)
 

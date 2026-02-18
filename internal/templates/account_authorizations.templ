@@ -1,0 +1,73 @@
+package templates
+
+import "fmt"
+
+templ AccountAuthorizations(props AuthorizationsPageProps) {
+	@Layout("Authorized Applications", LayoutHasNavbar, &props.NavbarProps) {
+		<link rel="stylesheet" href="/static/css/pages/account-authorizations.css"/>
+		<div class="main-content">
+			<div class="authorizations-page-container">
+				<div class="card">
+					<!-- Card Header -->
+					<div class="authorizations-card-header">
+						<h1 class="authorizations-title">Authorized Applications</h1>
+						<p class="authorizations-subtitle">Applications that have access to your account</p>
+					</div>
+					<!-- Alert -->
+					@Alert(props.Error, AlertError)
+					@Alert(props.Success, AlertSuccess)
+					if len(props.Authorizations) > 0 {
+						<div class="authorizations-list-header">
+							<span class="authorizations-count">
+								{ fmt.Sprintf("%d", len(props.Authorizations)) } application(s)
+							</span>
+						</div>
+						<div class="authorizations-list">
+							for _, auth := range props.Authorizations {
+								@AuthorizationItem(auth, props.CSRFToken)
+							}
+						</div>
+					} else {
+						<div class="empty-state">
+							<div class="empty-icon">🔓</div>
+							<h3 class="empty-title">No Authorized Applications</h3>
+							<p class="empty-text">
+								You haven't authorized any applications yet.
+								Applications will appear here after you grant them access.
+							</p>
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ AuthorizationItem(auth AuthorizationDisplay, csrfToken string) {
+	<div class="authorization-item">
+		<!-- Icon -->
+		<div class="authorization-app-icon">🔗</div>
+		<!-- Info -->
+		<div class="authorization-info">
+			<div class="authorization-app-name">{ auth.ClientName }</div>
+			<div class="authorization-meta">
+				<span class="authorization-scopes">{ auth.Scopes }</span>
+				<span class="authorization-date">{ auth.GrantedAt.Format("2006-01-02 15:04") }</span>
+				<span class="authorization-status active">Active</span>
+			</div>
+		</div>
+		<!-- Actions -->
+		<div class="authorization-actions">
+			<form method="POST" action={ templ.URL("/account/authorizations/" + auth.UUID + "/revoke") } style="margin:0;">
+				<input type="hidden" name="csrf_token" value={ csrfToken }/>
+				<button
+					type="submit"
+					class="authorization-revoke-btn"
+					onclick="return confirm('Revoke access for this application? All its tokens will be invalidated.')"
+				>
+					Revoke Access
+				</button>
+			</form>
+		</div>
+	</div>
+}

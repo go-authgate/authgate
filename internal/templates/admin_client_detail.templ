@@ -1,5 +1,7 @@
 package templates
 
+import "fmt"
+
 templ AdminClientDetail(props ClientDetailPageProps) {
 	@Layout("Client Details", LayoutAdminNavbar, &props.NavbarProps) {
 		<link rel="stylesheet" href="/static/css/pages/admin-forms.css"/>
@@ -9,6 +11,9 @@ templ AdminClientDetail(props ClientDetailPageProps) {
 					<div class="admin-form-header">
 						<h1 class="admin-form-title">Client Details</h1>
 					</div>
+					<!-- Alerts -->
+					@Alert(props.Error, AlertError)
+					@Alert(props.Success, AlertSuccess)
 					<div class="admin-detail-section">
 						<div class="admin-detail-row">
 							<div class="admin-detail-label">Client ID</div>
@@ -24,6 +29,16 @@ templ AdminClientDetail(props ClientDetailPageProps) {
 								<div class="admin-detail-value">{ props.Client.Description }</div>
 							</div>
 						}
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Client Type</div>
+							<div class="admin-detail-value">
+								if props.Client.ClientType == "public" {
+									<span class="status-badge" style="background:rgba(245,158,11,0.1);color:#D97706;border:1px solid rgba(245,158,11,0.3);">Public</span>
+								} else {
+									<span class="status-badge" style="background:rgba(0,114,255,0.1);color:#0072ff;border:1px solid rgba(0,114,255,0.3);">Confidential</span>
+								}
+							</div>
+						</div>
 						<div class="admin-detail-row">
 							<div class="admin-detail-label">Scopes</div>
 							<div class="admin-detail-value">{ props.Client.Scopes }</div>
@@ -49,6 +64,16 @@ templ AdminClientDetail(props ClientDetailPageProps) {
 							</div>
 						</div>
 						<div class="admin-detail-row">
+							<div class="admin-detail-label">Auth Code Flow</div>
+							<div class="admin-detail-value">
+								if props.Client.EnableAuthCodeFlow {
+									<span class="status-badge status-active">Enabled</span>
+								} else {
+									<span class="status-badge status-inactive">Disabled</span>
+								}
+							</div>
+						</div>
+						<div class="admin-detail-row">
 							<div class="admin-detail-label">Status</div>
 							<div class="admin-detail-value">
 								if props.Client.IsActive {
@@ -67,6 +92,7 @@ templ AdminClientDetail(props ClientDetailPageProps) {
 							<div class="admin-detail-value">{ props.Client.UpdatedAt.Format("2006-01-02 15:04:05") }</div>
 						</div>
 					</div>
+					<!-- Standard Actions -->
 					<div class="admin-action-buttons">
 						<a href={ templ.URL("/admin/clients/" + props.Client.ClientID + "/edit") } class="admin-action-btn primary">
 							✏️ Edit Client
@@ -78,9 +104,46 @@ templ AdminClientDetail(props ClientDetailPageProps) {
 						>
 							🔄 Regenerate Secret
 						</a>
+						<a href={ templ.URL("/admin/clients/" + props.Client.ClientID + "/authorizations") } class="admin-action-btn secondary">
+							👥 Authorized Users
+						</a>
 						<a href="/admin/clients" class="admin-action-btn secondary">
 							← Back to List
 						</a>
+					</div>
+					<!-- Danger Zone: Revoke All Tokens -->
+					<div class="admin-danger-zone">
+						<div class="admin-danger-zone-header">
+							<h3 class="admin-danger-zone-title">⚠️ Danger Zone</h3>
+							<p class="admin-danger-zone-desc">
+								These actions are irreversible. Revoking all tokens will force all users to re-authenticate.
+							</p>
+						</div>
+						<div class="admin-danger-zone-body">
+							<div class="admin-danger-item">
+								<div class="admin-danger-item-info">
+									<strong>Revoke All User Tokens</strong>
+									<span>
+										Immediately invalidate all active access and refresh tokens for this client.
+										if props.ActiveTokenCount > 0 {
+											Currently <strong>{ fmt.Sprintf("%d", props.ActiveTokenCount) }</strong> active token(s).
+										} else {
+											No active tokens.
+										}
+									</span>
+								</div>
+								<form method="POST" action={ templ.URL("/admin/clients/" + props.Client.ClientID + "/revoke-all") } style="margin:0;">
+									<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+									<button
+										type="submit"
+										class="admin-action-btn danger"
+										onclick="return confirm('Revoke ALL active tokens for this client? All users will need to re-authenticate. This cannot be undone.')"
+									>
+										Revoke All Tokens
+									</button>
+								</form>
+							</div>
+						</div>
 					</div>
 				</div>
 			</div>

@@ -12,6 +12,12 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// Client type constants
+const (
+	ClientTypeConfidential = "confidential"
+	ClientTypePublic       = "public"
+)
+
 var (
 	ErrClientNotFound     = errors.New("client not found")
 	ErrInvalidClientData  = errors.New("invalid client data")
@@ -31,22 +37,26 @@ func NewClientService(s *store.Store, auditService *AuditService) *ClientService
 }
 
 type CreateClientRequest struct {
-	ClientName   string
-	Description  string
-	UserID       string
-	Scopes       string
-	GrantTypes   string
-	RedirectURIs []string
-	CreatedBy    string
+	ClientName         string
+	Description        string
+	UserID             string
+	Scopes             string
+	RedirectURIs       []string
+	CreatedBy          string
+	ClientType         string // ClientTypeConfidential or ClientTypePublic (default: ClientTypeConfidential)
+	EnableDeviceFlow   bool   // Enable Device Authorization Grant (RFC 8628)
+	EnableAuthCodeFlow bool   // Enable Authorization Code Flow (RFC 6749)
 }
 
 type UpdateClientRequest struct {
-	ClientName   string
-	Description  string
-	Scopes       string
-	GrantTypes   string
-	RedirectURIs []string
-	IsActive     bool
+	ClientName         string
+	Description        string
+	Scopes             string
+	RedirectURIs       []string
+	IsActive           bool
+	ClientType         string
+	EnableDeviceFlow   bool
+	EnableAuthCodeFlow bool
 }
 
 type ClientResponse struct {
@@ -78,30 +88,49 @@ func (s *ClientService) CreateClient(
 		return nil, err
 	}
 
-	// Set default grant type if not provided
-	grantTypes := req.GrantTypes
-	if strings.TrimSpace(grantTypes) == "" {
-		grantTypes = "device_code"
-	}
-
-	// Set default scopes if not provided
-	scopes := req.Scopes
-	if strings.TrimSpace(scopes) == "" {
+	// Default scopes
+	scopes := strings.TrimSpace(req.Scopes)
+	if scopes == "" {
 		scopes = "read write"
 	}
 
+	// Default client type
+	clientType := req.ClientType
+	if clientType != ClientTypePublic {
+		clientType = ClientTypeConfidential
+	}
+
+	// If neither flow is explicitly enabled, default to device flow
+	enableDevice := req.EnableDeviceFlow
+	enableAuthCode := req.EnableAuthCodeFlow
+	if !enableDevice && !enableAuthCode {
+		enableDevice = true
+	}
+
+	// Derive GrantTypes string from the enabled flows
+	var grants []string
+	if enableDevice {
+		grants = append(grants, "device_code")
+	}
+	if enableAuthCode {
+		grants = append(grants, "authorization_code")
+	}
+	grantTypes := strings.Join(grants, " ")
+
 	client := &models.OAuthApplication{
-		ClientID:         clientID,
-		ClientSecret:     string(secretHash),
-		ClientName:       strings.TrimSpace(req.ClientName),
-		Description:      strings.TrimSpace(req.Description),
-		UserID:           req.UserID,
-		Scopes:           strings.TrimSpace(scopes),
-		GrantTypes:       strings.TrimSpace(grantTypes),
-		RedirectURIs:     models.StringArray(req.RedirectURIs),
-		EnableDeviceFlow: true,
-		IsActive:         true,
-		CreatedBy:        req.CreatedBy,
+		ClientID:           clientID,
+		ClientSecret:       string(secretHash),
+		ClientName:         strings.TrimSpace(req.ClientName),
+		Description:        strings.TrimSpace(req.Description),
+		UserID:             req.UserID,
+		Scopes:             scopes,
+		GrantTypes:         grantTypes,
+		RedirectURIs:       models.StringArray(req.RedirectURIs),
+		ClientType:         clientType,
+		EnableDeviceFlow:   enableDevice,
+		EnableAuthCodeFlow: enableAuthCode,
+		IsActive:           true,
+		CreatedBy:          req.CreatedBy,
 	}
 
 	if err := s.store.CreateClient(client); err != nil {
@@ -150,9 +179,29 @@ func (s *ClientService) UpdateClient(
 	client.ClientName = strings.TrimSpace(req.ClientName)
 	client.Description = strings.TrimSpace(req.Description)
 	client.Scopes = strings.TrimSpace(req.Scopes)
-	client.GrantTypes = strings.TrimSpace(req.GrantTypes)
 	client.RedirectURIs = models.StringArray(req.RedirectURIs)
 	client.IsActive = req.IsActive
+
+	// Client type defaults to confidential
+	if req.ClientType == ClientTypePublic {
+		client.ClientType = ClientTypePublic
+	} else {
+		client.ClientType = ClientTypeConfidential
+	}
+
+	// Rebuild GrantTypes from enablement flags
+	client.EnableDeviceFlow = req.EnableDeviceFlow
+	client.EnableAuthCodeFlow = req.EnableAuthCodeFlow
+	var grants []string
+	if req.EnableDeviceFlow {
+		grants = append(grants, "device_code")
+	}
+	if req.EnableAuthCodeFlow {
+		grants = append(grants, "authorization_code")
+	}
+	if len(grants) > 0 {
+		client.GrantTypes = strings.Join(grants, " ")
+	}
 
 	err = s.store.UpdateClient(client)
 	if err != nil {
@@ -342,4 +391,9 @@ func (s *ClientService) VerifyClientSecret(clientID, clientSecret string) error 
 	}
 
 	return nil
+}
+
+// CountActiveTokens returns the number of active tokens for a given client.
+func (s *ClientService) CountActiveTokens(clientID string) (int64, error) {
+	return s.store.CountActiveTokensByClientID(clientID)
 }

@@ -16,11 +16,15 @@ import (
 )
 
 type ClientHandler struct {
-	clientService *services.ClientService
+	clientService        *services.ClientService
+	authorizationService *services.AuthorizationService
 }
 
-func NewClientHandler(cs *services.ClientService) *ClientHandler {
-	return &ClientHandler{clientService: cs}
+func NewClientHandler(
+	cs *services.ClientService,
+	as *services.AuthorizationService,
+) *ClientHandler {
+	return &ClientHandler{clientService: cs, authorizationService: as}
 }
 
 // parseRedirectURIs parses a comma-separated string into a slice of trimmed URIs
@@ -120,13 +124,15 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 
 	req := services.CreateClientRequest{
-		ClientName:   c.PostForm("client_name"),
-		Description:  c.PostForm("description"),
-		UserID:       userID.(string),
-		Scopes:       c.PostForm("scopes"),
-		GrantTypes:   c.PostForm("grant_types"),
-		RedirectURIs: parseRedirectURIs(c.PostForm("redirect_uris")),
-		CreatedBy:    userID.(string),
+		ClientName:         c.PostForm("client_name"),
+		Description:        c.PostForm("description"),
+		UserID:             userID.(string),
+		Scopes:             c.PostForm("scopes"),
+		RedirectURIs:       parseRedirectURIs(c.PostForm("redirect_uris")),
+		CreatedBy:          userID.(string),
+		ClientType:         c.PostForm("client_type"),
+		EnableDeviceFlow:   c.PostForm("enable_device_flow") == queryValueTrue,
+		EnableAuthCodeFlow: c.PostForm("enable_auth_code_flow") == queryValueTrue,
 	}
 
 	resp, err := h.clientService.CreateClient(c.Request.Context(), req)
@@ -136,11 +142,13 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 
 		// Convert request data to ClientDisplay struct for template
 		clientData := &templates.ClientDisplay{
-			ClientName:   req.ClientName,
-			Description:  req.Description,
-			Scopes:       req.Scopes,
-			GrantTypes:   req.GrantTypes,
-			RedirectURIs: strings.Join(req.RedirectURIs, ", "),
+			ClientName:         req.ClientName,
+			Description:        req.Description,
+			Scopes:             req.Scopes,
+			RedirectURIs:       strings.Join(req.RedirectURIs, ", "),
+			ClientType:         req.ClientType,
+			EnableDeviceFlow:   req.EnableDeviceFlow,
+			EnableAuthCodeFlow: req.EnableAuthCodeFlow,
 		}
 
 		templates.RenderTempl(
@@ -170,15 +178,17 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 
 	// Convert OAuthApplication to ClientDisplay for template
 	clientDisplay := &templates.ClientDisplay{
-		ID:               resp.ID,
-		ClientID:         resp.ClientID,
-		ClientName:       resp.ClientName,
-		Description:      resp.Description,
-		Scopes:           resp.Scopes,
-		GrantTypes:       resp.GrantTypes,
-		RedirectURIs:     resp.RedirectURIs.Join(", "),
-		EnableDeviceFlow: resp.EnableDeviceFlow,
-		IsActive:         resp.IsActive,
+		ID:                 resp.ID,
+		ClientID:           resp.ClientID,
+		ClientName:         resp.ClientName,
+		Description:        resp.Description,
+		Scopes:             resp.Scopes,
+		GrantTypes:         resp.GrantTypes,
+		RedirectURIs:       resp.RedirectURIs.Join(", "),
+		ClientType:         resp.ClientType,
+		EnableDeviceFlow:   resp.EnableDeviceFlow,
+		EnableAuthCodeFlow: resp.EnableAuthCodeFlow,
+		IsActive:           resp.IsActive,
 	}
 
 	templates.RenderTempl(
@@ -214,17 +224,19 @@ func (h *ClientHandler) ShowEditClientPage(c *gin.Context) {
 
 	// Convert OAuthApplication to ClientDisplay for template
 	clientDisplay := &templates.ClientDisplay{
-		ID:               client.ID,
-		ClientID:         client.ClientID,
-		ClientName:       client.ClientName,
-		Description:      client.Description,
-		Scopes:           client.Scopes,
-		GrantTypes:       client.GrantTypes,
-		RedirectURIs:     client.RedirectURIs.Join(", "),
-		EnableDeviceFlow: client.EnableDeviceFlow,
-		IsActive:         client.IsActive,
-		CreatedAt:        client.CreatedAt,
-		UpdatedAt:        client.UpdatedAt,
+		ID:                 client.ID,
+		ClientID:           client.ClientID,
+		ClientName:         client.ClientName,
+		Description:        client.Description,
+		Scopes:             client.Scopes,
+		GrantTypes:         client.GrantTypes,
+		RedirectURIs:       client.RedirectURIs.Join(", "),
+		ClientType:         client.ClientType,
+		EnableDeviceFlow:   client.EnableDeviceFlow,
+		EnableAuthCodeFlow: client.EnableAuthCodeFlow,
+		IsActive:           client.IsActive,
+		CreatedAt:          client.CreatedAt,
+		UpdatedAt:          client.UpdatedAt,
 	}
 
 	templates.RenderTempl(c, http.StatusOK, templates.AdminClientForm(templates.ClientFormPageProps{
@@ -247,12 +259,14 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 	clientID := c.Param("id")
 
 	req := services.UpdateClientRequest{
-		ClientName:   c.PostForm("client_name"),
-		Description:  c.PostForm("description"),
-		Scopes:       c.PostForm("scopes"),
-		GrantTypes:   c.PostForm("grant_types"),
-		RedirectURIs: parseRedirectURIs(c.PostForm("redirect_uris")),
-		IsActive:     c.PostForm("is_active") == "true",
+		ClientName:         c.PostForm("client_name"),
+		Description:        c.PostForm("description"),
+		Scopes:             c.PostForm("scopes"),
+		RedirectURIs:       parseRedirectURIs(c.PostForm("redirect_uris")),
+		IsActive:           c.PostForm("is_active") == queryValueTrue,
+		ClientType:         c.PostForm("client_type"),
+		EnableDeviceFlow:   c.PostForm("enable_device_flow") == queryValueTrue,
+		EnableAuthCodeFlow: c.PostForm("enable_auth_code_flow") == queryValueTrue,
 	}
 
 	userID, _ := c.Get("user_id")
@@ -265,17 +279,18 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 
 		// Convert form data to ClientDisplay for template
 		clientDisplay := &templates.ClientDisplay{
-			ID:               client.ID,
-			ClientID:         client.ClientID,
-			ClientName:       req.ClientName,
-			Description:      req.Description,
-			Scopes:           req.Scopes,
-			GrantTypes:       req.GrantTypes,
-			RedirectURIs:     strings.Join(req.RedirectURIs, ", "),
-			EnableDeviceFlow: client.EnableDeviceFlow,
-			IsActive:         req.IsActive,
-			CreatedAt:        client.CreatedAt,
-			UpdatedAt:        client.UpdatedAt,
+			ID:                 client.ID,
+			ClientID:           client.ClientID,
+			ClientName:         req.ClientName,
+			Description:        req.Description,
+			Scopes:             req.Scopes,
+			RedirectURIs:       strings.Join(req.RedirectURIs, ", "),
+			ClientType:         req.ClientType,
+			EnableDeviceFlow:   req.EnableDeviceFlow,
+			EnableAuthCodeFlow: req.EnableAuthCodeFlow,
+			IsActive:           req.IsActive,
+			CreatedAt:          client.CreatedAt,
+			UpdatedAt:          client.UpdatedAt,
 		}
 
 		templates.RenderTempl(
@@ -299,21 +314,7 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 		return
 	}
 
-	// Store success message in session flash
-	session := sessions.Default(c)
-	session.AddFlash("Client updated successfully")
-	if err := session.Save(); err != nil {
-		templates.RenderTempl(
-			c,
-			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Failed to save session: " + err.Error(),
-			}),
-		)
-		return
-	}
-
-	c.Redirect(http.StatusFound, "/admin/clients")
+	c.Redirect(http.StatusFound, "/admin/clients/"+clientID+"?success=updated")
 }
 
 // DeleteClient handles deleting an OAuth client
@@ -403,8 +404,19 @@ func (h *ClientHandler) ViewClient(c *gin.Context) {
 		return
 	}
 
+	activeTokenCount, _ := h.clientService.CountActiveTokens(clientID)
+
 	user, _ := c.Get("user")
 	userModel := user.(*models.User)
+
+	// Map query-param success codes to human-readable messages
+	successMsg := ""
+	switch c.Query("success") {
+	case "tokens_revoked":
+		successMsg = "All active tokens have been revoked. Users will need to re-authenticate."
+	case "updated":
+		successMsg = "Client updated successfully."
+	}
 
 	templates.RenderTempl(
 		c,
@@ -416,7 +428,102 @@ func (h *ClientHandler) ViewClient(c *gin.Context) {
 				IsAdmin:    userModel.IsAdmin(),
 				ActiveLink: "clients",
 			},
-			Client: client,
+			Client:           client,
+			ActiveTokenCount: activeTokenCount,
+			Success:          successMsg,
 		}),
 	)
+}
+
+// ListClientAuthorizations shows all users who have granted access to this client (admin overview).
+func (h *ClientHandler) ListClientAuthorizations(c *gin.Context) {
+	clientID := c.Param("id")
+
+	client, err := h.clientService.GetClient(clientID)
+	if err != nil {
+		templates.RenderTempl(c, http.StatusNotFound, templates.ErrorPage(templates.ErrorPageProps{
+			Error: "Client not found",
+		}))
+		return
+	}
+
+	auths, err := h.authorizationService.ListClientAuthorizations(c.Request.Context(), clientID)
+	if err != nil {
+		templates.RenderTempl(
+			c,
+			http.StatusInternalServerError,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error: "Failed to load authorizations: " + err.Error(),
+			}),
+		)
+		return
+	}
+
+	displayAuths := make([]templates.ClientAuthorizationDisplay, 0, len(auths))
+	for _, a := range auths {
+		displayAuths = append(displayAuths, templates.ClientAuthorizationDisplay{
+			UUID:      a.UUID,
+			UserID:    a.UserID,
+			Username:  a.Username,
+			Email:     a.Email,
+			Scopes:    a.Scopes,
+			GrantedAt: a.GrantedAt,
+		})
+	}
+
+	user, _ := c.Get("user")
+	userModel := user.(*models.User)
+
+	templates.RenderTempl(
+		c,
+		http.StatusOK,
+		templates.AdminClientAuthorizations(templates.ClientAuthorizationsPageProps{
+			BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+			NavbarProps: templates.NavbarProps{
+				Username:   userModel.Username,
+				IsAdmin:    userModel.IsAdmin(),
+				ActiveLink: "clients",
+			},
+			Client:         client,
+			Authorizations: displayAuths,
+		}),
+	)
+}
+
+// RevokeAllTokens revokes all active tokens for a client (admin danger zone action).
+func (h *ClientHandler) RevokeAllTokens(c *gin.Context) {
+	clientID := c.Param("id")
+	userID, _ := c.Get("user_id")
+
+	revokedCount, err := h.authorizationService.RevokeAllApplicationTokens(
+		c.Request.Context(),
+		clientID,
+		userID.(string),
+	)
+	if err != nil {
+		user, _ := c.Get("user")
+		userModel := user.(*models.User)
+		client, _ := h.clientService.GetClient(clientID)
+		activeTokenCount, _ := h.clientService.CountActiveTokens(clientID)
+
+		templates.RenderTempl(
+			c,
+			http.StatusInternalServerError,
+			templates.AdminClientDetail(templates.ClientDetailPageProps{
+				BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				NavbarProps: templates.NavbarProps{
+					Username:   userModel.Username,
+					IsAdmin:    userModel.IsAdmin(),
+					ActiveLink: "clients",
+				},
+				Client:           client,
+				ActiveTokenCount: activeTokenCount,
+				Error:            "Failed to revoke tokens: " + err.Error(),
+			}),
+		)
+		return
+	}
+
+	_ = revokedCount
+	c.Redirect(http.StatusFound, "/admin/clients/"+clientID+"?success=tokens_revoked")
 }

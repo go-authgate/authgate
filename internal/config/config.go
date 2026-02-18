@@ -162,6 +162,11 @@ type Config struct {
 	MetricsCacheType           string        // Cache backend: memory, redis, redis-aside (default: memory)
 	MetricsCacheClientTTL      time.Duration // Client-side cache TTL for redis-aside (default: 30s)
 	MetricsCacheSizePerConn    int           // Client-side cache size per connection in MB for redis-aside (default: 32MB)
+
+	// Authorization Code Flow settings (RFC 6749)
+	AuthCodeExpiration time.Duration // Authorization code lifetime (default: 10 minutes)
+	PKCERequired       bool          // Force PKCE for all public clients (default: false)
+	ConsentRemember    bool          // Skip consent page if user already authorized same scope (default: true)
 }
 
 func Load() *Config {
@@ -302,6 +307,11 @@ func Load() *Config {
 		MetricsCacheType:           getEnv("METRICS_CACHE_TYPE", MetricsCacheTypeMemory),
 		MetricsCacheClientTTL:      getEnvDuration("METRICS_CACHE_CLIENT_TTL", 30*time.Second),
 		MetricsCacheSizePerConn:    getEnvInt("METRICS_CACHE_SIZE_PER_CONN", 32), // 32MB default
+
+		// Authorization Code Flow settings
+		AuthCodeExpiration: getEnvDuration("AUTH_CODE_EXPIRATION", 10*time.Minute),
+		PKCERequired:       getEnvBool("PKCE_REQUIRED", false),
+		ConsentRemember:    getEnvBool("CONSENT_REMEMBER", true),
 	}
 }
 

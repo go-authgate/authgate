@@ -1,0 +1,110 @@
+package templates
+
+import "strings"
+
+templ AuthorizePage(props AuthorizePageProps) {
+	@Layout("Authorize Access", LayoutNoNavbar, nil) {
+		<link rel="stylesheet" href="/static/css/pages/authorize.css"/>
+		<div class="authorize-container">
+			<div class="authorize-card">
+				<!-- App Header -->
+				<div class="authorize-app-header">
+					<div class="authorize-app-icon">🔐</div>
+					<div class="authorize-app-info">
+						<div class="authorize-app-name">{ props.ClientName }</div>
+						<div class="authorize-app-id">{ props.ClientID }</div>
+					</div>
+				</div>
+				<!-- Title -->
+				<div class="authorize-title-section">
+					<h1 class="authorize-title">Authorize Access</h1>
+					<p class="authorize-subtitle">
+						<strong>{ props.ClientName }</strong> is requesting access to your account.
+					</p>
+					<div class="authorize-user-tag">Signed in as { props.Username }</div>
+				</div>
+				<!-- Error Alert -->
+				@Alert(props.Error, AlertError)
+				<!-- App Description -->
+				if props.ClientDescription != "" {
+					<div class="authorize-app-description">{ props.ClientDescription }</div>
+				}
+				<!-- Redirect URI -->
+				<div class="authorize-redirect-info">
+					<span class="authorize-redirect-label">Redirect to</span>
+					<span class="authorize-redirect-uri">{ props.RedirectURI }</span>
+				</div>
+				<!-- Requested Scopes -->
+				<div class="authorize-scopes-label">Requested Permissions</div>
+				<ul class="authorize-scopes-list">
+					for _, scope := range props.ScopeList {
+						<li class="authorize-scope-item">
+							<div class="authorize-scope-check">✓</div>
+							<div class="authorize-scope-text">
+								<span class="authorize-scope-name">{ scope }</span>
+								<span class="authorize-scope-desc">{ scopeDescription(scope) }</span>
+							</div>
+						</li>
+					}
+				</ul>
+				<!-- Action Form -->
+				<div class="authorize-actions">
+					<!-- Allow -->
+					<form method="POST" action="/oauth/authorize" style="margin:0;">
+						<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+						<input type="hidden" name="action" value="approve"/>
+						<input type="hidden" name="client_id" value={ props.ClientID }/>
+						<input type="hidden" name="redirect_uri" value={ props.RedirectURI }/>
+						<input type="hidden" name="scope" value={ props.Scopes }/>
+						<input type="hidden" name="state" value={ props.State }/>
+						<input type="hidden" name="code_challenge" value={ props.CodeChallenge }/>
+						<input type="hidden" name="code_challenge_method" value={ props.CodeChallengeMethod }/>
+						<button type="submit" class="authorize-btn-allow">
+							Allow Access
+						</button>
+					</form>
+					<!-- Deny -->
+					<form method="POST" action="/oauth/authorize" style="margin:0;">
+						<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+						<input type="hidden" name="action" value="deny"/>
+						<input type="hidden" name="client_id" value={ props.ClientID }/>
+						<input type="hidden" name="redirect_uri" value={ props.RedirectURI }/>
+						<input type="hidden" name="state" value={ props.State }/>
+						<button type="submit" class="authorize-btn-deny">
+							Deny
+						</button>
+					</form>
+				</div>
+				<!-- Footer Note -->
+				<div class="authorize-footer-note">
+					By clicking <strong>Allow Access</strong>, you grant <strong>{ props.ClientName }</strong>
+					permission to access your account with the listed permissions.
+					You can revoke this access at any time from
+					<a href="/account/authorizations">Account &rsaquo; Authorizations</a>.
+				</div>
+			</div>
+		</div>
+	}
+}
+
+// scopeDescription returns a human-readable description for a known scope.
+func scopeDescription(scope string) string {
+	switch strings.ToLower(scope) {
+	case "read":
+		return "Read your profile and data"
+	case "write":
+		return "Create and modify data on your behalf"
+	case "admin":
+		return "Full administrative access"
+	case "openid":
+		return "Verify your identity"
+	case "profile":
+		return "Access your name and profile information"
+	case "email":
+		return "Access your email address"
+	case "offline_access":
+		return "Access your data when you're not present (refresh tokens)"
+	default:
+		return scope
+	}
+}

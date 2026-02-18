@@ -12,28 +12,17 @@ templ AdminClientForm(props ClientFormPageProps) {
 					@Alert(props.Error, AlertError)
 					<form method={ props.Method } action={ templ.URL(props.Action) } class="admin-form">
 						<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+						<!-- Client Name -->
 						<div class="admin-form-group">
 							<label for="client_name" class="admin-form-label admin-form-label-required">Client Name</label>
 							if props.Client != nil {
-								<input
-									type="text"
-									id="client_name"
-									name="client_name"
-									class="admin-form-input"
-									value={ props.Client.ClientName }
-									required
-								/>
+								<input type="text" id="client_name" name="client_name" class="admin-form-input" value={ props.Client.ClientName } required/>
 							} else {
-								<input
-									type="text"
-									id="client_name"
-									name="client_name"
-									class="admin-form-input"
-									required
-								/>
+								<input type="text" id="client_name" name="client_name" class="admin-form-input" required/>
 							}
 							<small class="admin-form-hint">A human-readable name for this OAuth client</small>
 						</div>
+						<!-- Description -->
 						<div class="admin-form-group">
 							<label for="description" class="admin-form-label">Description</label>
 							if props.Client != nil {
@@ -43,36 +32,70 @@ templ AdminClientForm(props ClientFormPageProps) {
 							}
 							<small class="admin-form-hint">Optional description of this client's purpose</small>
 						</div>
+						<!-- Client Type -->
+						<div class="admin-form-group">
+							<label for="client_type" class="admin-form-label admin-form-label-required">Client Type</label>
+							<select id="client_type" name="client_type" class="admin-form-select">
+								<option
+									value="confidential"
+									selected?={ props.Client == nil || props.Client.ClientType != "public" }
+								>
+									Confidential — server-side apps that can store a secret
+								</option>
+								<option
+									value="public"
+									selected?={ props.Client != nil && props.Client.ClientType == "public" }
+								>
+									Public — SPAs, CLIs, mobile apps (PKCE required)
+								</option>
+							</select>
+							<small class="admin-form-hint">
+								Confidential clients authenticate with a secret.
+								Public clients use PKCE instead (no secret required).
+							</small>
+						</div>
+						<!-- Grant Types (checkboxes) -->
+						<div class="admin-form-group">
+							<label class="admin-form-label admin-form-label-required">Grant Types</label>
+							<div class="admin-form-checkboxes">
+								<label class="admin-form-checkbox-label">
+									<input
+										type="checkbox"
+										name="enable_device_flow"
+										value="true"
+										checked?={ props.Client == nil || props.Client.EnableDeviceFlow }
+									/>
+									<span>
+										<strong>Device Authorization Flow</strong> (RFC 8628)
+										— for CLI tools and devices without a browser
+									</span>
+								</label>
+								<label class="admin-form-checkbox-label">
+									<input
+										type="checkbox"
+										name="enable_auth_code_flow"
+										value="true"
+										checked?={ props.Client != nil && props.Client.EnableAuthCodeFlow }
+									/>
+									<span>
+										<strong>Authorization Code Flow</strong> (RFC 6749)
+										— for web apps with a redirect URI callback
+									</span>
+								</label>
+							</div>
+							<small class="admin-form-hint">At least one grant type must be selected.</small>
+						</div>
+						<!-- Scopes -->
 						<div class="admin-form-group">
 							<label for="scopes" class="admin-form-label">Scopes</label>
 							if props.Client != nil {
-								<input
-									type="text"
-									id="scopes"
-									name="scopes"
-									class="admin-form-input"
-									value={ props.Client.Scopes }
-								/>
+								<input type="text" id="scopes" name="scopes" class="admin-form-input" value={ props.Client.Scopes }/>
 							} else {
-								<input
-									type="text"
-									id="scopes"
-									name="scopes"
-									class="admin-form-input"
-									value="read write"
-								/>
+								<input type="text" id="scopes" name="scopes" class="admin-form-input" value="read write"/>
 							}
 							<small class="admin-form-hint">Space-separated list of scopes (e.g., "read write")</small>
 						</div>
-						<div class="admin-form-group">
-							<label for="grant_types" class="admin-form-label">Grant Types</label>
-							<select id="grant_types" name="grant_types" class="admin-form-select">
-								<option value="device_code" selected>
-									Device Code Flow (RFC 8628)
-								</option>
-							</select>
-							<small class="admin-form-hint">Currently only Device Code Flow is supported</small>
-						</div>
+						<!-- Redirect URIs -->
 						<div class="admin-form-group">
 							<label for="redirect_uris" class="admin-form-label">Redirect URIs</label>
 							if props.Client != nil {
@@ -80,8 +103,12 @@ templ AdminClientForm(props ClientFormPageProps) {
 							} else {
 								<textarea id="redirect_uris" name="redirect_uris" class="admin-form-textarea" rows="3"></textarea>
 							}
-							<small class="admin-form-hint">Comma-separated redirect URIs (optional for device flow)</small>
+							<small class="admin-form-hint">
+								Comma-separated redirect URIs. Required when Authorization Code Flow is enabled.
+								Example: <code>https://app.example.com/callback</code>
+							</small>
 						</div>
+						<!-- Status (edit only) -->
 						if props.IsEdit {
 							<div class="admin-form-group">
 								<label for="is_active" class="admin-form-label">Status</label>
@@ -106,6 +133,7 @@ templ AdminClientForm(props ClientFormPageProps) {
 								</div>
 							</div>
 						}
+						<!-- Actions -->
 						<div class="admin-form-actions">
 							<button type="submit" class="admin-form-submit-btn">
 								if props.IsEdit {

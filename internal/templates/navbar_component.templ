@@ -11,6 +11,7 @@ templ Navbar(props *NavbarProps) {
 				<div class="navbar-links">
 					@NavLink("/device", "Device Authorization", props.ActiveLink == "device", false)
 					@NavLink("/account/sessions", "Active Sessions", props.ActiveLink == "sessions", false)
+					@NavLink("/account/authorizations", "Authorized Apps", props.ActiveLink == "authorizations", false)
 					if props.IsAdmin {
 						@NavLink("/admin/clients", "OAuth Clients", props.ActiveLink == "clients", true)
 						@NavLink("/admin/audit", "Audit Logs", props.ActiveLink == "audit", true)

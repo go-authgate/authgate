@@ -8,20 +8,22 @@ import (
 )
 
 type OAuthApplication struct {
-	ID               int64       `gorm:"primaryKey;autoIncrement"`
-	ClientID         string      `gorm:"uniqueIndex;not null"`
-	ClientSecret     string      `gorm:"not null"` // bcrypt hashed secret
-	ClientName       string      `gorm:"not null"`
-	Description      string      `gorm:"type:text"`
-	UserID           string      `gorm:"not null"`
-	Scopes           string      `gorm:"not null"`
-	GrantTypes       string      `gorm:"not null;default:'device_code'"`
-	RedirectURIs     StringArray `gorm:"type:json"`
-	EnableDeviceFlow bool        `gorm:"not null;default:true"`
-	IsActive         bool        `gorm:"not null;default:true"`
-	CreatedBy        string
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID                 int64       `gorm:"primaryKey;autoIncrement"`
+	ClientID           string      `gorm:"uniqueIndex;not null"`
+	ClientSecret       string      `gorm:"not null"` // bcrypt hashed secret
+	ClientName         string      `gorm:"not null"`
+	Description        string      `gorm:"type:text"`
+	UserID             string      `gorm:"not null"`
+	Scopes             string      `gorm:"not null"`
+	GrantTypes         string      `gorm:"not null;default:'device_code'"`
+	RedirectURIs       StringArray `gorm:"type:json"`
+	ClientType         string      `gorm:"not null;default:'confidential'"` // "confidential" or "public"
+	EnableDeviceFlow   bool        `gorm:"not null;default:true"`
+	EnableAuthCodeFlow bool        `gorm:"not null;default:false"`
+	IsActive           bool        `gorm:"not null;default:true"`
+	CreatedBy          string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 // StringArray is a custom type for []string that can be stored as JSON in database

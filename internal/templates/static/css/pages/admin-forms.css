@@ -96,6 +96,49 @@
     0 0 20px rgba(0, 114, 255, 0.15);
 }
 
+/* Checkbox group for multi-select options (grant types etc.) */
+.admin-form-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.admin-form-checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.admin-form-checkbox-label:hover {
+  border-color: rgba(0, 114, 255, 0.4);
+  background: var(--color-bg-secondary);
+}
+
+.admin-form-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.admin-form-checkbox-label span {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.admin-form-checkbox-label span strong {
+  color: var(--color-text-primary);
+}
+
 .admin-form-hint {
   display: block;
   margin-top: var(--space-2);
@@ -389,6 +432,85 @@
   border-color: var(--color-gray-400);
   transform: translateY(-2px);
   color: var(--color-text-primary);
+}
+
+.admin-action-btn.danger {
+  background: rgba(239, 68, 68, 0.08);
+  color: #DC2626;
+  border: 1.5px solid rgba(239, 68, 68, 0.3);
+}
+
+.admin-action-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
+/* ============================================
+   Danger Zone
+   ============================================ */
+
+.admin-danger-zone {
+  margin-top: var(--space-8);
+  border: 1.5px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.admin-danger-zone-header {
+  padding: var(--space-4) var(--space-6);
+  background: rgba(239, 68, 68, 0.05);
+  border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.admin-danger-zone-title {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: #DC2626;
+  margin-bottom: var(--space-1);
+}
+
+.admin-danger-zone-desc {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.admin-danger-zone-body {
+  padding: var(--space-4) var(--space-6);
+}
+
+.admin-danger-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
+
+.admin-danger-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+}
+
+.admin-danger-item-info strong {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.admin-danger-item-info span {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+@media (max-width: 600px) {
+  .admin-danger-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 /* ============================================

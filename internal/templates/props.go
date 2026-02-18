@@ -91,17 +91,19 @@ type ClientsPageProps struct {
 
 // ClientDisplay wraps OAuthApplication with string fields for template rendering
 type ClientDisplay struct {
-	ID               int64
-	ClientID         string
-	ClientName       string
-	Description      string
-	Scopes           string
-	GrantTypes       string
-	RedirectURIs     string // Comma-separated string
-	EnableDeviceFlow bool
-	IsActive         bool
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID                 int64
+	ClientID           string
+	ClientName         string
+	Description        string
+	Scopes             string
+	GrantTypes         string
+	RedirectURIs       string // Comma-separated string
+	ClientType         string // "confidential" or "public"
+	EnableDeviceFlow   bool
+	EnableAuthCodeFlow bool
+	IsActive           bool
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 // ClientFormPageProps contains properties for the client form page
@@ -136,8 +138,64 @@ type ClientSecretPageProps struct {
 type ClientDetailPageProps struct {
 	BaseProps
 	NavbarProps
-	Client  *models.OAuthApplication
-	Success string
+	Client           *models.OAuthApplication
+	ActiveTokenCount int64 // Number of active tokens for this client
+	Success          string
+	Error            string
+}
+
+// AuthorizePageProps contains properties for the OAuth consent page
+type AuthorizePageProps struct {
+	BaseProps
+	Username            string
+	ClientID            string
+	ClientName          string
+	ClientDescription   string
+	RedirectURI         string
+	Scopes              string   // Space-separated scope string
+	ScopeList           []string // Pre-split scope list for template iteration
+	State               string
+	CodeChallenge       string
+	CodeChallengeMethod string
+	Error               string
+}
+
+// AuthorizationDisplay is a view model for a single user authorization entry
+type AuthorizationDisplay struct {
+	UUID       string
+	ClientID   string
+	ClientName string
+	Scopes     string
+	GrantedAt  time.Time
+	IsActive   bool
+}
+
+// AuthorizationsPageProps contains properties for the account authorizations page
+type AuthorizationsPageProps struct {
+	BaseProps
+	NavbarProps
+	Authorizations []AuthorizationDisplay
+	Success        string
+	Error          string
+}
+
+// ClientAuthorizationDisplay is a view model for one user's grant on the admin overview page
+type ClientAuthorizationDisplay struct {
+	UUID      string
+	UserID    string
+	Username  string
+	Email     string
+	Scopes    string
+	GrantedAt time.Time
+}
+
+// ClientAuthorizationsPageProps contains properties for the admin client-authorizations page
+type ClientAuthorizationsPageProps struct {
+	BaseProps
+	NavbarProps
+	Client         *models.OAuthApplication
+	Authorizations []ClientAuthorizationDisplay
+	Error          string
 }
 
 // AuditLogsPageProps contains properties for the audit logs page

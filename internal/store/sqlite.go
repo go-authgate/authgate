@@ -43,6 +43,8 @@ func New(driver, dsn string, cfg *config.Config) (*Store, error) {
 		&models.AccessToken{},
 		&models.OAuthConnection{},
 		&models.AuditLog{},
+		&models.AuthorizationCode{},
+		&models.UserAuthorization{},
 	); err != nil {
 		return nil, err
 	}
@@ -803,4 +805,167 @@ func (s *Store) CountPendingDeviceCodes() (int64, error) {
 		Count(&count).
 		Error
 	return count, err
+}
+
+// ============================================================
+// Authorization Code operations
+// ============================================================
+
+// GetClientByIntID retrieves an OAuth application by its integer primary key
+func (s *Store) GetClientByIntID(id int64) (*models.OAuthApplication, error) {
+	var client models.OAuthApplication
+	if err := s.db.Where("id = ?", id).First(&client).Error; err != nil {
+		return nil, err
+	}
+	return &client, nil
+}
+
+// CreateAuthorizationCode persists a new authorization code
+func (s *Store) CreateAuthorizationCode(code *models.AuthorizationCode) error {
+	return s.db.Create(code).Error
+}
+
+// GetAuthorizationCodeByHash retrieves an authorization code by its SHA-256 hash
+func (s *Store) GetAuthorizationCodeByHash(hash string) (*models.AuthorizationCode, error) {
+	var code models.AuthorizationCode
+	if err := s.db.Where("code_hash = ?", hash).First(&code).Error; err != nil {
+		return nil, err
+	}
+	return &code, nil
+}
+
+// MarkAuthorizationCodeUsed sets UsedAt to prevent replay attacks
+func (s *Store) MarkAuthorizationCodeUsed(id uint) error {
+	now := time.Now()
+	return s.db.Model(&models.AuthorizationCode{}).
+		Where("id = ?", id).
+		Update("used_at", &now).Error
+}
+
+// ============================================================
+// UserAuthorization operations
+// ============================================================
+
+// GetUserAuthorization retrieves the active consent record for a (user, application) pair
+func (s *Store) GetUserAuthorization(
+	userID string,
+	applicationID int64,
+) (*models.UserAuthorization, error) {
+	var auth models.UserAuthorization
+	if err := s.db.Where("user_id = ? AND application_id = ? AND is_active = ?", userID, applicationID, true).
+		First(&auth).
+		Error; err != nil {
+		return nil, err
+	}
+	return &auth, nil
+}
+
+// GetUserAuthorizationByUUID retrieves an authorization by its public UUID, scoped to the owner
+func (s *Store) GetUserAuthorizationByUUID(
+	authUUID, userID string,
+) (*models.UserAuthorization, error) {
+	var auth models.UserAuthorization
+	if err := s.db.Where("uuid = ? AND user_id = ?", authUUID, userID).
+		First(&auth).
+		Error; err != nil {
+		return nil, err
+	}
+	return &auth, nil
+}
+
+// UpsertUserAuthorization creates a new consent record or re-activates and updates an existing one
+func (s *Store) UpsertUserAuthorization(auth *models.UserAuthorization) error {
+	var existing models.UserAuthorization
+	err := s.db.Where("user_id = ? AND application_id = ?", auth.UserID, auth.ApplicationID).
+		First(&existing).Error
+	if err != nil {
+		// No existing record – create fresh
+		return s.db.Create(auth).Error
+	}
+	// Update existing record in-place
+	now := time.Now()
+	return s.db.Model(&existing).Updates(map[string]any{
+		"uuid":       auth.UUID,
+		"scopes":     auth.Scopes,
+		"granted_at": now,
+		"revoked_at": nil,
+		"is_active":  true,
+	}).Error
+}
+
+// RevokeUserAuthorization marks an authorization as revoked and returns the record
+func (s *Store) RevokeUserAuthorization(
+	authUUID, userID string,
+) (*models.UserAuthorization, error) {
+	var auth models.UserAuthorization
+	if err := s.db.Where("uuid = ? AND user_id = ?", authUUID, userID).
+		First(&auth).
+		Error; err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	if err := s.db.Model(&auth).Updates(map[string]any{
+		"is_active":  false,
+		"revoked_at": &now,
+	}).Error; err != nil {
+		return nil, err
+	}
+	return &auth, nil
+}
+
+// ListUserAuthorizations returns all active authorizations for a user, newest first
+func (s *Store) ListUserAuthorizations(userID string) ([]models.UserAuthorization, error) {
+	var auths []models.UserAuthorization
+	if err := s.db.Where("user_id = ? AND is_active = ?", userID, true).
+		Order("granted_at DESC").
+		Find(&auths).Error; err != nil {
+		return nil, err
+	}
+	return auths, nil
+}
+
+// RevokeTokensByAuthorizationID revokes all active tokens linked to a specific UserAuthorization
+func (s *Store) RevokeTokensByAuthorizationID(authorizationID uint) error {
+	return s.db.Model(&models.AccessToken{}).
+		Where("authorization_id = ? AND status = ?", authorizationID, "active").
+		Update("status", "revoked").Error
+}
+
+// RevokeAllActiveTokensByClientID revokes every active token for a client and returns the count
+func (s *Store) RevokeAllActiveTokensByClientID(clientID string) (int64, error) {
+	result := s.db.Model(&models.AccessToken{}).
+		Where("client_id = ? AND status = ?", clientID, "active").
+		Update("status", "revoked")
+	return result.RowsAffected, result.Error
+}
+
+// RevokeAllUserAuthorizationsByClientID invalidates all active consent records for a client
+func (s *Store) RevokeAllUserAuthorizationsByClientID(clientID string) error {
+	now := time.Now()
+	return s.db.Model(&models.UserAuthorization{}).
+		Where("client_id = ? AND is_active = ?", clientID, true).
+		Updates(map[string]any{
+			"is_active":  false,
+			"revoked_at": &now,
+		}).Error
+}
+
+// CountActiveTokensByClientID counts active tokens for a specific client
+func (s *Store) CountActiveTokensByClientID(clientID string) (int64, error) {
+	var count int64
+	err := s.db.Model(&models.AccessToken{}).
+		Where("client_id = ? AND status = ?", clientID, "active").
+		Count(&count).Error
+	return count, err
+}
+
+// GetClientAuthorizations returns all active consent records for a client, ordered by grant date
+func (s *Store) GetClientAuthorizations(clientID string) ([]models.UserAuthorization, error) {
+	var auths []models.UserAuthorization
+	if err := s.db.Where("client_id = ? AND is_active = ?", clientID, true).
+		Order("granted_at DESC").
+		Find(&auths).Error; err != nil {
+		return nil, err
+	}
+	return auths, nil
 }

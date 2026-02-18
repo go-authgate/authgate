@@ -40,3 +40,4 @@ coverage.txt
 *_templ.go
 api/*
 !api/.gitkeep
+.worktrees

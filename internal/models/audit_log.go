@@ -39,6 +39,14 @@ const (
 	EventRateLimitExceeded  EventType = "RATE_LIMIT_EXCEEDED"
 	EventSuspiciousActivity EventType = "SUSPICIOUS_ACTIVITY"
 
+	// Authorization Code Flow events (RFC 6749)
+	EventAuthorizationCodeGenerated EventType = "AUTHORIZATION_CODE_GENERATED"
+	EventAuthorizationCodeExchanged EventType = "AUTHORIZATION_CODE_EXCHANGED"
+	EventAuthorizationCodeDenied    EventType = "AUTHORIZATION_CODE_DENIED"
+	EventUserAuthorizationGranted   EventType = "USER_AUTHORIZATION_GRANTED"
+	EventUserAuthorizationRevoked   EventType = "USER_AUTHORIZATION_REVOKED"
+	EventClientTokensRevokedAll     EventType = "CLIENT_TOKENS_REVOKED_ALL" //nolint:gosec
+
 	// Audit events
 	EventTypeAuditLogView     EventType = "AUDIT_LOG_VIEWED"
 	EventTypeAuditLogExported EventType = "AUDIT_LOG_EXPORTED"
@@ -58,11 +66,12 @@ const (
 type ResourceType string
 
 const (
-	ResourceUser        ResourceType = "USER"
-	ResourceClient      ResourceType = "CLIENT"
-	ResourceToken       ResourceType = "TOKEN"
-	ResourceDeviceCode  ResourceType = "DEVICE_CODE"
-	ResourceOAuthConfig ResourceType = "OAUTH_CONFIG"
+	ResourceUser          ResourceType = "USER"
+	ResourceClient        ResourceType = "CLIENT"
+	ResourceToken         ResourceType = "TOKEN"
+	ResourceDeviceCode    ResourceType = "DEVICE_CODE"
+	ResourceOAuthConfig   ResourceType = "OAUTH_CONFIG"
+	ResourceAuthorization ResourceType = "AUTHORIZATION"
 )
 
 // AuditDetails stores additional event-specific information as JSON

@@ -786,3 +786,175 @@ func (s *TokenService) RevokeTokenByStatus(tokenID string) error {
 func (s *TokenService) GetActiveRefreshTokens(userID string) ([]models.AccessToken, error) {
 	return s.store.GetTokensByCategoryAndStatus(userID, "refresh", "active")
 }
+
+// ExchangeAuthorizationCode issues an access token and a refresh token for an already-validated
+// authorization code. The AuthorizationCode record must have been validated and marked as used
+// by AuthorizationService.ExchangeCode before calling this method.
+func (s *TokenService) ExchangeAuthorizationCode(
+	ctx context.Context,
+	authCode *models.AuthorizationCode,
+	authorizationID *uint,
+) (*models.AccessToken, *models.AccessToken, error) {
+	start := time.Now()
+
+	// Generate access token via configured provider
+	var accessTokenResult *token.TokenResult
+	var providerErr error
+
+	switch s.tokenProviderMode {
+	case config.TokenProviderModeHTTPAPI:
+		if s.httpTokenProvider == nil {
+			return nil, nil, fmt.Errorf(
+				"HTTP token provider not configured (TOKEN_PROVIDER_MODE=http_api requires TOKEN_API_URL)",
+			)
+		}
+		accessTokenResult, providerErr = s.httpTokenProvider.GenerateToken(
+			ctx,
+			authCode.UserID,
+			authCode.ClientID,
+			authCode.Scopes,
+		)
+	default:
+		if s.localTokenProvider == nil {
+			return nil, nil, fmt.Errorf("local token provider not configured")
+		}
+		accessTokenResult, providerErr = s.localTokenProvider.GenerateToken(
+			ctx,
+			authCode.UserID,
+			authCode.ClientID,
+			authCode.Scopes,
+		)
+	}
+
+	if providerErr != nil {
+		log.Printf(
+			"[Token] Access token generation failed provider=%s: %v",
+			s.tokenProviderMode,
+			providerErr,
+		)
+		return nil, nil, fmt.Errorf("token generation failed: %w", providerErr)
+	}
+	if !accessTokenResult.Success {
+		return nil, nil, fmt.Errorf("token generation unsuccessful")
+	}
+
+	// Generate refresh token
+	var refreshTokenResult *token.TokenResult
+
+	switch s.tokenProviderMode {
+	case config.TokenProviderModeHTTPAPI:
+		refreshTokenResult, providerErr = s.httpTokenProvider.GenerateRefreshToken(
+			ctx,
+			authCode.UserID,
+			authCode.ClientID,
+			authCode.Scopes,
+		)
+	default:
+		refreshTokenResult, providerErr = s.localTokenProvider.GenerateRefreshToken(
+			ctx,
+			authCode.UserID,
+			authCode.ClientID,
+			authCode.Scopes,
+		)
+	}
+
+	if providerErr != nil {
+		log.Printf(
+			"[Token] Refresh token generation failed provider=%s: %v",
+			s.tokenProviderMode,
+			providerErr,
+		)
+		return nil, nil, fmt.Errorf("refresh token generation failed: %w", providerErr)
+	}
+	if !refreshTokenResult.Success {
+		return nil, nil, fmt.Errorf("refresh token generation unsuccessful")
+	}
+
+	// Build token records — link to UserAuthorization for cascade-revoke support
+	accessToken := &models.AccessToken{
+		ID:              uuid.New().String(),
+		Token:           accessTokenResult.TokenString,
+		TokenType:       accessTokenResult.TokenType,
+		TokenCategory:   "access",
+		Status:          "active",
+		UserID:          authCode.UserID,
+		ClientID:        authCode.ClientID,
+		Scopes:          authCode.Scopes,
+		ExpiresAt:       accessTokenResult.ExpiresAt,
+		AuthorizationID: authorizationID,
+	}
+
+	refreshToken := &models.AccessToken{
+		ID:              uuid.New().String(),
+		Token:           refreshTokenResult.TokenString,
+		TokenType:       refreshTokenResult.TokenType,
+		TokenCategory:   "refresh",
+		Status:          "active",
+		UserID:          authCode.UserID,
+		ClientID:        authCode.ClientID,
+		Scopes:          authCode.Scopes,
+		ExpiresAt:       refreshTokenResult.ExpiresAt,
+		AuthorizationID: authorizationID,
+	}
+
+	// Persist both tokens in a single transaction
+	tx := s.store.DB().Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	if err := tx.Create(accessToken).Error; err != nil {
+		tx.Rollback()
+		return nil, nil, fmt.Errorf("failed to save access token: %w", err)
+	}
+	if err := tx.Create(refreshToken).Error; err != nil {
+		tx.Rollback()
+		return nil, nil, fmt.Errorf("failed to save refresh token: %w", err)
+	}
+	if err := tx.Commit().Error; err != nil {
+		return nil, nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Metrics
+	duration := time.Since(start)
+	s.metrics.RecordTokenIssued("access", "authorization_code", duration, s.tokenProviderMode)
+	s.metrics.RecordTokenIssued("refresh", "authorization_code", duration, s.tokenProviderMode)
+
+	// Audit
+	if s.auditService != nil {
+		s.auditService.Log(ctx, AuditLogEntry{
+			EventType:    models.EventAccessTokenIssued,
+			Severity:     models.SeverityInfo,
+			ActorUserID:  accessToken.UserID,
+			ResourceType: models.ResourceToken,
+			ResourceID:   accessToken.ID,
+			Action:       "Access token issued via authorization code exchange",
+			Details: models.AuditDetails{
+				"client_id":        accessToken.ClientID,
+				"scopes":           accessToken.Scopes,
+				"token_provider":   s.tokenProviderMode,
+				"refresh_token_id": refreshToken.ID,
+			},
+			Success: true,
+		})
+		s.auditService.Log(ctx, AuditLogEntry{
+			EventType:    models.EventRefreshTokenIssued,
+			Severity:     models.SeverityInfo,
+			ActorUserID:  refreshToken.UserID,
+			ResourceType: models.ResourceToken,
+			ResourceID:   refreshToken.ID,
+			Action:       "Refresh token issued via authorization code exchange",
+			Details: models.AuditDetails{
+				"client_id":       refreshToken.ClientID,
+				"scopes":          refreshToken.Scopes,
+				"token_provider":  s.tokenProviderMode,
+				"access_token_id": accessToken.ID,
+			},
+			Success: true,
+		})
+	}
+
+	return accessToken, refreshToken, nil
+}

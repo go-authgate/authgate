@@ -121,7 +121,7 @@ func runServer() {
 
 	// Initialize services
 	auditService := services.NewAuditService(db, cfg.EnableAuditLogging, cfg.AuditLogBufferSize)
-	userService, deviceService, tokenService, clientService := initializeServices(
+	userService, deviceService, tokenService, clientService, authorizationService := initializeServices(
 		cfg,
 		db,
 		auditService,
@@ -140,6 +140,7 @@ func runServer() {
 		deviceService,
 		tokenService,
 		clientService,
+		authorizationService,
 		auditService,
 		oauthProviders,
 		oauthHTTPClient,
@@ -250,7 +251,7 @@ func initializeServices(
 	db *store.Store,
 	auditService *services.AuditService,
 	prometheusMetrics metrics.MetricsRecorder,
-) (*services.UserService, *services.DeviceService, *services.TokenService, *services.ClientService) {
+) (*services.UserService, *services.DeviceService, *services.TokenService, *services.ClientService, *services.AuthorizationService) {
 	// Initialize authentication providers
 	localProvider := auth.NewLocalAuthProvider(db)
 	httpAPIProvider := initializeHTTPAPIAuthProvider(cfg)
@@ -280,20 +281,22 @@ func initializeServices(
 		prometheusMetrics,
 	)
 	clientService := services.NewClientService(db, auditService)
+	authorizationService := services.NewAuthorizationService(db, cfg, auditService)
 
-	return userService, deviceService, tokenService, clientService
+	return userService, deviceService, tokenService, clientService, authorizationService
 }
 
 // handlerSet holds all HTTP handlers and required services
 type handlerSet struct {
-	auth        *handlers.AuthHandler
-	device      *handlers.DeviceHandler
-	token       *handlers.TokenHandler
-	client      *handlers.ClientHandler
-	session     *handlers.SessionHandler
-	oauth       *handlers.OAuthHandler
-	audit       *handlers.AuditHandler
-	userService *services.UserService
+	auth          *handlers.AuthHandler
+	device        *handlers.DeviceHandler
+	token         *handlers.TokenHandler
+	client        *handlers.ClientHandler
+	session       *handlers.SessionHandler
+	oauth         *handlers.OAuthHandler
+	audit         *handlers.AuditHandler
+	authorization *handlers.AuthorizationHandler
+	userService   *services.UserService
 }
 
 // initializeHandlers creates all HTTP handlers
@@ -303,6 +306,7 @@ func initializeHandlers(
 	deviceService *services.DeviceService,
 	tokenService *services.TokenService,
 	clientService *services.ClientService,
+	authorizationService *services.AuthorizationService,
 	auditService *services.AuditService,
 	oauthProviders map[string]*auth.OAuthProvider,
 	oauthHTTPClient *http.Client,
@@ -317,8 +321,8 @@ func initializeHandlers(
 			prometheusMetrics,
 		),
 		device:  handlers.NewDeviceHandler(deviceService, userService, cfg),
-		token:   handlers.NewTokenHandler(tokenService, cfg),
-		client:  handlers.NewClientHandler(clientService),
+		token:   handlers.NewTokenHandler(tokenService, authorizationService, cfg),
+		client:  handlers.NewClientHandler(clientService, authorizationService),
 		session: handlers.NewSessionHandler(tokenService, userService),
 		oauth: handlers.NewOAuthHandler(
 			oauthProviders,
@@ -328,7 +332,13 @@ func initializeHandlers(
 			cfg.SessionFingerprintIP,
 			prometheusMetrics,
 		),
-		audit:       handlers.NewAuditHandler(auditService),
+		audit: handlers.NewAuditHandler(auditService),
+		authorization: handlers.NewAuthorizationHandler(
+			authorizationService,
+			tokenService,
+			userService,
+			cfg,
+		),
 		userService: userService,
 	}
 }
@@ -458,6 +468,14 @@ func setupAllRoutes(
 		oauth.POST("/revoke", h.token.Revoke)
 	}
 
+	// OAuth Authorization Code Flow (browser, requires login + CSRF)
+	oauthProtected := r.Group("/oauth")
+	oauthProtected.Use(middleware.RequireAuth(h.userService), middleware.CSRFMiddleware())
+	{
+		oauthProtected.GET("/authorize", h.authorization.ShowAuthorizePage)
+		oauthProtected.POST("/authorize", h.authorization.HandleAuthorize)
+	}
+
 	// Protected routes (require login)
 	protected := r.Group("")
 	protected.Use(middleware.RequireAuth(h.userService), middleware.CSRFMiddleware())
@@ -475,6 +493,9 @@ func setupAllRoutes(
 		account.POST("/sessions/:id/disable", h.session.DisableSession)
 		account.POST("/sessions/:id/enable", h.session.EnableSession)
 		account.POST("/sessions/revoke-all", h.session.RevokeAllSessions)
+		// Authorization Code Flow consent management
+		account.GET("/authorizations", h.authorization.ListAuthorizations)
+		account.POST("/authorizations/:uuid/revoke", h.authorization.RevokeAuthorization)
 	}
 
 	// Admin routes (require admin role)
@@ -493,6 +514,8 @@ func setupAllRoutes(
 		admin.POST("/clients/:id", h.client.UpdateClient)
 		admin.POST("/clients/:id/delete", h.client.DeleteClient)
 		admin.GET("/clients/:id/regenerate-secret", h.client.RegenerateSecret)
+		admin.POST("/clients/:id/revoke-all", h.client.RevokeAllTokens)
+		admin.GET("/clients/:id/authorizations", h.client.ListClientAuthorizations)
 
 		// Audit log routes (HTML pages)
 		admin.GET("/audit", h.audit.ShowAuditLogsPage)
