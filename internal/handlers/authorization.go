@@ -50,7 +50,13 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 	codeChallengeMethod := c.Query("code_challenge_method")
 
 	if len(state) > maxStateLength {
-		h.redirectWithError(c, redirectURI, "", errInvalidRequest, "state parameter exceeds maximum length")
+		h.redirectWithError(
+			c,
+			redirectURI,
+			"",
+			errInvalidRequest,
+			"state parameter exceeds maximum length",
+		)
 		return
 	}
 
@@ -119,7 +125,13 @@ func (h *AuthorizationHandler) HandleAuthorize(c *gin.Context) {
 	codeChallengeMethod := c.PostForm("code_challenge_method")
 
 	if len(state) > maxStateLength {
-		h.redirectWithError(c, redirectURI, "", errInvalidRequest, "state parameter exceeds maximum length")
+		h.redirectWithError(
+			c,
+			redirectURI,
+			"",
+			errInvalidRequest,
+			"state parameter exceeds maximum length",
+		)
 		return
 	}
 

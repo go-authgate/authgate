@@ -21,10 +21,12 @@ const (
 )
 
 var (
-	ErrClientNotFound          = errors.New("client not found")
-	ErrInvalidClientData       = errors.New("invalid client data")
-	ErrClientNameRequired      = errors.New("client name is required")
-	ErrRedirectURIRequired     = errors.New("at least one redirect URI is required when Authorization Code Flow is enabled")
+	ErrClientNotFound      = errors.New("client not found")
+	ErrInvalidClientData   = errors.New("invalid client data")
+	ErrClientNameRequired  = errors.New("client name is required")
+	ErrRedirectURIRequired = errors.New(
+		"at least one redirect URI is required when Authorization Code Flow is enabled",
+	)
 	ErrAtLeastOneGrantRequired = errors.New("at least one grant type must be enabled")
 )
 
