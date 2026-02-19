@@ -9,16 +9,15 @@ templ Navbar(props *NavbarProps) {
 			<button class="navbar-toggle" onclick="toggleMenu()" aria-label="Toggle navigation menu">☰</button>
 			<div class="navbar-menu" id="navbarMenu">
 				<div class="navbar-links">
-					@NavLink("/device", "Device Authorization", props.ActiveLink == "device", false)
+					@NavLink("/device", "Device Authorization", props.ActiveLink == "device")
 					@NavDropdown(
 						"Account",
 						props.ActiveLink == "sessions" || props.ActiveLink == "authorizations",
-						false,
 					) {
 						@NavDropdownItem("/account/sessions", "Active Sessions", props.ActiveLink == "sessions", false)
 						@NavDropdownItem("/account/authorizations", "Authorized Apps", props.ActiveLink == "authorizations", false)
 					}
-					@NavDropdown("API Docs", props.ActiveLink == "apidocs", false) {
+					@NavDropdown("API Docs", props.ActiveLink == "apidocs") {
 						@NavDropdownItem("/swagger/index.html", "Swagger UI", props.ActiveLink == "apidocs", false)
 					}
 					if props.IsAdmin {
@@ -38,19 +37,19 @@ templ Navbar(props *NavbarProps) {
 	</nav>
 }
 
-templ NavLink(href, label string, isActive bool, isAdmin bool) {
+templ NavLink(href, label string, isActive bool) {
 	<a
 		href={ templ.URL(href) }
-		class={ templ.Classes("navbar-link", templ.KV("active", isActive), templ.KV("admin", isAdmin)) }
+		class={ templ.Classes("navbar-link", templ.KV("active", isActive)) }
 	>
 		{ label }
 	</a>
 }
 
-templ NavDropdown(label string, isActive bool, isAdmin bool) {
-	<div class={ templ.Classes("navbar-dropdown", templ.KV("active", isActive), templ.KV("admin", isAdmin)) }>
+templ NavDropdown(label string, isActive bool) {
+	<div class={ templ.Classes("navbar-dropdown", templ.KV("active", isActive)) }>
 		<button
-			class={ templ.Classes("navbar-link", "navbar-dropdown-trigger", templ.KV("active", isActive), templ.KV("admin", isAdmin)) }
+			class={ templ.Classes("navbar-link", "navbar-dropdown-trigger", templ.KV("active", isActive)) }
 			aria-haspopup="true"
 			aria-expanded="false"
 			onclick="toggleDropdown(this)"

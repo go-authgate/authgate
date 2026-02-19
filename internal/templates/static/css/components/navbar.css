@@ -415,19 +415,6 @@
   font-weight: 700;
 }
 
-.navbar-dropdown-item.admin {
-  color: var(--color-success);
-}
-
-.navbar-dropdown-item.admin:hover {
-  background: var(--color-success-pale);
-}
-
-.navbar-dropdown-item.admin.active {
-  background: var(--color-success-pale);
-  font-weight: 700;
-}
-
 /* Mobile dropdown: accordion style */
 @media (max-width: 768px) {
   .navbar-dropdown {
@@ -459,6 +446,7 @@
     opacity: 1;
     visibility: visible;
     max-height: 300px;
+    pointer-events: auto;
   }
 
   /* Disable hover-open on mobile */
@@ -468,13 +456,6 @@
     transform: none;
     max-height: 0;
     pointer-events: none;
-  }
-
-  .navbar-dropdown-trigger[aria-expanded="true"] + .navbar-dropdown-menu {
-    opacity: 1 !important;
-    visibility: visible !important;
-    max-height: 300px !important;
-    pointer-events: auto !important;
   }
 
   .navbar-dropdown-item {
