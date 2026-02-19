@@ -229,19 +229,19 @@ func (s *DeviceService) AuthorizeDeviceCode(
 	return nil
 }
 
-// GetClientNameByUserCode retrieves the client name associated with a user code
-func (s *DeviceService) GetClientNameByUserCode(userCode string) (string, error) {
+// GetClientByUserCode retrieves the OAuth client and device code associated with a user code
+func (s *DeviceService) GetClientByUserCode(userCode string) (*models.OAuthApplication, *models.DeviceCode, error) {
 	dc, err := s.GetDeviceCodeByUserCode(userCode)
 	if err != nil {
-		return "", err
+		return nil, nil, err
 	}
 
 	client, err := s.store.GetClient(dc.ClientID)
 	if err != nil {
-		return "", err
+		return nil, nil, err
 	}
 
-	return client.ClientName, nil
+	return client, dc, nil
 }
 
 // generateUserCode creates a user-friendly code like "ABCD-EFGH"

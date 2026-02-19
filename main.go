@@ -320,7 +320,7 @@ func initializeHandlers(
 			cfg.SessionFingerprintIP,
 			prometheusMetrics,
 		),
-		device:  handlers.NewDeviceHandler(deviceService, userService, cfg),
+		device:  handlers.NewDeviceHandler(deviceService, userService, authorizationService, cfg),
 		token:   handlers.NewTokenHandler(tokenService, authorizationService, cfg),
 		client:  handlers.NewClientHandler(clientService, authorizationService),
 		session: handlers.NewSessionHandler(tokenService, userService),

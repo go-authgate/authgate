@@ -14,17 +14,19 @@ import (
 )
 
 type DeviceHandler struct {
-	deviceService *services.DeviceService
-	userService   *services.UserService
-	config        *config.Config
+	deviceService        *services.DeviceService
+	userService          *services.UserService
+	authorizationService *services.AuthorizationService
+	config               *config.Config
 }
 
 func NewDeviceHandler(
 	ds *services.DeviceService,
 	us *services.UserService,
+	as *services.AuthorizationService,
 	cfg *config.Config,
 ) *DeviceHandler {
-	return &DeviceHandler{deviceService: ds, userService: us, config: cfg}
+	return &DeviceHandler{deviceService: ds, userService: us, authorizationService: as, config: cfg}
 }
 
 // DeviceCodeRequest godoc
@@ -130,9 +132,9 @@ func (h *DeviceHandler) DevicePage(c *gin.Context) {
 	clientName := ""
 	// If user_code is provided, try to get the client name
 	if userCode != "" {
-		name, err := h.deviceService.GetClientNameByUserCode(userCode)
+		client, _, err := h.deviceService.GetClientByUserCode(userCode)
 		if err == nil {
-			clientName = name
+			clientName = client.ClientName
 		}
 	}
 
@@ -192,8 +194,55 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 		return
 	}
 
-	// Get client name before authorizing
-	clientName, _ := h.deviceService.GetClientNameByUserCode(userCode)
+	// Get client and device code before authorizing
+	client, dc, err := h.deviceService.GetClientByUserCode(userCode)
+	if err != nil {
+		var errorMsg string
+		switch {
+		case errors.Is(err, services.ErrUserCodeNotFound):
+			errorMsg = "User code not found"
+		case errors.Is(err, services.ErrDeviceCodeExpired):
+			errorMsg = "Code has expired, please request a new one"
+		default:
+			errorMsg = "Invalid or expired code"
+		}
+		templates.RenderTempl(
+			c,
+			http.StatusBadRequest,
+			templates.DevicePage(templates.DevicePageProps{
+				BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				NavbarProps: templates.NavbarProps{
+					Username:   usernameStr,
+					IsAdmin:    isAdmin,
+					ActiveLink: "device",
+				},
+				Username: usernameStr,
+				UserCode: userCode,
+				Error:    errorMsg,
+			}),
+		)
+		return
+	}
+
+	if !client.IsActive {
+		templates.RenderTempl(
+			c,
+			http.StatusBadRequest,
+			templates.DevicePage(templates.DevicePageProps{
+				BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				NavbarProps: templates.NavbarProps{
+					Username:   usernameStr,
+					IsAdmin:    isAdmin,
+					ActiveLink: "device",
+				},
+				Username: usernameStr,
+				UserCode: userCode,
+				Error:    "This application is not active",
+			}),
+		)
+		return
+	}
+	clientName := client.ClientName
 
 	err = h.deviceService.AuthorizeDeviceCode(
 		c.Request.Context(),
@@ -226,6 +275,33 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 				UserCode:   userCode,
 				ClientName: clientName,
 				Error:      errorMsg,
+			}),
+		)
+		return
+	}
+
+	// Record that the user has consented to this application
+	if _, err := h.authorizationService.SaveUserAuthorization(
+		c.Request.Context(),
+		userID.(string),
+		client.ID,
+		client.ClientID,
+		dc.Scopes,
+	); err != nil {
+		templates.RenderTempl(
+			c,
+			http.StatusInternalServerError,
+			templates.DevicePage(templates.DevicePageProps{
+				BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				NavbarProps: templates.NavbarProps{
+					Username:   usernameStr,
+					IsAdmin:    isAdmin,
+					ActiveLink: "device",
+				},
+				Username:   usernameStr,
+				UserCode:   userCode,
+				ClientName: clientName,
+				Error:      "Failed to save authorization",
 			}),
 		)
 		return

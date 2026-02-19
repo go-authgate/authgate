@@ -170,7 +170,7 @@ func TestAuthorizeDeviceCode_InvalidUserCode(t *testing.T) {
 	assert.Equal(t, ErrUserCodeNotFound, err)
 }
 
-func TestGetClientNameByUserCode_Success(t *testing.T) {
+func TestGetClientByUserCode_Success(t *testing.T) {
 	s := setupTestStore(t)
 	cfg := &config.Config{
 		DeviceCodeExpiration: 30 * time.Minute,
@@ -183,12 +183,15 @@ func TestGetClientNameByUserCode_Success(t *testing.T) {
 	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
 	require.NoError(t, err)
 
-	// Get client name by user code
-	clientName, err := deviceService.GetClientNameByUserCode(dc.UserCode)
+	// Get client and device code by user code
+	result, resultDC, err := deviceService.GetClientByUserCode(dc.UserCode)
 
 	// Assert
 	assert.NoError(t, err)
-	assert.Equal(t, "Test Client", clientName)
+	assert.Equal(t, "Test Client", result.ClientName)
+	assert.Equal(t, client.ClientID, result.ClientID)
+	assert.Equal(t, dc.UserCode, resultDC.UserCode)
+	assert.Equal(t, "read write", resultDC.Scopes)
 }
 
 func TestUserCodeNormalization(t *testing.T) {
