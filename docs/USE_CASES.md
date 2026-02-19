@@ -734,6 +734,7 @@ Show helpful information:
 
 **Next Steps:**
 
+- [Authorization Code Flow Guide](AUTHORIZATION_CODE_FLOW.md) - Web and mobile app integration
 - [Development Guide](DEVELOPMENT.md) - Build your own integration
 - [API Reference (README)](../README.md#key-endpoints) - Endpoint documentation
 - [Example CLI](../_example/authgate-cli/) - Working reference implementation

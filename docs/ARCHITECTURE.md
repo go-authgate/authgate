@@ -63,8 +63,19 @@ authgate/
 ├── docker/          # Docker configuration
 │   └── Dockerfile   # Alpine-based multi-arch image
 ├── docs/            # Documentation
-│   ├── OAUTH_SETUP.md    # OAuth provider setup guide
-│   └── RATE_LIMITING.md  # Rate limiting configuration and deployment guide
+│   ├── ARCHITECTURE.md             # System architecture and design patterns
+│   ├── AUTHORIZATION_CODE_FLOW.md  # Auth Code Flow with PKCE guide
+│   ├── CONFIGURATION.md            # Environment variables and configuration
+│   ├── DEPLOYMENT.md               # Production deployment guide
+│   ├── DEVELOPMENT.md              # Developer guide and extension points
+│   ├── METRICS.md                  # Prometheus metrics documentation
+│   ├── MONITORING.md               # Monitoring, logging, and alerting
+│   ├── OAUTH_SETUP.md              # OAuth provider setup guide
+│   ├── PERFORMANCE.md              # Scalability and optimization
+│   ├── RATE_LIMITING.md            # Rate limiting configuration
+│   ├── SECURITY.md                 # Security best practices
+│   ├── TROUBLESHOOTING.md          # Common issues and FAQ
+│   └── USE_CASES.md                # Real-world examples
 ├── _example/        # Example CLI client implementation
 │   └── authgate-cli/
 ├── version/         # Version information (embedded at build time)
@@ -131,26 +142,31 @@ sequenceDiagram
 
 ## Key Endpoints
 
-| Endpoint                       | Method   | Auth Required | Purpose                                                             |
-| ------------------------------ | -------- | ------------- | ------------------------------------------------------------------- |
-| `/health`                      | GET      | No            | Health check with database connection test                          |
-| `/oauth/device/code`           | POST     | No            | Request device and user codes (CLI/device)                          |
-| `/oauth/token`                 | POST     | No            | Token endpoint (grant_type=device_code or grant_type=refresh_token) |
-| `/oauth/tokeninfo`             | GET      | No            | Verify token validity (pass token as query)                         |
-| `/oauth/revoke`                | POST     | No            | Revoke access token (RFC 7009)                                      |
-| `/device`                      | GET      | Yes (Session) | User authorization page (browser)                                   |
-| `/device/verify`               | POST     | Yes (Session) | Complete authorization (submit user_code)                           |
-| `/account/sessions`            | GET      | Yes (Session) | View all active sessions                                            |
-| `/account/sessions/:id/revoke` | POST     | Yes (Session) | Revoke specific session                                             |
-| `/account/sessions/revoke-all` | POST     | Yes (Session) | Revoke all user sessions                                            |
-| `/login`                       | GET/POST | No            | User login (creates session)                                        |
-| `/logout`                      | GET      | Yes (Session) | User logout (destroys session)                                      |
-| `/auth/login/:provider`        | GET      | No            | Initiate OAuth login (provider: github, gitea, microsoft)           |
-| `/auth/callback/:provider`     | GET      | No            | OAuth callback endpoint                                             |
-| `/admin/audit`                 | GET      | Yes (Admin)   | View audit logs (HTML interface)                                    |
-| `/admin/audit/export`          | GET      | Yes (Admin)   | Export audit logs as CSV                                            |
-| `/admin/audit/api`             | GET      | Yes (Admin)   | List audit logs (JSON API)                                          |
-| `/admin/audit/api/stats`       | GET      | Yes (Admin)   | Get audit log statistics                                            |
+| Endpoint                            | Method   | Auth Required | Purpose                                                                       |
+| ----------------------------------- | -------- | ------------- | ----------------------------------------------------------------------------- |
+| `/health`                           | GET      | No            | Health check with database connection test                                    |
+| `/oauth/device/code`                | POST     | No            | Request device and user codes (CLI/device)                                    |
+| `/oauth/authorize`                  | GET      | Yes (Session) | Authorization Code Flow consent page (web apps)                               |
+| `/oauth/authorize`                  | POST     | Yes (Session) | Submit consent decision (allow/deny)                                          |
+| `/oauth/token`                      | POST     | No            | Token endpoint (grant_type=device_code, authorization_code, or refresh_token) |
+| `/oauth/tokeninfo`                  | GET      | No            | Verify token validity (pass token as query)                                   |
+| `/oauth/revoke`                     | POST     | No            | Revoke access token (RFC 7009)                                                |
+| `/device`                           | GET      | Yes (Session) | User authorization page (browser)                                             |
+| `/device/verify`                    | POST     | Yes (Session) | Complete authorization (submit user_code)                                     |
+| `/account/sessions`                 | GET      | Yes (Session) | View all active sessions                                                      |
+| `/account/sessions/:id/revoke`      | POST     | Yes (Session) | Revoke specific session                                                       |
+| `/account/sessions/revoke-all`      | POST     | Yes (Session) | Revoke all user sessions                                                      |
+| `/account/authorizations`           | GET      | Yes (Session) | View apps authorized via Authorization Code Flow                              |
+| `/login`                            | GET/POST | No            | User login (creates session)                                                  |
+| `/logout`                           | GET      | Yes (Session) | User logout (destroys session)                                                |
+| `/auth/login/:provider`             | GET      | No            | Initiate OAuth login (provider: github, gitea, microsoft)                     |
+| `/auth/callback/:provider`          | GET      | No            | OAuth callback endpoint                                                       |
+| `/admin/audit`                      | GET      | Yes (Admin)   | View audit logs (HTML interface)                                              |
+| `/admin/audit/export`               | GET      | Yes (Admin)   | Export audit logs as CSV                                                      |
+| `/admin/audit/api`                  | GET      | Yes (Admin)   | List audit logs (JSON API)                                                    |
+| `/admin/audit/api/stats`            | GET      | Yes (Admin)   | Get audit log statistics                                                      |
+| `/admin/clients/:id/authorizations` | GET      | Yes (Admin)   | View all users who consented to a client                                      |
+| `/admin/clients/:id/revoke-all`     | POST     | Yes (Admin)   | Revoke all tokens and consents for a client                                   |
 
 ### Endpoint Details
 

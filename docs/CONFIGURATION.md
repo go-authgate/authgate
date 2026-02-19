@@ -108,6 +108,11 @@ OAUTH_AUTO_REGISTER=true         # Allow OAuth to auto-create accounts (default:
 OAUTH_TIMEOUT=15s                # HTTP client timeout for OAuth requests (default: 15s)
 OAUTH_INSECURE_SKIP_VERIFY=false # Skip TLS verification for OAuth (dev/testing only, default: false)
 
+# Authorization Code Flow (RFC 6749 + RFC 7636)
+AUTH_CODE_EXPIRATION=10m            # Authorization code lifetime (default: 10 min)
+PKCE_REQUIRED=false                 # Require PKCE for all clients, including confidential (default: false)
+CONSENT_REMEMBER=true               # Skip consent page if user already approved same scopes (default: true)
+
 # Audit Logging
 # Comprehensive audit logging for security and compliance
 ENABLE_AUDIT_LOGGING=true               # Enable audit logging (default: true)
