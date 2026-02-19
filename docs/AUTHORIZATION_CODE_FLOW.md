@@ -16,7 +16,9 @@ AuthGate supports two OAuth 2.0 flows side-by-side. This guide covers the **Auth
   - [API Reference](#api-reference)
     - [1. Redirect to Authorization Page](#1-redirect-to-authorization-page)
     - [2. Exchange Code for Tokens](#2-exchange-code-for-tokens)
-  - [Example CLI Client](#example-cli-client)
+  - [Example CLI Clients](#example-cli-clients)
+    - [`authgate-oauth-cli` — pure browser flow](#authgate-oauth-cli--pure-browser-flow)
+    - [`authgate-hybrid-cli` — auto-detect environment](#authgate-hybrid-cli--auto-detect-environment)
   - [User Consent Management](#user-consent-management)
     - [View Authorized Apps](#view-authorized-apps)
     - [Revoke Access for an App](#revoke-access-for-an-app)
@@ -257,9 +259,13 @@ curl -X POST https://auth.example.com/oauth/token \
 
 ---
 
-## Example CLI Client
+## Example CLI Clients
 
-`_example/authgate-oauth-cli/` contains a working Go CLI that demonstrates the complete Authorization Code Flow with PKCE:
+Two CLI examples demonstrate Authorization Code Flow. Choose the one that fits your use case.
+
+### `authgate-oauth-cli` — pure browser flow
+
+`_example/authgate-oauth-cli/` always uses the browser, suitable for desktop apps and scripts that run on a machine with a display.
 
 ```bash
 cd _example/authgate-oauth-cli
@@ -278,12 +284,25 @@ go run .
 
 **Supported client modes:**
 
-| Mode | `CLIENT_SECRET` | PKCE |
-| --- | --- | --- |
-| Public client (SPA, mobile, CLI) | Leave empty | Always used |
-| Confidential client (server-side) | Set the secret | Also used (defence-in-depth) |
+| Mode                              | `CLIENT_SECRET` | PKCE                         |
+| --------------------------------- | --------------- | ---------------------------- |
+| Public client (SPA, mobile, CLI)  | Leave empty     | Always used                  |
+| Confidential client (server-side) | Set the secret  | Also used (defence-in-depth) |
 
 See [`_example/authgate-oauth-cli/README.md`](../_example/authgate-oauth-cli/README.md) for full configuration options.
+
+### `authgate-hybrid-cli` — auto-detect environment
+
+`_example/authgate-hybrid-cli/` automatically selects the flow based on the environment: browser flow on a local machine, Device Code Flow over SSH or in headless environments. This is the recommended pattern for CLIs that must run in both contexts.
+
+```bash
+cd _example/authgate-hybrid-cli
+cp .env.example .env      # Fill in CLIENT_ID
+go run .                  # auto-detects local vs remote
+go run . --device         # force Device Code Flow
+```
+
+See [`_example/authgate-hybrid-cli/README.md`](../_example/authgate-hybrid-cli/README.md) for the full detection logic and flow diagram.
 
 ---
 
