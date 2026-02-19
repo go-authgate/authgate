@@ -48,7 +48,10 @@ func performBrowserFlow() (*TokenStorage, bool, error) {
 		if errors.Is(err, ErrCallbackTimeout) {
 			// User opened the browser but didn't complete authorization in time.
 			// Fall back to Device Code Flow so they can still authenticate.
-			fmt.Printf("Browser authorization timed out after %s, falling back to Device Code Flow...\n", callbackTimeout)
+			fmt.Printf(
+				"Browser authorization timed out after %s, falling back to Device Code Flow...\n",
+				callbackTimeout,
+			)
 			return nil, false, nil
 		}
 		return nil, false, fmt.Errorf("authorization failed: %w", err)

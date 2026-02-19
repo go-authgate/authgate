@@ -120,7 +120,10 @@ func TestCheckBrowserAvailability_PortAvailable(t *testing.T) {
 	avail := checkBrowserAvailability(port)
 
 	if !avail.Available {
-		t.Errorf("expected browser available with no SSH and free port, got reason: %s", avail.Reason)
+		t.Errorf(
+			"expected browser available with no SSH and free port, got reason: %s",
+			avail.Reason,
+		)
 	}
 }
 

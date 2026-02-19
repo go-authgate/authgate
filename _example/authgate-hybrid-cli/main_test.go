@@ -337,22 +337,24 @@ func TestRefreshAccessToken_RotationMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if err := r.ParseForm(); err != nil {
-					http.Error(w, "bad form", http.StatusBadRequest)
-					return
-				}
-				resp := map[string]interface{}{
-					"access_token": "new-access-token",
-					"token_type":   "Bearer",
-					"expires_in":   3600,
-				}
-				if tt.responseRefreshToken != "" {
-					resp["refresh_token"] = tt.responseRefreshToken
-				}
-				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(resp)
-			}))
+			srv := httptest.NewServer(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if err := r.ParseForm(); err != nil {
+						http.Error(w, "bad form", http.StatusBadRequest)
+						return
+					}
+					resp := map[string]interface{}{
+						"access_token": "new-access-token",
+						"token_type":   "Bearer",
+						"expires_in":   3600,
+					}
+					if tt.responseRefreshToken != "" {
+						resp["refresh_token"] = tt.responseRefreshToken
+					}
+					w.Header().Set("Content-Type", "application/json")
+					json.NewEncoder(w).Encode(resp)
+				}),
+			)
 			defer srv.Close()
 
 			serverURL = srv.URL
@@ -437,4 +439,3 @@ func findSubstring(s, sub string) bool {
 	}
 	return false
 }
-
