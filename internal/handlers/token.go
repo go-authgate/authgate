@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/appleboy/authgate/internal/config"
 	"github.com/appleboy/authgate/internal/services"
@@ -334,7 +335,7 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 	resp := gin.H{
 		"access_token": accessToken.Token,
 		"token_type":   accessToken.TokenType,
-		"expires_in":   int(accessToken.ExpiresAt.Unix()),
+		"expires_in":   int(time.Until(accessToken.ExpiresAt).Seconds()),
 		"scope":        accessToken.Scopes,
 	}
 	if refreshToken != nil && h.config.EnableRefreshTokens {
