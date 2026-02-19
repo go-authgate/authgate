@@ -332,6 +332,33 @@ func TestRegisterDriver(t *testing.T) {
 	assert.Nil(t, dialector) // Our mock returns nil
 }
 
+// TestMarkAuthorizationCodeUsed_AtomicDoubleCall verifies that calling
+// MarkAuthorizationCodeUsed twice for the same ID returns ErrAuthCodeAlreadyUsed
+// on the second call, simulating what happens in a concurrent exchange race.
+func TestMarkAuthorizationCodeUsed_AtomicDoubleCall(t *testing.T) {
+	store, err := New("sqlite", ":memory:", getTestConfig())
+	require.NoError(t, err)
+
+	code := &models.AuthorizationCode{
+		UUID:        uuid.New().String(),
+		CodeHash:    uuid.New().String(),
+		CodePrefix:  "abcd1234",
+		ClientID:    uuid.New().String(),
+		UserID:      uuid.New().String(),
+		RedirectURI: "https://example.com/cb",
+		Scopes:      "read",
+		ExpiresAt:   time.Now().Add(10 * time.Minute),
+	}
+	require.NoError(t, store.CreateAuthorizationCode(code))
+
+	// First call must succeed.
+	require.NoError(t, store.MarkAuthorizationCodeUsed(code.ID))
+
+	// Second call must fail with ErrAuthCodeAlreadyUsed (0 rows updated).
+	err = store.MarkAuthorizationCodeUsed(code.ID)
+	require.ErrorIs(t, err, ErrAuthCodeAlreadyUsed)
+}
+
 // BenchmarkStoreOperations benchmarks basic store operations
 func BenchmarkStoreOperations(b *testing.B) {
 	store, err := New("sqlite", ":memory:", getTestConfig())

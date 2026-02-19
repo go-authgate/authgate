@@ -231,9 +231,13 @@ func (s *AuthorizationService) ExchangeCode(
 		}
 	}
 
-	// Mark as used immediately (prevents replay even if subsequent steps fail)
+	// Mark as used atomically (WHERE used_at IS NULL ensures only one concurrent
+	// request wins; the loser receives ErrAuthCodeAlreadyUsed from the store).
 	now := time.Now()
 	if err := s.store.MarkAuthorizationCodeUsed(record.ID); err != nil {
+		if errors.Is(err, store.ErrAuthCodeAlreadyUsed) {
+			return nil, ErrAuthCodeAlreadyUsed
+		}
 		return nil, fmt.Errorf("failed to mark code as used: %w", err)
 	}
 	record.UsedAt = &now // Reflect DB state in the returned struct

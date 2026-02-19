@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 )
 
@@ -834,12 +835,22 @@ func (s *Store) GetAuthorizationCodeByHash(hash string) (*models.AuthorizationCo
 	return &code, nil
 }
 
-// MarkAuthorizationCodeUsed sets UsedAt to prevent replay attacks
+// MarkAuthorizationCodeUsed atomically sets UsedAt only when the code has not
+// yet been consumed.  The WHERE clause includes "used_at IS NULL" so that a
+// concurrent request that races past the application-level IsUsed() check will
+// update 0 rows and receive ErrAuthCodeAlreadyUsed, preventing double issuance.
 func (s *Store) MarkAuthorizationCodeUsed(id uint) error {
 	now := time.Now()
-	return s.db.Model(&models.AuthorizationCode{}).
-		Where("id = ?", id).
-		Update("used_at", &now).Error
+	result := s.db.Model(&models.AuthorizationCode{}).
+		Where("id = ? AND used_at IS NULL", id).
+		Update("used_at", &now)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrAuthCodeAlreadyUsed
+	}
+	return nil
 }
 
 // ============================================================
@@ -873,24 +884,23 @@ func (s *Store) GetUserAuthorizationByUUID(
 	return &auth, nil
 }
 
-// UpsertUserAuthorization creates a new consent record or re-activates and updates an existing one
+// UpsertUserAuthorization creates a new consent record or re-activates and updates an existing one.
+// Uses a single atomic INSERT ... ON CONFLICT DO UPDATE to avoid the race condition that arises
+// from a non-atomic SELECT-then-INSERT/UPDATE pattern.
 func (s *Store) UpsertUserAuthorization(auth *models.UserAuthorization) error {
-	var existing models.UserAuthorization
-	err := s.db.Where("user_id = ? AND application_id = ?", auth.UserID, auth.ApplicationID).
-		First(&existing).Error
-	if err != nil {
-		// No existing record – create fresh
-		return s.db.Create(auth).Error
-	}
-	// Update existing record in-place
 	now := time.Now()
-	return s.db.Model(&existing).Updates(map[string]any{
-		"uuid":       auth.UUID,
-		"scopes":     auth.Scopes,
-		"granted_at": now,
-		"revoked_at": nil,
-		"is_active":  true,
-	}).Error
+	auth.GrantedAt = now
+	auth.IsActive = true
+	auth.RevokedAt = nil
+	return s.db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{
+			{Name: "user_id"},
+			{Name: "application_id"},
+		},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"uuid", "scopes", "granted_at", "revoked_at", "is_active", "updated_at",
+		}),
+	}).Create(auth).Error
 }
 
 // RevokeUserAuthorization marks an authorization as revoked and returns the record
