@@ -42,7 +42,7 @@ sudo journalctl -u authgate | grep "Seeded OAuth client"
 2. Update your CLI `.env` file with the correct `CLIENT_ID`:
 
 ```bash
-# _example/authgate-device-cli/.env
+# device-cli/.env
 CLIENT_ID=abc-123-def-456-789
 ```
 

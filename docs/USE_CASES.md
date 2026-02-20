@@ -737,5 +737,5 @@ Show helpful information:
 - [Authorization Code Flow Guide](AUTHORIZATION_CODE_FLOW.md) - Web and mobile app integration
 - [Development Guide](DEVELOPMENT.md) - Build your own integration
 - [API Reference (README)](../README.md#key-endpoints) - Endpoint documentation
-- [Device Code CLI](../_example/authgate-device-cli/) - Working reference implementation
+- [Device Code CLI](https://github.com/go-authgate/device-cli) - Working reference implementation
 - [Hybrid CLI](https://github.com/go-authgate/cli) - Browser flow with auto-fallback to Device Code

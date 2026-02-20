@@ -77,7 +77,7 @@ authgate/
 │   ├── TROUBLESHOOTING.md          # Common issues and FAQ
 │   └── USE_CASES.md                # Real-world examples
 ├── _example/        # Example CLI client implementations
-│   ├── authgate-device-cli/    # Device Code Flow (RFC 8628)
+│   ├── (Device Code Flow CLI → github.com/go-authgate/device-cli)
 │   └── (Authorization Code Flow CLI → github.com/go-authgate/oauth-cli)
 ├── version/         # Version information (embedded at build time)
 ├── Makefile         # Build automation and targets

@@ -135,12 +135,13 @@ Server starts on `http://localhost:8080`
 
 ### Test with Example CLI
 
-Two example CLIs are provided in `_example/`. Each demonstrates a different OAuth 2.0 flow.
+Two example CLIs are available. Each demonstrates a different OAuth 2.0 flow.
 
-**Device Code Flow** (`_example/authgate-device-cli/`) — for headless environments:
+**Device Code Flow** ([github.com/go-authgate/device-cli](https://github.com/go-authgate/device-cli)) — for headless environments:
 
 ```bash
-cd _example/authgate-device-cli
+git clone https://github.com/go-authgate/device-cli
+cd device-cli
 
 # Configure client
 cp .env.example .env
@@ -367,7 +368,7 @@ authgate/
 ├── docs/            # Documentation
 ├── docker/          # Docker configuration
 └── _example/
-    ├── authgate-device-cli/   # Device Code Flow CLI (RFC 8628)
+    ├── (Device Code Flow CLI → github.com/go-authgate/device-cli)
     └── (Authorization Code Flow CLI → github.com/go-authgate/oauth-cli)
 ```
 

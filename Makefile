@@ -1,6 +1,5 @@
 GO ?= go
 EXECUTABLE := authgate
-EXECUTABLE_CLI := authgate-device-cli
 GOFILES := $(shell find . -type f -name "*.go")
 TAGS ?=
 TEMPL_VERSION ?= latest
@@ -42,14 +41,8 @@ air:
 dev: air
 	air
 
-## build-cli: build the authgate-device-cli binary
-build-cli: $(EXECUTABLE_CLI)
-
-$(EXECUTABLE_CLI):
-	cd _example/authgate-device-cli && $(GO) build -v -o ../../bin/$@ .
-
-## build-all: build both authgate and authgate-device-cli binaries
-build-all: build build-cli
+## build-all: build authgate binary
+build-all: build
 
 ## install: install the authgate binary
 install: $(GOFILES)
@@ -83,19 +76,11 @@ build_linux_amd64: generate
 build_linux_arm64: generate
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GO) build -a -tags '$(TAGS)' -ldflags '$(EXTLDFLAGS)-s -w $(LDFLAGS)' -o release/linux/arm64/$(EXECUTABLE) .
 
-## build_cli_linux_amd64: build the authgate-device-cli binary for linux amd64
-build_cli_linux_amd64: generate
-	cd _example/authgate-device-cli && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -a -o ../../release/linux/amd64/$(EXECUTABLE_CLI) .
+## build_all_linux_amd64: build authgate binary for linux amd64
+build_all_linux_amd64: build_linux_amd64
 
-## build_cli_linux_arm64: build the authgate-device-cli binary for linux arm64
-build_cli_linux_arm64: generate
-	cd _example/authgate-device-cli && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GO) build -a -o ../../release/linux/arm64/$(EXECUTABLE_CLI) .
-
-## build_all_linux_amd64: build both binaries for linux amd64
-build_all_linux_amd64: build_linux_amd64 build_cli_linux_amd64
-
-## build_all_linux_arm64: build both binaries for linux arm64
-build_all_linux_arm64: build_linux_arm64 build_cli_linux_arm64
+## build_all_linux_arm64: build authgate binary for linux arm64
+build_all_linux_arm64: build_linux_arm64
 
 ## clean: remove build artifacts and test coverage
 clean:
@@ -105,8 +90,8 @@ clean:
 ## rebuild: clean and build
 rebuild: clean build
 
-.PHONY: help build build-cli build-all install test coverage fmt lint clean rebuild
-.PHONY: build_linux_amd64 build_linux_arm64 build_cli_linux_amd64 build_cli_linux_arm64
+.PHONY: help build build-all install test coverage fmt lint clean rebuild
+.PHONY: build_linux_amd64 build_linux_arm64
 .PHONY: build_all_linux_amd64 build_all_linux_arm64 install-templ generate watch air dev
 .PHONY: install-golangci-lint mod-download mod-tidy mod-verify check-tools version
 .PHONY: docker-build docker-run install-swag swagger swagger-init swagger-fmt swagger-validate

@@ -224,10 +224,11 @@ Seeded automatically on first run (store/sqlite.go:seedData):
 
 ## Example CLI Clients
 
-`_example/authgate-device-cli/` contains a demo CLI that demonstrates the device flow:
+[github.com/go-authgate/device-cli](https://github.com/go-authgate/device-cli) contains a demo CLI that demonstrates the device flow:
 
 ```bash
-cd _example/authgate-device-cli
+git clone https://github.com/go-authgate/device-cli
+cd device-cli
 cp .env.example .env      # Add CLIENT_ID from server logs
 go run main.go
 ```
