@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/appleboy/authgate/internal/models"
 	"github.com/appleboy/authgate/internal/services"
+
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"github.com/ulule/limiter/v3"
@@ -37,10 +37,8 @@ type RateLimitConfig struct {
 	StoreType RateLimitStoreType // "memory" or "redis"
 
 	// Redis settings (only used when StoreType = "redis")
-	RedisClient   *redis.Client // Optional: shared Redis client (recommended)
-	RedisAddr     string        // Redis address (e.g., "localhost:6379")
-	RedisPassword string        // Redis password (empty for no auth)
-	RedisDB       int           // Redis database number (default: 0)
+	// Must be provided when StoreType is "redis" (initialized in main.go)
+	RedisClient *redis.Client // Required for Redis store: shared go-redis client
 
 	// Audit settings
 	AuditService *services.AuditService // Optional: audit service for logging rate limit events
@@ -59,33 +57,16 @@ func NewRateLimiter(config RateLimitConfig) (gin.HandlerFunc, error) {
 
 	switch config.StoreType {
 	case RateLimitStoreRedis:
-		var client *redis.Client
-
-		// Use provided client or create new one
-		if config.RedisClient != nil {
-			client = config.RedisClient
-		} else {
-			// Create Redis client (backward compatibility)
-			client = redis.NewClient(&redis.Options{
-				Addr:     config.RedisAddr,
-				Password: config.RedisPassword,
-				DB:       config.RedisDB,
-			})
-
-			// Test connection
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if err := client.Ping(ctx).Err(); err != nil {
-				return nil, fmt.Errorf(
-					"failed to connect to Redis at %s: %w",
-					config.RedisAddr,
-					err,
-				)
-			}
+		// Redis client must be provided when using Redis store
+		if config.RedisClient == nil {
+			return nil, fmt.Errorf(
+				"RedisClient is required when StoreType is redis (should be initialized in main.go)",
+			)
 		}
 
-		// Create Redis store
-		store, err = limiterRedis.NewStoreWithOptions(client, limiter.StoreOptions{
+		// Create Redis store with provided client
+		// *redis.Client implements redis.UniversalClient interface
+		store, err = limiterRedis.NewStoreWithOptions(config.RedisClient, limiter.StoreOptions{
 			Prefix:          "ratelimit",
 			CleanUpInterval: config.CleanupInterval,
 		})
@@ -153,47 +134,4 @@ func NewRateLimiter(config RateLimitConfig) (gin.HandlerFunc, error) {
 	}))
 
 	return middleware, nil
-}
-
-// NewMemoryRateLimiter creates an in-memory rate limiter (single instance)
-func NewMemoryRateLimiter(requestsPerMinute int) (gin.HandlerFunc, error) {
-	return NewRateLimiter(RateLimitConfig{
-		RequestsPerMinute: requestsPerMinute,
-		StoreType:         RateLimitStoreMemory,
-		CleanupInterval:   5 * time.Minute,
-	})
-}
-
-// NewRedisRateLimiter creates a Redis-backed rate limiter (distributed, multi-pod)
-func NewRedisRateLimiter(
-	requestsPerMinute int,
-	redisAddr, redisPassword string,
-	redisDB int,
-) (gin.HandlerFunc, error) {
-	return NewRateLimiter(RateLimitConfig{
-		RequestsPerMinute: requestsPerMinute,
-		StoreType:         RateLimitStoreRedis,
-		RedisAddr:         redisAddr,
-		RedisPassword:     redisPassword,
-		RedisDB:           redisDB,
-		CleanupInterval:   5 * time.Minute,
-	})
-}
-
-// CreateRedisClient creates and tests a Redis client connection
-func CreateRedisClient(redisAddr, redisPassword string, redisDB int) (*redis.Client, error) {
-	client := redis.NewClient(&redis.Options{
-		Addr:     redisAddr,
-		Password: redisPassword,
-		DB:       redisDB,
-	})
-
-	// Test connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := client.Ping(ctx).Err(); err != nil {
-		return nil, fmt.Errorf("failed to connect to Redis at %s: %w", redisAddr, err)
-	}
-
-	return client, nil
 }

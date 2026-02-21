@@ -18,7 +18,11 @@ func TestNewMemoryRateLimiter(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Create memory-based rate limiter (5 requests per minute)
-	limiter, err := NewMemoryRateLimiter(5)
+	limiter, err := NewRateLimiter(RateLimitConfig{
+		RequestsPerMinute: 5,
+		StoreType:         RateLimitStoreMemory,
+		CleanupInterval:   5 * time.Minute,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, limiter)
 
@@ -156,12 +160,21 @@ func TestNewRedisRateLimiter_InvalidAddress(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Try to connect to non-existent Redis
-	limiter, err := NewRedisRateLimiter(10, "invalid-host:9999", "", 0)
+	invalidClient := redis.NewClient(&redis.Options{
+		Addr: "invalid-host:9999",
+	})
+	defer invalidClient.Close()
 
-	// Should fail to connect
+	limiter, err := NewRateLimiter(RateLimitConfig{
+		RequestsPerMinute: 10,
+		StoreType:         RateLimitStoreRedis,
+		RedisClient:       invalidClient,
+		CleanupInterval:   5 * time.Minute,
+	})
+
+	// Should fail to create store
 	assert.Error(t, err)
 	assert.Nil(t, limiter)
-	assert.Contains(t, err.Error(), "failed to connect to Redis")
 }
 
 // TestNewRedisRateLimiter_Success tests Redis rate limiter with a real Redis instance
@@ -174,14 +187,28 @@ func TestNewRedisRateLimiter_Success(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 
-	// Try to create Redis rate limiter
-	limiter, err := NewRedisRateLimiter(5, "localhost:6379", "", 0)
-	// If Redis is not available, skip the test
-	if err != nil {
+	// Create Redis client
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	defer redisClient.Close()
+
+	// Test connection
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	if err := redisClient.Ping(ctx).Err(); err != nil {
 		t.Skipf("Redis not available: %v", err)
 		return
 	}
 
+	// Try to create Redis rate limiter
+	limiter, err := NewRateLimiter(RateLimitConfig{
+		RequestsPerMinute: 5,
+		StoreType:         RateLimitStoreRedis,
+		RedisClient:       redisClient,
+		CleanupInterval:   5 * time.Minute,
+	})
+	require.NoError(t, err)
 	require.NotNil(t, limiter)
 
 	router := gin.New()
@@ -220,12 +247,36 @@ func TestRedisRateLimiter_MultiInstance(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 
-	// Create two separate rate limiters (simulating two pods)
-	limiter1, err1 := NewRedisRateLimiter(5, "localhost:6379", "", 0)
-	limiter2, err2 := NewRedisRateLimiter(5, "localhost:6379", "", 0)
+	// Create Redis client
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	defer redisClient.Close()
+
+	// Test connection
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		t.Skipf("Redis not available: %v", err)
+		return
+	}
+
+	// Create two separate rate limiters sharing the same Redis client (simulating two pods)
+	limiter1, err1 := NewRateLimiter(RateLimitConfig{
+		RequestsPerMinute: 5,
+		StoreType:         RateLimitStoreRedis,
+		RedisClient:       redisClient,
+		CleanupInterval:   5 * time.Minute,
+	})
+	limiter2, err2 := NewRateLimiter(RateLimitConfig{
+		RequestsPerMinute: 5,
+		StoreType:         RateLimitStoreRedis,
+		RedisClient:       redisClient,
+		CleanupInterval:   5 * time.Minute,
+	})
 
 	if err1 != nil || err2 != nil {
-		t.Skipf("Redis not available: %v %v", err1, err2)
+		t.Skipf("Failed to create limiters: %v %v", err1, err2)
 		return
 	}
 
@@ -275,10 +326,10 @@ func TestRedisRateLimiter_MultiInstance(t *testing.T) {
 	)
 
 	// Cleanup Redis keys
-	ctx := context.Background()
+	cleanupCtx := context.Background()
 	client := getRedisClientForTest()
 	if client != nil {
-		_ = client.Del(ctx, "ratelimit:"+testIP).Err()
+		_ = client.Del(cleanupCtx, "ratelimit:"+testIP).Err()
 	}
 }
 
@@ -426,31 +477,36 @@ func TestRateLimiter_NoAcceptHeader(t *testing.T) {
 	assert.NotContains(t, w.Body.String(), "<html>")
 }
 
-// TestCreateRedisClient tests the CreateRedisClient helper function
+// TestCreateRedisClient tests Redis client creation (now done in main.go)
+// This test verifies that go-redis client works correctly
 func TestCreateRedisClient(t *testing.T) {
 	// Test with invalid address
-	client, err := CreateRedisClient("invalid-host:9999", "", 0)
+	client := redis.NewClient(&redis.Options{
+		Addr: "invalid-host:9999",
+	})
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	err := client.Ping(ctx).Err()
 	assert.Error(t, err)
-	assert.Nil(t, client)
-	assert.Contains(t, err.Error(), "failed to connect to Redis")
 
 	// Test with valid address (if Redis is available)
-	client, err = CreateRedisClient("localhost:6379", "", 0)
+	validClient := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	defer validClient.Close()
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	err = validClient.Ping(ctx).Err()
 	if err != nil {
 		t.Skipf("Redis not available: %v", err)
 		return
 	}
-	require.NotNil(t, client)
-	assert.NotNil(t, client)
 
-	// Verify connection works
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	err = client.Ping(ctx).Err()
+	require.NotNil(t, validClient)
 	assert.NoError(t, err)
-
-	// Cleanup
-	_ = client.Close()
 }
 
 // TestSharedRedisClient tests that multiple rate limiters can share a single Redis client
@@ -462,12 +518,18 @@ func TestSharedRedisClient(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Create a shared Redis client
-	sharedClient, err := CreateRedisClient("localhost:6379", "", 0)
-	if err != nil {
+	sharedClient := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	defer sharedClient.Close()
+
+	// Test connection
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	if err := sharedClient.Ping(ctx).Err(); err != nil {
 		t.Skipf("Redis not available: %v", err)
 		return
 	}
-	defer sharedClient.Close()
 
 	// Create two rate limiters sharing the same Redis client
 	limiter1, err := NewRateLimiter(RateLimitConfig{
@@ -547,9 +609,9 @@ func TestSharedRedisClient(t *testing.T) {
 	)
 
 	// Cleanup
-	ctx := context.Background()
-	_ = sharedClient.Del(ctx, "ratelimit:"+testIP).Err()
-	_ = sharedClient.Del(ctx, "ratelimit:"+testIP2).Err()
+	cleanupCtx := context.Background()
+	_ = sharedClient.Del(cleanupCtx, "ratelimit:"+testIP).Err()
+	_ = sharedClient.Del(cleanupCtx, "ratelimit:"+testIP2).Err()
 }
 
 // TestRateLimiter_MixedAcceptHeaders tests different Accept header variations
