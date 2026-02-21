@@ -329,6 +329,7 @@ func TestRedisRateLimiter_MultiInstance(t *testing.T) {
 	cleanupCtx := context.Background()
 	client := getRedisClientForTest()
 	if client != nil {
+		defer client.Close()
 		_ = client.Del(cleanupCtx, "ratelimit:"+testIP).Err()
 	}
 }
