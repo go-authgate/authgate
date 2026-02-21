@@ -4,12 +4,18 @@ This file provides guidance to [Claude Code](https://claude.ai/code) when workin
 
 ## Project Overview
 
-AuthGate is an OAuth 2.0 Device Authorization Grant (RFC 8628) server built with Go and Gin. It enables CLI tools to authenticate users without embedding client secrets.
+AuthGate is an OAuth 2.0 authorization server built with Go and Gin. It supports:
+
+- **Device Authorization Grant (RFC 8628)** - For CLI tools, IoT devices, and headless environments
+- **Authorization Code Flow (RFC 6749) with PKCE (RFC 7636)** - For web and mobile applications
+
+Enables secure authentication without embedding client secrets.
 
 ## Common Commands
 
 ```bash
-# Build
+# Build (IMPORTANT: make generate is required before building)
+make generate           # Generate templ templates and Swagger docs (REQUIRED before build)
 make build              # Build to bin/authgate with version info in LDFLAGS
 
 # Run
@@ -17,8 +23,14 @@ make build              # Build to bin/authgate with version info in LDFLAGS
 ./bin/authgate -h       # Show help
 ./bin/authgate server   # Start the OAuth server
 
+# Development
+make dev                # Hot reload development mode (watches .go, .templ, .env, .css, .js)
+make generate           # Compile .templ templates to Go code (REQUIRED)
+make swagger            # Generate OpenAPI/Swagger documentation
+
 # Test & Lint
 make test               # Run tests with coverage report (outputs coverage.txt)
+make coverage           # View test coverage in browser
 make lint               # Run golangci-lint (auto-installs if missing)
 make fmt                # Format code with golangci-lint fmt
 
@@ -27,7 +39,7 @@ make build_linux_amd64  # CGO_ENABLED=0 for static binary
 make build_linux_arm64  # CGO_ENABLED=0 for static binary
 
 # Clean
-make clean              # Remove bin/, release/, coverage.txt
+make clean              # Remove bin/, release/, coverage.txt, generated templ files
 
 # Docker
 docker build -f docker/Dockerfile -t authgate .
@@ -35,7 +47,7 @@ docker build -f docker/Dockerfile -t authgate .
 
 ## Architecture
 
-### Device Authorization Flow
+### Device Authorization Flow (RFC 8628)
 
 1. CLI calls `POST /oauth/device/code` → receives device_code + user_code + verification_uri
 2. User visits `/device` in browser, must login first if not authenticated
@@ -43,23 +55,62 @@ docker build -f docker/Dockerfile -t authgate .
 4. CLI polls `POST /oauth/token` with device_code every 5s → receives access_token + refresh_token
 5. When access_token expires, CLI uses `grant_type=refresh_token` to get new token
 
-### Layers (dependency injection pattern)
+### Authorization Code Flow (RFC 6749)
+
+In addition to Device Code Flow, AuthGate supports Authorization Code Flow with PKCE for web and mobile applications:
+
+1. App redirects user to `GET /oauth/authorize` with client_id, redirect_uri, state, code_challenge (PKCE)
+2. User logs in (if needed) and sees consent screen at `/oauth/authorize`
+3. User approves → `POST /oauth/authorize` → redirects to redirect_uri with authorization code
+4. App exchanges code for tokens via `POST /oauth/token` (with code_verifier for PKCE, or client_secret for confidential clients)
+
+**User Consent Management**
+
+- Users can review granted apps at `/account/authorizations`
+- Each authorization grants specific scopes to one app
+- Users can revoke per-app access (revokes all associated tokens)
+- Admins can force re-authentication for all users of a client via `/admin/clients/:id/revoke-all`
+
+**Client Types**
+
+- **Confidential clients**: Web apps with server-side backends that can securely store client_secret
+- **Public clients**: SPAs and mobile apps that use PKCE instead of client_secret
+
+### Technology Stack
+
+- **Web Framework**: [Gin](https://gin-gonic.com/) - Fast HTTP router
+- **Templates**: [templ](https://templ.guide/) - Type-safe Go templates (requires `make generate` before build)
+- **ORM**: [GORM](https://gorm.io/) - Database abstraction
+- **Database**: SQLite (default) / PostgreSQL
+- **Sessions**: Encrypted cookies with [gin-contrib/sessions](https://github.com/gin-contrib/sessions)
+- **JWT**: [golang-jwt/jwt](https://github.com/golang-jwt/jwt)
+- **API Documentation**: Swagger/OpenAPI via [swaggo/swag](https://github.com/swaggo/swag)
+- **Hot Reload**: [air](https://github.com/air-verse/air) for development (`make dev`)
+
+### Project Structure (Layers)
 
 - `main.go` - Wires up store → auth providers → token providers → services → handlers
-- `config/` - Loads .env via godotenv, provides Config struct with defaults
-- `store/` - GORM-based data access layer, supports SQLite and PostgreSQL
-  - `driver.go` - Database driver factory using map-based pattern (no if-else)
-  - `sqlite.go` - Store implementation and database operations (driver-agnostic)
-- `auth/` - Authentication providers (LocalAuthProvider, HTTPAPIAuthProvider)
-- `token/` - Token providers (LocalTokenProvider, HTTPTokenProvider)
-  - `types.go` - Shared data structures (TokenResult, TokenValidationResult)
-  - `errors.go` - Provider-level error definitions
-  - `local.go` - Local JWT provider (HMAC-SHA256)
-  - `http_api.go` - External HTTP API token provider
-- `services/` - Business logic (UserService, DeviceService, TokenService)
-- `handlers/` - HTTP handlers (AuthHandler, DeviceHandler, TokenHandler)
-- `models/` - GORM models (User, OAuthClient, DeviceCode, AccessToken)
-- `middleware/` - Gin middleware (auth.go: RequireAuth checks session for user_id)
+- `internal/config/` - Environment configuration management
+- `internal/store/` - GORM-based data access layer (SQLite/PostgreSQL), uses map-based driver factory
+- `internal/auth/` - Authentication providers (local, HTTP API, OAuth providers)
+- `internal/token/` - Token providers (local JWT, HTTP API)
+- `internal/services/` - Business logic layer (user, device, authorization, token, client, audit services)
+- `internal/handlers/` - HTTP request handlers for all endpoints
+- `internal/models/` - GORM database models (User, OAuthApplication, UserAuthorization, DeviceCode, AuthorizationCode, AccessToken, OAuthConnection, AuditLog)
+- `internal/middleware/` - Gin middleware (auth, CSRF, rate limiting, metrics auth)
+- `internal/metrics/` - Prometheus metrics collection and caching (supports memory, Redis, Redis-aside)
+- `internal/cache/` - Cache implementations (memory, Redis, Redis-aside)
+- `internal/client/` - HTTP client with exponential backoff retry
+- `internal/templates/` - templ templates (`_.templ` → `_templ.go` via `make generate`)
+- `internal/util/` - Utility functions (crypto, context helpers)
+- `internal/version/` - Version information injected at build time
+
+**Key Model Details:**
+
+- `OAuthApplication` - Supports both Device Flow and Auth Code Flow with per-client toggles (`EnableDeviceFlow`, `EnableAuthCodeFlow`)
+- `OAuthApplication.ClientType` - "confidential" (with secret) or "public" (PKCE only)
+- `UserAuthorization` - Per-app consent grants (one record per user+app pair)
+- `AccessToken` - Unified storage for both access and refresh tokens (distinguished by `token_category` field)
 
 ### Key Features
 
@@ -143,77 +194,83 @@ docker build -f docker/Dockerfile -t authgate .
 
 ### Key Endpoints
 
-- `GET /health` - Health check with database connection test
-- `POST /oauth/device/code` - CLI requests device+user codes
-- `POST /oauth/token` - Token endpoint (grant_type: device_code or refresh_token)
+**OAuth 2.0 Flows**
+
+- `POST /oauth/device/code` - Request device code (Device Flow)
+- `GET /oauth/authorize` - Authorization consent page (Auth Code Flow)
+- `POST /oauth/authorize` - Submit consent decision (Auth Code Flow)
+- `POST /oauth/token` - Token exchange endpoint
+  - `grant_type=urn:ietf:params:oauth:grant-type:device_code` - Exchange device_code for tokens
+  - `grant_type=authorization_code` - Exchange authorization code for tokens
+  - `grant_type=refresh_token` - Refresh access token
 - `GET /oauth/tokeninfo` - Verify JWT validity
 - `POST /oauth/revoke` - Revoke tokens (RFC 7009)
-- `GET /device` - User authorization page (protected)
-- `POST /device/verify` - User submits code to authorize device (protected)
-- `GET|POST /login` - User authentication
+
+**User Device & App Management**
+
+- `GET /device` - Device code entry page (protected, requires login)
+- `POST /device/verify` - Submit device code to authorize (protected)
+- `GET /account/sessions` - Manage active token sessions
+- `GET /account/authorizations` - Manage per-app consent grants
+- `POST /account/authorizations/:uuid/revoke` - Revoke specific app authorization
+
+**Authentication**
+
+- `GET /login` - Login page
+- `POST /login` - Submit credentials
 - `GET /logout` - Clear session
-- `GET /admin/audit` - View audit logs (admin only)
+- `GET /oauth/:provider` - Initiate OAuth login (GitHub, Gitea, Microsoft)
+- `GET /oauth/:provider/callback` - OAuth callback handler
 
-## Environment Variables
+**Admin**
 
-| Variable                      | Default               | Description                                                 |
-| ----------------------------- | --------------------- | ----------------------------------------------------------- |
-| SERVER_ADDR                   | :8080                 | Listen address                                              |
-| BASE_URL                      | http://localhost:8080 | Public URL for verification_uri                             |
-| JWT_SECRET                    | (default)             | JWT signing key (local mode)                                |
-| SESSION_SECRET                | (default)             | Cookie encryption key                                       |
-| SESSION_MAX_AGE               | 3600                  | Session lifetime in seconds (1 hour default)                |
-| SESSION_IDLE_TIMEOUT          | 1800                  | Session idle timeout in seconds (30 min, 0=disabled)        |
-| SESSION_FINGERPRINT           | true                  | Enable session fingerprinting (User-Agent validation)       |
-| SESSION_FINGERPRINT_IP        | false                 | Include IP in fingerprint (disabled due to dynamic IPs)     |
-| DATABASE_DRIVER               | sqlite                | Database driver ("sqlite" or "postgres")                    |
-| DATABASE_DSN                  | oauth.db              | Connection string                                           |
-| **AUTH_MODE**                 | local                 | Authentication mode: `local` or `http_api`                  |
-| HTTP_API_URL                  | (none)                | External auth API endpoint                                  |
-| HTTP_API_TIMEOUT              | 10s                   | HTTP API request timeout                                    |
-| HTTP_API_AUTH_MODE            | none                  | Service auth: `none`, `simple`, or `hmac`                   |
-| HTTP_API_AUTH_SECRET          | (none)                | Shared secret for service authentication                    |
-| **TOKEN_PROVIDER_MODE**       | local                 | Token provider: `local` or `http_api`                       |
-| TOKEN_API_URL                 | (none)                | External token API endpoint                                 |
-| TOKEN_API_TIMEOUT             | 10s                   | Token API request timeout                                   |
-| TOKEN_API_AUTH_MODE           | none                  | Service auth: `none`, `simple`, or `hmac`                   |
-| TOKEN_API_AUTH_SECRET         | (none)                | Shared secret for service authentication                    |
-| **REFRESH_TOKEN_EXPIRATION**  | 720h                  | Refresh token lifetime (30 days)                            |
-| **ENABLE_REFRESH_TOKENS**     | true                  | Enable refresh tokens                                       |
-| **ENABLE_TOKEN_ROTATION**     | false                 | Enable rotation mode (default: fixed mode)                  |
-| **ENABLE_RATE_LIMIT**         | true                  | Enable rate limiting                                        |
-| **RATE_LIMIT_STORE**          | memory                | Storage backend: `memory` or `redis`                        |
-| LOGIN_RATE_LIMIT              | 5                     | Requests per minute for /login                              |
-| DEVICE_CODE_RATE_LIMIT        | 10                    | Requests per minute for /oauth/device/code                  |
-| TOKEN_RATE_LIMIT              | 20                    | Requests per minute for /oauth/token                        |
-| DEVICE_VERIFY_RATE_LIMIT      | 10                    | Requests per minute for /device/verify                      |
-| REDIS_ADDR                    | localhost:6379        | Redis server address (when RATE_LIMIT_STORE=redis)          |
-| REDIS_PASSWORD                | (empty)               | Redis password                                              |
-| REDIS_DB                      | 0                     | Redis database number                                       |
-| **ENABLE_AUDIT_LOGGING**      | true                  | Enable audit logging                                        |
-| AUDIT_LOG_RETENTION           | 2160h                 | Retention period (90 days)                                  |
-| AUDIT_LOG_BUFFER_SIZE         | 1000                  | Async buffer size                                           |
-| AUDIT_LOG_CLEANUP_INTERVAL    | 24h                   | Cleanup frequency                                           |
-| **MICROSOFT_OAUTH_ENABLED**   | false                 | Enable Microsoft Entra ID OAuth                             |
-| MICROSOFT_TENANT_ID           | common                | Tenant: `common`, `organizations`, `consumers`, or UUID     |
-| MICROSOFT_CLIENT_ID           | (none)                | Microsoft OAuth client ID                                   |
-| MICROSOFT_CLIENT_SECRET       | (none)                | Microsoft OAuth client secret                               |
-| **GITHUB_OAUTH_ENABLED**      | false                 | Enable GitHub OAuth                                         |
-| GITHUB_CLIENT_ID              | (none)                | GitHub OAuth client ID                                      |
-| GITHUB_CLIENT_SECRET          | (none)                | GitHub OAuth client secret                                  |
-| **GITEA_OAUTH_ENABLED**       | false                 | Enable Gitea OAuth                                          |
-| GITEA_URL                     | (none)                | Gitea instance URL                                          |
-| GITEA_CLIENT_ID               | (none)                | Gitea OAuth client ID                                       |
-| GITEA_CLIENT_SECRET           | (none)                | Gitea OAuth client secret                                   |
-| OAUTH_AUTO_REGISTER           | true                  | Allow OAuth auto-registration                               |
-| OAUTH_TIMEOUT                 | 15s                   | OAuth HTTP client timeout                                   |
-| **METRICS_ENABLED**           | false                 | Enable Prometheus metrics endpoint                          |
-| METRICS_TOKEN                 | (empty)               | Bearer token for /metrics endpoint (empty = no auth)        |
-| METRICS_GAUGE_UPDATE_ENABLED  | true                  | Enable gauge updates (disable on all but one replica)       |
-| METRICS_GAUGE_UPDATE_INTERVAL | 5m                    | Gauge update interval (default: 5m, reduced from 30s)       |
-| METRICS_CACHE_TYPE            | memory                | Cache backend: memory, redis, redis-aside (default: memory) |
-| METRICS_CACHE_CLIENT_TTL      | 30s                   | Client-side cache TTL for redis-aside (default: 30s)        |
-| METRICS_CACHE_SIZE_PER_CONN   | 32                    | Client-side cache size per connection in MB (redis-aside)   |
+- `GET /admin/clients` - List OAuth applications
+- `GET /admin/clients/new` - Create new OAuth client
+- `POST /admin/clients` - Save new OAuth client
+- `GET /admin/clients/:id/edit` - Edit OAuth client
+- `POST /admin/clients/:id/update` - Update OAuth client
+- `GET /admin/clients/:id/authorizations` - View all authorized users for a client
+- `POST /admin/clients/:id/revoke-all` - Force re-auth for all users of a client
+- `GET /admin/audit` - View audit logs with filtering (admin only)
+- `GET /admin/audit/export` - Export audit logs as CSV (admin only)
+
+**System**
+
+- `GET /health` - Health check with database connection test
+- `GET /metrics` - Prometheus metrics (optional Bearer token auth)
+- `GET /api/swagger/*` - Swagger/OpenAPI documentation
+
+## Configuration
+
+Key configuration categories (see `.env.example` and `docs/CONFIGURATION.md` for complete details):
+
+**Core Settings**
+
+- `SERVER_ADDR`, `BASE_URL` - Server address and public URL
+- `JWT_SECRET`, `SESSION_SECRET` - Must be changed in production (use `openssl rand -hex 32`)
+- `DATABASE_DRIVER` (sqlite/postgres), `DATABASE_DSN` - Database configuration
+
+**Authentication & Authorization**
+
+- `AUTH_MODE` (local/http_api) - Authentication backend
+- `TOKEN_PROVIDER_MODE` (local/http_api) - Token generation backend
+- `ENABLE_REFRESH_TOKENS`, `ENABLE_TOKEN_ROTATION` - Refresh token modes (fixed vs rotation)
+
+**Security Features**
+
+- `ENABLE_RATE_LIMIT`, `RATE_LIMIT_STORE` (memory/redis) - Rate limiting
+- `ENABLE_AUDIT_LOGGING` - Comprehensive audit trails
+- `SESSION_FINGERPRINT` - Session security (User-Agent validation)
+
+**OAuth Providers**
+
+- `GITHUB_OAUTH_ENABLED`, `GITEA_OAUTH_ENABLED`, `MICROSOFT_OAUTH_ENABLED` - Third-party OAuth login
+
+**Observability**
+
+- `METRICS_ENABLED` - Prometheus metrics endpoint
+- `METRICS_CACHE_TYPE` (memory/redis/redis-aside) - Metrics caching for multi-instance deployments
+- `METRICS_GAUGE_UPDATE_ENABLED` - Set to false on all but one replica in multi-instance setups
 
 ## Default Test Data
 
@@ -268,15 +325,30 @@ Secure communication with external APIs using `HTTP_API_AUTH_MODE` / `TOKEN_API_
 
 - Use `http.StatusOK`, `http.StatusBadRequest`, etc. instead of numeric status codes
 - Services return typed errors, handlers convert to appropriate HTTP responses
-- GORM models use `gorm.Model` for CreatedAt/UpdatedAt/DeletedAt
+- GORM models use `gorm.Model` for CreatedAt/UpdatedAt/DeletedAt (except custom timestamp models)
 - Handlers accept both form-encoded and JSON request bodies where applicable
 - All static assets and templates are embedded via `//go:embed` for single-binary deployment
-- **No Interfaces**: Direct struct dependency injection (project convention)
+- **Templates**: Use [templ](https://templ.guide/) for type-safe HTML templates
+  - `.templ` files are compiled to `_templ.go` files via `make generate`
+  - Never edit `_templ.go` files directly - always edit the source `.templ` files
+  - Run `make generate` after modifying any `.templ` file
+- **Interfaces**: Follow Go best practices - define interfaces where abstraction adds value
+  - **Currently have interfaces**: `Cache`, `MetricsCollector` (swappable implementations)
+  - **Should consider adding interfaces** for pluggable components to improve extensibility and testability:
+    - `AuthProvider` - Already has 3 implementations (local, http_api, OAuth); interface would enable third-party auth backends
+    - `TokenProvider` - Already has 2 implementations (local JWT, http_api); interface would enable custom token formats (e.g., RS256, ES256)
+    - `Store` - Supports SQLite/PostgreSQL; interface would enable MySQL, MongoDB, or custom storage backends
+  - **Don't need interfaces**: Services (UserService, DeviceService, etc.) - these are core business logic with single implementations
+  - Use direct struct dependency injection for simplicity where multiple implementations are unlikely
 - **Audit Logging**: Services that modify data should log audit events
   - Use `auditService.Log()` for normal events (async, non-blocking)
   - Use `auditService.LogSync()` for critical security events (synchronous)
   - Sensitive data is automatically masked by AuditService (passwords, tokens, secrets)
+- **API Documentation**: Use Swagger annotations in handlers for OpenAPI generation
+  - Annotations use swaggo format: `// @Summary`, `// @Description`, `// @Tags`, etc.
+  - Run `make swagger` to regenerate documentation
 - **IMPORTANT**: Before committing changes:
-  1. **Write tests**: All new features and bug fixes MUST include corresponding unit tests
-  2. **Format code**: Run `make fmt` to automatically fix formatting issues
-  3. **Pass linting**: Run `make lint` to verify code passes linting without errors
+  1. **Generate code**: Run `make generate` to compile templates and update Swagger docs
+  2. **Write tests**: All new features and bug fixes MUST include corresponding unit tests
+  3. **Format code**: Run `make fmt` to automatically fix formatting issues
+  4. **Pass linting**: Run `make lint` to verify code passes linting without errors
