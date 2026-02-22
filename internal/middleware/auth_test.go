@@ -6,13 +6,20 @@ import (
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
+
+	"github.com/appleboy/authgate/internal/auth"
+	"github.com/appleboy/authgate/internal/config"
+	"github.com/appleboy/authgate/internal/services"
+	"github.com/appleboy/authgate/internal/store"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func setupTestRouter() *gin.Engine {
@@ -24,6 +31,29 @@ func setupTestRouter() *gin.Engine {
 	r.Use(sessions.Sessions("test_session", store))
 
 	return r
+}
+
+// createTestUserService creates a minimal UserService for testing.
+// Uses an in-memory SQLite database to avoid nil pointer issues.
+func createTestUserService(t *testing.T) *services.UserService {
+	t.Helper()
+
+	// Create in-memory store
+	testStore, err := store.New("sqlite", ":memory:", &config.Config{})
+	require.NoError(t, err)
+
+	// Create minimal auth providers
+	localProvider := auth.NewLocalAuthProvider(testStore)
+
+	// Create UserService with nil audit service (not needed for these tests)
+	return services.NewUserService(
+		testStore,
+		localProvider,
+		nil, // httpAPIProvider not needed
+		"local",
+		false, // oauthAutoRegister
+		nil,   // auditService not needed for these tests
+	)
 }
 
 func TestSessionIdleTimeout_Disabled(t *testing.T) {
@@ -294,4 +324,144 @@ func TestSessionFingerprintMiddleware_NoSession(t *testing.T) {
 	// Should proceed normally (no session to check)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.True(t, handlerCalled)
+}
+
+// TestRequireAuth_RedirectURLEncoded tests that redirect URLs with query parameters are properly URL-encoded
+func TestRequireAuth_RedirectURLEncoded(t *testing.T) {
+	r := setupTestRouter()
+
+	// Create test UserService (needed even though we're testing unauthenticated path
+	// to ensure the middleware won't panic if the code path changes in the future)
+	userService := createTestUserService(t)
+	r.Use(RequireAuth(userService))
+
+	r.GET("/oauth/authorize", func(c *gin.Context) {
+		c.String(http.StatusOK, "Should not reach here")
+	})
+
+	w := httptest.NewRecorder()
+	// Request URL with complex query parameters (simulating OAuth authorize endpoint)
+	requestPath := "/oauth/authorize?client_id=test-client&redirect_uri=http%3A%2F%2Flocalhost%3A8888%2Fcallback&response_type=code&scope=read+write&state=abc123&code_challenge=xyz789&code_challenge_method=S256"
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", requestPath, nil)
+	r.ServeHTTP(w, req)
+
+	// Should redirect to login
+	assert.Equal(t, http.StatusFound, w.Code)
+	location := w.Header().Get("Location")
+
+	// Parse the redirect location
+	parsedURL, err := url.Parse(location)
+	assert.NoError(t, err)
+	assert.Equal(t, "/login", parsedURL.Path)
+
+	// Verify that the redirect parameter is present and URL-encoded
+	redirectParam := parsedURL.Query().Get("redirect")
+	assert.NotEmpty(t, redirectParam)
+
+	// The redirect parameter should be the original request path
+	assert.Equal(t, requestPath, redirectParam)
+
+	// Verify that all original query parameters are preserved in the redirect
+	assert.Contains(t, redirectParam, "client_id=test-client")
+	assert.Contains(t, redirectParam, "redirect_uri=")
+	assert.Contains(t, redirectParam, "response_type=code")
+	assert.Contains(t, redirectParam, "scope=read+write")
+	assert.Contains(t, redirectParam, "state=abc123")
+	assert.Contains(t, redirectParam, "code_challenge=xyz789")
+	assert.Contains(t, redirectParam, "code_challenge_method=S256")
+}
+
+// TestSessionIdleTimeout_RedirectURLEncoded tests URL encoding in timeout redirects
+func TestSessionIdleTimeout_RedirectURLEncoded(t *testing.T) {
+	r := setupTestRouter()
+
+	// Set up session with expired activity
+	r.Use(func(c *gin.Context) {
+		session := sessions.Default(c)
+		session.Set(SessionUserID, "user123")
+		session.Set(SessionLastActivity, time.Now().Unix()-60) // 60 seconds ago
+		_ = session.Save()
+		c.Next()
+	})
+
+	// Add idle timeout middleware (30 seconds)
+	r.Use(SessionIdleTimeout(30))
+
+	r.GET("/oauth/authorize", func(c *gin.Context) {
+		c.String(http.StatusOK, "Should not reach here")
+	})
+
+	w := httptest.NewRecorder()
+	requestPath := "/oauth/authorize?client_id=test-client&state=abc123"
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", requestPath, nil)
+	r.ServeHTTP(w, req)
+
+	// Should redirect to login with timeout error
+	assert.Equal(t, http.StatusFound, w.Code)
+	location := w.Header().Get("Location")
+
+	parsedURL, err := url.Parse(location)
+	assert.NoError(t, err)
+	assert.Equal(t, "/login", parsedURL.Path)
+
+	// Verify redirect parameter is properly encoded
+	redirectParam := parsedURL.Query().Get("redirect")
+	assert.Equal(t, requestPath, redirectParam)
+	assert.Contains(t, redirectParam, "client_id=test-client")
+	assert.Contains(t, redirectParam, "state=abc123")
+
+	// Verify error parameter is present
+	assert.Equal(t, "session_timeout", parsedURL.Query().Get("error"))
+}
+
+// TestSessionFingerprintMiddleware_RedirectURLEncoded tests URL encoding in fingerprint mismatch redirects
+func TestSessionFingerprintMiddleware_RedirectURLEncoded(t *testing.T) {
+	r := setupTestRouter()
+
+	originalUserAgent := "Mozilla/5.0 Original Browser"
+
+	// Set up session with fingerprint
+	r.Use(func(c *gin.Context) {
+		c.Set("client_ip", "192.168.1.1")
+		session := sessions.Default(c)
+		session.Set(SessionUserID, "user123")
+
+		// Calculate fingerprint for original User-Agent
+		hash := sha256.Sum256([]byte(originalUserAgent))
+		fingerprint := hex.EncodeToString(hash[:])
+		session.Set(SessionFingerprint, fingerprint)
+		_ = session.Save()
+		c.Next()
+	})
+
+	// Add fingerprint middleware
+	r.Use(SessionFingerprintMiddleware(true, false))
+
+	r.GET("/oauth/authorize", func(c *gin.Context) {
+		c.String(http.StatusOK, "Should not reach here")
+	})
+
+	w := httptest.NewRecorder()
+	requestPath := "/oauth/authorize?client_id=test-client&state=abc123"
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", requestPath, nil)
+	// Use different User-Agent
+	req.Header.Set("User-Agent", "Mozilla/5.0 Different Browser")
+	r.ServeHTTP(w, req)
+
+	// Should redirect to login
+	assert.Equal(t, http.StatusFound, w.Code)
+	location := w.Header().Get("Location")
+
+	parsedURL, err := url.Parse(location)
+	assert.NoError(t, err)
+	assert.Equal(t, "/login", parsedURL.Path)
+
+	// Verify redirect parameter is properly encoded
+	redirectParam := parsedURL.Query().Get("redirect")
+	assert.Equal(t, requestPath, redirectParam)
+	assert.Contains(t, redirectParam, "client_id=test-client")
+	assert.Contains(t, redirectParam, "state=abc123")
+
+	// Verify error parameter is present
+	assert.Equal(t, "session_invalid", parsedURL.Query().Get("error"))
 }

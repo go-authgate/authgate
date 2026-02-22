@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/appleboy/authgate/internal/services"
@@ -38,7 +39,7 @@ func RequireAuth(userService *services.UserService) gin.HandlerFunc {
 		if userID == nil {
 			// Redirect to login with return URL
 			redirectURL := c.Request.URL.String()
-			c.Redirect(http.StatusFound, "/login?redirect="+redirectURL)
+			c.Redirect(http.StatusFound, "/login?redirect="+url.QueryEscape(redirectURL))
 			c.Abort()
 			return
 		}
@@ -88,7 +89,7 @@ func SessionFingerprintMiddleware(enabled bool, includeIP bool) gin.HandlerFunc 
 					redirectURL := c.Request.URL.String()
 					c.Redirect(
 						http.StatusFound,
-						"/login?redirect="+redirectURL+"&error=session_invalid",
+						"/login?redirect="+url.QueryEscape(redirectURL)+"&error=session_invalid",
 					)
 					c.Abort()
 					return
@@ -130,7 +131,9 @@ func SessionIdleTimeout(idleTimeoutSeconds int) gin.HandlerFunc {
 						redirectURL := c.Request.URL.String()
 						c.Redirect(
 							http.StatusFound,
-							"/login?redirect="+redirectURL+"&error=session_timeout",
+							"/login?redirect="+url.QueryEscape(
+								redirectURL,
+							)+"&error=session_timeout",
 						)
 						c.Abort()
 						return
