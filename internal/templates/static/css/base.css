@@ -291,6 +291,13 @@ body.no-navbar {
   border-radius: var(--radius-sm);
   padding: 2px 6px;
   letter-spacing: 0.03em;
+  text-decoration: none;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+a.footer-rfc:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
 }
 
 @media (max-width: 640px) {
