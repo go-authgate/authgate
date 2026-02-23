@@ -22,7 +22,7 @@ func NewLocalAuthProvider(s *store.Store) *LocalAuthProvider {
 func (p *LocalAuthProvider) Authenticate(
 	ctx context.Context,
 	username, password string,
-) (*AuthResult, error) {
+) (*Result, error) {
 	user, err := p.store.GetUserByUsername(username)
 	if err != nil {
 		return nil, ErrInvalidCredentials
@@ -35,7 +35,7 @@ func (p *LocalAuthProvider) Authenticate(
 		return nil, ErrInvalidCredentials
 	}
 
-	return &AuthResult{
+	return &Result{
 		Username:   user.Username,
 		ExternalID: "", // Local users don't have external IDs
 		Email:      user.Email,

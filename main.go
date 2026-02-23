@@ -67,20 +67,20 @@ func main() {
 	case "server":
 		runServer()
 	default:
-		fmt.Printf("Unknown command: %s\n\n", args[0])
+		fmt.Fprintf(os.Stdout, "Unknown command: %s\n\n", args[0])
 		printUsage()
 		os.Exit(1)
 	}
 }
 
 func printUsage() {
-	fmt.Printf("Usage: %s [OPTIONS] COMMAND\n\n", os.Args[0])
-	fmt.Println("OAuth 2.0 Device Authorization Grant server")
-	fmt.Println("\nCommands:")
-	fmt.Println("  server    Start the OAuth server")
-	fmt.Println("\nOptions:")
-	fmt.Println("  -v, --version    Show version information")
-	fmt.Println("  -h, --help       Show this help message")
+	fmt.Fprintf(os.Stdout, "Usage: %s [OPTIONS] COMMAND\n\n", os.Args[0])
+	fmt.Fprintln(os.Stdout, "OAuth 2.0 Device Authorization Grant server")
+	fmt.Fprintln(os.Stdout, "\nCommands:")
+	fmt.Fprintln(os.Stdout, "  server    Start the OAuth server")
+	fmt.Fprintln(os.Stdout, "\nOptions:")
+	fmt.Fprintln(os.Stdout, "  -v, --version    Show version information")
+	fmt.Fprintln(os.Stdout, "  -h, --help       Show this help message")
 }
 
 func runServer() {

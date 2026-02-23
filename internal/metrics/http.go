@@ -14,7 +14,7 @@ const (
 )
 
 // HTTPMetricsMiddleware creates a Gin middleware that records HTTP metrics
-func HTTPMetricsMiddleware(m MetricsRecorder) gin.HandlerFunc {
+func HTTPMetricsMiddleware(m Recorder) gin.HandlerFunc {
 	// If NoopMetrics, return a lightweight middleware that does nothing
 	if _, ok := m.(*NoopMetrics); ok {
 		return func(c *gin.Context) {

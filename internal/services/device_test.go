@@ -66,7 +66,7 @@ func TestGenerateDeviceCode_ActiveClient(t *testing.T) {
 	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, dc)
 	assert.NotEmpty(t, dc.DeviceCode)
 	assert.NotEmpty(t, dc.UserCode)
@@ -95,7 +95,7 @@ func TestGenerateDeviceCode_InactiveClient(t *testing.T) {
 	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, ErrClientInactive, err)
 	assert.Nil(t, dc)
 }
@@ -116,7 +116,7 @@ func TestGenerateDeviceCode_InvalidClient(t *testing.T) {
 	)
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, ErrInvalidClient, err)
 	assert.Nil(t, dc)
 }
@@ -161,7 +161,7 @@ func TestGenerateDeviceCode_DeviceFlowDisabled(t *testing.T) {
 	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, ErrDeviceFlowNotEnabled, err)
 	assert.Nil(t, dc)
 }
@@ -185,11 +185,11 @@ func TestAuthorizeDeviceCode_Success(t *testing.T) {
 	err = deviceService.AuthorizeDeviceCode(context.Background(), dc.UserCode, userID, username)
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify the device code is authorized
 	authorizedDC, err := deviceService.GetDeviceCode(dc.DeviceCode)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, authorizedDC.Authorized)
 	assert.Equal(t, userID, authorizedDC.UserID)
 }
@@ -211,7 +211,7 @@ func TestAuthorizeDeviceCode_InvalidUserCode(t *testing.T) {
 	)
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, ErrUserCodeNotFound, err)
 }
 
@@ -232,7 +232,7 @@ func TestGetClientByUserCode_Success(t *testing.T) {
 	result, resultDC, err := deviceService.GetClientByUserCode(dc.UserCode)
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "Test Client", result.ClientName)
 	assert.Equal(t, client.ClientID, result.ClientID)
 	assert.Equal(t, dc.UserCode, resultDC.UserCode)

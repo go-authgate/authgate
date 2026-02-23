@@ -83,8 +83,8 @@ func TestLocalTokenProvider_ValidateToken_InvalidToken(t *testing.T) {
 		"invalid-token-string",
 	)
 
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidToken)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
 func TestLocalTokenProvider_ValidateToken_WrongSecret(t *testing.T) {
@@ -115,8 +115,8 @@ func TestLocalTokenProvider_ValidateToken_WrongSecret(t *testing.T) {
 		genResult.TokenString,
 	)
 
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidToken)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
 func TestLocalTokenProvider_ValidateToken_ExpiredToken(t *testing.T) {
@@ -145,8 +145,8 @@ func TestLocalTokenProvider_ValidateToken_ExpiredToken(t *testing.T) {
 		genResult.TokenString,
 	)
 
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrExpiredToken)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrExpiredToken)
 }
 
 func TestLocalTokenProvider_Name(t *testing.T) {

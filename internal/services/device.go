@@ -31,14 +31,14 @@ type DeviceService struct {
 	store        *store.Store
 	config       *config.Config
 	auditService *AuditService
-	metrics      metrics.MetricsRecorder
+	metrics      metrics.Recorder
 }
 
 func NewDeviceService(
 	s *store.Store,
 	cfg *config.Config,
 	auditService *AuditService,
-	m metrics.MetricsRecorder,
+	m metrics.Recorder,
 ) *DeviceService {
 	return &DeviceService{
 		store:        s,

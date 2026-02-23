@@ -38,7 +38,7 @@ type TokenService struct {
 	httpTokenProvider  *token.HTTPTokenProvider
 	tokenProviderMode  string
 	auditService       *AuditService
-	metrics            metrics.MetricsRecorder
+	metrics            metrics.Recorder
 }
 
 func NewTokenService(
@@ -49,7 +49,7 @@ func NewTokenService(
 	httpProvider *token.HTTPTokenProvider,
 	providerMode string,
 	auditService *AuditService,
-	m metrics.MetricsRecorder,
+	m metrics.Recorder,
 ) *TokenService {
 	return &TokenService{
 		store:              s,
@@ -110,13 +110,13 @@ func (s *TokenService) ExchangeDeviceCode(
 
 	// Generate access token using provider
 	start := time.Now()
-	var accessTokenResult *token.TokenResult
+	var accessTokenResult *token.Result
 	var providerErr error
 
 	switch s.tokenProviderMode {
 	case config.TokenProviderModeHTTPAPI:
 		if s.httpTokenProvider == nil {
-			return nil, nil, fmt.Errorf(
+			return nil, nil, errors.New(
 				"HTTP token provider not configured (TOKEN_PROVIDER_MODE=http_api requires TOKEN_API_URL)",
 			)
 		}
@@ -130,7 +130,7 @@ func (s *TokenService) ExchangeDeviceCode(
 		fallthrough
 	default:
 		if s.localTokenProvider == nil {
-			return nil, nil, fmt.Errorf("local token provider not configured")
+			return nil, nil, errors.New("local token provider not configured")
 		}
 		accessTokenResult, providerErr = s.localTokenProvider.GenerateToken(
 			ctx,
@@ -150,11 +150,11 @@ func (s *TokenService) ExchangeDeviceCode(
 	}
 
 	if !accessTokenResult.Success {
-		return nil, nil, fmt.Errorf("token generation unsuccessful")
+		return nil, nil, errors.New("token generation unsuccessful")
 	}
 
 	// Generate refresh token using provider
-	var refreshTokenResult *token.TokenResult
+	var refreshTokenResult *token.Result
 
 	switch s.tokenProviderMode {
 	case config.TokenProviderModeHTTPAPI:
@@ -185,7 +185,7 @@ func (s *TokenService) ExchangeDeviceCode(
 	}
 
 	if !refreshTokenResult.Success {
-		return nil, nil, fmt.Errorf("refresh token generation unsuccessful")
+		return nil, nil, errors.New("refresh token generation unsuccessful")
 	}
 
 	// Create access token record
@@ -286,21 +286,21 @@ func (s *TokenService) ExchangeDeviceCode(
 func (s *TokenService) ValidateToken(
 	ctx context.Context,
 	tokenString string,
-) (*token.TokenValidationResult, error) {
-	var result *token.TokenValidationResult
+) (*token.ValidationResult, error) {
+	var result *token.ValidationResult
 	var err error
 
 	switch s.tokenProviderMode {
 	case config.TokenProviderModeHTTPAPI:
 		if s.httpTokenProvider == nil {
-			return nil, fmt.Errorf("HTTP token provider not configured")
+			return nil, errors.New("HTTP token provider not configured")
 		}
 		result, err = s.httpTokenProvider.ValidateToken(ctx, tokenString)
 	case config.TokenProviderModeLocal:
 		fallthrough
 	default:
 		if s.localTokenProvider == nil {
-			return nil, fmt.Errorf("local token provider not configured")
+			return nil, errors.New("local token provider not configured")
 		}
 		result, err = s.localTokenProvider.ValidateToken(ctx, tokenString)
 	}
@@ -534,7 +534,7 @@ func (s *TokenService) RefreshAccessToken(
 	switch s.tokenProviderMode {
 	case config.TokenProviderModeHTTPAPI:
 		if s.httpTokenProvider == nil {
-			return nil, nil, fmt.Errorf("HTTP token provider not configured")
+			return nil, nil, errors.New("HTTP token provider not configured")
 		}
 		refreshResult, providerErr = s.httpTokenProvider.RefreshAccessToken(
 			ctx,
@@ -545,7 +545,7 @@ func (s *TokenService) RefreshAccessToken(
 		fallthrough
 	default:
 		if s.localTokenProvider == nil {
-			return nil, nil, fmt.Errorf("local token provider not configured")
+			return nil, nil, errors.New("local token provider not configured")
 		}
 		refreshResult, providerErr = s.localTokenProvider.RefreshAccessToken(
 			ctx,
@@ -562,7 +562,7 @@ func (s *TokenService) RefreshAccessToken(
 
 	if !refreshResult.Success {
 		s.metrics.RecordTokenRefresh(false)
-		return nil, nil, fmt.Errorf("token refresh unsuccessful")
+		return nil, nil, errors.New("token refresh unsuccessful")
 	}
 
 	// 7. Save new tokens in transaction
@@ -798,13 +798,13 @@ func (s *TokenService) ExchangeAuthorizationCode(
 	start := time.Now()
 
 	// Generate access token via configured provider
-	var accessTokenResult *token.TokenResult
+	var accessTokenResult *token.Result
 	var providerErr error
 
 	switch s.tokenProviderMode {
 	case config.TokenProviderModeHTTPAPI:
 		if s.httpTokenProvider == nil {
-			return nil, nil, fmt.Errorf(
+			return nil, nil, errors.New(
 				"HTTP token provider not configured (TOKEN_PROVIDER_MODE=http_api requires TOKEN_API_URL)",
 			)
 		}
@@ -816,7 +816,7 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		)
 	default:
 		if s.localTokenProvider == nil {
-			return nil, nil, fmt.Errorf("local token provider not configured")
+			return nil, nil, errors.New("local token provider not configured")
 		}
 		accessTokenResult, providerErr = s.localTokenProvider.GenerateToken(
 			ctx,
@@ -835,11 +835,11 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		return nil, nil, fmt.Errorf("token generation failed: %w", providerErr)
 	}
 	if !accessTokenResult.Success {
-		return nil, nil, fmt.Errorf("token generation unsuccessful")
+		return nil, nil, errors.New("token generation unsuccessful")
 	}
 
 	// Generate refresh token
-	var refreshTokenResult *token.TokenResult
+	var refreshTokenResult *token.Result
 
 	switch s.tokenProviderMode {
 	case config.TokenProviderModeHTTPAPI:
@@ -867,7 +867,7 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		return nil, nil, fmt.Errorf("refresh token generation failed: %w", providerErr)
 	}
 	if !refreshTokenResult.Success {
-		return nil, nil, fmt.Errorf("refresh token generation unsuccessful")
+		return nil, nil, errors.New("refresh token generation unsuccessful")
 	}
 
 	// Build token records — link to UserAuthorization for cascade-revoke support

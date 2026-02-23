@@ -15,16 +15,16 @@ import (
 
 func TestMaxStateLength_AcceptsAtLimit(t *testing.T) {
 	state := strings.Repeat("a", maxStateLength)
-	assert.False(t, len(state) > maxStateLength)
+	assert.LessOrEqual(t, len(state), maxStateLength)
 }
 
 func TestMaxStateLength_RejectsOverLimit(t *testing.T) {
 	state := strings.Repeat("a", maxStateLength+1)
-	assert.True(t, len(state) > maxStateLength)
+	assert.Greater(t, len(state), maxStateLength)
 }
 
 func TestMaxStateLength_AcceptsEmpty(t *testing.T) {
-	assert.False(t, len("") > maxStateLength)
+	assert.LessOrEqual(t, len(""), maxStateLength)
 }
 
 // ============================================================

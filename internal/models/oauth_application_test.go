@@ -61,7 +61,7 @@ func TestStringArray_Join(t *testing.T) {
 func TestStringArray_Scan(t *testing.T) {
 	tests := []struct {
 		name    string
-		value   interface{}
+		value   any
 		want    StringArray
 		wantErr bool
 	}{

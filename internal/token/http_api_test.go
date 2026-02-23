@@ -58,13 +58,13 @@ func createTestProvider(cfg *config.Config) *HTTPTokenProvider {
 func TestHTTPTokenProvider_GenerateToken_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/generate", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
 		// Parse request body
 		var req APITokenGenerateRequest
 		err := json.NewDecoder(r.Body).Decode(&req)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		assert.Equal(t, "user123", req.UserID)
 		assert.Equal(t, "client456", req.ClientID)
@@ -82,7 +82,7 @@ func TestHTTPTokenProvider_GenerateToken_Success(t *testing.T) {
 				"custom": "value",
 			},
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -114,7 +114,7 @@ func TestHTTPTokenProvider_GenerateToken_MissingAccessToken(t *testing.T) {
 			TokenType:   "Bearer",
 			ExpiresIn:   3600,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -123,8 +123,8 @@ func TestHTTPTokenProvider_GenerateToken_MissingAccessToken(t *testing.T) {
 	provider := createTestProvider(cfg)
 	_, err := provider.GenerateToken(context.Background(), "user123", "client456", "read")
 
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrHTTPTokenInvalidResp)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrHTTPTokenInvalidResp)
 	assert.Contains(t, err.Error(), "missing access_token")
 }
 
@@ -136,7 +136,7 @@ func TestHTTPTokenProvider_GenerateToken_Non2xxStatus(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, err := w.Write([]byte("Internal Server Error"))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -145,9 +145,9 @@ func TestHTTPTokenProvider_GenerateToken_Non2xxStatus(t *testing.T) {
 	provider := createTestProvider(cfg)
 	_, err := provider.GenerateToken(context.Background(), "user123", "client456", "read")
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	// HTTP 500 is treated as a connection error by the retry client
-	assert.ErrorIs(t, err, ErrHTTPTokenConnection)
+	require.ErrorIs(t, err, ErrHTTPTokenConnection)
 	assert.Contains(t, err.Error(), "failed to connect to token API")
 }
 
@@ -155,7 +155,7 @@ func TestHTTPTokenProvider_GenerateToken_InvalidJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte("not a valid json"))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -164,19 +164,19 @@ func TestHTTPTokenProvider_GenerateToken_InvalidJSON(t *testing.T) {
 	provider := createTestProvider(cfg)
 	_, err := provider.GenerateToken(context.Background(), "user123", "client456", "read")
 
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrHTTPTokenInvalidResp)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrHTTPTokenInvalidResp)
 }
 
 func TestHTTPTokenProvider_ValidateToken_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/validate", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, http.MethodPost, r.Method)
 
 		// Parse request body
 		var req APITokenValidateRequest
 		err := json.NewDecoder(r.Body).Decode(&req)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		assert.Equal(t, "mock-jwt-token", req.Token)
 
@@ -193,7 +193,7 @@ func TestHTTPTokenProvider_ValidateToken_Success(t *testing.T) {
 				"custom": "value",
 			},
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -218,7 +218,7 @@ func TestHTTPTokenProvider_ValidateToken_Invalid(t *testing.T) {
 			Valid:   false,
 			Message: "Token is invalid",
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -227,8 +227,8 @@ func TestHTTPTokenProvider_ValidateToken_Invalid(t *testing.T) {
 	provider := createTestProvider(cfg)
 	_, err := provider.ValidateToken(context.Background(), "invalid-token")
 
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidToken)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
 func TestHTTPTokenProvider_ValidateToken_Expired(t *testing.T) {
@@ -242,7 +242,7 @@ func TestHTTPTokenProvider_ValidateToken_Expired(t *testing.T) {
 			Scopes:    "read",
 			ExpiresAt: time.Now().Add(-1 * time.Hour).Unix(), // Expired
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -251,15 +251,15 @@ func TestHTTPTokenProvider_ValidateToken_Expired(t *testing.T) {
 	provider := createTestProvider(cfg)
 	_, err := provider.ValidateToken(context.Background(), "expired-token")
 
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrExpiredToken)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrExpiredToken)
 }
 
 func TestHTTPTokenProvider_ValidateToken_Non2xxStatus(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, err := w.Write([]byte("Unauthorized"))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -268,8 +268,8 @@ func TestHTTPTokenProvider_ValidateToken_Non2xxStatus(t *testing.T) {
 	provider := createTestProvider(cfg)
 	_, err := provider.ValidateToken(context.Background(), "token")
 
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidToken)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrInvalidToken)
 	assert.Contains(t, err.Error(), "401")
 }
 
@@ -277,7 +277,7 @@ func TestHTTPTokenProvider_ValidateToken_InvalidJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte("invalid json"))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -286,8 +286,8 @@ func TestHTTPTokenProvider_ValidateToken_InvalidJSON(t *testing.T) {
 	provider := createTestProvider(cfg)
 	_, err := provider.ValidateToken(context.Background(), "token")
 
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrHTTPTokenInvalidResp)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrHTTPTokenInvalidResp)
 }
 
 func TestHTTPTokenProvider_Name(t *testing.T) {
@@ -311,7 +311,7 @@ func testGenerateTokenError(t *testing.T, statusCode int, errorMessage string) {
 			Success: false,
 			Message: errorMessage,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -320,8 +320,8 @@ func testGenerateTokenError(t *testing.T, statusCode int, errorMessage string) {
 	provider := createTestProvider(cfg)
 	_, err := provider.GenerateToken(context.Background(), "user123", "client456", "read")
 
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrHTTPTokenAuthFailed)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrHTTPTokenAuthFailed)
 	assert.Contains(t, err.Error(), errorMessage)
 }
 
@@ -455,7 +455,7 @@ func TestHTTPTokenProvider_HMACAuth_ValidSignature(t *testing.T) {
 		}
 
 		// Compute expected signature: HMAC-SHA256(timestamp + method + path + body)
-		message := fmt.Sprintf("%s%s%s%s", timestamp, r.Method, r.URL.Path, string(body))
+		message := timestamp + r.Method + r.URL.Path + string(body)
 		h := hmac.New(sha256.New, []byte(testSecret))
 		h.Write([]byte(message))
 		expectedSignature := hex.EncodeToString(h.Sum(nil))

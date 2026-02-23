@@ -37,15 +37,15 @@ func (m *mockStore) CountPendingDeviceCodes() (int64, error) {
 	return 0, nil
 }
 
-// newTestCacheWrapper creates a MetricsCacheWrapper for testing
-func newTestCacheWrapper(store *mockStore, cache cache.Cache) *MetricsCacheWrapper {
-	return &MetricsCacheWrapper{
+// newTestCacheWrapper creates a CacheWrapper for testing
+func newTestCacheWrapper(store *mockStore, cache cache.Cache) *CacheWrapper {
+	return &CacheWrapper{
 		store: store,
 		cache: cache,
 	}
 }
 
-func TestMetricsCacheWrapper_GetActiveTokensCount_CacheHit(t *testing.T) {
+func TestCacheWrapper_GetActiveTokensCount_CacheHit(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache()
 
@@ -71,7 +71,7 @@ func TestMetricsCacheWrapper_GetActiveTokensCount_CacheHit(t *testing.T) {
 	}
 }
 
-func TestMetricsCacheWrapper_GetActiveTokensCount_CacheMiss(t *testing.T) {
+func TestCacheWrapper_GetActiveTokensCount_CacheMiss(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache()
 
@@ -112,7 +112,7 @@ func TestMetricsCacheWrapper_GetActiveTokensCount_CacheMiss(t *testing.T) {
 	}
 }
 
-func TestMetricsCacheWrapper_GetActiveTokensCount_DBError(t *testing.T) {
+func TestCacheWrapper_GetActiveTokensCount_DBError(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache()
 
@@ -131,7 +131,7 @@ func TestMetricsCacheWrapper_GetActiveTokensCount_DBError(t *testing.T) {
 	}
 }
 
-func TestMetricsCacheWrapper_GetActiveTokensCount_CacheExpiration(t *testing.T) {
+func TestCacheWrapper_GetActiveTokensCount_CacheExpiration(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache()
 
@@ -175,7 +175,7 @@ func TestMetricsCacheWrapper_GetActiveTokensCount_CacheExpiration(t *testing.T) 
 	}
 }
 
-func TestMetricsCacheWrapper_GetTotalDeviceCodesCount_CacheHit(t *testing.T) {
+func TestCacheWrapper_GetTotalDeviceCodesCount_CacheHit(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache()
 
@@ -201,7 +201,7 @@ func TestMetricsCacheWrapper_GetTotalDeviceCodesCount_CacheHit(t *testing.T) {
 	}
 }
 
-func TestMetricsCacheWrapper_GetPendingDeviceCodesCount_CacheHit(t *testing.T) {
+func TestCacheWrapper_GetPendingDeviceCodesCount_CacheHit(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache()
 
@@ -227,7 +227,7 @@ func TestMetricsCacheWrapper_GetPendingDeviceCodesCount_CacheHit(t *testing.T) {
 	}
 }
 
-func TestMetricsCacheWrapper_GetTotalDeviceCodesCount_CacheMiss(t *testing.T) {
+func TestCacheWrapper_GetTotalDeviceCodesCount_CacheMiss(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache()
 
@@ -265,7 +265,7 @@ func TestMetricsCacheWrapper_GetTotalDeviceCodesCount_CacheMiss(t *testing.T) {
 	}
 }
 
-func TestMetricsCacheWrapper_GetPendingDeviceCodesCount_CacheMiss(t *testing.T) {
+func TestCacheWrapper_GetPendingDeviceCodesCount_CacheMiss(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache()
 
@@ -303,7 +303,7 @@ func TestMetricsCacheWrapper_GetPendingDeviceCodesCount_CacheMiss(t *testing.T) 
 	}
 }
 
-func TestMetricsCacheWrapper_GetTotalDeviceCodesCount_DBError(t *testing.T) {
+func TestCacheWrapper_GetTotalDeviceCodesCount_DBError(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache()
 
@@ -322,7 +322,7 @@ func TestMetricsCacheWrapper_GetTotalDeviceCodesCount_DBError(t *testing.T) {
 	}
 }
 
-func TestMetricsCacheWrapper_GetPendingDeviceCodesCount_DBError(t *testing.T) {
+func TestCacheWrapper_GetPendingDeviceCodesCount_DBError(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache()
 
@@ -371,7 +371,7 @@ func (m *mockCacheAside) GetWithFetch(
 	return value, nil
 }
 
-func TestMetricsCacheWrapper_UsesGetWithFetch(t *testing.T) {
+func TestCacheWrapper_UsesGetWithFetch(t *testing.T) {
 	ctx := context.Background()
 	mockCache := &mockCacheAside{
 		MemoryCache: cache.NewMemoryCache(),
@@ -410,7 +410,7 @@ func TestMetricsCacheWrapper_UsesGetWithFetch(t *testing.T) {
 	}
 }
 
-func TestMetricsCacheWrapper_FallbackToManualCacheAside(t *testing.T) {
+func TestCacheWrapper_FallbackToManualCacheAside(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache()
 
@@ -445,7 +445,7 @@ func TestMetricsCacheWrapper_FallbackToManualCacheAside(t *testing.T) {
 }
 
 //nolint:dupl // Similar test structure to GetPendingDeviceCodesCount test is intentional
-func TestMetricsCacheWrapper_GetTotalDeviceCodesCount_WithCacheAside(t *testing.T) {
+func TestCacheWrapper_GetTotalDeviceCodesCount_WithCacheAside(t *testing.T) {
 	ctx := context.Background()
 	mockCache := &mockCacheAside{
 		MemoryCache: cache.NewMemoryCache(),
@@ -495,7 +495,7 @@ func TestMetricsCacheWrapper_GetTotalDeviceCodesCount_WithCacheAside(t *testing.
 }
 
 //nolint:dupl // Similar test structure to GetTotalDeviceCodesCount test is intentional
-func TestMetricsCacheWrapper_GetPendingDeviceCodesCount_WithCacheAside(t *testing.T) {
+func TestCacheWrapper_GetPendingDeviceCodesCount_WithCacheAside(t *testing.T) {
 	ctx := context.Background()
 	mockCache := &mockCacheAside{
 		MemoryCache: cache.NewMemoryCache(),

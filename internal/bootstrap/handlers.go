@@ -34,7 +34,7 @@ func initializeHandlers(
 	auditService *services.AuditService,
 	oauthProviders map[string]*auth.OAuthProvider,
 	oauthHTTPClient *http.Client,
-	prometheusMetrics metrics.MetricsRecorder,
+	prometheusMetrics metrics.Recorder,
 ) handlerSet {
 	return handlerSet{
 		auth: handlers.NewAuthHandler(

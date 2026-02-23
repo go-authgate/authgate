@@ -2,15 +2,15 @@ package metrics
 
 import "time"
 
-// NoopMetrics is a no-operation implementation of MetricsRecorder
+// NoopMetrics is a no-operation implementation of Recorder
 // All methods are empty and do nothing, providing zero overhead when metrics are disabled
 type NoopMetrics struct{}
 
-// Ensure NoopMetrics implements MetricsRecorder interface at compile time
-var _ MetricsRecorder = (*NoopMetrics)(nil)
+// Ensure NoopMetrics implements Recorder interface at compile time
+var _ Recorder = (*NoopMetrics)(nil)
 
 // NewNoopMetrics creates a new no-operation metrics recorder
-func NewNoopMetrics() MetricsRecorder {
+func NewNoopMetrics() Recorder {
 	return &NoopMetrics{}
 }
 

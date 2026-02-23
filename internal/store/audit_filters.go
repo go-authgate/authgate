@@ -14,8 +14,8 @@ type AuditLogFilters struct {
 	ResourceID   string               `json:"resource_id,omitempty"`
 	Severity     models.EventSeverity `json:"severity,omitempty"`
 	Success      *bool                `json:"success,omitempty"`
-	StartTime    time.Time            `json:"start_time,omitempty"`
-	EndTime      time.Time            `json:"end_time,omitempty"`
+	StartTime    time.Time            `json:"start_time,omitzero"`
+	EndTime      time.Time            `json:"end_time,omitzero"`
 	ActorIP      string               `json:"actor_ip,omitempty"`
 	Search       string               `json:"search,omitempty"` // Search in action, resource_name, actor_username
 }

@@ -19,12 +19,12 @@ func initializeRateLimitRedisClient(
 ) (*redis.Client, error) {
 	// Skip if rate limiting is disabled
 	if !cfg.EnableRateLimit {
-		return nil, nil
+		return nil, nil //nolint:nilnil // redis client not needed in this configuration
 	}
 
 	// Skip if using memory store
 	if cfg.RateLimitStore != string(middleware.RateLimitStoreRedis) {
-		return nil, nil
+		return nil, nil //nolint:nilnil // redis client not needed in this configuration
 	}
 
 	// Create go-redis client

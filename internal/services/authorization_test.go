@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	testClientPlainSecret = "test-plain-secret" //nolint:gosec
+	testClientPlainSecret = "test-plain-secret" //nolint:gosec // G101: false positive, this is a test secret string, not a hardcoded credential
 	testPKCEVerifier      = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
 )
 
@@ -472,7 +472,7 @@ func TestListUserAuthorizations_MultipleClients(t *testing.T) {
 	svc := createTestAuthorizationService(t)
 	userID := uuid.New().String()
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		c := &models.OAuthApplication{
 			ClientID:           uuid.New().String(),
 			ClientSecret:       "secret",
@@ -504,7 +504,7 @@ func TestRevokeAllApplicationTokens_RevokesConsentRecords(t *testing.T) {
 	client := createAuthCodeFlowClient(t, svc, "confidential")
 
 	// Grant access for 2 users
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		userID := uuid.New().String()
 		_, err := svc.SaveUserAuthorization(
 			context.Background(), userID, client.ID, client.ClientID, "read",
@@ -611,7 +611,7 @@ func TestValidateAuthorizationRequest_GlobalPKCERequired(t *testing.T) {
 	_, err := svc.ValidateAuthorizationRequest(
 		client.ClientID, "https://app.example.com/callback", "code", "read", "",
 	)
-	assert.ErrorIs(t, err, ErrPKCERequired)
+	require.ErrorIs(t, err, ErrPKCERequired)
 
 	// With S256 → must succeed
 	req, err := svc.ValidateAuthorizationRequest(

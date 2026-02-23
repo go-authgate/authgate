@@ -204,9 +204,9 @@ func TestMemoryCache_Concurrent(t *testing.T) {
 	done := make(chan bool, 20)
 
 	// 10 writers
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		go func(n int) {
-			for j := 0; j < 100; j++ {
+			for j := range 100 {
 				key := "concurrent-key"
 				_ = cache.Set(ctx, key, int64(n*1000+j), time.Minute)
 			}
@@ -215,9 +215,9 @@ func TestMemoryCache_Concurrent(t *testing.T) {
 	}
 
 	// 10 readers
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		go func() {
-			for j := 0; j < 100; j++ {
+			for range 100 {
 				_, _ = cache.Get(ctx, "concurrent-key")
 			}
 			done <- true
@@ -225,7 +225,7 @@ func TestMemoryCache_Concurrent(t *testing.T) {
 	}
 
 	// Wait for all goroutines
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		<-done
 	}
 

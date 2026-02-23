@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -86,7 +87,7 @@ func (s *UserService) authenticateExistingUser(
 	user *models.User,
 	password string,
 ) (*models.User, error) {
-	var authResult *auth.AuthResult
+	var authResult *auth.Result
 	var err error
 	var providerName string
 
@@ -284,7 +285,7 @@ func (s *UserService) authenticateAndCreateExternalUser(
 
 // syncExternalUser creates or updates local user record from external auth result
 func (s *UserService) syncExternalUser(
-	result *auth.AuthResult,
+	result *auth.Result,
 	authSource string,
 ) (*models.User, error) {
 	user, err := s.store.UpsertExternalUser(
@@ -574,14 +575,14 @@ func (s *UserService) generateUniqueUsername(baseUsername, provider string) stri
 	}
 
 	// Try with provider suffix
-	username = fmt.Sprintf("%s-%s", username, provider)
+	username = username + "-" + provider
 	if _, err := s.store.GetUserByUsername(username); err != nil {
 		return username
 	}
 
 	// Try with numbers
 	for i := 1; i <= 10; i++ {
-		candidate := fmt.Sprintf("%s-%s-%d", sanitizeUsername(baseUsername), provider, i)
+		candidate := sanitizeUsername(baseUsername) + "-" + provider + "-" + strconv.Itoa(i)
 		if _, err := s.store.GetUserByUsername(candidate); err != nil {
 			return candidate
 		}
@@ -589,7 +590,7 @@ func (s *UserService) generateUniqueUsername(baseUsername, provider string) stri
 
 	// Last resort: random suffix
 	randomSuffix := random.String(6)
-	return fmt.Sprintf("%s-%s", username, randomSuffix)
+	return username + "-" + randomSuffix
 }
 
 // sanitizeUsername removes special characters, keeps only alphanumeric, '_' and '-'.

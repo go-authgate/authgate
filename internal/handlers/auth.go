@@ -20,7 +20,7 @@ import (
 )
 
 // generateFingerprint creates a SHA256 hash from IP (optional) and User-Agent
-func generateFingerprint(ip string, userAgent string, includeIP bool) string {
+func generateFingerprint(ip, userAgent string, includeIP bool) string {
 	data := userAgent
 	if includeIP {
 		data = ip + "|" + userAgent
@@ -98,7 +98,7 @@ type AuthHandler struct {
 	baseURL                     string
 	sessionFingerprintEnabled   bool
 	sessionFingerprintIncludeIP bool
-	metrics                     metrics.MetricsRecorder
+	metrics                     metrics.Recorder
 }
 
 func NewAuthHandler(
@@ -106,7 +106,7 @@ func NewAuthHandler(
 	baseURL string,
 	fingerprintEnabled bool,
 	fingerprintIncludeIP bool,
-	m metrics.MetricsRecorder,
+	m metrics.Recorder,
 ) *AuthHandler {
 	return &AuthHandler{
 		userService:                 us,

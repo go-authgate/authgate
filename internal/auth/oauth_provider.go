@@ -3,9 +3,11 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"golang.org/x/oauth2"
@@ -60,8 +62,8 @@ func NewGiteaProvider(cfg OAuthProviderConfig, giteaURL string) *OAuthProvider {
 			RedirectURL:  cfg.RedirectURL,
 			Scopes:       cfg.Scopes,
 			Endpoint: oauth2.Endpoint{
-				AuthURL:  fmt.Sprintf("%s/login/oauth/authorize", giteaURL),
-				TokenURL: fmt.Sprintf("%s/login/oauth/access_token", giteaURL),
+				AuthURL:  giteaURL + "/login/oauth/authorize",
+				TokenURL: giteaURL + "/login/oauth/access_token",
 			},
 		},
 	}
@@ -162,7 +164,7 @@ func (p *OAuthProvider) getGitHubUserInfo(
 	client := p.config.Client(ctx, token)
 
 	// Get user profile
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/user", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -193,11 +195,11 @@ func (p *OAuthProvider) getGitHubUserInfo(
 
 	// GitHub requires email for our integration
 	if user.Email == "" {
-		return nil, fmt.Errorf("GitHub account has no email address")
+		return nil, errors.New("GitHub account has no email address")
 	}
 
 	return &OAuthUserInfo{
-		ProviderUserID: fmt.Sprintf("%d", user.ID),
+		ProviderUserID: strconv.FormatInt(user.ID, 10),
 		Username:       user.Login,
 		Email:          user.Email,
 		FullName:       user.Name,
@@ -210,7 +212,9 @@ func (p *OAuthProvider) getGitHubPrimaryEmail(
 	ctx context.Context,
 	client *http.Client,
 ) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/user/emails", nil)
+	req, err := http.NewRequestWithContext(
+		ctx, http.MethodGet, "https://api.github.com/user/emails", nil,
+	)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
@@ -243,7 +247,7 @@ func (p *OAuthProvider) getGitHubPrimaryEmail(
 		}
 	}
 
-	return "", fmt.Errorf("no verified email found")
+	return "", errors.New("no verified email found")
 }
 
 // Gitea user info structure
@@ -267,7 +271,7 @@ func (p *OAuthProvider) getGiteaUserInfo(
 	// Remove "/login/oauth/authorize" to get base URL
 	apiURL := baseURL[:len(baseURL)-len("/login/oauth/authorize")] + "/api/v1/user"
 
-	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -289,11 +293,11 @@ func (p *OAuthProvider) getGiteaUserInfo(
 
 	// Gitea requires email for our integration
 	if user.Email == "" {
-		return nil, fmt.Errorf("gitea account has no email address")
+		return nil, errors.New("gitea account has no email address")
 	}
 
 	return &OAuthUserInfo{
-		ProviderUserID: fmt.Sprintf("%d", user.ID),
+		ProviderUserID: strconv.FormatInt(user.ID, 10),
 		Username:       user.Login,
 		Email:          user.Email,
 		FullName:       user.FullName,
@@ -319,7 +323,9 @@ func (p *OAuthProvider) getMicrosoftUserInfo(
 	client := p.config.Client(ctx, token)
 
 	// Call Microsoft Graph API v1.0
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://graph.microsoft.com/v1.0/me", nil)
+	req, err := http.NewRequestWithContext(
+		ctx, http.MethodGet, "https://graph.microsoft.com/v1.0/me", nil,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -348,7 +354,7 @@ func (p *OAuthProvider) getMicrosoftUserInfo(
 
 	// Email is required
 	if email == "" {
-		return nil, fmt.Errorf("microsoft account has no email address")
+		return nil, errors.New("microsoft account has no email address")
 	}
 
 	// Build full name

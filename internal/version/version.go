@@ -1,9 +1,12 @@
 package version
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 var (
-	App       string = "AuthGate"
+	App       = "AuthGate"
 	Version   string
 	GitCommit string
 	BuildTime string
@@ -14,18 +17,18 @@ var (
 
 // PrintVersion prints the version information
 func PrintVersion() {
-	fmt.Printf("%s version %s\n", App, getVersion())
+	fmt.Fprintf(os.Stdout, "%s version %s\n", App, getVersion())
 	if GitCommit != "" {
-		fmt.Printf("Git commit: %s\n", getShortCommit())
+		fmt.Fprintf(os.Stdout, "Git commit: %s\n", getShortCommit())
 	}
 	if BuildTime != "" {
-		fmt.Printf("Build time: %s\n", BuildTime)
+		fmt.Fprintf(os.Stdout, "Build time: %s\n", BuildTime)
 	}
 	if GoVersion != "" {
-		fmt.Printf("Go version: %s\n", GoVersion)
+		fmt.Fprintf(os.Stdout, "Go version: %s\n", GoVersion)
 	}
 	if BuildOS != "" && BuildArch != "" {
-		fmt.Printf("Built for: %s/%s\n", BuildOS, BuildArch)
+		fmt.Fprintf(os.Stdout, "Built for: %s/%s\n", BuildOS, BuildArch)
 	}
 }
 

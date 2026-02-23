@@ -7,8 +7,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-// Ensure Metrics implements MetricsRecorder interface at compile time
-var _ MetricsRecorder = (*Metrics)(nil)
+// Ensure Metrics implements Recorder interface at compile time
+var _ Recorder = (*Metrics)(nil)
 
 // Metrics holds all Prometheus metrics for the application
 type Metrics struct {
@@ -62,7 +62,7 @@ var (
 // If enabled=true, returns Prometheus-based Metrics
 // If enabled=false, returns NoopMetrics (zero overhead)
 // Uses sync.Once to ensure Prometheus metrics are only registered once
-func Init(enabled bool) MetricsRecorder {
+func Init(enabled bool) Recorder {
 	if !enabled {
 		return NewNoopMetrics()
 	}

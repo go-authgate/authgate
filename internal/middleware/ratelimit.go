@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -59,7 +60,7 @@ func NewRateLimiter(config RateLimitConfig) (gin.HandlerFunc, error) {
 	case RateLimitStoreRedis:
 		// Redis client must be provided when using Redis store
 		if config.RedisClient == nil {
-			return nil, fmt.Errorf(
+			return nil, errors.New(
 				"RedisClient is required when StoreType is redis (should be initialized in main.go)",
 			)
 		}
