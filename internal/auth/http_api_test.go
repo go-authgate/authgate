@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/appleboy/authgate/internal/client"
-	"github.com/appleboy/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/client"
+	"github.com/go-authgate/authgate/internal/config"
 
 	retry "github.com/appleboy/go-httpretry"
 	"github.com/stretchr/testify/assert"

@@ -1,4 +1,4 @@
-module github.com/appleboy/authgate
+module github.com/go-authgate/authgate
 
 go 1.25
 

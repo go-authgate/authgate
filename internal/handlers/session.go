@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/appleboy/authgate/internal/middleware"
-	"github.com/appleboy/authgate/internal/services"
-	"github.com/appleboy/authgate/internal/store"
-	"github.com/appleboy/authgate/internal/templates"
+	"github.com/go-authgate/authgate/internal/middleware"
+	"github.com/go-authgate/authgate/internal/services"
+	"github.com/go-authgate/authgate/internal/store"
+	"github.com/go-authgate/authgate/internal/templates"
 
 	"github.com/gin-gonic/gin"
 )

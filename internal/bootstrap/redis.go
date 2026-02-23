@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/appleboy/authgate/internal/config"
-	"github.com/appleboy/authgate/internal/middleware"
+	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/middleware"
 	"github.com/redis/go-redis/v9"
 )
 

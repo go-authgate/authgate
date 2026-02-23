@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/appleboy/authgate/internal/cache"
-	"github.com/appleboy/authgate/internal/store"
+	"github.com/go-authgate/authgate/internal/cache"
+	"github.com/go-authgate/authgate/internal/store"
 )
 
 // metricsStore defines the interface for database operations needed by MetricsCacheWrapper.

@@ -3,8 +3,8 @@ package bootstrap
 import (
 	"fmt"
 
-	"github.com/appleboy/authgate/internal/config"
-	"github.com/appleboy/authgate/internal/store"
+	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/store"
 )
 
 // initializeDatabase creates and initializes the database connection

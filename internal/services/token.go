@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/appleboy/authgate/internal/config"
-	"github.com/appleboy/authgate/internal/metrics"
-	"github.com/appleboy/authgate/internal/models"
-	"github.com/appleboy/authgate/internal/store"
-	"github.com/appleboy/authgate/internal/token"
+	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/metrics"
+	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/store"
+	"github.com/go-authgate/authgate/internal/token"
 
 	"github.com/google/uuid"
 )

@@ -3,10 +3,10 @@ package bootstrap
 import (
 	"log"
 
-	"github.com/appleboy/authgate/internal/auth"
-	"github.com/appleboy/authgate/internal/client"
-	"github.com/appleboy/authgate/internal/config"
-	"github.com/appleboy/authgate/internal/token"
+	"github.com/go-authgate/authgate/internal/auth"
+	"github.com/go-authgate/authgate/internal/client"
+	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/token"
 )
 
 // initializeHTTPAPIAuthProvider creates HTTP API auth provider when configured

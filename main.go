@@ -4,11 +4,11 @@
 //	@termsOfService	http://swagger.io/terms/
 
 //	@contact.name	API Support
-//	@contact.url	https://github.com/appleboy/authgate
+//	@contact.url	https://github.com/go-authgate/authgate
 //	@contact.email	appleboy.tw@gmail.com
 
 //	@license.name	MIT
-//	@license.url	https://github.com/appleboy/authgate/blob/main/LICENSE
+//	@license.url	https://github.com/go-authgate/authgate/blob/main/LICENSE
 
 //	@host		localhost:8080
 //	@BasePath	/
@@ -32,11 +32,11 @@ import (
 	"log"
 	"os"
 
-	"github.com/appleboy/authgate/internal/bootstrap"
-	"github.com/appleboy/authgate/internal/config"
-	"github.com/appleboy/authgate/internal/version"
+	"github.com/go-authgate/authgate/internal/bootstrap"
+	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/version"
 
-	_ "github.com/appleboy/authgate/api" // swagger docs
+	_ "github.com/go-authgate/authgate/api" // swagger docs
 )
 
 //go:embed internal/templates/*

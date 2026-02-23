@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/appleboy/authgate/internal/auth"
-	"github.com/appleboy/authgate/internal/models"
-	"github.com/appleboy/authgate/internal/store"
+	"github.com/go-authgate/authgate/internal/auth"
+	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/store"
 
 	"github.com/appleboy/com/random"
 	"github.com/google/uuid"

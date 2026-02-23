@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/appleboy/authgate/internal/auth"
-	"github.com/appleboy/authgate/internal/metrics"
-	"github.com/appleboy/authgate/internal/middleware"
-	"github.com/appleboy/authgate/internal/services"
-	"github.com/appleboy/authgate/internal/templates"
+	"github.com/go-authgate/authgate/internal/auth"
+	"github.com/go-authgate/authgate/internal/metrics"
+	"github.com/go-authgate/authgate/internal/middleware"
+	"github.com/go-authgate/authgate/internal/services"
+	"github.com/go-authgate/authgate/internal/templates"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"

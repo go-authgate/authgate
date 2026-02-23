@@ -3,9 +3,9 @@ package bootstrap
 import (
 	"log"
 
-	"github.com/appleboy/authgate/internal/cache"
-	"github.com/appleboy/authgate/internal/config"
-	"github.com/appleboy/authgate/internal/metrics"
+	"github.com/go-authgate/authgate/internal/cache"
+	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/metrics"
 )
 
 // initializeMetrics initializes Prometheus metrics

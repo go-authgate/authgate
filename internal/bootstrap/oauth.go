@@ -4,9 +4,9 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/appleboy/authgate/internal/auth"
-	"github.com/appleboy/authgate/internal/client"
-	"github.com/appleboy/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/auth"
+	"github.com/go-authgate/authgate/internal/client"
+	"github.com/go-authgate/authgate/internal/config"
 
 	"github.com/appleboy/go-httpclient"
 )

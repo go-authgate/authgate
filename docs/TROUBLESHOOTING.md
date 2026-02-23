@@ -684,7 +684,7 @@ Use "disable" for temporary account suspensions, "revoke" for security incidents
 Search for similar issues in the GitHub repository:
 
 ```
-https://github.com/appleboy/authgate/issues
+https://github.com/go-authgate/authgate/issues
 ```
 
 ### Report a Bug

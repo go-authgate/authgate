@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/appleboy/authgate/internal/config"
-	"github.com/appleboy/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

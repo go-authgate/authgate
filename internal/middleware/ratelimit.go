@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/appleboy/authgate/internal/models"
-	"github.com/appleboy/authgate/internal/services"
+	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"

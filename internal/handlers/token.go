@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/appleboy/authgate/internal/config"
-	"github.com/appleboy/authgate/internal/services"
-	"github.com/appleboy/authgate/internal/token"
+	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/services"
+	"github.com/go-authgate/authgate/internal/token"
 
 	"github.com/gin-gonic/gin"
 )

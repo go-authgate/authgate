@@ -2,8 +2,8 @@
 
 > A lightweight OAuth 2.0 Authorization Server supporting Device Authorization Grant ([RFC 8628][rfc8628]) and Authorization Code Flow with PKCE ([RFC 6749][rfc6749] + [RFC 7636][rfc7636])
 
-[![Security Scanning](https://github.com/appleboy/authgate/actions/workflows/security.yml/badge.svg)](https://github.com/appleboy/authgate/actions/workflows/security.yml)
-[![Lint and Testing](https://github.com/appleboy/authgate/actions/workflows/testing.yml/badge.svg)](https://github.com/appleboy/authgate/actions/workflows/testing.yml)
+[![Security Scanning](https://github.com/go-authgate/authgate/actions/workflows/security.yml/badge.svg)](https://github.com/go-authgate/authgate/actions/workflows/security.yml)
+[![Lint and Testing](https://github.com/go-authgate/authgate/actions/workflows/testing.yml/badge.svg)](https://github.com/go-authgate/authgate/actions/workflows/testing.yml)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## Table of Contents

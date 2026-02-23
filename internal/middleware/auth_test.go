@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/appleboy/authgate/internal/auth"
-	"github.com/appleboy/authgate/internal/config"
-	"github.com/appleboy/authgate/internal/services"
-	"github.com/appleboy/authgate/internal/store"
+	"github.com/go-authgate/authgate/internal/auth"
+	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/services"
+	"github.com/go-authgate/authgate/internal/store"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"

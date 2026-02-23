@@ -3,9 +3,9 @@ package templates
 import (
 	"time"
 
-	"github.com/appleboy/authgate/internal/models"
-	"github.com/appleboy/authgate/internal/services"
-	"github.com/appleboy/authgate/internal/store"
+	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/services"
+	"github.com/go-authgate/authgate/internal/store"
 )
 
 // BaseProps contains common properties shared across all pages

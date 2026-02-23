@@ -7,12 +7,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/appleboy/authgate/internal/middleware"
-	"github.com/appleboy/authgate/internal/models"
-	"github.com/appleboy/authgate/internal/services"
-	"github.com/appleboy/authgate/internal/store"
-	"github.com/appleboy/authgate/internal/templates"
 	"github.com/gin-gonic/gin"
+	"github.com/go-authgate/authgate/internal/middleware"
+	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/services"
+	"github.com/go-authgate/authgate/internal/store"
+	"github.com/go-authgate/authgate/internal/templates"
 )
 
 const (

@@ -3,10 +3,10 @@ package bootstrap
 import (
 	"log"
 
-	"github.com/appleboy/authgate/internal/config"
-	"github.com/appleboy/authgate/internal/middleware"
-	"github.com/appleboy/authgate/internal/services"
 	"github.com/gin-gonic/gin"
+	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/middleware"
+	"github.com/go-authgate/authgate/internal/services"
 	"github.com/redis/go-redis/v9"
 )
 

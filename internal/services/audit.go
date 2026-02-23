@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/appleboy/authgate/internal/models"
-	"github.com/appleboy/authgate/internal/store"
-	"github.com/appleboy/authgate/internal/util"
+	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/store"
+	"github.com/go-authgate/authgate/internal/util"
 	"github.com/google/uuid"
 )
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/appleboy/authgate/internal/models"
-	"github.com/appleboy/authgate/internal/store"
+	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/store"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
