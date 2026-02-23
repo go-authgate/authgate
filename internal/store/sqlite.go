@@ -106,6 +106,17 @@ func (s *Store) Close(ctx context.Context) error {
 		done <- sqlDB.Close()
 	}()
 
+	// Check if context is already canceled (deterministic fast-path)
+	// This ensures pre-canceled contexts always return timeout error
+	select {
+	case <-ctx.Done():
+		// Context already canceled - return immediately but close continues in background
+		return fmt.Errorf("database close timeout: %w", ctx.Err())
+	default:
+		// Context not canceled yet, proceed to blocking select
+	}
+
+	// Wait for either close completion or context cancellation
 	select {
 	case err := <-done:
 		return err

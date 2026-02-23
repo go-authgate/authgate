@@ -1,7 +1,6 @@
 package config
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -108,9 +107,8 @@ func TestTimeoutConfigurationFromEnv(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set environment variable
-			os.Setenv(tt.envKey, tt.envValue)
-			defer os.Unsetenv(tt.envKey)
+			// Set environment variable (automatically scoped to test)
+			t.Setenv(tt.envKey, tt.envValue)
 
 			// Load configuration
 			cfg := Load()
@@ -149,9 +147,8 @@ func TestTimeoutConfigurationInvalidValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set environment variable
-			os.Setenv(tt.envKey, tt.envValue)
-			defer os.Unsetenv(tt.envKey)
+			// Set environment variable (automatically scoped to test)
+			t.Setenv(tt.envKey, tt.envValue)
 
 			// Load configuration
 			cfg := Load()
