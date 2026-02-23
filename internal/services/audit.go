@@ -11,6 +11,7 @@ import (
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/store"
 	"github.com/go-authgate/authgate/internal/util"
+
 	"github.com/google/uuid"
 )
 
@@ -151,7 +152,7 @@ func (s *AuditService) Log(ctx context.Context, entry AuditLogEntry) {
 
 	// Extract username from context if not provided
 	if entry.ActorUsername == "" {
-		entry.ActorUsername = util.GetUsernameFromContext(ctx)
+		entry.ActorUsername = models.GetUsernameFromContext(ctx)
 	}
 
 	// Mask sensitive data
@@ -202,7 +203,7 @@ func (s *AuditService) LogSync(ctx context.Context, entry AuditLogEntry) error {
 
 	// Extract username from context if not provided
 	if entry.ActorUsername == "" {
-		entry.ActorUsername = util.GetUsernameFromContext(ctx)
+		entry.ActorUsername = models.GetUsernameFromContext(ctx)
 	}
 
 	// Mask sensitive data

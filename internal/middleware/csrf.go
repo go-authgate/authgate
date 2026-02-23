@@ -5,9 +5,10 @@ import (
 	"encoding/base64"
 	"net/http"
 
+	"github.com/go-authgate/authgate/internal/templates"
+
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
-	"github.com/go-authgate/authgate/internal/templates"
 )
 
 const (

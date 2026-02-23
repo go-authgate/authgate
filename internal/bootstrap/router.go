@@ -13,7 +13,6 @@ import (
 	"github.com/go-authgate/authgate/internal/middleware"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/store"
-	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -41,7 +40,7 @@ func setupRouter(
 	// Setup middleware
 	r.Use(metrics.HTTPMetricsMiddleware(prometheusMetrics))
 	r.Use(gin.Logger(), gin.Recovery())
-	r.Use(util.IPMiddleware())
+	r.Use(middleware.IPMiddleware())
 
 	// Setup session middleware
 	setupSessionMiddleware(r, cfg)
