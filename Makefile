@@ -26,7 +26,7 @@ LDFLAGS ?= -X 'github.com/go-authgate/authgate/internal/version.Version=$(VERSIO
 	-X 'github.com/go-authgate/authgate/internal/version.BuildArch=$(shell $(GO) env GOARCH)'
 
 ## build: build the authgate binary
-build: generate $(EXECUTABLE)
+build: $(EXECUTABLE)
 
 $(EXECUTABLE): $(GOFILES)
 	$(GO) build -v -tags '$(TAGS)' -ldflags '$(EXTLDFLAGS)-s -w $(LDFLAGS)' -o bin/$@ .

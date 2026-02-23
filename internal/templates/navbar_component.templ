@@ -19,17 +19,17 @@ templ Navbar(props *NavbarProps) {
 							"Account",
 							props.ActiveLink == "sessions" || props.ActiveLink == "authorizations",
 						) {
-							@NavDropdownItem("/account/sessions", "Active Sessions", props.ActiveLink == "sessions", false)
-							@NavDropdownItem("/account/authorizations", "Authorized Apps", props.ActiveLink == "authorizations", false)
+							@NavDropdownItem("/account/sessions", "Active Sessions", props.ActiveLink == "sessions", false, false)
+							@NavDropdownItem("/account/authorizations", "Authorized Apps", props.ActiveLink == "authorizations", false, false)
 						}
 						@NavDropdown("API Docs", props.ActiveLink == "apidocs") {
-							@NavDropdownItem("/swagger/index.html", "Swagger UI", props.ActiveLink == "apidocs", false)
+							@NavDropdownItem("/swagger/index.html", "Swagger UI", props.ActiveLink == "apidocs", false, true)
 						}
 						if props.IsAdmin {
 							<div class="navbar-admin-divider" aria-hidden="true"></div>
 							@NavAdminDropdown(props.ActiveLink == "clients" || props.ActiveLink == "audit") {
-								@NavDropdownItem("/admin/clients", "OAuth Clients", props.ActiveLink == "clients", true)
-								@NavDropdownItem("/admin/audit", "Audit Logs", props.ActiveLink == "audit", true)
+								@NavDropdownItem("/admin/clients", "OAuth Clients", props.ActiveLink == "clients", true, false)
+								@NavDropdownItem("/admin/audit", "Audit Logs", props.ActiveLink == "audit", true, false)
 							}
 						}
 					</div>
@@ -40,7 +40,7 @@ templ Navbar(props *NavbarProps) {
 				} else {
 					<div class="navbar-links">
 						@NavDropdown("API Docs", props.ActiveLink == "apidocs") {
-							@NavDropdownItem("/swagger/index.html", "Swagger UI", props.ActiveLink == "apidocs", false)
+							@NavDropdownItem("/swagger/index.html", "Swagger UI", props.ActiveLink == "apidocs", false, true)
 						}
 					</div>
 				}
@@ -107,11 +107,15 @@ templ NavAdminDropdown(isActive bool) {
 	</div>
 }
 
-templ NavDropdownItem(href, label string, isActive bool, isAdmin bool) {
+templ NavDropdownItem(href, label string, isActive bool, isAdmin bool, isExternal bool) {
 	<a
 		href={ templ.URL(href) }
 		class={ templ.Classes("navbar-dropdown-item", templ.KV("active", isActive), templ.KV("admin", isAdmin)) }
 		role="menuitem"
+		if isExternal {
+			target="_blank"
+			rel="noopener noreferrer"
+		}
 	>
 		{ label }
 	</a>
