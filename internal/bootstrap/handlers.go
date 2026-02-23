@@ -20,6 +20,7 @@ type handlerSet struct {
 	oauth         *handlers.OAuthHandler
 	audit         *handlers.AuditHandler
 	authorization *handlers.AuthorizationHandler
+	oidc          *handlers.OIDCHandler
 	userService   *services.UserService
 }
 
@@ -63,6 +64,7 @@ func initializeHandlers(
 			userService,
 			cfg,
 		),
+		oidc:        handlers.NewOIDCHandler(tokenService, userService, cfg),
 		userService: userService,
 	}
 }

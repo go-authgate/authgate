@@ -77,6 +77,7 @@ Modern CLI tools and IoT devices need secure user authentication, but traditiona
 ## ✨ Key Features
 
 - **Dual OAuth 2.0 Flows**: Device Authorization Grant ([RFC 8628][rfc8628]) for CLI/IoT tools, and Authorization Code Flow with PKCE ([RFC 6749][rfc6749] + [RFC 7636][rfc7636]) for web and mobile apps
+- **OIDC UserInfo & Discovery**: `/.well-known/openid-configuration` discovery endpoint and `/oauth/userinfo` endpoint returning profile claims (`openid`, `profile`, `email` scopes)
 - **User Consent Management**: Users can review and revoke per-app access at `/account/authorizations`; admins can force re-authentication for all users of any client
 - **Security First**: Rate limiting, audit logging, CSRF protection, PKCE enforcement, and session management built-in
 - **Production Ready**: Built-in monitoring with Prometheus metrics, health checks, comprehensive audit trails, and graceful shutdown with configurable timeouts
@@ -245,21 +246,23 @@ sequenceDiagram
 
 **Key Endpoints:**
 
-| Endpoint                            | Method | Purpose                                       |
-| ----------------------------------- | ------ | --------------------------------------------- |
-| `/oauth/device/code`                | POST   | Request device code (CLI)                     |
-| `/oauth/authorize`                  | GET    | Authorization consent page (web apps)         |
-| `/oauth/authorize`                  | POST   | Submit consent decision                       |
-| `/oauth/token`                      | POST   | Exchange code / device code / refresh token   |
-| `/oauth/tokeninfo`                  | GET    | Verify token validity                         |
-| `/oauth/revoke`                     | POST   | Revoke tokens ([RFC 7009][rfc7009])           |
-| `/device`                           | GET    | Device code entry page (browser)              |
-| `/account/sessions`                 | GET    | Manage active token sessions                  |
-| `/account/authorizations`           | GET    | Manage per-app consent grants                 |
-| `/admin/clients/:id/authorizations` | GET    | Admin: view all authorized users for a client |
-| `/admin/clients/:id/revoke-all`     | POST   | Admin: force re-auth for all users            |
-| `/health`                           | GET    | Health check                                  |
-| `/metrics`                          | GET    | Prometheus metrics (optional auth)            |
+| Endpoint                                    | Method   | Purpose                                              |
+| ------------------------------------------- | -------- | ---------------------------------------------------- |
+| `/.well-known/openid-configuration`         | GET      | OIDC Discovery metadata                              |
+| `/oauth/device/code`                        | POST     | Request device code (CLI)                            |
+| `/oauth/authorize`                          | GET      | Authorization consent page (web apps)                |
+| `/oauth/authorize`                          | POST     | Submit consent decision                              |
+| `/oauth/token`                              | POST     | Exchange code / device code / refresh token          |
+| `/oauth/tokeninfo`                          | GET      | Verify token validity                                |
+| `/oauth/userinfo`                           | GET/POST | OIDC UserInfo — profile claims for token owner       |
+| `/oauth/revoke`                             | POST     | Revoke tokens ([RFC 7009][rfc7009])                  |
+| `/device`                                   | GET      | Device code entry page (browser)                     |
+| `/account/sessions`                         | GET      | Manage active token sessions                         |
+| `/account/authorizations`                   | GET      | Manage per-app consent grants                        |
+| `/admin/clients/:id/authorizations`         | GET      | Admin: view all authorized users for a client        |
+| `/admin/clients/:id/revoke-all`             | POST     | Admin: force re-auth for all users                   |
+| `/health`                                   | GET      | Health check                                         |
+| `/metrics`                                  | GET      | Prometheus metrics (optional auth)                   |
 
 **[Full API Reference →](docs/ARCHITECTURE.md#key-endpoints)** | **[Metrics Documentation →](docs/METRICS.md)**
 
@@ -548,6 +551,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [RFC 7636 - PKCE for OAuth Public Clients][rfc7636]
 - [RFC 7009 - OAuth 2.0 Token Revocation][rfc7009]
 - [RFC 8725 - JWT Best Practices][rfc8725]
+- [RFC 8414 - OAuth 2.0 Authorization Server Metadata][rfc8414]
+- [OpenID Connect Core 1.0][oidccore]
 
 ---
 
@@ -573,3 +578,5 @@ Built with:
 [rfc7636]: https://datatracker.ietf.org/doc/html/rfc7636
 [rfc7009]: https://datatracker.ietf.org/doc/html/rfc7009
 [rfc8725]: https://datatracker.ietf.org/doc/html/rfc8725
+[rfc8414]: https://datatracker.ietf.org/doc/html/rfc8414
+[oidccore]: https://openid.net/specs/openid-connect-core-1_0.html

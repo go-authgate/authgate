@@ -21,6 +21,7 @@ authgate/
 │   ├── auth.go      # User login/logout endpoints
 │   ├── device.go    # Device authorization flow (/device, /device/verify)
 │   ├── token.go     # Token issuance (/oauth/token), verification (/oauth/tokeninfo), and revocation (/oauth/revoke)
+│   ├── oidc.go      # OIDC Discovery (/.well-known/openid-configuration) and UserInfo (/oauth/userinfo)
 │   ├── session.go   # Session management (/account/sessions)
 │   ├── client.go    # Admin client management
 │   ├── oauth_handler.go  # OAuth third-party login handlers
@@ -143,31 +144,33 @@ sequenceDiagram
 
 ## Key Endpoints
 
-| Endpoint                            | Method   | Auth Required | Purpose                                                                       |
-| ----------------------------------- | -------- | ------------- | ----------------------------------------------------------------------------- |
-| `/health`                           | GET      | No            | Health check with database connection test                                    |
-| `/oauth/device/code`                | POST     | No            | Request device and user codes (CLI/device)                                    |
-| `/oauth/authorize`                  | GET      | Yes (Session) | Authorization Code Flow consent page (web apps)                               |
-| `/oauth/authorize`                  | POST     | Yes (Session) | Submit consent decision (allow/deny)                                          |
-| `/oauth/token`                      | POST     | No            | Token endpoint (grant_type=device_code, authorization_code, or refresh_token) |
-| `/oauth/tokeninfo`                  | GET      | No            | Verify token validity (pass token as query)                                   |
-| `/oauth/revoke`                     | POST     | No            | Revoke access token (RFC 7009)                                                |
-| `/device`                           | GET      | Yes (Session) | User authorization page (browser)                                             |
-| `/device/verify`                    | POST     | Yes (Session) | Complete authorization (submit user_code)                                     |
-| `/account/sessions`                 | GET      | Yes (Session) | View all active sessions                                                      |
-| `/account/sessions/:id/revoke`      | POST     | Yes (Session) | Revoke specific session                                                       |
-| `/account/sessions/revoke-all`      | POST     | Yes (Session) | Revoke all user sessions                                                      |
-| `/account/authorizations`           | GET      | Yes (Session) | View apps authorized via Authorization Code Flow                              |
-| `/login`                            | GET/POST | No            | User login (creates session)                                                  |
-| `/logout`                           | GET      | Yes (Session) | User logout (destroys session)                                                |
-| `/auth/login/:provider`             | GET      | No            | Initiate OAuth login (provider: github, gitea, microsoft)                     |
-| `/auth/callback/:provider`          | GET      | No            | OAuth callback endpoint                                                       |
-| `/admin/audit`                      | GET      | Yes (Admin)   | View audit logs (HTML interface)                                              |
-| `/admin/audit/export`               | GET      | Yes (Admin)   | Export audit logs as CSV                                                      |
-| `/admin/audit/api`                  | GET      | Yes (Admin)   | List audit logs (JSON API)                                                    |
-| `/admin/audit/api/stats`            | GET      | Yes (Admin)   | Get audit log statistics                                                      |
-| `/admin/clients/:id/authorizations` | GET      | Yes (Admin)   | View all users who consented to a client                                      |
-| `/admin/clients/:id/revoke-all`     | POST     | Yes (Admin)   | Revoke all tokens and consents for a client                                   |
+| Endpoint                            | Method   | Auth Required | Purpose                                                                        |
+| ----------------------------------- | -------- | ------------- | ------------------------------------------------------------------------------ |
+| `/health`                           | GET      | No            | Health check with database connection test                                     |
+| `/.well-known/openid-configuration` | GET      | No            | OIDC Discovery metadata (RFC 8414 / OIDC Discovery 1.0)                        |
+| `/oauth/device/code`                | POST     | No            | Request device and user codes (CLI/device)                                     |
+| `/oauth/authorize`                  | GET      | Yes (Session) | Authorization Code Flow consent page (web apps)                                |
+| `/oauth/authorize`                  | POST     | Yes (Session) | Submit consent decision (allow/deny)                                           |
+| `/oauth/token`                      | POST     | No            | Token endpoint (grant_type=device_code, authorization_code, or refresh_token)  |
+| `/oauth/tokeninfo`                  | GET      | No            | Verify token validity (pass token as query)                                    |
+| `/oauth/userinfo`                   | GET/POST | No (Bearer)   | OIDC UserInfo — returns profile claims for authenticated user (OIDC Core §5.3) |
+| `/oauth/revoke`                     | POST     | No            | Revoke access token (RFC 7009)                                                 |
+| `/device`                           | GET      | Yes (Session) | User authorization page (browser)                                              |
+| `/device/verify`                    | POST     | Yes (Session) | Complete authorization (submit user_code)                                      |
+| `/account/sessions`                 | GET      | Yes (Session) | View all active sessions                                                       |
+| `/account/sessions/:id/revoke`      | POST     | Yes (Session) | Revoke specific session                                                        |
+| `/account/sessions/revoke-all`      | POST     | Yes (Session) | Revoke all user sessions                                                       |
+| `/account/authorizations`           | GET      | Yes (Session) | View apps authorized via Authorization Code Flow                               |
+| `/login`                            | GET/POST | No            | User login (creates session)                                                   |
+| `/logout`                           | GET      | Yes (Session) | User logout (destroys session)                                                 |
+| `/auth/login/:provider`             | GET      | No            | Initiate OAuth login (provider: github, gitea, microsoft)                      |
+| `/auth/callback/:provider`          | GET      | No            | OAuth callback endpoint                                                        |
+| `/admin/audit`                      | GET      | Yes (Admin)   | View audit logs (HTML interface)                                               |
+| `/admin/audit/export`               | GET      | Yes (Admin)   | Export audit logs as CSV                                                       |
+| `/admin/audit/api`                  | GET      | Yes (Admin)   | List audit logs (JSON API)                                                     |
+| `/admin/audit/api/stats`            | GET      | Yes (Admin)   | Get audit log statistics                                                       |
+| `/admin/clients/:id/authorizations` | GET      | Yes (Admin)   | View all users who consented to a client                                       |
+| `/admin/clients/:id/revoke-all`     | POST     | Yes (Admin)   | Revoke all tokens and consents for a client                                    |
 
 ### Endpoint Details
 
@@ -192,6 +195,37 @@ sequenceDiagram
 #### Token Validation
 
 - `GET /oauth/tokeninfo?access_token=<JWT>` - Returns token details or error
+
+#### OIDC Discovery & UserInfo
+
+- `GET /.well-known/openid-configuration` - Returns OIDC Provider Metadata (RFC 8414):
+  - Issuer, authorization/token/userinfo/revocation endpoint URLs
+  - Supported response types, grant types, scopes, claims, and code challenge methods
+
+- `GET /oauth/userinfo` or `POST /oauth/userinfo` - Returns claims for the token owner (OIDC Core 1.0 §5.3):
+  - Requires `Authorization: Bearer <access_token>` header
+  - Returns `401` with `WWW-Authenticate: Bearer error="invalid_token"` on failure
+  - Claims returned depend on the scopes granted when the token was issued:
+
+| Scope     | Claims returned                                                    |
+| --------- | ------------------------------------------------------------------ |
+| _(any)_   | `sub` (always present — user UUID)                                 |
+| `profile` | `name`, `preferred_username`, `picture` (if set), `updated_at`     |
+| `email`   | `email`, `email_verified` (always `false` — no email verification) |
+
+Example request for `openid profile email` scopes:
+
+```json
+{
+  "sub": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "John Doe",
+  "preferred_username": "johndoe",
+  "picture": "https://example.com/avatar.jpg",
+  "updated_at": 1708646400,
+  "email": "john@example.com",
+  "email_verified": false
+}
+```
 
 #### Token Revocation (RFC 7009)
 
