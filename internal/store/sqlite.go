@@ -24,7 +24,7 @@ type Store struct {
 	db *gorm.DB
 }
 
-func New(driver, dsn string, cfg *config.Config) (*Store, error) {
+func New(ctx context.Context, driver, dsn string, cfg *config.Config) (*Store, error) {
 	dialector, err := GetDialector(driver, dsn)
 	if err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func New(driver, dsn string, cfg *config.Config) (*Store, error) {
 	}
 
 	// Auto migrate
-	if err := db.AutoMigrate(
+	if err := db.WithContext(ctx).AutoMigrate(
 		&models.User{},
 		&models.OAuthApplication{},
 		&models.DeviceCode{},
@@ -86,7 +86,7 @@ func New(driver, dsn string, cfg *config.Config) (*Store, error) {
 	store := &Store{db: db}
 
 	// Seed default data
-	if err := store.seedData(cfg); err != nil {
+	if err := store.seedData(ctx, cfg); err != nil {
 		log.Printf("Warning: failed to seed data: %v", err)
 	}
 
@@ -103,10 +103,10 @@ func generateRandomPassword(length int) (string, error) {
 	return base64.URLEncoding.EncodeToString(bytes)[:length], nil
 }
 
-func (s *Store) seedData(cfg *config.Config) error {
+func (s *Store) seedData(ctx context.Context, cfg *config.Config) error {
 	// Create default user if not exists
 	var userCount int64
-	s.db.Model(&models.User{}).Count(&userCount)
+	s.db.WithContext(ctx).Model(&models.User{}).Count(&userCount)
 	userID := uuid.New().String()
 	if userCount == 0 {
 		var password string
@@ -134,7 +134,7 @@ func (s *Store) seedData(cfg *config.Config) error {
 			PasswordHash: string(hash),
 			Role:         "admin",
 		}
-		if err := s.db.Create(user).Error; err != nil {
+		if err := s.db.WithContext(ctx).Create(user).Error; err != nil {
 			return err
 		}
 
@@ -148,7 +148,7 @@ func (s *Store) seedData(cfg *config.Config) error {
 
 	// Create default OAuth client if not exists
 	var clientCount int64
-	s.db.Model(&models.OAuthApplication{}).Count(&clientCount)
+	s.db.WithContext(ctx).Model(&models.OAuthApplication{}).Count(&clientCount)
 	if clientCount == 0 {
 		clientID := uuid.New().String()
 		client := &models.OAuthApplication{
@@ -162,11 +162,11 @@ func (s *Store) seedData(cfg *config.Config) error {
 			EnableDeviceFlow: true,
 			IsActive:         true,
 		}
-		clientSecret, err := client.GenerateClientSecret(context.Background())
+		clientSecret, err := client.GenerateClientSecret(ctx)
 		if err != nil {
 			return err
 		}
-		if err := s.db.Create(client).Error; err != nil {
+		if err := s.db.WithContext(ctx).Create(client).Error; err != nil {
 			return err
 		}
 		log.Printf("Created default OAuth client: %s (AuthGate CLI)", clientID)

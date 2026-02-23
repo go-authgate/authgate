@@ -23,7 +23,7 @@ func setupTestService(t *testing.T) (*DeviceService, *models.OAuthApplication) {
 		PollingInterval:      5,
 	}
 
-	st, err := store.New("sqlite", ":memory:", cfg)
+	st, err := store.New(context.Background(), "sqlite", ":memory:", cfg)
 	require.NoError(t, err)
 	service := NewDeviceService(st, cfg, nil, metrics.NewNoopMetrics())
 

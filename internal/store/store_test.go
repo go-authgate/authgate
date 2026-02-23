@@ -119,7 +119,7 @@ func createFreshStore(t *testing.T, driver string, pgContainer *postgres.Postgre
 		t.Fatalf("unsupported driver: %s", driver)
 	}
 
-	store, err := New(driver, dsn, getTestConfig())
+	store, err := New(context.Background(), driver, dsn, getTestConfig())
 	require.NoError(t, err)
 	require.NotNil(t, store)
 
@@ -336,7 +336,7 @@ func TestRegisterDriver(t *testing.T) {
 // MarkAuthorizationCodeUsed twice for the same ID returns ErrAuthCodeAlreadyUsed
 // on the second call, simulating what happens in a concurrent exchange race.
 func TestMarkAuthorizationCodeUsed_AtomicDoubleCall(t *testing.T) {
-	store, err := New("sqlite", ":memory:", getTestConfig())
+	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
 	code := &models.AuthorizationCode{
@@ -363,7 +363,7 @@ func TestMarkAuthorizationCodeUsed_AtomicDoubleCall(t *testing.T) {
 // TestUpsertUserAuthorization_NewRecord verifies that the first call for a
 // (user_id, application_id) pair creates a new active record.
 func TestUpsertUserAuthorization_NewRecord(t *testing.T) {
-	s, err := New("sqlite", ":memory:", getTestConfig())
+	s, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
 	auth := &models.UserAuthorization{
@@ -389,7 +389,7 @@ func TestUpsertUserAuthorization_NewRecord(t *testing.T) {
 // for the same (user_id, application_id) updates the existing row rather than
 // inserting a duplicate.
 func TestUpsertUserAuthorization_ConflictUpdatesRecord(t *testing.T) {
-	s, err := New("sqlite", ":memory:", getTestConfig())
+	s, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
 	userID := uuid.New().String()
@@ -431,7 +431,7 @@ func TestUpsertUserAuthorization_ConflictUpdatesRecord(t *testing.T) {
 // TestUpsertUserAuthorization_ReactivatesRevoked verifies that upserting after a
 // revocation re-activates the record and clears RevokedAt.
 func TestUpsertUserAuthorization_ReactivatesRevoked(t *testing.T) {
-	s, err := New("sqlite", ":memory:", getTestConfig())
+	s, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
 	userID := uuid.New().String()
@@ -477,7 +477,7 @@ func TestUpsertUserAuthorization_ReactivatesRevoked(t *testing.T) {
 // TestUpsertUserAuthorization_DifferentUsersSameApp verifies that two distinct
 // users can each hold an independent consent record for the same application.
 func TestUpsertUserAuthorization_DifferentUsersSameApp(t *testing.T) {
-	s, err := New("sqlite", ":memory:", getTestConfig())
+	s, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
 	clientID := uuid.New().String()
@@ -514,7 +514,7 @@ func TestUpsertUserAuthorization_DifferentUsersSameApp(t *testing.T) {
 
 // BenchmarkStoreOperations benchmarks basic store operations
 func BenchmarkStoreOperations(b *testing.B) {
-	store, err := New("sqlite", ":memory:", getTestConfig())
+	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
 	require.NoError(b, err)
 
 	b.Run("CreateUser", func(b *testing.B) {
@@ -548,7 +548,7 @@ func BenchmarkStoreOperations(b *testing.B) {
 
 // TestUpsertExternalUser_UsernameConflict_OnCreate tests username conflict detection when creating new users
 func TestUpsertExternalUser_UsernameConflict_OnCreate(t *testing.T) {
-	store, err := New("sqlite", ":memory:", getTestConfig())
+	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
 	// Create a local user first
@@ -578,7 +578,7 @@ func TestUpsertExternalUser_UsernameConflict_OnCreate(t *testing.T) {
 
 // TestUpsertExternalUser_UsernameConflict_OnUpdate tests username conflict when updating existing user
 func TestUpsertExternalUser_UsernameConflict_OnUpdate(t *testing.T) {
-	store, err := New("sqlite", ":memory:", getTestConfig())
+	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
 	// Create first external user
@@ -624,7 +624,7 @@ func TestUpsertExternalUser_UsernameConflict_OnUpdate(t *testing.T) {
 
 // TestUpsertExternalUser_SameUserKeepsUsername tests that same user can keep their username
 func TestUpsertExternalUser_SameUserKeepsUsername(t *testing.T) {
-	store, err := New("sqlite", ":memory:", getTestConfig())
+	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
 	// Create external user
@@ -654,7 +654,7 @@ func TestUpsertExternalUser_SameUserKeepsUsername(t *testing.T) {
 
 // TestUpsertExternalUser_Success_NewUser tests successful creation of new external user
 func TestUpsertExternalUser_Success_NewUser(t *testing.T) {
-	store, err := New("sqlite", ":memory:", getTestConfig())
+	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
 	user, err := store.UpsertExternalUser(
@@ -678,7 +678,7 @@ func TestUpsertExternalUser_Success_NewUser(t *testing.T) {
 
 // TestUpsertExternalUser_Success_UpdateExisting tests successful update of existing external user
 func TestUpsertExternalUser_Success_UpdateExisting(t *testing.T) {
-	store, err := New("sqlite", ":memory:", getTestConfig())
+	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
 	// Create user
@@ -753,7 +753,7 @@ func TestDefaultAdminPassword_WhitespaceHandling(t *testing.T) {
 				DefaultAdminPassword: tt.defaultAdminPassword,
 			}
 
-			store, err := New("sqlite", ":memory:", cfg)
+			store, err := New(context.Background(), "sqlite", ":memory:", cfg)
 			require.NoError(t, err)
 			require.NotNil(t, store)
 

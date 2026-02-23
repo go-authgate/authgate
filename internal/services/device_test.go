@@ -20,7 +20,7 @@ func setupTestStore(t *testing.T) *store.Store {
 	cfg := &config.Config{
 		DefaultAdminPassword: "", // Use random password in tests
 	}
-	s, err := store.New("sqlite", ":memory:", cfg)
+	s, err := store.New(context.Background(), "sqlite", ":memory:", cfg)
 	require.NoError(t, err)
 	return s
 }

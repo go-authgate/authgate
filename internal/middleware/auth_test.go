@@ -39,7 +39,7 @@ func createTestUserService(t *testing.T) *services.UserService {
 	t.Helper()
 
 	// Create in-memory store
-	testStore, err := store.New("sqlite", ":memory:", &config.Config{})
+	testStore, err := store.New(context.Background(), "sqlite", ":memory:", &config.Config{})
 	require.NoError(t, err)
 
 	// Create minimal auth providers
