@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/middleware"
@@ -14,7 +13,10 @@ import (
 // initializeRateLimitRedisClient initializes the go-redis client for rate limiting.
 // Returns nil if rate limiting is disabled or using memory store.
 // Note: rate limiting must use go-redis because ulule/limiter depends on go-redis types.
-func initializeRateLimitRedisClient(cfg *config.Config) (*redis.Client, error) {
+func initializeRateLimitRedisClient(
+	ctx context.Context,
+	cfg *config.Config,
+) (*redis.Client, error) {
 	// Skip if rate limiting is disabled
 	if !cfg.EnableRateLimit {
 		return nil, nil
@@ -32,9 +34,10 @@ func initializeRateLimitRedisClient(cfg *config.Config) (*redis.Client, error) {
 		DB:       cfg.RedisDB,
 	})
 
-	// Test connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Test connection with timeout
+	ctx, cancel := context.WithTimeout(ctx, cfg.RedisConnTimeout)
 	defer cancel()
+
 	if err := client.Ping(ctx).Err(); err != nil {
 		client.Close()
 		return nil, fmt.Errorf("failed to connect to Redis at %s: %w", cfg.RedisAddr, err)

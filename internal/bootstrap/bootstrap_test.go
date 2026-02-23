@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -66,28 +67,36 @@ func TestInitializeMetrics(t *testing.T) {
 }
 
 func TestInitializeMetricsCacheDisabled(t *testing.T) {
+	ctx := context.Background()
+
 	// Metrics disabled - no cache
-	c, closer := initializeMetricsCache(
+	c, closer, err := initializeMetricsCache(
+		ctx,
 		&config.Config{MetricsEnabled: false, MetricsGaugeUpdateEnabled: true},
 	)
+	assert.NoError(t, err)
 	assert.Nil(t, c)
 	assert.Nil(t, closer)
 
 	// Gauge updates disabled - no cache
-	c, closer = initializeMetricsCache(
+	c, closer, err = initializeMetricsCache(
+		ctx,
 		&config.Config{MetricsEnabled: true, MetricsGaugeUpdateEnabled: false},
 	)
+	assert.NoError(t, err)
 	assert.Nil(t, c)
 	assert.Nil(t, closer)
 }
 
 func TestInitializeMetricsCacheMemory(t *testing.T) {
+	ctx := context.Background()
 	cfg := &config.Config{
 		MetricsEnabled:            true,
 		MetricsGaugeUpdateEnabled: true,
 		MetricsCacheType:          config.MetricsCacheTypeMemory,
 	}
-	c, closer := initializeMetricsCache(cfg)
+	c, closer, err := initializeMetricsCache(ctx, cfg)
+	require.NoError(t, err)
 	require.NotNil(t, c)
 	require.NotNil(t, closer)
 	_ = closer()

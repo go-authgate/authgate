@@ -96,6 +96,12 @@ RATE_LIMIT_STORE=memory
 # Audit Logging
 ENABLE_AUDIT_LOGGING=true
 AUDIT_LOG_RETENTION=2160h
+
+# Optional: Tune timeouts for production (defaults shown)
+# DB_INIT_TIMEOUT=30s
+# SERVER_SHUTDOWN_TIMEOUT=5s
+# AUDIT_SHUTDOWN_TIMEOUT=10s
+# See: https://github.com/go-authgate/authgate/blob/main/docs/CONFIGURATION.md#bootstrap-and-shutdown-timeouts
 ```
 
 Set proper permissions:
@@ -526,6 +532,7 @@ Before going live, ensure you've completed:
 - [ ] Set up reverse proxy (Nginx/Caddy)
 - [ ] Obtained SSL certificates
 - [ ] Configured automatic SSL renewal
+- [ ] Tuned timeout values for your environment (see [Bootstrap and Shutdown Timeouts](CONFIGURATION.md#bootstrap-and-shutdown-timeouts))
 
 ### Application
 

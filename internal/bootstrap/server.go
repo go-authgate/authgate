@@ -42,10 +42,12 @@ func addServerRunningJob(m *graceful.Manager, srv *http.Server) {
 }
 
 // addServerShutdownJob adds HTTP server shutdown handler
-func addServerShutdownJob(m *graceful.Manager, srv *http.Server) {
+func addServerShutdownJob(m *graceful.Manager, srv *http.Server, cfg *config.Config) {
 	m.AddShutdownJob(func() error {
 		log.Println("Shutting down server...")
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+		// Use fresh context with timeout (not derived from already-canceled shutdown context)
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.ServerShutdownTimeout)
 		defer cancel()
 
 		if err := srv.Shutdown(ctx); err != nil {
@@ -59,27 +61,50 @@ func addServerShutdownJob(m *graceful.Manager, srv *http.Server) {
 }
 
 // addRedisClientShutdownJob adds Redis client shutdown handler
-func addRedisClientShutdownJob(m *graceful.Manager, redisClient *redis.Client) {
+func addRedisClientShutdownJob(m *graceful.Manager, redisClient *redis.Client, cfg *config.Config) {
 	if redisClient == nil {
 		return
 	}
 
 	m.AddShutdownJob(func() error {
 		log.Println("Closing Redis connection...")
-		if err := redisClient.Close(); err != nil {
-			log.Printf("Error closing Redis client: %v", err)
-			return err
+
+		// Use fresh context with timeout (not derived from already-canceled shutdown context)
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.RedisCloseTimeout)
+		defer cancel()
+
+		// Close operation with timeout protection
+		done := make(chan error, 1)
+		go func() {
+			done <- redisClient.Close()
+		}()
+
+		select {
+		case err := <-done:
+			if err != nil {
+				log.Printf("Error closing Redis client: %v", err)
+				return err
+			}
+			log.Println("Redis connection closed")
+			return nil
+		case <-ctx.Done():
+			log.Println("Redis close timeout exceeded")
+			return ctx.Err()
 		}
-		log.Println("Redis connection closed")
-		return nil
 	})
 }
 
 // addAuditServiceShutdownJob adds audit service shutdown handler
-func addAuditServiceShutdownJob(m *graceful.Manager, auditService *services.AuditService) {
+func addAuditServiceShutdownJob(
+	m *graceful.Manager,
+	auditService *services.AuditService,
+	cfg *config.Config,
+) {
 	m.AddShutdownJob(func() error {
 		log.Println("Shutting down audit service...")
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+
+		// Use fresh context with timeout (not derived from already-canceled shutdown context)
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.AuditShutdownTimeout)
 		defer cancel()
 
 		if err := auditService.Shutdown(ctx); err != nil {
@@ -172,17 +197,53 @@ func addMetricsGaugeUpdateJob(
 }
 
 // addCacheCleanupJob adds cache cleanup on shutdown
-func addCacheCleanupJob(m *graceful.Manager, metricsCacheCloser func() error) {
-	if metricsCacheCloser == nil {
+func addCacheCleanupJob(m *graceful.Manager, metricsCache cache.Cache, cfg *config.Config) {
+	if metricsCache == nil {
 		return
 	}
 
 	m.AddShutdownJob(func() error {
-		if err := metricsCacheCloser(); err != nil {
-			log.Printf("Error closing metrics cache: %v", err)
-		} else {
+		log.Println("Closing metrics cache...")
+
+		// Use fresh context with timeout (not derived from already-canceled shutdown context)
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.CacheCloseTimeout)
+		defer cancel()
+
+		// Close operation with timeout protection
+		done := make(chan error, 1)
+		go func() {
+			done <- metricsCache.Close()
+		}()
+
+		select {
+		case err := <-done:
+			if err != nil {
+				log.Printf("Error closing metrics cache: %v", err)
+				return err
+			}
 			log.Println("Metrics cache closed")
+			return nil
+		case <-ctx.Done():
+			log.Println("Metrics cache close timeout exceeded")
+			return ctx.Err()
 		}
+	})
+}
+
+// addDatabaseShutdownJob adds database connection close handler
+func addDatabaseShutdownJob(m *graceful.Manager, db *store.Store, cfg *config.Config) {
+	m.AddShutdownJob(func() error {
+		log.Println("Closing database connection...")
+
+		// Use fresh context with timeout (not derived from already-canceled shutdown context)
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.DBCloseTimeout)
+		defer cancel()
+
+		if err := db.Close(ctx); err != nil {
+			log.Printf("Error closing database: %v", err)
+			return err
+		}
+		log.Println("Database connection closed")
 		return nil
 	})
 }

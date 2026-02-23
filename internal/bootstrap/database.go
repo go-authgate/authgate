@@ -3,16 +3,15 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/store"
 )
 
 // initializeDatabase creates and initializes the database connection
-func initializeDatabase(cfg *config.Config) (*store.Store, error) {
-	// Use a context with timeout for database initialization
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+func initializeDatabase(ctx context.Context, cfg *config.Config) (*store.Store, error) {
+	// Create timeout context for this specific operation
+	ctx, cancel := context.WithTimeout(ctx, cfg.DBInitTimeout)
 	defer cancel()
 
 	db, err := store.New(ctx, cfg.DatabaseDriver, cfg.DatabaseDSN, cfg)

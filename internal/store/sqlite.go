@@ -93,6 +93,27 @@ func New(ctx context.Context, driver, dsn string, cfg *config.Config) (*Store, e
 	return store, nil
 }
 
+// Close gracefully closes the database connection with timeout support
+func (s *Store) Close(ctx context.Context) error {
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return fmt.Errorf("failed to get database instance: %w", err)
+	}
+
+	// Close in goroutine to support timeout via context
+	done := make(chan error, 1)
+	go func() {
+		done <- sqlDB.Close()
+	}()
+
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("database close timeout: %w", ctx.Err())
+	}
+}
+
 // generateRandomPassword generates a random password of specified length
 func generateRandomPassword(length int) (string, error) {
 	bytes := make([]byte, length)

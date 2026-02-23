@@ -17,7 +17,12 @@ type RueidisCache struct {
 }
 
 // NewRueidisCache creates a new Redis cache instance using rueidis.
-func NewRueidisCache(addr, password string, db int, keyPrefix string) (*RueidisCache, error) {
+func NewRueidisCache(
+	ctx context.Context,
+	addr, password string,
+	db int,
+	keyPrefix string,
+) (*RueidisCache, error) {
 	client, err := rueidis.NewClient(rueidis.ClientOption{
 		InitAddress:  []string{addr},
 		Password:     password,
@@ -26,6 +31,12 @@ func NewRueidisCache(addr, password string, db int, keyPrefix string) (*RueidisC
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create redis client: %w", err)
+	}
+
+	// Test connection with provided context
+	if err := client.Do(ctx, client.B().Ping().Build()).Error(); err != nil {
+		client.Close()
+		return nil, fmt.Errorf("failed to ping Redis: %w", err)
 	}
 
 	return &RueidisCache{

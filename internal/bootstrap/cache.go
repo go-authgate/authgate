@@ -1,6 +1,8 @@
 package bootstrap
 
 import (
+	"context"
+	"fmt"
 	"log"
 
 	"github.com/go-authgate/authgate/internal/cache"
@@ -20,10 +22,17 @@ func initializeMetrics(cfg *config.Config) metrics.MetricsRecorder {
 }
 
 // initializeMetricsCache initializes the metrics cache based on configuration
-func initializeMetricsCache(cfg *config.Config) (cache.Cache, func() error) {
+func initializeMetricsCache(
+	ctx context.Context,
+	cfg *config.Config,
+) (cache.Cache, func() error, error) {
 	if !cfg.MetricsEnabled || !cfg.MetricsGaugeUpdateEnabled {
-		return nil, nil
+		return nil, nil, nil
 	}
+
+	// Create timeout context for cache initialization
+	ctx, cancel := context.WithTimeout(ctx, cfg.CacheInitTimeout)
+	defer cancel()
 
 	var metricsCache cache.Cache
 	var err error
@@ -31,15 +40,16 @@ func initializeMetricsCache(cfg *config.Config) (cache.Cache, func() error) {
 	switch cfg.MetricsCacheType {
 	case config.MetricsCacheTypeRedisAside:
 		metricsCache, err = cache.NewRueidisAsideCache(
+			ctx,
 			cfg.RedisAddr,
 			cfg.RedisPassword,
 			cfg.RedisDB,
-			"metrics:",
+			"authgate:metrics:",
 			cfg.MetricsCacheClientTTL,
 			cfg.MetricsCacheSizePerConn,
 		)
 		if err != nil {
-			log.Fatalf("Failed to initialize redis-aside metrics cache: %v", err)
+			return nil, nil, fmt.Errorf("failed to initialize redis-aside metrics cache: %w", err)
 		}
 		log.Printf(
 			"Metrics cache: redis-aside (addr=%s, db=%d, client_ttl=%s, cache_size_per_conn=%dMB)",
@@ -48,21 +58,24 @@ func initializeMetricsCache(cfg *config.Config) (cache.Cache, func() error) {
 			cfg.MetricsCacheClientTTL,
 			cfg.MetricsCacheSizePerConn,
 		)
+
 	case config.MetricsCacheTypeRedis:
 		metricsCache, err = cache.NewRueidisCache(
+			ctx,
 			cfg.RedisAddr,
 			cfg.RedisPassword,
 			cfg.RedisDB,
-			"metrics:",
+			"authgate:metrics:",
 		)
 		if err != nil {
-			log.Fatalf("Failed to initialize redis metrics cache: %v", err)
+			return nil, nil, fmt.Errorf("failed to initialize redis metrics cache: %w", err)
 		}
 		log.Printf("Metrics cache: redis (addr=%s, db=%d)", cfg.RedisAddr, cfg.RedisDB)
+
 	default: // memory
 		metricsCache = cache.NewMemoryCache()
 		log.Println("Metrics cache: memory (single instance only)")
 	}
 
-	return metricsCache, metricsCache.Close
+	return metricsCache, metricsCache.Close, nil
 }

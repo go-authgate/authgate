@@ -79,10 +79,10 @@ Modern CLI tools and IoT devices need secure user authentication, but traditiona
 - **Dual OAuth 2.0 Flows**: Device Authorization Grant ([RFC 8628][rfc8628]) for CLI/IoT tools, and Authorization Code Flow with PKCE ([RFC 6749][rfc6749] + [RFC 7636][rfc7636]) for web and mobile apps
 - **User Consent Management**: Users can review and revoke per-app access at `/account/authorizations`; admins can force re-authentication for all users of any client
 - **Security First**: Rate limiting, audit logging, CSRF protection, PKCE enforcement, and session management built-in
-- **Production Ready**: Built-in monitoring with Prometheus metrics, health checks, and comprehensive audit trails
+- **Production Ready**: Built-in monitoring with Prometheus metrics, health checks, comprehensive audit trails, and graceful shutdown with configurable timeouts
 - **Zero Dependencies**: Single static binary with SQLite embedded, or use PostgreSQL for scale
 - **Multi-Auth Support**: Local authentication, external HTTP API, OAuth providers (GitHub, Gitea, Microsoft)
-- **Flexible Deployment**: Docker-ready, cloud-friendly, runs anywhere
+- **Flexible Deployment**: Docker-ready, cloud-friendly, runs anywhere with context-aware lifecycle management
 - **Token Management**: Fixed and rotation refresh token modes, web UI for session management
 
 ---
@@ -336,6 +336,7 @@ ENABLE_AUDIT_LOGGING=true       # Comprehensive audit trails
 - **Service-to-Service Auth**: HMAC or simple header authentication
 - **HTTP Retry with Backoff**: Resilient external API calls
 - **Rate Limiting**: Memory or Redis store for distributed deployments
+- **Configurable Timeouts**: Fine-tune initialization and shutdown timeouts for production environments
 
 **[Advanced Configuration →](docs/CONFIGURATION.md)**
 
