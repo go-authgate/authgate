@@ -47,8 +47,24 @@ templ Layout(title string, layoutType LayoutType, navbar *NavbarProps) {
 			</main>
 			<!-- Footer -->
 			<footer class="site-footer">
-				<div class="footer-content">
-					<p class="footer-text">© { time.Now().Format("2006") } AuthGate | OAuth 2.0 Device Authorization</p>
+				<div class="footer-inner">
+					<div class="footer-brand">
+						<span class="footer-brand-name">AuthGate</span>
+						<span class="footer-brand-desc">OAuth 2.0 Authorization Server</span>
+					</div>
+					<nav class="footer-links" aria-label="Footer navigation">
+						<a href="/swagger/index.html" class="footer-link" target="_blank" rel="noopener noreferrer">API Docs</a>
+						<a href="/health" class="footer-link">Health</a>
+					</nav>
+				</div>
+				<div class="footer-bottom">
+					<span class="footer-copy">© { time.Now().Format("2006") } AuthGate</span>
+					<div class="footer-rfcs" aria-label="Supported RFC standards">
+						<span class="footer-rfc">RFC 8628</span>
+						<span class="footer-rfc">RFC 6749</span>
+						<span class="footer-rfc">RFC 7636</span>
+						<span class="footer-rfc">RFC 7009</span>
+					</div>
 				</div>
 			</footer>
 			<!-- JavaScript -->

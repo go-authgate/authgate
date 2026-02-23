@@ -5,9 +5,15 @@ templ Navbar(props *NavbarProps) {
 		<div class="navbar-container">
 			<div class="navbar-brand">
 				if props.Username != "" {
-					<a href="/device">AuthGate</a>
+					<a href="/device">
+						AuthGate
+						<span class="navbar-brand-tagline">OAuth 2.0 Server</span>
+					</a>
 				} else {
-					<a href="/">AuthGate</a>
+					<a href="/">
+						AuthGate
+						<span class="navbar-brand-tagline">OAuth 2.0 Server</span>
+					</a>
 				}
 			</div>
 			<button class="navbar-toggle" onclick="toggleMenu()" aria-label="Toggle navigation menu">☰</button>
