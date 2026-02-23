@@ -1,11 +1,23 @@
 package models
 
 import (
+	"context"
 	"database/sql/driver"
+	"encoding/base32"
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/go-authgate/authgate/internal/util"
+
+	"golang.org/x/crypto/bcrypt"
 )
+
+// Base32 characters, but lowercased.
+const lowerBase32Chars = "abcdefghijklmnopqrstuvwxyz234567"
+
+// base32 encoder that uses lowered characters without padding.
+var base32Lower = base32.NewEncoding(lowerBase32Chars).WithPadding(base32.NoPadding)
 
 type OAuthApplication struct {
 	ID                 int64       `gorm:"primaryKey;autoIncrement"`
@@ -24,6 +36,29 @@ type OAuthApplication struct {
 	CreatedBy          string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+}
+
+// GenerateClientSecret will generate the client secret and returns the plaintext and saves the hash at the database
+func (app *OAuthApplication) GenerateClientSecret(ctx context.Context) (string, error) {
+	rBytes, err := util.CryptoRandomBytes(32)
+	if err != nil {
+		return "", err
+	}
+	// Add a prefix to the base32, this is in order to make it easier
+	// for code scanners to grab sensitive tokens.
+	clientSecret := "ago_" + base32Lower.EncodeToString(rBytes)
+
+	hashedSecret, err := bcrypt.GenerateFromPassword([]byte(clientSecret), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	app.ClientSecret = string(hashedSecret)
+	return clientSecret, nil
+}
+
+// ValidateClientSecret validates the given secret by the hash saved in database
+func (app *OAuthApplication) ValidateClientSecret(secret []byte) bool {
+	return bcrypt.CompareHashAndPassword([]byte(app.ClientSecret), secret) == nil
 }
 
 // StringArray is a custom type for []string that can be stored as JSON in database

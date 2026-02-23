@@ -11,7 +11,6 @@ import (
 	"github.com/go-authgate/authgate/internal/store"
 
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // Client type constants
@@ -116,15 +115,8 @@ func (s *ClientService) CreateClient(
 		return nil, err
 	}
 
-	// Generate client ID and secret
+	// Generate client ID
 	clientID := uuid.New().String()
-	clientSecret := uuid.New().String()
-
-	// Hash the secret
-	secretHash, err := bcrypt.GenerateFromPassword([]byte(clientSecret), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, err
-	}
 
 	// Default scopes
 	scopes := strings.TrimSpace(req.Scopes)
@@ -157,7 +149,6 @@ func (s *ClientService) CreateClient(
 
 	client := &models.OAuthApplication{
 		ClientID:           clientID,
-		ClientSecret:       string(secretHash),
 		ClientName:         strings.TrimSpace(req.ClientName),
 		Description:        strings.TrimSpace(req.Description),
 		UserID:             req.UserID,
@@ -169,6 +160,12 @@ func (s *ClientService) CreateClient(
 		EnableAuthCodeFlow: enableAuthCode,
 		IsActive:           true,
 		CreatedBy:          req.CreatedBy,
+	}
+
+	// Generate client secret
+	clientSecret, err := client.GenerateClientSecret(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := s.store.CreateClient(client); err != nil {
@@ -394,13 +391,11 @@ func (s *ClientService) RegenerateSecret(
 	}
 
 	// Generate new secret
-	newSecret := uuid.New().String()
-	secretHash, err := bcrypt.GenerateFromPassword([]byte(newSecret), bcrypt.DefaultCost)
+	newSecret, err := client.GenerateClientSecret(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	client.ClientSecret = string(secretHash)
 	if err := s.store.UpdateClient(client); err != nil {
 		return "", err
 	}
@@ -431,10 +426,7 @@ func (s *ClientService) VerifyClientSecret(clientID, clientSecret string) error 
 		return ErrClientNotFound
 	}
 
-	if err := bcrypt.CompareHashAndPassword(
-		[]byte(client.ClientSecret),
-		[]byte(clientSecret),
-	); err != nil {
+	if !client.ValidateClientSecret([]byte(clientSecret)) {
 		return errors.New("invalid client secret")
 	}
 

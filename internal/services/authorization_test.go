@@ -564,30 +564,34 @@ func TestVerifyPKCE_UnknownMethod(t *testing.T) {
 // verifyClientSecret
 // ============================================================
 
-func TestVerifyClientSecret_CorrectSecret(t *testing.T) {
+func TestValidateClientSecret_CorrectSecret(t *testing.T) {
 	plain := testClientPlainSecret
 	hash, err := bcrypt.GenerateFromPassword([]byte(plain), bcrypt.MinCost)
 	require.NoError(t, err)
 
-	assert.True(t, verifyClientSecret(string(hash), plain))
+	client := &models.OAuthApplication{ClientSecret: string(hash)}
+	assert.True(t, client.ValidateClientSecret([]byte(plain)))
 }
 
-func TestVerifyClientSecret_WrongSecret(t *testing.T) {
+func TestValidateClientSecret_WrongSecret(t *testing.T) {
 	hash, err := bcrypt.GenerateFromPassword([]byte("correct"), bcrypt.MinCost)
 	require.NoError(t, err)
 
-	assert.False(t, verifyClientSecret(string(hash), "wrong"))
+	client := &models.OAuthApplication{ClientSecret: string(hash)}
+	assert.False(t, client.ValidateClientSecret([]byte("wrong")))
 }
 
-func TestVerifyClientSecret_EmptyHash(t *testing.T) {
-	assert.False(t, verifyClientSecret("", "any-secret"))
+func TestValidateClientSecret_EmptyHash(t *testing.T) {
+	client := &models.OAuthApplication{ClientSecret: ""}
+	assert.False(t, client.ValidateClientSecret([]byte("any-secret")))
 }
 
-func TestVerifyClientSecret_EmptySecret(t *testing.T) {
+func TestValidateClientSecret_EmptySecret(t *testing.T) {
 	hash, err := bcrypt.GenerateFromPassword([]byte("secret"), bcrypt.MinCost)
 	require.NoError(t, err)
 
-	assert.False(t, verifyClientSecret(string(hash), ""))
+	client := &models.OAuthApplication{ClientSecret: string(hash)}
+	assert.False(t, client.ValidateClientSecret([]byte("")))
 }
 
 // ============================================================

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
@@ -150,15 +151,9 @@ func (s *Store) seedData(cfg *config.Config) error {
 	s.db.Model(&models.OAuthApplication{}).Count(&clientCount)
 	if clientCount == 0 {
 		clientID := uuid.New().String()
-		clientSecret := uuid.New().String()
-		secretHash, err := bcrypt.GenerateFromPassword([]byte(clientSecret), bcrypt.DefaultCost)
-		if err != nil {
-			return err
-		}
 		client := &models.OAuthApplication{
 			UserID:           userID,
 			ClientID:         clientID,
-			ClientSecret:     string(secretHash),
 			ClientName:       "AuthGate CLI",
 			Description:      "Default CLI client for device authorization flow",
 			Scopes:           "read write",
@@ -166,6 +161,10 @@ func (s *Store) seedData(cfg *config.Config) error {
 			RedirectURIs:     models.StringArray{},
 			EnableDeviceFlow: true,
 			IsActive:         true,
+		}
+		clientSecret, err := client.GenerateClientSecret(context.Background())
+		if err != nil {
+			return err
 		}
 		if err := s.db.Create(client).Error; err != nil {
 			return err

@@ -16,7 +16,6 @@ import (
 	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // Authorization Code Flow errors
@@ -219,7 +218,7 @@ func (s *AuthorizationService) ExchangeCode(
 		if clientSecret == "" {
 			return nil, ErrUnauthorizedClient
 		}
-		if !verifyClientSecret(client.ClientSecret, clientSecret) {
+		if !client.ValidateClientSecret([]byte(clientSecret)) {
 			return nil, ErrUnauthorizedClient
 		}
 	} else {
@@ -500,19 +499,6 @@ func verifyPKCE(codeChallenge, method, codeVerifier string) bool {
 	default:
 		return false
 	}
-}
-
-// ============================================================
-// Client secret verification
-// ============================================================
-
-// verifyClientSecret performs bcrypt comparison of the stored hashed client secret.
-func verifyClientSecret(hashedSecret, plainSecret string) bool {
-	if len(hashedSecret) == 0 || len(plainSecret) == 0 {
-		return false
-	}
-	err := bcrypt.CompareHashAndPassword([]byte(hashedSecret), []byte(plainSecret))
-	return err == nil
 }
 
 // ============================================================
