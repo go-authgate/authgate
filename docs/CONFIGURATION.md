@@ -190,8 +190,8 @@ DB_CLOSE_TIMEOUT=2s
 ### Behavior
 
 - **Initialization**: If a timeout is exceeded, the application exits with an error
-- **Shutdown**: If a timeout is exceeded, the operation is forcefully terminated
-- **Cancellation**: Pressing Ctrl+C cancels all in-progress operations via context
+- **Shutdown**: Shutdown waits up to the configured timeout for close operations; if the timeout elapses, shutdown continues and reports a timeout error
+- **Cancellation**: Pressing Ctrl+C triggers graceful shutdown and cancels operations that honor the manager context, but does not forcibly abort in-progress shutdown jobs
 - **Errors**: Timeout errors include context (e.g., "database close timeout: context deadline exceeded")
 
 ---
