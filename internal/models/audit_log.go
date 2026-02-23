@@ -45,7 +45,7 @@ const (
 	EventAuthorizationCodeDenied    EventType = "AUTHORIZATION_CODE_DENIED"
 	EventUserAuthorizationGranted   EventType = "USER_AUTHORIZATION_GRANTED"
 	EventUserAuthorizationRevoked   EventType = "USER_AUTHORIZATION_REVOKED"
-	EventClientTokensRevokedAll     EventType = "CLIENT_TOKENS_REVOKED_ALL" //nolint:gosec
+	EventClientTokensRevokedAll     EventType = "CLIENT_TOKENS_REVOKED_ALL" //nolint:gosec // G101: false positive, this is a const string describing an event type, not a credential
 
 	// Audit events
 	EventTypeAuditLogView     EventType = "AUDIT_LOG_VIEWED"
@@ -75,18 +75,18 @@ const (
 )
 
 // AuditDetails stores additional event-specific information as JSON
-type AuditDetails map[string]interface{}
+type AuditDetails map[string]any
 
 // Value implements the driver.Valuer interface for database storage
 func (a AuditDetails) Value() (driver.Value, error) {
 	if a == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil // nil driver.Value represents SQL NULL, which is valid here
 	}
 	return json.Marshal(a)
 }
 
 // Scan implements the sql.Scanner interface for database retrieval
-func (a *AuditDetails) Scan(value interface{}) error {
+func (a *AuditDetails) Scan(value any) error {
 	if value == nil {
 		*a = nil
 		return nil

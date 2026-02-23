@@ -74,7 +74,7 @@ func TestExchangeDeviceCode_ActiveClient(t *testing.T) {
 	)
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, token)
 	assert.NotEmpty(t, token.Token)
 	assert.Equal(t, "Bearer", token.TokenType)
@@ -110,7 +110,7 @@ func TestExchangeDeviceCode_InactiveClient(t *testing.T) {
 	)
 
 	// Assert - should fail with access denied
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, ErrAccessDenied, err)
 	assert.Nil(t, token)
 }
@@ -139,7 +139,7 @@ func TestExchangeDeviceCode_ClientMismatch(t *testing.T) {
 	)
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, ErrAccessDenied, err)
 	assert.Nil(t, token)
 }
@@ -169,7 +169,7 @@ func TestExchangeDeviceCode_NotAuthorized(t *testing.T) {
 	)
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, ErrAuthorizationPending, err)
 	assert.Nil(t, token)
 }
@@ -199,7 +199,7 @@ func TestExchangeDeviceCode_ExpiredCode(t *testing.T) {
 	)
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, ErrExpiredToken, err)
 	assert.Nil(t, token)
 }
@@ -226,7 +226,7 @@ func TestExchangeDeviceCode_InvalidDeviceCode(t *testing.T) {
 	)
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, ErrExpiredToken, err)
 	assert.Nil(t, token)
 }
@@ -256,7 +256,7 @@ func TestValidateToken_Success(t *testing.T) {
 	claims, err := tokenService.ValidateToken(context.Background(), token.Token)
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, claims)
 	assert.Equal(t, client.ClientID, claims.ClientID)
 	assert.Equal(t, "read write", claims.Scopes)
@@ -273,7 +273,7 @@ func TestValidateToken_InvalidToken(t *testing.T) {
 	claims, err := tokenService.ValidateToken(context.Background(), "invalid-token")
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, claims)
 }
 
@@ -306,7 +306,7 @@ func TestValidateToken_WrongSecret(t *testing.T) {
 	claims, err := differentTokenService.ValidateToken(context.Background(), token.Token)
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, claims)
 }
 
@@ -335,7 +335,7 @@ func TestRevokeToken_Success(t *testing.T) {
 	err = tokenService.RevokeToken(token.Token)
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify token is removed from database
 	_, err = s.GetAccessToken(token.Token)
@@ -353,7 +353,7 @@ func TestRevokeToken_InvalidToken(t *testing.T) {
 	err := tokenService.RevokeToken("non-existent-token")
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "token not found")
 }
 
@@ -382,7 +382,7 @@ func TestRevokeTokenByID_Success(t *testing.T) {
 	err = tokenService.RevokeTokenByID(context.Background(), token.ID, dc.UserID)
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify token is removed from database
 	_, err = s.GetAccessTokenByID(token.ID)
@@ -434,7 +434,7 @@ func TestGetUserTokens_Success(t *testing.T) {
 	tokens, err := tokenService.GetUserTokens(userID)
 
 	// Assert - should have 4 tokens (2 access + 2 refresh)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, tokens, 4)
 	// Verify we have tokens from both device code exchanges
 	tokenIDs := make([]string, len(tokens))
@@ -488,12 +488,12 @@ func TestRevokeAllUserTokens_Success(t *testing.T) {
 
 	// Revoke all user tokens
 	err = tokenService.RevokeAllUserTokens(userID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify all tokens are removed
 	tokens, err := tokenService.GetUserTokens(userID)
-	assert.NoError(t, err)
-	assert.Len(t, tokens, 0)
+	require.NoError(t, err)
+	assert.Empty(t, tokens)
 }
 
 func TestGetUserTokensWithClient_Success(t *testing.T) {
@@ -529,7 +529,7 @@ func TestGetUserTokensWithClient_Success(t *testing.T) {
 	tokensWithClient, err := tokenService.GetUserTokensWithClient(userID)
 
 	// Assert - should have 2 tokens (access + refresh)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, tokensWithClient, 2)
 
 	// Verify both tokens are present
@@ -587,7 +587,7 @@ func TestGetUserTokensWithClient_MultipleClients(t *testing.T) {
 	tokensWithClient, err := tokenService.GetUserTokensWithClient(userID)
 
 	// Assert - should have 4 tokens (2 access + 2 refresh)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, tokensWithClient, 4)
 
 	// Create maps for easier verification
@@ -618,9 +618,9 @@ func TestGetUserTokensWithClient_EmptyResult(t *testing.T) {
 	tokensWithClient, err := tokenService.GetUserTokensWithClient("non-existent-user")
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, tokensWithClient)
-	assert.Len(t, tokensWithClient, 0)
+	assert.Empty(t, tokensWithClient)
 }
 
 // ============================================================

@@ -25,7 +25,7 @@ func NewLocalTokenProvider(cfg *config.Config) *LocalTokenProvider {
 func (p *LocalTokenProvider) generateJWT(
 	userID, clientID, scopes, tokenType string,
 	expiresAt time.Time,
-) (*TokenResult, error) {
+) (*Result, error) {
 	claims := jwt.MapClaims{
 		"user_id":   userID,
 		"client_id": clientID,
@@ -44,7 +44,7 @@ func (p *LocalTokenProvider) generateJWT(
 		return nil, fmt.Errorf("%w: %v", ErrTokenGeneration, err)
 	}
 
-	return &TokenResult{
+	return &Result{
 		TokenString: tokenString,
 		TokenType:   TokenTypeBearer,
 		ExpiresAt:   expiresAt,
@@ -57,7 +57,7 @@ func (p *LocalTokenProvider) generateJWT(
 func (p *LocalTokenProvider) GenerateToken(
 	ctx context.Context,
 	userID, clientID, scopes string,
-) (*TokenResult, error) {
+) (*Result, error) {
 	expiresAt := time.Now().Add(p.config.JWTExpiration)
 	return p.generateJWT(userID, clientID, scopes, "access", expiresAt)
 }
@@ -66,7 +66,7 @@ func (p *LocalTokenProvider) GenerateToken(
 func (p *LocalTokenProvider) ValidateToken(
 	ctx context.Context,
 	tokenString string,
-) (*TokenValidationResult, error) {
+) (*ValidationResult, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -101,7 +101,7 @@ func (p *LocalTokenProvider) ValidateToken(
 	}
 	expiresAt := time.Unix(int64(exp), 0)
 
-	return &TokenValidationResult{
+	return &ValidationResult{
 		Valid:     true,
 		UserID:    userID,
 		ClientID:  clientID,
@@ -120,7 +120,7 @@ func (p *LocalTokenProvider) Name() string {
 func (p *LocalTokenProvider) GenerateRefreshToken(
 	ctx context.Context,
 	userID, clientID, scopes string,
-) (*TokenResult, error) {
+) (*Result, error) {
 	expiresAt := time.Now().Add(p.config.RefreshTokenExpiration)
 	return p.generateJWT(userID, clientID, scopes, "refresh", expiresAt)
 }
@@ -129,7 +129,7 @@ func (p *LocalTokenProvider) GenerateRefreshToken(
 func (p *LocalTokenProvider) ValidateRefreshToken(
 	ctx context.Context,
 	tokenString string,
-) (*TokenValidationResult, error) {
+) (*ValidationResult, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -170,7 +170,7 @@ func (p *LocalTokenProvider) ValidateRefreshToken(
 	}
 	expiresAt := time.Unix(int64(exp), 0)
 
-	return &TokenValidationResult{
+	return &ValidationResult{
 		Valid:     true,
 		UserID:    userID,
 		ClientID:  clientID,
@@ -193,7 +193,7 @@ func (p *LocalTokenProvider) RefreshAccessToken(
 	}
 
 	// Generate new access token
-	accessTokenResult, err := p.GenerateToken(
+	accessResult, err := p.GenerateToken(
 		ctx,
 		validationResult.UserID,
 		validationResult.ClientID,
@@ -206,7 +206,7 @@ func (p *LocalTokenProvider) RefreshAccessToken(
 	// Note: "type" claim already added in GenerateToken method
 
 	result := &RefreshResult{
-		AccessToken: accessTokenResult,
+		AccessToken: accessResult,
 		Success:     true,
 	}
 

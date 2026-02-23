@@ -75,7 +75,7 @@ func handleGenerateError(body []byte, statusCode string) error {
 }
 
 // parseGenerateResponse parses and validates token generation response
-func parseGenerateResponse(body []byte) (*TokenResult, error) {
+func parseGenerateResponse(body []byte) (*Result, error) {
 	var apiResp APITokenGenerateResponse
 	if err := json.Unmarshal(body, &apiResp); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrHTTPTokenInvalidResp, err)
@@ -99,7 +99,7 @@ func parseGenerateResponse(body []byte) (*TokenResult, error) {
 
 	expiresAt := time.Now().Add(time.Duration(apiResp.ExpiresIn) * time.Second)
 
-	return &TokenResult{
+	return &Result{
 		TokenString: apiResp.AccessToken,
 		TokenType:   tokenType,
 		ExpiresAt:   expiresAt,
@@ -113,7 +113,7 @@ func (p *HTTPTokenProvider) callValidateAPI(
 	ctx context.Context,
 	tokenString string,
 	invalidErr, expiredErr error,
-) (*TokenValidationResult, error) {
+) (*ValidationResult, error) {
 	reqBody := APITokenValidateRequest{
 		Token: tokenString,
 	}
@@ -146,7 +146,7 @@ func (p *HTTPTokenProvider) callValidateAPI(
 		}
 	}
 
-	return &TokenValidationResult{
+	return &ValidationResult{
 		Valid:     true,
 		UserID:    apiResp.UserID,
 		ClientID:  apiResp.ClientID,
@@ -195,7 +195,7 @@ func (p *HTTPTokenProvider) generateTokenInternal(
 	ctx context.Context,
 	userID, clientID, scopes string,
 	expiration time.Duration,
-) (*TokenResult, error) {
+) (*Result, error) {
 	reqBody := APITokenGenerateRequest{
 		UserID:    userID,
 		ClientID:  clientID,
@@ -219,7 +219,7 @@ func (p *HTTPTokenProvider) generateTokenInternal(
 func (p *HTTPTokenProvider) GenerateToken(
 	ctx context.Context,
 	userID, clientID, scopes string,
-) (*TokenResult, error) {
+) (*Result, error) {
 	return p.generateTokenInternal(ctx, userID, clientID, scopes, p.config.JWTExpiration)
 }
 
@@ -227,7 +227,7 @@ func (p *HTTPTokenProvider) GenerateToken(
 func (p *HTTPTokenProvider) ValidateToken(
 	ctx context.Context,
 	tokenString string,
-) (*TokenValidationResult, error) {
+) (*ValidationResult, error) {
 	return p.callValidateAPI(ctx, tokenString, ErrInvalidToken, ErrExpiredToken)
 }
 
@@ -261,7 +261,7 @@ type APIRefreshResponse struct {
 func (p *HTTPTokenProvider) GenerateRefreshToken(
 	ctx context.Context,
 	userID, clientID, scopes string,
-) (*TokenResult, error) {
+) (*Result, error) {
 	return p.generateTokenInternal(ctx, userID, clientID, scopes, p.config.RefreshTokenExpiration)
 }
 
@@ -269,7 +269,7 @@ func (p *HTTPTokenProvider) GenerateRefreshToken(
 func (p *HTTPTokenProvider) ValidateRefreshToken(
 	ctx context.Context,
 	tokenString string,
-) (*TokenValidationResult, error) {
+) (*ValidationResult, error) {
 	return p.callValidateAPI(ctx, tokenString, ErrInvalidRefreshToken, ErrExpiredRefreshToken)
 }
 
@@ -336,7 +336,7 @@ func (p *HTTPTokenProvider) RefreshAccessToken(
 	accessExpiresAt := time.Now().Add(time.Duration(apiResp.AccessExpiresIn) * time.Second)
 
 	result := &RefreshResult{
-		AccessToken: &TokenResult{
+		AccessToken: &Result{
 			TokenString: apiResp.AccessToken,
 			TokenType:   tokenType,
 			ExpiresAt:   accessExpiresAt,
@@ -349,7 +349,7 @@ func (p *HTTPTokenProvider) RefreshAccessToken(
 	// If rotation is enabled and new refresh token is provided
 	if enableRotation && apiResp.RefreshToken != "" {
 		refreshExpiresAt := time.Now().Add(time.Duration(apiResp.RefreshExpiresIn) * time.Second)
-		result.RefreshToken = &TokenResult{
+		result.RefreshToken = &Result{
 			TokenString: apiResp.RefreshToken,
 			TokenType:   tokenType,
 			ExpiresAt:   refreshExpiresAt,

@@ -371,10 +371,10 @@ func oauthErrorCode(err error) string {
 // scopesAreCovered returns true when all scopes in requested are present in granted.
 func scopesAreCovered(grantedScopes, requestedScopes string) bool {
 	granted := make(map[string]bool)
-	for _, s := range strings.Fields(grantedScopes) {
+	for s := range strings.FieldsSeq(grantedScopes) {
 		granted[s] = true
 	}
-	for _, s := range strings.Fields(requestedScopes) {
+	for s := range strings.FieldsSeq(requestedScopes) {
 		if !granted[s] {
 			return false
 		}

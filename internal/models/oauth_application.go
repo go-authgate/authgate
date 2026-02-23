@@ -6,6 +6,7 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/go-authgate/authgate/internal/util"
@@ -65,7 +66,7 @@ func (app *OAuthApplication) ValidateClientSecret(secret []byte) bool {
 type StringArray []string
 
 // Scan implements sql.Scanner interface
-func (s *StringArray) Scan(value interface{}) error {
+func (s *StringArray) Scan(value any) error {
 	if value == nil {
 		*s = []string{}
 		return nil
@@ -90,14 +91,14 @@ func (s StringArray) Join(sep string) string {
 	if len(s) == 0 {
 		return ""
 	}
-	result := ""
+	var b strings.Builder
 	for i, str := range s {
 		if i > 0 {
-			result += sep
+			b.WriteString(sep)
 		}
-		result += str
+		b.WriteString(str)
 	}
-	return result
+	return b.String()
 }
 
 // TableName overrides the table name used by OAuthApplication to `oauth_applications`

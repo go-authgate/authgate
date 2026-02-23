@@ -20,7 +20,7 @@ const (
 )
 
 // generateFingerprint creates a SHA256 hash from IP (optional) and User-Agent
-func generateFingerprint(ip string, userAgent string, includeIP bool) string {
+func generateFingerprint(ip, userAgent string, includeIP bool) string {
 	data := userAgent
 	if includeIP {
 		data = ip + "|" + userAgent
@@ -58,7 +58,7 @@ func RequireAuth(userService *services.UserService) gin.HandlerFunc {
 
 // SessionFingerprintMiddleware validates session fingerprint to prevent session hijacking
 // Checks User-Agent (and optionally IP) against stored fingerprint
-func SessionFingerprintMiddleware(enabled bool, includeIP bool) gin.HandlerFunc {
+func SessionFingerprintMiddleware(enabled, includeIP bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Skip if fingerprinting is disabled
 		if !enabled {

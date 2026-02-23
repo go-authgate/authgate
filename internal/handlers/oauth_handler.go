@@ -22,7 +22,7 @@ import (
 )
 
 // generateFingerprintOAuth creates a SHA256 hash from IP (optional) and User-Agent
-func generateFingerprintOAuth(ip string, userAgent string, includeIP bool) string {
+func generateFingerprintOAuth(ip, userAgent string, includeIP bool) string {
 	data := userAgent
 	if includeIP {
 		data = ip + "|" + userAgent
@@ -39,7 +39,7 @@ type OAuthHandler struct {
 	httpClient                  *http.Client // Custom HTTP client for OAuth requests
 	sessionFingerprintEnabled   bool
 	sessionFingerprintIncludeIP bool
-	metrics                     metrics.MetricsRecorder
+	metrics                     metrics.Recorder
 }
 
 // NewOAuthHandler creates a new OAuth handler
@@ -49,7 +49,7 @@ func NewOAuthHandler(
 	httpClient *http.Client,
 	fingerprintEnabled bool,
 	fingerprintIncludeIP bool,
-	m metrics.MetricsRecorder,
+	m metrics.Recorder,
 ) *OAuthHandler {
 	return &OAuthHandler{
 		providers:                   providers,

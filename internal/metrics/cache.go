@@ -2,14 +2,13 @@ package metrics
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/store"
 )
 
-// metricsStore defines the interface for database operations needed by MetricsCacheWrapper.
+// metricsStore defines the interface for database operations needed by CacheWrapper.
 // This interface allows for easier testing without requiring a full store.Store.
 type metricsStore interface {
 	CountActiveTokensByCategory(category string) (int64, error)
@@ -17,17 +16,17 @@ type metricsStore interface {
 	CountPendingDeviceCodes() (int64, error)
 }
 
-// MetricsCacheWrapper provides a read-through cache for metrics data.
+// CacheWrapper provides a read-through cache for metrics data.
 // It queries the database on cache miss and updates the cache for subsequent requests.
 // Uses the cache's GetWithFetch method for optimal cache-aside pattern support.
-type MetricsCacheWrapper struct {
+type CacheWrapper struct {
 	store metricsStore
 	cache cache.Cache
 }
 
-// NewMetricsCacheWrapper creates a new cache wrapper for metrics.
-func NewMetricsCacheWrapper(store *store.Store, cache cache.Cache) *MetricsCacheWrapper {
-	return &MetricsCacheWrapper{
+// NewCacheWrapper creates a new cache wrapper for metrics.
+func NewCacheWrapper(store *store.Store, cache cache.Cache) *CacheWrapper {
+	return &CacheWrapper{
 		store: store,
 		cache: cache,
 	}
@@ -35,14 +34,14 @@ func NewMetricsCacheWrapper(store *store.Store, cache cache.Cache) *MetricsCache
 
 // GetActiveTokensCount retrieves the count of active tokens by category.
 // Uses cache-aside pattern via GetWithFetch for optimal performance.
-func (m *MetricsCacheWrapper) GetActiveTokensCount(
+func (m *CacheWrapper) GetActiveTokensCount(
 	ctx context.Context,
 	category string,
 	ttl time.Duration,
 ) (int64, error) {
 	return m.getCountWithCache(
 		ctx,
-		fmt.Sprintf("tokens:%s", category),
+		"tokens:"+category,
 		ttl,
 		func() (int64, error) {
 			return m.store.CountActiveTokensByCategory(category)
@@ -52,7 +51,7 @@ func (m *MetricsCacheWrapper) GetActiveTokensCount(
 
 // getCountWithCache is a generic helper for cache-aside pattern.
 // All cache implementations provide GetWithFetch for optimal cache-aside support.
-func (m *MetricsCacheWrapper) getCountWithCache(
+func (m *CacheWrapper) getCountWithCache(
 	ctx context.Context,
 	key string,
 	ttl time.Duration,
@@ -73,7 +72,7 @@ func (m *MetricsCacheWrapper) getCountWithCache(
 
 // GetTotalDeviceCodesCount retrieves the count of total (non-expired) device codes.
 // Uses cache-aside pattern via GetWithFetch for optimal performance.
-func (m *MetricsCacheWrapper) GetTotalDeviceCodesCount(
+func (m *CacheWrapper) GetTotalDeviceCodesCount(
 	ctx context.Context,
 	ttl time.Duration,
 ) (int64, error) {
@@ -87,7 +86,7 @@ func (m *MetricsCacheWrapper) GetTotalDeviceCodesCount(
 
 // GetPendingDeviceCodesCount retrieves the count of pending (not yet authorized) device codes.
 // Uses cache-aside pattern via GetWithFetch for optimal performance.
-func (m *MetricsCacheWrapper) GetPendingDeviceCodesCount(
+func (m *CacheWrapper) GetPendingDeviceCodesCount(
 	ctx context.Context,
 	ttl time.Duration,
 ) (int64, error) {

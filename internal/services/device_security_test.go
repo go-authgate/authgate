@@ -175,18 +175,18 @@ func TestConstantTimeComparison(t *testing.T) {
 		iterations := 100000 // More iterations for better averaging
 
 		// Warm up
-		for i := 0; i < 1000; i++ {
+		for range 1000 {
 			subtle.ConstantTimeCompare([]byte(hash), []byte(almostMatch))
 		}
 
 		start1 := time.Now()
-		for i := 0; i < iterations; i++ {
+		for range iterations {
 			subtle.ConstantTimeCompare([]byte(hash), []byte(almostMatch))
 		}
 		duration1 := time.Since(start1)
 
 		start2 := time.Now()
-		for i := 0; i < iterations; i++ {
+		for range iterations {
 			subtle.ConstantTimeCompare([]byte(hash), []byte(noMatch))
 		}
 		duration2 := time.Since(start2)
@@ -207,7 +207,7 @@ func TestDeviceCodeGeneration(t *testing.T) {
 	t.Run("Generated codes are unique", func(t *testing.T) {
 		codes := make(map[string]bool)
 
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			dc, err := service.GenerateDeviceCode(context.Background(), client.ClientID, "read")
 			require.NoError(t, err)
 
@@ -225,7 +225,7 @@ func TestDeviceCodeGeneration(t *testing.T) {
 
 		// Check hex format
 		_, err = hex.DecodeString(dc.DeviceCode)
-		assert.NoError(t, err, "DeviceCode should be valid hex")
+		require.NoError(t, err, "DeviceCode should be valid hex")
 
 		// Check DeviceCodeID is last 8 chars
 		assert.Equal(t, dc.DeviceCode[32:], dc.DeviceCodeID)

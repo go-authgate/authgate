@@ -158,7 +158,7 @@ func addMetricsGaugeUpdateJob(
 	m *graceful.Manager,
 	cfg *config.Config,
 	db *store.Store,
-	prometheusMetrics metrics.MetricsRecorder,
+	prometheusMetrics metrics.Recorder,
 	metricsCache cache.Cache,
 ) {
 	if !cfg.MetricsEnabled || !cfg.MetricsGaugeUpdateEnabled {
@@ -170,7 +170,7 @@ func addMetricsGaugeUpdateJob(
 		defer ticker.Stop()
 
 		// Create cache wrapper
-		cacheWrapper := metrics.NewMetricsCacheWrapper(db, metricsCache)
+		cacheWrapper := metrics.NewCacheWrapper(db, metricsCache)
 
 		// Update immediately on startup
 		updateGaugeMetricsWithCache(
@@ -281,8 +281,8 @@ var gaugeErrorLogger = newErrorLogger()
 // The cache TTL should match the update interval to ensure consistent behavior.
 func updateGaugeMetricsWithCache(
 	ctx context.Context,
-	cacheWrapper *metrics.MetricsCacheWrapper,
-	m metrics.MetricsRecorder,
+	cacheWrapper *metrics.CacheWrapper,
+	m metrics.Recorder,
 	cacheTTL time.Duration,
 ) {
 	// Update active access tokens count

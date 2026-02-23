@@ -71,7 +71,7 @@ func TestSessionIdleTimeout_Disabled(t *testing.T) {
 	})
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/test", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	r.ServeHTTP(w, req)
 
 	// Should not redirect even though last activity was long ago (idle timeout disabled)
@@ -90,7 +90,7 @@ func TestSessionIdleTimeout_ExceededTimeout(t *testing.T) {
 
 	// First request: set up an expired session
 	w1 := httptest.NewRecorder()
-	req1, _ := http.NewRequestWithContext(context.Background(), "GET", "/test", nil)
+	req1, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 
 	// Create session with user and expired last activity
 	r2 := setupTestRouter()
@@ -139,7 +139,7 @@ func TestSessionIdleTimeout_UpdatesLastActivity(t *testing.T) {
 
 	// First request: set up session with old last activity
 	w1 := httptest.NewRecorder()
-	req1, _ := http.NewRequestWithContext(context.Background(), "GET", "/test", nil)
+	req1, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 
 	r2 := setupTestRouter()
 	r2.Use(func(c *gin.Context) {
@@ -176,7 +176,7 @@ func TestSessionIdleTimeout_NoSessionSkipped(t *testing.T) {
 	})
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/test", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	r.ServeHTTP(w, req)
 
 	// Should proceed normally (no session to check)
@@ -206,7 +206,7 @@ func TestSessionIdleTimeout_WithinTimeout(t *testing.T) {
 	})
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/test", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	r.ServeHTTP(w, req)
 
 	// Should not redirect (within timeout)
@@ -225,7 +225,7 @@ func TestSessionFingerprintMiddleware_Disabled(t *testing.T) {
 	})
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/test", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	r.ServeHTTP(w, req)
 
 	// Should proceed normally (fingerprinting disabled)
@@ -257,7 +257,7 @@ func TestSessionFingerprintMiddleware_ValidFingerprint(t *testing.T) {
 	})
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/test", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	req.Header.Set("User-Agent", testUserAgent)
 	r.ServeHTTP(w, req)
 
@@ -293,7 +293,7 @@ func TestSessionFingerprintMiddleware_MismatchFingerprint(t *testing.T) {
 	})
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/test", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	// Use different User-Agent (simulating hijacked session)
 	req.Header.Set("User-Agent", "Mozilla/5.0 Different Browser")
 	r.ServeHTTP(w, req)
@@ -318,7 +318,7 @@ func TestSessionFingerprintMiddleware_NoSession(t *testing.T) {
 	})
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/test", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	r.ServeHTTP(w, req)
 
 	// Should proceed normally (no session to check)
@@ -342,7 +342,7 @@ func TestRequireAuth_RedirectURLEncoded(t *testing.T) {
 	w := httptest.NewRecorder()
 	// Request URL with complex query parameters (simulating OAuth authorize endpoint)
 	requestPath := "/oauth/authorize?client_id=test-client&redirect_uri=http%3A%2F%2Flocalhost%3A8888%2Fcallback&response_type=code&scope=read+write&state=abc123&code_challenge=xyz789&code_challenge_method=S256"
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", requestPath, nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, requestPath, nil)
 	r.ServeHTTP(w, req)
 
 	// Should redirect to login
@@ -351,7 +351,7 @@ func TestRequireAuth_RedirectURLEncoded(t *testing.T) {
 
 	// Parse the redirect location
 	parsedURL, err := url.Parse(location)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "/login", parsedURL.Path)
 
 	// Verify that the redirect parameter is present and URL-encoded
@@ -393,7 +393,7 @@ func TestSessionIdleTimeout_RedirectURLEncoded(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	requestPath := "/oauth/authorize?client_id=test-client&state=abc123"
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", requestPath, nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, requestPath, nil)
 	r.ServeHTTP(w, req)
 
 	// Should redirect to login with timeout error
@@ -401,7 +401,7 @@ func TestSessionIdleTimeout_RedirectURLEncoded(t *testing.T) {
 	location := w.Header().Get("Location")
 
 	parsedURL, err := url.Parse(location)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "/login", parsedURL.Path)
 
 	// Verify redirect parameter is properly encoded
@@ -443,7 +443,7 @@ func TestSessionFingerprintMiddleware_RedirectURLEncoded(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	requestPath := "/oauth/authorize?client_id=test-client&state=abc123"
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", requestPath, nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, requestPath, nil)
 	// Use different User-Agent
 	req.Header.Set("User-Agent", "Mozilla/5.0 Different Browser")
 	r.ServeHTTP(w, req)
@@ -453,7 +453,7 @@ func TestSessionFingerprintMiddleware_RedirectURLEncoded(t *testing.T) {
 	location := w.Header().Get("Location")
 
 	parsedURL, err := url.Parse(location)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "/login", parsedURL.Path)
 
 	// Verify redirect parameter is properly encoded

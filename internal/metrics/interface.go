@@ -2,9 +2,9 @@ package metrics
 
 import "time"
 
-// MetricsRecorder defines the interface for recording application metrics
+// Recorder defines the interface for recording application metrics
 // Implementations include Metrics (Prometheus-based) and NoopMetrics (no-op)
-type MetricsRecorder interface {
+type Recorder interface {
 	// OAuth Device Flow
 	RecordOAuthDeviceCodeGenerated(success bool)
 	RecordOAuthDeviceCodeAuthorized(authorizationTime time.Duration)

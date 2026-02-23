@@ -33,7 +33,7 @@ func TestNewMemoryRateLimiter(t *testing.T) {
 	})
 
 	// First requests should succeed
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("X-Forwarded-For", "192.168.1.100")
 		w := httptest.NewRecorder()
@@ -98,7 +98,7 @@ func TestRateLimiter_DifferentIPs(t *testing.T) {
 
 	for _, ip := range ips {
 		// Each IP can make 2 requests
-		for i := 0; i < 2; i++ {
+		for i := range 2 {
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			req.Header.Set("X-Forwarded-For", ip)
 			w := httptest.NewRecorder()
@@ -173,7 +173,7 @@ func TestNewRedisRateLimiter_InvalidAddress(t *testing.T) {
 	})
 
 	// Should fail to create store
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, limiter)
 }
 
@@ -221,7 +221,7 @@ func TestNewRedisRateLimiter_Success(t *testing.T) {
 	testIP := "192.168.99." + time.Now().Format("150405")
 
 	// Make requests
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("X-Forwarded-For", testIP)
 		w := httptest.NewRecorder()
@@ -295,7 +295,7 @@ func TestRedisRateLimiter_MultiInstance(t *testing.T) {
 	testIP := "192.168.88." + time.Now().Format("150405")
 
 	// Make 3 requests to pod1
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("X-Forwarded-For", testIP)
 		w := httptest.NewRecorder()
@@ -304,7 +304,7 @@ func TestRedisRateLimiter_MultiInstance(t *testing.T) {
 	}
 
 	// Make 2 requests to pod2 (should succeed, total = 5)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("X-Forwarded-For", testIP)
 		w := httptest.NewRecorder()
@@ -490,7 +490,7 @@ func TestCreateRedisClient(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 	err := client.Ping(ctx).Err()
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// Test with valid address (if Redis is available)
 	validClient := redis.NewClient(&redis.Options{

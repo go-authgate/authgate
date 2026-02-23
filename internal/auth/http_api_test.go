@@ -353,7 +353,7 @@ func TestHTTPAPIAuthProvider_HMACAuth_ValidSignature(t *testing.T) {
 		}
 
 		// Compute expected signature: HMAC-SHA256(timestamp + method + path + body)
-		message := fmt.Sprintf("%s%s%s%s", timestamp, r.Method, r.URL.Path, string(body))
+		message := timestamp + r.Method + r.URL.Path + string(body)
 		h := hmac.New(sha256.New, []byte(testSecret))
 		h.Write([]byte(message))
 		expectedSignature := hex.EncodeToString(h.Sum(nil))
@@ -502,7 +502,7 @@ func TestHTTPAPIAuthProvider_SimpleAuth_Unauthorized(t *testing.T) {
 	provider := createTestProvider(cfg)
 	result, err := provider.Authenticate(context.Background(), "testuser", "password123")
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "401")
 }

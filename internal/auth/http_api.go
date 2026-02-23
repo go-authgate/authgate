@@ -45,7 +45,7 @@ type APIAuthResponse struct {
 func (p *HTTPAPIAuthProvider) Authenticate(
 	ctx context.Context,
 	username, password string,
-) (*AuthResult, error) {
+) (*Result, error) {
 	reqBody := APIAuthRequest{
 		Username: username,
 		Password: password,
@@ -119,7 +119,7 @@ func (p *HTTPAPIAuthProvider) Authenticate(
 		)
 	}
 
-	return &AuthResult{
+	return &Result{
 		Username:   username,
 		ExternalID: authResp.UserID,
 		Email:      authResp.Email,

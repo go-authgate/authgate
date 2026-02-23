@@ -14,7 +14,7 @@ func initializeServices(
 	cfg *config.Config,
 	db *store.Store,
 	auditService *services.AuditService,
-	prometheusMetrics metrics.MetricsRecorder,
+	prometheusMetrics metrics.Recorder,
 ) (*services.UserService, *services.DeviceService, *services.TokenService, *services.ClientService, *services.AuthorizationService) {
 	// Initialize authentication providers
 	localProvider := auth.NewLocalAuthProvider(db)

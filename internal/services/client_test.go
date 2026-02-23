@@ -96,7 +96,7 @@ func TestListClientsPaginatedWithCreator(t *testing.T) {
 		assert.Equal(t, "alice", clientMap["Client 1"].CreatorUsername)
 		assert.Equal(t, "bob", clientMap["Client 2"].CreatorUsername)
 		assert.Equal(t, "alice", clientMap["Client 3"].CreatorUsername)
-		assert.Equal(t, "", clientMap["Client 4"].CreatorUsername) // No creator
+		assert.Empty(t, clientMap["Client 4"].CreatorUsername) // No creator
 	})
 
 	t.Run("handles pagination correctly", func(t *testing.T) {
@@ -104,7 +104,7 @@ func TestListClientsPaginatedWithCreator(t *testing.T) {
 		clients, pagination, err := clientService.ListClientsPaginatedWithCreator(params)
 
 		require.NoError(t, err)
-		assert.Equal(t, 2, len(clients))
+		assert.Len(t, clients, 2)
 		// Note: Store creates a default "AuthGate CLI" client, so we have 5 total
 		assert.GreaterOrEqual(t, int(pagination.Total), 4)
 		assert.Equal(t, 1, pagination.CurrentPage)
@@ -116,7 +116,7 @@ func TestListClientsPaginatedWithCreator(t *testing.T) {
 		clients, pagination, err := clientService.ListClientsPaginatedWithCreator(params)
 
 		require.NoError(t, err)
-		assert.Equal(t, 1, len(clients))
+		assert.Len(t, clients, 1)
 		assert.Equal(t, "Client 1", clients[0].ClientName)
 		assert.Equal(t, "alice", clients[0].CreatorUsername)
 		assert.Equal(t, int64(1), pagination.Total)
@@ -127,7 +127,7 @@ func TestListClientsPaginatedWithCreator(t *testing.T) {
 		clients, pagination, err := clientService.ListClientsPaginatedWithCreator(params)
 
 		require.NoError(t, err)
-		assert.Equal(t, 0, len(clients))
+		assert.Empty(t, clients)
 		assert.Equal(t, int64(0), pagination.Total)
 	})
 
@@ -161,9 +161,9 @@ func TestListClientsPaginatedWithCreator(t *testing.T) {
 		clients, _, err := clientService.ListClientsPaginatedWithCreator(params)
 
 		require.NoError(t, err)
-		assert.Equal(t, 1, len(clients))
+		assert.Len(t, clients, 1)
 		assert.Equal(t, "Client With Deleted User", clients[0].ClientName)
-		assert.Equal(t, "", clients[0].CreatorUsername) // User deleted, so empty
+		assert.Empty(t, clients[0].CreatorUsername) // User deleted, so empty
 	})
 }
 
@@ -202,7 +202,7 @@ func TestGetUsersByIDs(t *testing.T) {
 		userMap, err := s.GetUsersByIDs(userIDs)
 
 		require.NoError(t, err)
-		assert.Equal(t, 3, len(userMap))
+		assert.Len(t, userMap, 3)
 		assert.Equal(t, "user1", userMap[user1.ID].Username)
 		assert.Equal(t, "user2", userMap[user2.ID].Username)
 		assert.Equal(t, "user3", userMap[user3.ID].Username)
@@ -214,7 +214,7 @@ func TestGetUsersByIDs(t *testing.T) {
 		userMap, err := s.GetUsersByIDs(userIDs)
 
 		require.NoError(t, err)
-		assert.Equal(t, 1, len(userMap))
+		assert.Len(t, userMap, 1)
 		assert.Equal(t, "user1", userMap[user1.ID].Username)
 		assert.Nil(t, userMap[nonExistentID])
 	})
@@ -223,7 +223,7 @@ func TestGetUsersByIDs(t *testing.T) {
 		userMap, err := s.GetUsersByIDs([]string{})
 
 		require.NoError(t, err)
-		assert.Equal(t, 0, len(userMap))
+		assert.Empty(t, userMap)
 	})
 
 	t.Run("handles duplicate IDs efficiently", func(t *testing.T) {
@@ -232,7 +232,7 @@ func TestGetUsersByIDs(t *testing.T) {
 		userMap, err := s.GetUsersByIDs(userIDs)
 
 		require.NoError(t, err)
-		assert.Equal(t, 2, len(userMap))
+		assert.Len(t, userMap, 2)
 		assert.Equal(t, "user1", userMap[user1.ID].Username)
 		assert.Equal(t, "user2", userMap[user2.ID].Username)
 	})

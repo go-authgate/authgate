@@ -58,15 +58,8 @@ func CalculatePagination(total int64, currentPage, pageSize int) PaginationResul
 	hasPrev := currentPage > 1
 	hasNext := currentPage < totalPages
 
-	prevPage := currentPage - 1
-	if prevPage < 1 {
-		prevPage = 1
-	}
-
-	nextPage := currentPage + 1
-	if nextPage > totalPages {
-		nextPage = totalPages
-	}
+	prevPage := max(currentPage-1, 1)
+	nextPage := min(currentPage+1, totalPages)
 
 	return PaginationResult{
 		Total:       total,

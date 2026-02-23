@@ -34,8 +34,7 @@ func parseRedirectURIs(input string) []string {
 		return redirectURIs
 	}
 
-	parts := strings.Split(input, ",")
-	for _, uri := range parts {
+	for uri := range strings.SplitSeq(input, ",") {
 		if trimmed := strings.TrimSpace(uri); trimmed != "" {
 			redirectURIs = append(redirectURIs, trimmed)
 		}
@@ -113,7 +112,7 @@ func (h *ClientHandler) ShowCreateClientPage(c *gin.Context) {
 			ActiveLink: "clients",
 		},
 		Title:  "Create OAuth Client",
-		Method: "POST",
+		Method: http.MethodPost,
 		Action: "/admin/clients",
 		IsEdit: false,
 	}))
@@ -164,7 +163,7 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 				Client: clientData,
 				Error:  err.Error(),
 				Title:  "Create OAuth Client",
-				Method: "POST",
+				Method: http.MethodPost,
 				Action: "/admin/clients",
 				IsEdit: false,
 			}),
@@ -248,7 +247,7 @@ func (h *ClientHandler) ShowEditClientPage(c *gin.Context) {
 		},
 		Client: clientDisplay,
 		Title:  "Edit OAuth Client",
-		Method: "POST",
+		Method: http.MethodPost,
 		Action: "/admin/clients/" + clientID,
 		IsEdit: true,
 	}))
@@ -306,7 +305,7 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 				Client: clientDisplay,
 				Error:  err.Error(),
 				Title:  "Edit OAuth Client",
-				Method: "POST",
+				Method: http.MethodPost,
 				Action: "/admin/clients/" + clientID,
 				IsEdit: true,
 			}),

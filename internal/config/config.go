@@ -386,7 +386,7 @@ func getEnvSlice(key string, defaultValue []string) []string {
 
 func splitAndTrim(s, sep string) []string {
 	var out []string
-	for _, part := range strings.Split(s, sep) {
+	for part := range strings.SplitSeq(s, sep) {
 		if trimmed := strings.TrimSpace(part); trimmed != "" {
 			out = append(out, trimmed)
 		}

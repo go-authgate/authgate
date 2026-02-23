@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -269,7 +270,7 @@ func (s *AuthorizationService) GetUserAuthorization(
 ) (*models.UserAuthorization, error) {
 	auth, err := s.store.GetUserAuthorization(userID, applicationID)
 	if err != nil {
-		return nil, nil // Treat as "not found" for consent check
+		return nil, nil //nolint:nilnil // nil UserAuthorization means "not found", which is not an error
 	}
 	return auth, nil
 }
@@ -512,20 +513,15 @@ func (s *AuthorizationService) isValidRedirectURI(
 	if uri == "" {
 		return false
 	}
-	for _, registered := range client.RedirectURIs {
-		if registered == uri {
-			return true
-		}
-	}
-	return false
+	return slices.Contains([]string(client.RedirectURIs), uri)
 }
 
 func (s *AuthorizationService) isValidScope(clientScopes, requestedScopes string) bool {
 	allowed := make(map[string]bool)
-	for _, sc := range strings.Fields(clientScopes) {
+	for sc := range strings.FieldsSeq(clientScopes) {
 		allowed[sc] = true
 	}
-	for _, sc := range strings.Fields(requestedScopes) {
+	for sc := range strings.FieldsSeq(requestedScopes) {
 		if !allowed[sc] {
 			return false
 		}

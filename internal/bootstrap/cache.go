@@ -11,7 +11,7 @@ import (
 )
 
 // initializeMetrics initializes Prometheus metrics
-func initializeMetrics(cfg *config.Config) metrics.MetricsRecorder {
+func initializeMetrics(cfg *config.Config) metrics.Recorder {
 	prometheusMetrics := metrics.Init(cfg.MetricsEnabled)
 	if cfg.MetricsEnabled {
 		log.Println("Prometheus metrics initialized")

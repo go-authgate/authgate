@@ -90,7 +90,7 @@ func createFreshStore(t *testing.T, driver string, pgContainer *postgres.Postgre
 		ctx := context.Background()
 
 		// Create the database
-		createDBCmd := fmt.Sprintf("CREATE DATABASE %s", dbName)
+		createDBCmd := "CREATE DATABASE " + dbName
 		_, _, err := pgContainer.Exec(
 			ctx,
 			[]string{"psql", "-U", "testuser", "-d", "testdb", "-c", createDBCmd},
@@ -109,7 +109,7 @@ func createFreshStore(t *testing.T, driver string, pgContainer *postgres.Postgre
 
 		// Clean up database after test
 		t.Cleanup(func() {
-			dropDBCmd := fmt.Sprintf("DROP DATABASE IF EXISTS %s", dbName)
+			dropDBCmd := "DROP DATABASE IF EXISTS " + dbName
 			_, _, _ = pgContainer.Exec(
 				context.Background(),
 				[]string{"psql", "-U", "testuser", "-d", "testdb", "-c", dropDBCmd},
@@ -269,7 +269,7 @@ func testBasicOperations(t *testing.T, driver string, pgContainer *postgres.Post
 		// Verify device code was deleted
 		retrieved, err := store.GetDeviceCodesByID(expiredCode.DeviceCodeID)
 		require.NoError(t, err)
-		assert.Len(t, retrieved, 0, "Expired device code should be deleted")
+		assert.Empty(t, retrieved, "Expired device code should be deleted")
 	})
 
 	t.Run("HealthCheck", func(t *testing.T) {
@@ -306,10 +306,10 @@ func TestDriverFactory(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			dialector, err := GetDialector(tt.driver, tt.dsn)
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, dialector)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, dialector)
 			}
 		})
@@ -327,7 +327,7 @@ func TestRegisterDriver(t *testing.T) {
 
 	// Get the custom driver
 	dialector, err := GetDialector("custom", "test-dsn")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, customDriverCalled)
 	assert.Nil(t, dialector) // Our mock returns nil
 }
@@ -572,8 +572,8 @@ func TestUpsertExternalUser_UsernameConflict_OnCreate(t *testing.T) {
 	)
 
 	// Should return username conflict error
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrUsernameConflict)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrUsernameConflict)
 }
 
 // TestUpsertExternalUser_UsernameConflict_OnUpdate tests username conflict when updating existing user
@@ -613,8 +613,8 @@ func TestUpsertExternalUser_UsernameConflict_OnUpdate(t *testing.T) {
 	)
 
 	// Should return username conflict error
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrUsernameConflict)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrUsernameConflict)
 
 	// Verify user2's username unchanged
 	user2Check, err := store.GetUserByExternalID("ext-user-2", "http_api")
@@ -844,16 +844,16 @@ func TestStoreClose(t *testing.T) {
 
 		// Health check should work before close
 		err = store.Health()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Close the connection
 		closeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 		err = store.Close(closeCtx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Health check should fail after close
 		err = store.Health()
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }

@@ -74,7 +74,7 @@ func TestInitializeMetricsCacheDisabled(t *testing.T) {
 		ctx,
 		&config.Config{MetricsEnabled: false, MetricsGaugeUpdateEnabled: true},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, c)
 	assert.Nil(t, closer)
 
@@ -83,7 +83,7 @@ func TestInitializeMetricsCacheDisabled(t *testing.T) {
 		ctx,
 		&config.Config{MetricsEnabled: true, MetricsGaugeUpdateEnabled: false},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, c)
 	assert.Nil(t, closer)
 }

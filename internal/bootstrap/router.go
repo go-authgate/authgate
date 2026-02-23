@@ -28,7 +28,7 @@ func setupRouter(
 	cfg *config.Config,
 	db *store.Store,
 	h handlerSet,
-	prometheusMetrics metrics.MetricsRecorder,
+	prometheusMetrics metrics.Recorder,
 	auditService *services.AuditService,
 	rateLimitRedisClient *redis.Client,
 	templatesFS embed.FS,
