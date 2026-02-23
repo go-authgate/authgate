@@ -787,3 +787,73 @@ func TestDefaultAdminPassword_WhitespaceHandling(t *testing.T) {
 		})
 	}
 }
+
+// TestStoreClose tests the Close method with context timeout support
+func TestStoreClose(t *testing.T) {
+	t.Run("Close with SQLite", func(t *testing.T) {
+		ctx := context.Background()
+		store, err := New(ctx, "sqlite", ":memory:", getTestConfig())
+		require.NoError(t, err)
+		require.NotNil(t, store)
+
+		// Close with normal context
+		closeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		err = store.Close(closeCtx)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Close with timeout", func(t *testing.T) {
+		ctx := context.Background()
+		store, err := New(ctx, "sqlite", ":memory:", getTestConfig())
+		require.NoError(t, err)
+		require.NotNil(t, store)
+
+		// Close with very short timeout (should still succeed for SQLite)
+		closeCtx, cancel := context.WithTimeout(ctx, 1*time.Millisecond)
+		defer cancel()
+		err = store.Close(closeCtx)
+		// For SQLite in-memory, close is fast so this should not timeout
+		// But we accept either success or timeout error
+		if err != nil {
+			assert.Contains(t, err.Error(), "context")
+		}
+	})
+
+	t.Run("Close with cancelled context", func(t *testing.T) {
+		ctx := context.Background()
+		store, err := New(ctx, "sqlite", ":memory:", getTestConfig())
+		require.NoError(t, err)
+		require.NotNil(t, store)
+
+		// Close with pre-cancelled context
+		closeCtx, cancel := context.WithCancel(ctx)
+		cancel() // Cancel immediately
+		err = store.Close(closeCtx)
+		// Close may either succeed quickly or respect the cancelled context.
+		if err != nil {
+			assert.Contains(t, err.Error(), "database close timeout")
+		}
+	})
+
+	t.Run("Close and verify connection closed", func(t *testing.T) {
+		ctx := context.Background()
+		store, err := New(ctx, "sqlite", ":memory:", getTestConfig())
+		require.NoError(t, err)
+		require.NotNil(t, store)
+
+		// Health check should work before close
+		err = store.Health()
+		assert.NoError(t, err)
+
+		// Close the connection
+		closeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		err = store.Close(closeCtx)
+		assert.NoError(t, err)
+
+		// Health check should fail after close
+		err = store.Health()
+		assert.Error(t, err)
+	})
+}

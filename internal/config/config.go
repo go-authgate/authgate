@@ -167,6 +167,16 @@ type Config struct {
 	AuthCodeExpiration time.Duration // Authorization code lifetime (default: 10 minutes)
 	PKCERequired       bool          // Force PKCE for all public clients (default: false)
 	ConsentRemember    bool          // Skip consent page if user already authorized same scope (default: true)
+
+	// Bootstrap and shutdown timeout settings
+	DBInitTimeout         time.Duration // Database initialization timeout (default: 30s)
+	RedisConnTimeout      time.Duration // Redis connection timeout (default: 5s)
+	CacheInitTimeout      time.Duration // Cache initialization timeout (default: 5s)
+	ServerShutdownTimeout time.Duration // HTTP server graceful shutdown timeout (default: 5s)
+	AuditShutdownTimeout  time.Duration // Audit service shutdown timeout (default: 10s)
+	RedisCloseTimeout     time.Duration // Redis close timeout (default: 5s)
+	CacheCloseTimeout     time.Duration // Cache close timeout (default: 5s)
+	DBCloseTimeout        time.Duration // Database close timeout (default: 5s)
 }
 
 func Load() *Config {
@@ -312,6 +322,16 @@ func Load() *Config {
 		AuthCodeExpiration: getEnvDuration("AUTH_CODE_EXPIRATION", 10*time.Minute),
 		PKCERequired:       getEnvBool("PKCE_REQUIRED", false),
 		ConsentRemember:    getEnvBool("CONSENT_REMEMBER", true),
+
+		// Bootstrap and shutdown timeout settings
+		DBInitTimeout:         getEnvDuration("DB_INIT_TIMEOUT", 30*time.Second),
+		RedisConnTimeout:      getEnvDuration("REDIS_CONN_TIMEOUT", 5*time.Second),
+		CacheInitTimeout:      getEnvDuration("CACHE_INIT_TIMEOUT", 5*time.Second),
+		ServerShutdownTimeout: getEnvDuration("SERVER_SHUTDOWN_TIMEOUT", 5*time.Second),
+		AuditShutdownTimeout:  getEnvDuration("AUDIT_SHUTDOWN_TIMEOUT", 10*time.Second),
+		RedisCloseTimeout:     getEnvDuration("REDIS_CLOSE_TIMEOUT", 5*time.Second),
+		CacheCloseTimeout:     getEnvDuration("CACHE_CLOSE_TIMEOUT", 5*time.Second),
+		DBCloseTimeout:        getEnvDuration("DB_CLOSE_TIMEOUT", 5*time.Second),
 	}
 }
 

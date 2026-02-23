@@ -26,6 +26,7 @@ type RueidisAsideCache struct {
 // Note: Rueidis uses connection pooling (typically ~10 connections based on GOMAXPROCS),
 // so total memory usage will be cacheSizeMB * number_of_connections.
 func NewRueidisAsideCache(
+	ctx context.Context,
 	addr, password string,
 	db int,
 	keyPrefix string,
@@ -45,6 +46,12 @@ func NewRueidisAsideCache(
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create rueidisaside client: %w", err)
+	}
+
+	// Test connection with provided context
+	if err := client.Client().Do(ctx, client.Client().B().Ping().Build()).Error(); err != nil {
+		client.Close()
+		return nil, fmt.Errorf("failed to ping Redis: %w", err)
 	}
 
 	return &RueidisAsideCache{

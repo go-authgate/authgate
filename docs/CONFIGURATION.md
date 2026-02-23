@@ -5,6 +5,7 @@ This guide covers all configuration options for AuthGate, including environment 
 ## Table of Contents
 
 - [Environment Variables](#environment-variables)
+- [Bootstrap and Shutdown Timeouts](#bootstrap-and-shutdown-timeouts)
 - [Generate Strong Secrets](#generate-strong-secrets)
 - [Default Test Data](#default-test-data)
 - [OAuth Third-Party Login](#oauth-third-party-login)
@@ -120,6 +121,78 @@ AUDIT_LOG_RETENTION=2160h               # Retention period: 90 days (default: 90
 AUDIT_LOG_BUFFER_SIZE=1000              # Async buffer size (default: 1000)
 AUDIT_LOG_CLEANUP_INTERVAL=24h          # Cleanup frequency (default: 24h)
 ```
+
+---
+
+## Bootstrap and Shutdown Timeouts
+
+AuthGate supports configurable timeout durations for all lifecycle operations, enabling production tuning and graceful degradation.
+
+### Overview
+
+Initialization operations share a unified context flow from the graceful shutdown manager, while shutdown operations run with independent, timeout-bound contexts:
+- **Initialization timeouts**: Control how long to wait for database, Redis, and cache connections during startup and are cancelled if the manager context is stopped (for example, with Ctrl+C)
+- **Shutdown timeouts**: Control how long to wait for graceful cleanup of resources; each shutdown job runs with a fresh context derived from `context.Background()` and is bounded only by its configured timeout
+- **Cancellation support**: Pressing Ctrl+C during startup cancels in-flight initialization work via the manager context; once shutdown has begun, shutdown work continues until its timeout expires, even if Ctrl+C is pressed again
+
+### Configuration
+
+All timeout values use Go duration format (e.g., `30s`, `1m`, `5m30s`):
+
+```bash
+# Database Initialization and Shutdown
+DB_INIT_TIMEOUT=30s          # Database connection and migration timeout (default: 30s)
+DB_CLOSE_TIMEOUT=5s          # Database connection close timeout (default: 5s)
+
+# Redis Connection and Shutdown
+REDIS_CONN_TIMEOUT=5s        # Redis connection health check timeout (default: 5s)
+REDIS_CLOSE_TIMEOUT=5s       # Redis connection close timeout (default: 5s)
+
+# Cache Initialization and Shutdown
+CACHE_INIT_TIMEOUT=5s        # Cache initialization timeout (default: 5s)
+CACHE_CLOSE_TIMEOUT=5s       # Cache close timeout (default: 5s)
+
+# Server Graceful Shutdown
+SERVER_SHUTDOWN_TIMEOUT=5s   # HTTP server graceful shutdown timeout (default: 5s)
+AUDIT_SHUTDOWN_TIMEOUT=10s   # Audit service shutdown timeout (default: 10s)
+```
+
+### Use Cases
+
+**Slow Network Connections**
+```bash
+# Increase timeouts for remote database/Redis
+DB_INIT_TIMEOUT=60s
+REDIS_CONN_TIMEOUT=15s
+```
+
+**Large Audit Buffer**
+```bash
+# Allow more time to flush audit logs on shutdown
+AUDIT_SHUTDOWN_TIMEOUT=30s
+```
+
+**Fast Deployment Rollouts**
+```bash
+# Reduce shutdown timeouts for faster pod termination
+SERVER_SHUTDOWN_TIMEOUT=3s
+DB_CLOSE_TIMEOUT=2s
+```
+
+### Best Practices
+
+1. **Keep close timeouts short** (5s or less) to prevent hanging on shutdown
+2. **Increase init timeouts** for slow networks or large databases
+3. **Match cache timeout** to your connection reliability
+4. **Test timeout values** in staging before production
+5. **Monitor timeout errors** in logs to tune values
+
+### Behavior
+
+- **Initialization**: If a timeout is exceeded, the application exits with an error
+- **Shutdown**: Shutdown waits up to the configured timeout for close operations; if the timeout elapses, shutdown continues and reports a timeout error
+- **Cancellation**: Pressing Ctrl+C triggers graceful shutdown and cancels operations that honor the manager context, but does not forcibly abort in-progress shutdown jobs
+- **Errors**: Timeout errors include context (e.g., "database close timeout: context deadline exceeded")
 
 ---
 
