@@ -163,7 +163,12 @@ func (h *AuthHandler) LoginPageWithOAuth(
 	}
 
 	templates.RenderTempl(c, http.StatusOK, templates.LoginPage(templates.LoginPageProps{
-		BaseProps:      templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		NavbarProps: templates.NavbarProps{
+			Username:   "",
+			IsAdmin:    false,
+			ActiveLink: "",
+		},
 		Redirect:       redirectTo,
 		Error:          errorMsg,
 		OAuthProviders: providers,
@@ -213,7 +218,12 @@ func (h *AuthHandler) Login(c *gin.Context,
 			c,
 			http.StatusUnauthorized,
 			templates.LoginPage(templates.LoginPageProps{
-				BaseProps:      templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				NavbarProps: templates.NavbarProps{
+					Username:   "",
+					IsAdmin:    false,
+					ActiveLink: "",
+				},
 				Error:          errorMsg,
 				Redirect:       redirectTo,
 				OAuthProviders: providers,
@@ -251,7 +261,12 @@ func (h *AuthHandler) Login(c *gin.Context,
 			http.StatusInternalServerError,
 			templates.LoginPage(templates.LoginPageProps{
 				BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-				Error:     "Failed to create session",
+				NavbarProps: templates.NavbarProps{
+					Username:   "",
+					IsAdmin:    false,
+					ActiveLink: "",
+				},
+				Error: "Failed to create session",
 			}),
 		)
 		return

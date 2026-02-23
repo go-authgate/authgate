@@ -4,34 +4,46 @@ templ Navbar(props *NavbarProps) {
 	<nav class="navbar">
 		<div class="navbar-container">
 			<div class="navbar-brand">
-				<a href="/device">AuthGate</a>
+				if props.Username != "" {
+					<a href="/device">AuthGate</a>
+				} else {
+					<a href="/">AuthGate</a>
+				}
 			</div>
 			<button class="navbar-toggle" onclick="toggleMenu()" aria-label="Toggle navigation menu">☰</button>
 			<div class="navbar-menu" id="navbarMenu">
-				<div class="navbar-links">
-					@NavLink("/device", "Device Authorization", props.ActiveLink == "device")
-					@NavDropdown(
-						"Account",
-						props.ActiveLink == "sessions" || props.ActiveLink == "authorizations",
-					) {
-						@NavDropdownItem("/account/sessions", "Active Sessions", props.ActiveLink == "sessions", false)
-						@NavDropdownItem("/account/authorizations", "Authorized Apps", props.ActiveLink == "authorizations", false)
-					}
-					@NavDropdown("API Docs", props.ActiveLink == "apidocs") {
-						@NavDropdownItem("/swagger/index.html", "Swagger UI", props.ActiveLink == "apidocs", false)
-					}
-					if props.IsAdmin {
-						<div class="navbar-admin-divider" aria-hidden="true"></div>
-						@NavAdminDropdown(props.ActiveLink == "clients" || props.ActiveLink == "audit") {
-							@NavDropdownItem("/admin/clients", "OAuth Clients", props.ActiveLink == "clients", true)
-							@NavDropdownItem("/admin/audit", "Audit Logs", props.ActiveLink == "audit", true)
+				if props.Username != "" {
+					<div class="navbar-links">
+						@NavLink("/device", "Device Authorization", props.ActiveLink == "device")
+						@NavDropdown(
+							"Account",
+							props.ActiveLink == "sessions" || props.ActiveLink == "authorizations",
+						) {
+							@NavDropdownItem("/account/sessions", "Active Sessions", props.ActiveLink == "sessions", false)
+							@NavDropdownItem("/account/authorizations", "Authorized Apps", props.ActiveLink == "authorizations", false)
 						}
-					}
-				</div>
-				<div class="navbar-user">
-					<span class="navbar-username">{ props.Username }</span>
-					<a href="/logout" class="navbar-logout">Logout</a>
-				</div>
+						@NavDropdown("API Docs", props.ActiveLink == "apidocs") {
+							@NavDropdownItem("/swagger/index.html", "Swagger UI", props.ActiveLink == "apidocs", false)
+						}
+						if props.IsAdmin {
+							<div class="navbar-admin-divider" aria-hidden="true"></div>
+							@NavAdminDropdown(props.ActiveLink == "clients" || props.ActiveLink == "audit") {
+								@NavDropdownItem("/admin/clients", "OAuth Clients", props.ActiveLink == "clients", true)
+								@NavDropdownItem("/admin/audit", "Audit Logs", props.ActiveLink == "audit", true)
+							}
+						}
+					</div>
+					<div class="navbar-user">
+						<span class="navbar-username">{ props.Username }</span>
+						<a href="/logout" class="navbar-logout">Logout</a>
+					</div>
+				} else {
+					<div class="navbar-links">
+						@NavDropdown("API Docs", props.ActiveLink == "apidocs") {
+							@NavDropdownItem("/swagger/index.html", "Swagger UI", props.ActiveLink == "apidocs", false)
+						}
+					</div>
+				}
 			</div>
 		</div>
 	</nav>

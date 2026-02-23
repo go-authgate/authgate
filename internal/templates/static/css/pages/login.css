@@ -8,6 +8,15 @@
   max-width: 480px;
   margin: 0 auto;
   padding: var(--space-6) var(--space-4);
+  min-height: calc(100vh - 72px - 120px); /* viewport height minus navbar and footer */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Wrapper for proper flexbox centering */
+.login-container > * {
+  width: 100%;
 }
 
 /* Enhanced login card */
@@ -408,6 +417,7 @@
   .login-container {
     max-width: 100%;
     padding: var(--space-4);
+    min-height: calc(100vh - 64px - 100px); /* adjusted for mobile navbar height */
   }
 
   .login-card {

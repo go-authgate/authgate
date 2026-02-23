@@ -52,6 +52,7 @@ type SuccessPageProps struct {
 // LoginPageProps contains properties for the login page
 type LoginPageProps struct {
 	BaseProps
+	NavbarProps
 	Error          string
 	Redirect       string
 	OAuthProviders []OAuthProvider

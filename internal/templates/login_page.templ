@@ -3,7 +3,7 @@ package templates
 import "fmt"
 
 templ LoginPage(props LoginPageProps) {
-	@Layout("Login", LayoutNoNavbar, nil) {
+	@Layout("Login", LayoutHasNavbar, &props.NavbarProps) {
 		<link rel="stylesheet" href="/static/css/pages/login.css"/>
 		<div class="login-container">
 			<div class="login-card">
