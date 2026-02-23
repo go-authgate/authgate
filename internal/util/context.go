@@ -3,7 +3,8 @@ package util
 import (
 	"context"
 
-	"github.com/appleboy/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/models"
+
 	"github.com/gin-gonic/gin"
 )
 

@@ -3,7 +3,7 @@ package store
 import (
 	"time"
 
-	"github.com/appleboy/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/models"
 )
 
 // AuditLogFilters contains filter criteria for querying audit logs

@@ -3,7 +3,7 @@ package auth
 import (
 	"context"
 
-	"github.com/appleboy/authgate/internal/store"
+	"github.com/go-authgate/authgate/internal/store"
 
 	"golang.org/x/crypto/bcrypt"
 )

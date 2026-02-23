@@ -10,7 +10,7 @@ import (
 
 	retry "github.com/appleboy/go-httpretry"
 
-	"github.com/appleboy/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/config"
 )
 
 // HTTPTokenProvider generates and validates tokens via external HTTP API

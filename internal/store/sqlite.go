@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/appleboy/authgate/internal/config"
-	"github.com/appleboy/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/models"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"

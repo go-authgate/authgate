@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/appleboy/authgate/internal/services"
+	"github.com/go-authgate/authgate/internal/services"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"

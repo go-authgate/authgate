@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/appleboy/authgate/internal/cache"
+	"github.com/go-authgate/authgate/internal/cache"
 )
 
 // mockStore is a mock implementation of store.Store for testing

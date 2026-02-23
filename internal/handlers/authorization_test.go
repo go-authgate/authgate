@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/appleboy/authgate/internal/services"
+	"github.com/go-authgate/authgate/internal/services"
 
 	"github.com/stretchr/testify/assert"
 )

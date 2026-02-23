@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/appleboy/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/config"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )

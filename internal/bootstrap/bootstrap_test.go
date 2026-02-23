@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/appleboy/authgate/internal/config"
 	"github.com/gin-gonic/gin"
+	"github.com/go-authgate/authgate/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

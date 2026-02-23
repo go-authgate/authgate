@@ -9,7 +9,7 @@ import (
 
 	retry "github.com/appleboy/go-httpretry"
 
-	"github.com/appleboy/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/config"
 )
 
 // HTTPAPIAuthProvider handles HTTP API-based authentication

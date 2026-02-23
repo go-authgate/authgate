@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/appleboy/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/config"
 )
 
 // validateAllConfiguration validates all configuration settings
