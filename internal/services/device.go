@@ -19,11 +19,12 @@ import (
 )
 
 var (
-	ErrInvalidClient      = errors.New("invalid client_id")
-	ErrClientInactive     = errors.New("client is inactive")
-	ErrDeviceCodeNotFound = errors.New("device code not found")
-	ErrDeviceCodeExpired  = errors.New("device code expired")
-	ErrUserCodeNotFound   = errors.New("user code not found")
+	ErrInvalidClient        = errors.New("invalid client_id")
+	ErrClientInactive       = errors.New("client is inactive")
+	ErrDeviceFlowNotEnabled = errors.New("device flow not enabled for this client")
+	ErrDeviceCodeNotFound   = errors.New("device code not found")
+	ErrDeviceCodeExpired    = errors.New("device code expired")
+	ErrUserCodeNotFound     = errors.New("user code not found")
 )
 
 type DeviceService struct {
@@ -61,6 +62,11 @@ func (s *DeviceService) GenerateDeviceCode(
 	// Check if client is active
 	if !client.IsActive {
 		return nil, ErrClientInactive
+	}
+
+	// Check if Device Flow is enabled for this client
+	if !client.EnableDeviceFlow {
+		return nil, ErrDeviceFlowNotEnabled
 	}
 
 	// Generate cryptographically secure device code (20 bytes = 40 hex chars)

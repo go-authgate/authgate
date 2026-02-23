@@ -93,6 +93,13 @@ func (h *DeviceHandler) DeviceCodeRequest(c *gin.Context) {
 			})
 			return
 		}
+		if errors.Is(err, services.ErrDeviceFlowNotEnabled) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "unauthorized_client",
+				"error_description": "Device authorization flow is not enabled for this client",
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":             "server_error",
 			"error_description": err.Error(),

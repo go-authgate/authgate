@@ -29,7 +29,7 @@ type OAuthApplication struct {
 	Scopes             string      `gorm:"not null"`
 	GrantTypes         string      `gorm:"not null;default:'device_code'"`
 	RedirectURIs       StringArray `gorm:"type:json"`
-	ClientType         string      `gorm:"not null;default:'confidential'"` // "confidential" or "public"
+	ClientType         string      `gorm:"not null;default:'public'"` // "confidential" or "public"
 	EnableDeviceFlow   bool        `gorm:"not null;default:true"`
 	EnableAuthCodeFlow bool        `gorm:"not null;default:false"`
 	IsActive           bool        `gorm:"not null;default:true"`

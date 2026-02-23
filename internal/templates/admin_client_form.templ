@@ -37,21 +37,21 @@ templ AdminClientForm(props ClientFormPageProps) {
 							<label for="client_type" class="admin-form-label admin-form-label-required">Client Type</label>
 							<select id="client_type" name="client_type" class="admin-form-select">
 								<option
-									value="confidential"
-									selected?={ props.Client == nil || props.Client.ClientType != "public" }
-								>
-									Confidential — server-side apps that can store a secret
-								</option>
-								<option
 									value="public"
-									selected?={ props.Client != nil && props.Client.ClientType == "public" }
+									selected?={ props.Client == nil || props.Client.ClientType == "public" }
 								>
 									Public — SPAs, CLIs, mobile apps (PKCE required)
 								</option>
+								<option
+									value="confidential"
+									selected?={ props.Client != nil && props.Client.ClientType == "confidential" }
+								>
+									Confidential — server-side apps that can store a secret
+								</option>
 							</select>
 							<small class="admin-form-hint">
-								Confidential clients authenticate with a secret.
 								Public clients use PKCE instead (no secret required).
+								Confidential clients authenticate with a secret.
 							</small>
 						</div>
 						<!-- Grant Types (checkboxes) -->

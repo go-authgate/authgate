@@ -184,15 +184,16 @@ func (s *Store) seedData(ctx context.Context, cfg *config.Config) error {
 	if clientCount == 0 {
 		clientID := uuid.New().String()
 		client := &models.OAuthApplication{
-			UserID:           userID,
-			ClientID:         clientID,
-			ClientName:       "AuthGate CLI",
-			Description:      "Default CLI client for device authorization flow",
-			Scopes:           "read write",
-			GrantTypes:       "device_code",
-			RedirectURIs:     models.StringArray{},
-			EnableDeviceFlow: true,
-			IsActive:         true,
+			UserID:             userID,
+			ClientID:           clientID,
+			ClientName:         "AuthGate CLI",
+			Description:        "Default CLI client for authorization flow",
+			Scopes:             "read write",
+			GrantTypes:         "device_code authorization_code",
+			RedirectURIs:       models.StringArray{"http://localhost:8888/callback"},
+			EnableAuthCodeFlow: true,
+			EnableDeviceFlow:   true,
+			IsActive:           true,
 		}
 		clientSecret, err := client.GenerateClientSecret(ctx)
 		if err != nil {

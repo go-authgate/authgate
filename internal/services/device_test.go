@@ -121,6 +121,51 @@ func TestGenerateDeviceCode_InvalidClient(t *testing.T) {
 	assert.Nil(t, dc)
 }
 
+func TestGenerateDeviceCode_DeviceFlowDisabled(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		DeviceCodeExpiration: 30 * time.Minute,
+		PollingInterval:      5,
+	}
+	deviceService := NewDeviceService(s, cfg, nil, metrics.NewNoopMetrics())
+
+	// Create a client first (with default values)
+	client := &models.OAuthApplication{
+		ClientID:           uuid.New().String(),
+		ClientSecret:       "secret",
+		ClientName:         "Test Client Without Device Flow",
+		Description:        "Test client with device flow disabled",
+		UserID:             uuid.New().String(),
+		Scopes:             "read write",
+		GrantTypes:         "authorization_code",
+		RedirectURIs:       models.StringArray{"https://app.example.com/callback"},
+		EnableAuthCodeFlow: true,
+		IsActive:           true,
+	}
+	err := s.CreateClient(client)
+	require.NoError(t, err)
+
+	// Now explicitly disable device flow (GORM default:true prevents setting false on create)
+	client.EnableDeviceFlow = false
+	client.GrantTypes = "authorization_code" // Only auth code, not device
+	err = s.UpdateClient(client)
+	require.NoError(t, err)
+
+	// Verify the client now has device flow disabled
+	storedClient, err := s.GetClient(client.ClientID)
+	require.NoError(t, err)
+	require.False(t, storedClient.EnableDeviceFlow, "EnableDeviceFlow should be false")
+	require.True(t, storedClient.EnableAuthCodeFlow, "EnableAuthCodeFlow should be true")
+
+	// Try to generate device code
+	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
+
+	// Assert
+	assert.Error(t, err)
+	assert.Equal(t, ErrDeviceFlowNotEnabled, err)
+	assert.Nil(t, dc)
+}
+
 func TestAuthorizeDeviceCode_Success(t *testing.T) {
 	s := setupTestStore(t)
 	cfg := &config.Config{
