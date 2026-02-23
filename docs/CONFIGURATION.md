@@ -130,10 +130,10 @@ AuthGate supports configurable timeout durations for all lifecycle operations, e
 
 ### Overview
 
-All timeout operations share a unified context flow from the graceful shutdown manager:
-- **Initialization timeouts**: Control how long to wait for database, Redis, and cache connections during startup
-- **Shutdown timeouts**: Control how long to wait for graceful cleanup of resources
-- **Cancellation support**: All operations can be interrupted with Ctrl+C without hanging
+Initialization operations share a unified context flow from the graceful shutdown manager, while shutdown operations run with independent, timeout-bound contexts:
+- **Initialization timeouts**: Control how long to wait for database, Redis, and cache connections during startup and are cancelled if the manager context is stopped (for example, with Ctrl+C)
+- **Shutdown timeouts**: Control how long to wait for graceful cleanup of resources; each shutdown job runs with a fresh context derived from `context.Background()` and is bounded only by its configured timeout
+- **Cancellation support**: Pressing Ctrl+C during startup cancels in-flight initialization work via the manager context; once shutdown has begun, shutdown work continues until its timeout expires, even if Ctrl+C is pressed again
 
 ### Configuration
 
