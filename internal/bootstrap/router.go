@@ -48,6 +48,9 @@ func setupRouter(
 	// Serve embedded static files
 	serveStaticFiles(r, templatesFS)
 
+	// Favicon endpoint
+	r.GET("/favicon.ico", createFaviconHandler(templatesFS))
+
 	// Health check endpoint
 	r.GET("/health", createHealthCheckHandler(db))
 
@@ -222,6 +225,31 @@ func setupOAuthRoutes(
 		oauthGroup := r.Group("/auth")
 		oauthGroup.GET("/login/:provider", handler.LoginWithProvider)
 		oauthGroup.GET("/callback/:provider", handler.OAuthCallback)
+	}
+}
+
+// createFaviconHandler creates favicon endpoint handler
+// favicon godoc
+//
+//	@Summary		Favicon
+//	@Description	Serve favicon.ico
+//	@Tags			System
+//	@Produce		image/x-icon
+//	@Success		200	{file}	binary	"Favicon file"
+//	@Router			/favicon.ico [get]
+func createFaviconHandler(templatesFS embed.FS) gin.HandlerFunc {
+	// Read favicon once at startup
+	faviconData, err := templatesFS.ReadFile("internal/templates/static/images/favicon.ico")
+	if err != nil {
+		log.Printf("Warning: Failed to read favicon.ico: %v", err)
+		// Return empty handler if favicon is missing
+		return func(c *gin.Context) {
+			c.Status(http.StatusNotFound)
+		}
+	}
+
+	return func(c *gin.Context) {
+		c.Data(http.StatusOK, "image/x-icon", faviconData)
 	}
 }
 
