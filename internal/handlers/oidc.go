@@ -84,6 +84,7 @@ func (h *OIDCHandler) Discovery(c *gin.Context) {
 			"name",
 			"preferred_username",
 			"email",
+			"email_verified",
 			"picture",
 			"updated_at",
 		},
@@ -139,6 +140,7 @@ func (h *OIDCHandler) UserInfo(c *gin.Context) {
 
 	claims := buildUserInfoClaims(
 		result.UserID,
+		strings.TrimRight(h.config.BaseURL, "/"),
 		result.Scopes,
 		user.FullName,
 		user.Username,
@@ -150,9 +152,10 @@ func (h *OIDCHandler) UserInfo(c *gin.Context) {
 }
 
 // buildUserInfoClaims constructs UserInfo response claims based on the granted scopes.
-// sub is always included. profile and email scopes gate their respective claims.
+// sub and iss are always included. profile and email scopes gate their respective claims.
 func buildUserInfoClaims(
 	userID string,
+	issuer string,
 	scopes string,
 	fullName string,
 	username string,
@@ -164,6 +167,7 @@ func buildUserInfoClaims(
 
 	claims := map[string]any{
 		"sub": userID,
+		"iss": issuer,
 	}
 
 	if scopeSet["profile"] {

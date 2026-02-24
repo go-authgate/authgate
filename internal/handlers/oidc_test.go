@@ -45,6 +45,7 @@ func TestBuildUserInfoClaims_AllScopes(t *testing.T) {
 	updatedAt := time.Unix(1708646400, 0)
 	claims := buildUserInfoClaims(
 		"user-123",
+		"https://auth.example.com",
 		"openid profile email",
 		"John Doe",
 		"johndoe",
@@ -54,6 +55,7 @@ func TestBuildUserInfoClaims_AllScopes(t *testing.T) {
 	)
 
 	assert.Equal(t, "user-123", claims["sub"])
+	assert.Equal(t, "https://auth.example.com", claims["iss"])
 	assert.Equal(t, "John Doe", claims["name"])
 	assert.Equal(t, "johndoe", claims["preferred_username"])
 	assert.Equal(t, "https://example.com/avatar.jpg", claims["picture"])
@@ -65,6 +67,7 @@ func TestBuildUserInfoClaims_AllScopes(t *testing.T) {
 func TestBuildUserInfoClaims_OpenIDOnly(t *testing.T) {
 	claims := buildUserInfoClaims(
 		"user-123",
+		"https://auth.example.com",
 		"openid",
 		"John Doe",
 		"johndoe",
@@ -74,6 +77,7 @@ func TestBuildUserInfoClaims_OpenIDOnly(t *testing.T) {
 	)
 
 	assert.Equal(t, "user-123", claims["sub"])
+	assert.Equal(t, "https://auth.example.com", claims["iss"])
 	assert.Nil(t, claims["name"])
 	assert.Nil(t, claims["email"])
 	assert.Nil(t, claims["picture"])
@@ -83,6 +87,7 @@ func TestBuildUserInfoClaims_ProfileScopeOnly(t *testing.T) {
 	updatedAt := time.Unix(1000000, 0)
 	claims := buildUserInfoClaims(
 		"user-456",
+		"https://auth.example.com",
 		"profile",
 		"Jane Smith",
 		"janesmith",
@@ -104,6 +109,7 @@ func TestBuildUserInfoClaims_ProfileScopeOnly(t *testing.T) {
 func TestBuildUserInfoClaims_EmailScopeOnly(t *testing.T) {
 	claims := buildUserInfoClaims(
 		"user-789",
+		"https://auth.example.com",
 		"email",
 		"Bob Builder",
 		"bob",
@@ -122,6 +128,7 @@ func TestBuildUserInfoClaims_EmailScopeOnly(t *testing.T) {
 func TestBuildUserInfoClaims_NoScopes(t *testing.T) {
 	claims := buildUserInfoClaims(
 		"user-000",
+		"https://auth.example.com",
 		"",
 		"Nobody",
 		"nobody",
@@ -130,8 +137,9 @@ func TestBuildUserInfoClaims_NoScopes(t *testing.T) {
 		time.Now(),
 	)
 
-	// Only sub is always present
+	// sub and iss are always present
 	assert.Equal(t, "user-000", claims["sub"])
+	assert.Equal(t, "https://auth.example.com", claims["iss"])
 	assert.Nil(t, claims["name"])
 	assert.Nil(t, claims["email"])
 }
@@ -139,6 +147,7 @@ func TestBuildUserInfoClaims_NoScopes(t *testing.T) {
 func TestBuildUserInfoClaims_NoPictureWhenEmpty(t *testing.T) {
 	claims := buildUserInfoClaims(
 		"user-001",
+		"https://auth.example.com",
 		"profile",
 		"Test User",
 		"testuser",
@@ -200,6 +209,12 @@ func TestDiscovery_ReturnsCorrectMetadata(t *testing.T) {
 	codeChallenges, ok := meta["code_challenge_methods_supported"].([]any)
 	require.True(t, ok)
 	assert.Contains(t, codeChallenges, "S256")
+
+	claims, ok := meta["claims_supported"].([]any)
+	require.True(t, ok)
+	assert.Contains(t, claims, "sub")
+	assert.Contains(t, claims, "iss")
+	assert.Contains(t, claims, "email_verified")
 }
 
 func TestDiscovery_StripsTrailingSlashFromBaseURL(t *testing.T) {
