@@ -68,7 +68,7 @@ jobs:
             VERSION=${{ steps.docker-meta.outputs.version }}
 
       - name: Run Trivy vulnerability scanner on Docker image
-        uses: aquasecurity/trivy-action@0.34.0
+        uses: aquasecurity/trivy-action@0.34.1
         with:
           image-ref: ${{ env.REPO }}:scan
           ignore-unfixed: true
