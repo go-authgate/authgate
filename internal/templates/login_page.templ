@@ -1,6 +1,9 @@
 package templates
 
-import "fmt"
+import (
+	"fmt"
+	"net/url"
+)
 
 templ LoginPage(props LoginPageProps) {
 	@Layout("Login", LayoutHasNavbar, &props.NavbarProps) {
@@ -21,7 +24,7 @@ templ LoginPage(props LoginPageProps) {
 						<div class="login-oauth-buttons">
 							for _, provider := range props.OAuthProviders {
 								<a
-									href={ templ.URL(fmt.Sprintf("/auth/login/%s?redirect=%s", provider.Name, props.Redirect)) }
+									href={ templ.URL(fmt.Sprintf("/auth/login/%s?redirect=%s", provider.Name, url.QueryEscape(props.Redirect))) }
 									class={ fmt.Sprintf("login-oauth-btn %s", provider.Name) }
 								>
 									if provider.Name == "github" {
