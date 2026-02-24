@@ -38,3 +38,13 @@ func (t *AccessToken) IsRevoked() bool {
 func (t *AccessToken) IsDisabled() bool {
 	return t.Status == "disabled"
 }
+
+// IsAccessToken returns true if token category is 'access'
+func (t *AccessToken) IsAccessToken() bool {
+	return t.TokenCategory == "access"
+}
+
+// IsRefreshToken returns true if token category is 'refresh'
+func (t *AccessToken) IsRefreshToken() bool {
+	return t.TokenCategory == "refresh"
+}

@@ -708,3 +708,300 @@ func TestExchangeAuthorizationCode_WithAuthorizationID(t *testing.T) {
 	require.NotNil(t, accessToken)
 	assert.Equal(t, &authID, accessToken.AuthorizationID)
 }
+
+// ============================================================
+// DisableToken / EnableToken — state transition checks
+// ============================================================
+
+func TestDisableToken_ActiveToken(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		DeviceCodeExpiration: 30 * time.Minute,
+		PollingInterval:      5,
+		JWTExpiration:        1 * time.Hour,
+		JWTSecret:            "test-secret",
+		BaseURL:              "http://localhost:8080",
+	}
+	tokenService := createTestTokenService(s, cfg)
+
+	client := createTestClient(t, s, true)
+	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
+	accessToken, _, err := tokenService.ExchangeDeviceCode(
+		context.Background(),
+		dc.DeviceCode,
+		client.ClientID,
+	)
+	require.NoError(t, err)
+
+	err = tokenService.DisableToken(context.Background(), accessToken.ID, "admin")
+	require.NoError(t, err)
+
+	dbToken, err := s.GetAccessTokenByID(accessToken.ID)
+	require.NoError(t, err)
+	assert.True(t, dbToken.IsDisabled())
+}
+
+func TestDisableToken_AlreadyDisabled(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		DeviceCodeExpiration: 30 * time.Minute,
+		PollingInterval:      5,
+		JWTExpiration:        1 * time.Hour,
+		JWTSecret:            "test-secret",
+		BaseURL:              "http://localhost:8080",
+	}
+	tokenService := createTestTokenService(s, cfg)
+
+	client := createTestClient(t, s, true)
+	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
+	accessToken, _, err := tokenService.ExchangeDeviceCode(
+		context.Background(),
+		dc.DeviceCode,
+		client.ClientID,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, tokenService.DisableToken(context.Background(), accessToken.ID, "admin"))
+
+	// Second disable should fail
+	err = tokenService.DisableToken(context.Background(), accessToken.ID, "admin")
+	require.ErrorIs(t, err, ErrTokenCannotDisable)
+}
+
+func TestDisableToken_RevokedToken(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		DeviceCodeExpiration: 30 * time.Minute,
+		PollingInterval:      5,
+		JWTExpiration:        1 * time.Hour,
+		JWTSecret:            "test-secret",
+		BaseURL:              "http://localhost:8080",
+	}
+	tokenService := createTestTokenService(s, cfg)
+
+	client := createTestClient(t, s, true)
+	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
+	accessToken, _, err := tokenService.ExchangeDeviceCode(
+		context.Background(),
+		dc.DeviceCode,
+		client.ClientID,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, tokenService.RevokeTokenByStatus(accessToken.ID))
+
+	// Disabling a revoked token should fail
+	err = tokenService.DisableToken(context.Background(), accessToken.ID, "admin")
+	require.ErrorIs(t, err, ErrTokenCannotDisable)
+}
+
+func TestEnableToken_DisabledToken(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		DeviceCodeExpiration: 30 * time.Minute,
+		PollingInterval:      5,
+		JWTExpiration:        1 * time.Hour,
+		JWTSecret:            "test-secret",
+		BaseURL:              "http://localhost:8080",
+	}
+	tokenService := createTestTokenService(s, cfg)
+
+	client := createTestClient(t, s, true)
+	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
+	accessToken, _, err := tokenService.ExchangeDeviceCode(
+		context.Background(),
+		dc.DeviceCode,
+		client.ClientID,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, tokenService.DisableToken(context.Background(), accessToken.ID, "admin"))
+
+	err = tokenService.EnableToken(context.Background(), accessToken.ID, "admin")
+	require.NoError(t, err)
+
+	dbToken, err := s.GetAccessTokenByID(accessToken.ID)
+	require.NoError(t, err)
+	assert.True(t, dbToken.IsActive())
+}
+
+func TestEnableToken_ActiveToken(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		DeviceCodeExpiration: 30 * time.Minute,
+		PollingInterval:      5,
+		JWTExpiration:        1 * time.Hour,
+		JWTSecret:            "test-secret",
+		BaseURL:              "http://localhost:8080",
+	}
+	tokenService := createTestTokenService(s, cfg)
+
+	client := createTestClient(t, s, true)
+	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
+	accessToken, _, err := tokenService.ExchangeDeviceCode(
+		context.Background(),
+		dc.DeviceCode,
+		client.ClientID,
+	)
+	require.NoError(t, err)
+
+	// Token is already active — enabling should fail
+	err = tokenService.EnableToken(context.Background(), accessToken.ID, "admin")
+	require.ErrorIs(t, err, ErrTokenCannotEnable)
+}
+
+func TestEnableToken_RevokedToken(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		DeviceCodeExpiration: 30 * time.Minute,
+		PollingInterval:      5,
+		JWTExpiration:        1 * time.Hour,
+		JWTSecret:            "test-secret",
+		BaseURL:              "http://localhost:8080",
+	}
+	tokenService := createTestTokenService(s, cfg)
+
+	client := createTestClient(t, s, true)
+	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
+	accessToken, _, err := tokenService.ExchangeDeviceCode(
+		context.Background(),
+		dc.DeviceCode,
+		client.ClientID,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, tokenService.RevokeTokenByStatus(accessToken.ID))
+
+	// Re-enabling a revoked token must be rejected
+	err = tokenService.EnableToken(context.Background(), accessToken.ID, "admin")
+	require.ErrorIs(t, err, ErrTokenCannotEnable)
+}
+
+// ============================================================
+// ValidateToken — DB-layer state checks
+// ============================================================
+
+func TestValidateToken_RevokedToken(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		DeviceCodeExpiration: 30 * time.Minute,
+		PollingInterval:      5,
+		JWTExpiration:        1 * time.Hour,
+		JWTSecret:            "test-secret",
+		BaseURL:              "http://localhost:8080",
+	}
+	tokenService := createTestTokenService(s, cfg)
+
+	client := createTestClient(t, s, true)
+	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
+	accessToken, _, err := tokenService.ExchangeDeviceCode(
+		context.Background(),
+		dc.DeviceCode,
+		client.ClientID,
+	)
+	require.NoError(t, err)
+
+	// Soft-revoke the token (status → "revoked", record stays in DB)
+	err = tokenService.RevokeTokenByStatus(accessToken.ID)
+	require.NoError(t, err)
+
+	// Validate should now fail
+	claims, err := tokenService.ValidateToken(context.Background(), accessToken.Token)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "revoked")
+	assert.Nil(t, claims)
+}
+
+func TestValidateToken_DisabledToken(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		DeviceCodeExpiration: 30 * time.Minute,
+		PollingInterval:      5,
+		JWTExpiration:        1 * time.Hour,
+		JWTSecret:            "test-secret",
+		BaseURL:              "http://localhost:8080",
+	}
+	tokenService := createTestTokenService(s, cfg)
+
+	client := createTestClient(t, s, true)
+	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
+	accessToken, _, err := tokenService.ExchangeDeviceCode(
+		context.Background(),
+		dc.DeviceCode,
+		client.ClientID,
+	)
+	require.NoError(t, err)
+
+	// Disable the token (status → "disabled")
+	err = tokenService.DisableToken(context.Background(), accessToken.ID, "admin")
+	require.NoError(t, err)
+
+	// Validate should now fail
+	claims, err := tokenService.ValidateToken(context.Background(), accessToken.Token)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "revoked")
+	assert.Nil(t, claims)
+}
+
+func TestValidateToken_ExpiredDBRecord(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		DeviceCodeExpiration: 30 * time.Minute,
+		PollingInterval:      5,
+		JWTExpiration:        1 * time.Hour,
+		JWTSecret:            "test-secret",
+		BaseURL:              "http://localhost:8080",
+	}
+	tokenService := createTestTokenService(s, cfg)
+
+	client := createTestClient(t, s, true)
+	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
+	accessToken, _, err := tokenService.ExchangeDeviceCode(
+		context.Background(),
+		dc.DeviceCode,
+		client.ClientID,
+	)
+	require.NoError(t, err)
+
+	// Manually backdate expires_at in the DB so the record appears expired
+	// while the JWT signature remains valid (JWT itself has 1h expiry).
+	past := time.Now().Add(-2 * time.Hour)
+	err = s.DB().Model(&accessToken).Update("expires_at", past).Error
+	require.NoError(t, err)
+
+	// Validate should fail due to DB-side expiry check
+	claims, err := tokenService.ValidateToken(context.Background(), accessToken.Token)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expired")
+	assert.Nil(t, claims)
+}
+
+func TestValidateToken_RefreshTokenRejected(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		DeviceCodeExpiration:   30 * time.Minute,
+		PollingInterval:        5,
+		JWTExpiration:          1 * time.Hour,
+		JWTSecret:              "test-secret",
+		BaseURL:                "http://localhost:8080",
+		EnableRefreshTokens:    true,
+		RefreshTokenExpiration: 30 * 24 * time.Hour,
+	}
+	tokenService := createTestTokenService(s, cfg)
+
+	client := createTestClient(t, s, true)
+	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
+	_, refreshToken, err := tokenService.ExchangeDeviceCode(
+		context.Background(),
+		dc.DeviceCode,
+		client.ClientID,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, refreshToken)
+
+	// Passing a refresh token to ValidateToken must be rejected
+	claims, err := tokenService.ValidateToken(context.Background(), refreshToken.Token)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not an access token")
+	assert.Nil(t, claims)
+}

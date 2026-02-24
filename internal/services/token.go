@@ -28,6 +28,12 @@ var (
 	ErrSlowDown             = errors.New("slow_down")
 	ErrAccessDenied         = errors.New("access_denied")
 	ErrExpiredToken         = errors.New("expired_token")
+	ErrTokenCannotDisable   = errors.New(
+		"token cannot be disabled: only active tokens can be disabled",
+	)
+	ErrTokenCannotEnable = errors.New(
+		"token cannot be enabled: only disabled tokens can be re-enabled",
+	)
 )
 
 type TokenService struct {
@@ -309,12 +315,19 @@ func (s *TokenService) ValidateToken(
 		return nil, err
 	}
 
-	// Optional: Check if token exists in database (for revocation check)
-	// This adds an extra layer of security
-	_, dbErr := s.store.GetAccessToken(tokenString)
-	if dbErr != nil {
-		// Token was revoked or doesn't exist in our records
+	// Check token exists in database and validate its state (revocation, expiry, category)
+	token, err := s.store.GetAccessToken(tokenString)
+	if err != nil {
 		return nil, errors.New("token not found or revoked")
+	}
+	if !token.IsAccessToken() {
+		return nil, errors.New("token is not an access token")
+	}
+	if !token.IsActive() {
+		return nil, errors.New("token not found or revoked")
+	}
+	if token.IsExpired() {
+		return nil, errors.New("token has expired")
 	}
 
 	return result, nil
@@ -499,11 +512,11 @@ func (s *TokenService) RefreshAccessToken(
 	}
 
 	// 2. Verify token category and status
-	if refreshToken.TokenCategory != "refresh" {
+	if !refreshToken.IsRefreshToken() {
 		s.metrics.RecordTokenRefresh(false)
 		return nil, nil, token.ErrInvalidRefreshToken
 	}
-	if refreshToken.Status != "active" {
+	if !refreshToken.IsActive() {
 		s.metrics.RecordTokenRefresh(false)
 		return nil, nil, token.ErrInvalidRefreshToken // Token disabled or revoked
 	}
@@ -709,6 +722,20 @@ func (s *TokenService) updateTokenStatusWithAudit(
 	token, err := s.store.GetAccessTokenByID(tokenID)
 	if err != nil {
 		return err
+	}
+
+	// Validate state transition
+	switch newStatus {
+	case "disabled":
+		// Only active tokens can be disabled
+		if !token.IsActive() {
+			return ErrTokenCannotDisable
+		}
+	case "active":
+		// Re-enabling is only allowed from disabled state; revoked tokens must not be re-activated
+		if !token.IsDisabled() {
+			return ErrTokenCannotEnable
+		}
 	}
 
 	err = s.store.UpdateTokenStatus(tokenID, newStatus)
