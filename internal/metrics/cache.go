@@ -50,7 +50,7 @@ func (m *CacheWrapper) GetActiveTokensCount(
 }
 
 // getCountWithCache retrieves a count using the cache-aside pattern.
-// If the cache implements CacheWithFetch (e.g. RueidisAsideCache), its optimized
+// If the cache implements WithFetch (e.g. RueidisAsideCache), its optimized
 // stampede-safe implementation is used. Otherwise, falls back to the generic helper.
 func (m *CacheWrapper) getCountWithCache(
 	ctx context.Context,
@@ -62,7 +62,7 @@ func (m *CacheWrapper) getCountWithCache(
 		return fetchFunc()
 	}
 
-	if cwa, ok := m.cache.(cache.CacheWithFetch[int64]); ok {
+	if cwa, ok := m.cache.(cache.WithFetch[int64]); ok {
 		return cwa.GetWithFetch(ctx, key, ttl, wrapped)
 	}
 

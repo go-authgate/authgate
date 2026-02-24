@@ -32,11 +32,11 @@ type Cache[T any] interface {
 	Health(ctx context.Context) error
 }
 
-// CacheWithFetch extends Cache with an optimized cache-aside operation.
+// WithFetch extends Cache with an optimized cache-aside operation.
 // Implementations that can provide stampede protection (e.g. RueidisAsideCache)
 // should implement this interface. Callers should prefer this over the generic
 // GetWithFetch helper when available, via type assertion.
-type CacheWithFetch[T any] interface {
+type WithFetch[T any] interface {
 	Cache[T]
 
 	// GetWithFetch retrieves a value using an optimized cache-aside pattern.
@@ -52,7 +52,7 @@ type CacheWithFetch[T any] interface {
 
 // GetWithFetch is a generic cache-aside helper for any Cache implementation.
 // On cache miss it calls fetchFunc, stores the result, and returns it.
-// Use this when the cache does not implement CacheWithFetch.
+// Use this when the cache does not implement WithFetch.
 // Note: does not provide stampede protection under concurrent load.
 func GetWithFetch[T any](
 	ctx context.Context,
