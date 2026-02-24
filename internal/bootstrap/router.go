@@ -144,6 +144,9 @@ func setupAllRoutes(
 	// OAuth routes (public)
 	setupOAuthRoutes(r, oauthProviders, h.oauth)
 
+	// OIDC Discovery (public, no auth required)
+	r.GET("/.well-known/openid-configuration", h.oidc.Discovery)
+
 	// OAuth API routes (public, called by CLI)
 	oauth := r.Group("/oauth")
 	{
@@ -151,6 +154,9 @@ func setupAllRoutes(
 		oauth.POST("/token", rateLimiters.token, h.token.Token)
 		oauth.GET("/tokeninfo", h.token.TokenInfo)
 		oauth.POST("/revoke", h.token.Revoke)
+		// OIDC UserInfo Endpoint (GET and POST per OIDC Core 1.0 §5.3)
+		oauth.GET("/userinfo", h.oidc.UserInfo)
+		oauth.POST("/userinfo", h.oidc.UserInfo)
 	}
 
 	// OAuth Authorization Code Flow (browser, requires login + CSRF)
