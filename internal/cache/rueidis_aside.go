@@ -114,7 +114,11 @@ func (r *RueidisAsideCache[T]) GetWithFetch(
 			if err != nil {
 				return "", err
 			}
-			return rueidis.JSON(value), nil
+			encoded, err := json.Marshal(value)
+			if err != nil {
+				return "", err
+			}
+			return rueidis.BinaryString(encoded), nil
 		},
 	)
 	if err != nil {
