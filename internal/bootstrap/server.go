@@ -159,7 +159,7 @@ func addMetricsGaugeUpdateJob(
 	cfg *config.Config,
 	db *store.Store,
 	prometheusMetrics metrics.Recorder,
-	metricsCache cache.Cache,
+	metricsCache cache.Cache[int64],
 ) {
 	if !cfg.MetricsEnabled || !cfg.MetricsGaugeUpdateEnabled {
 		return
@@ -197,7 +197,7 @@ func addMetricsGaugeUpdateJob(
 }
 
 // addCacheCleanupJob adds cache cleanup on shutdown
-func addCacheCleanupJob(m *graceful.Manager, metricsCache cache.Cache, cfg *config.Config) {
+func addCacheCleanupJob(m *graceful.Manager, metricsCache cache.Cache[int64], cfg *config.Config) {
 	if metricsCache == nil {
 		return
 	}

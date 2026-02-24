@@ -38,7 +38,7 @@ func (m *mockStore) CountPendingDeviceCodes() (int64, error) {
 }
 
 // newTestCacheWrapper creates a CacheWrapper for testing
-func newTestCacheWrapper(store *mockStore, cache cache.Cache) *CacheWrapper {
+func newTestCacheWrapper(store *mockStore, cache cache.Cache[int64]) *CacheWrapper {
 	return &CacheWrapper{
 		store: store,
 		cache: cache,
@@ -47,7 +47,7 @@ func newTestCacheWrapper(store *mockStore, cache cache.Cache) *CacheWrapper {
 
 func TestCacheWrapper_GetActiveTokensCount_CacheHit(t *testing.T) {
 	ctx := context.Background()
-	memCache := cache.NewMemoryCache()
+	memCache := cache.NewMemoryCache[int64]()
 
 	store := &mockStore{
 		countActiveTokensFunc: func(category string) (int64, error) {
@@ -73,7 +73,7 @@ func TestCacheWrapper_GetActiveTokensCount_CacheHit(t *testing.T) {
 
 func TestCacheWrapper_GetActiveTokensCount_CacheMiss(t *testing.T) {
 	ctx := context.Background()
-	memCache := cache.NewMemoryCache()
+	memCache := cache.NewMemoryCache[int64]()
 
 	dbCalled := false
 	store := &mockStore{
@@ -114,7 +114,7 @@ func TestCacheWrapper_GetActiveTokensCount_CacheMiss(t *testing.T) {
 
 func TestCacheWrapper_GetActiveTokensCount_DBError(t *testing.T) {
 	ctx := context.Background()
-	memCache := cache.NewMemoryCache()
+	memCache := cache.NewMemoryCache[int64]()
 
 	expectedErr := errors.New("database connection failed")
 	store := &mockStore{
@@ -133,7 +133,7 @@ func TestCacheWrapper_GetActiveTokensCount_DBError(t *testing.T) {
 
 func TestCacheWrapper_GetActiveTokensCount_CacheExpiration(t *testing.T) {
 	ctx := context.Background()
-	memCache := cache.NewMemoryCache()
+	memCache := cache.NewMemoryCache[int64]()
 
 	callCount := 0
 	store := &mockStore{
@@ -177,7 +177,7 @@ func TestCacheWrapper_GetActiveTokensCount_CacheExpiration(t *testing.T) {
 
 func TestCacheWrapper_GetTotalDeviceCodesCount_CacheHit(t *testing.T) {
 	ctx := context.Background()
-	memCache := cache.NewMemoryCache()
+	memCache := cache.NewMemoryCache[int64]()
 
 	store := &mockStore{
 		countTotalDeviceCodesFunc: func() (int64, error) {
@@ -203,7 +203,7 @@ func TestCacheWrapper_GetTotalDeviceCodesCount_CacheHit(t *testing.T) {
 
 func TestCacheWrapper_GetPendingDeviceCodesCount_CacheHit(t *testing.T) {
 	ctx := context.Background()
-	memCache := cache.NewMemoryCache()
+	memCache := cache.NewMemoryCache[int64]()
 
 	store := &mockStore{
 		countPendingDeviceCodesFunc: func() (int64, error) {
@@ -229,7 +229,7 @@ func TestCacheWrapper_GetPendingDeviceCodesCount_CacheHit(t *testing.T) {
 
 func TestCacheWrapper_GetTotalDeviceCodesCount_CacheMiss(t *testing.T) {
 	ctx := context.Background()
-	memCache := cache.NewMemoryCache()
+	memCache := cache.NewMemoryCache[int64]()
 
 	dbCalled := false
 	store := &mockStore{
@@ -267,7 +267,7 @@ func TestCacheWrapper_GetTotalDeviceCodesCount_CacheMiss(t *testing.T) {
 
 func TestCacheWrapper_GetPendingDeviceCodesCount_CacheMiss(t *testing.T) {
 	ctx := context.Background()
-	memCache := cache.NewMemoryCache()
+	memCache := cache.NewMemoryCache[int64]()
 
 	dbCalled := false
 	store := &mockStore{
@@ -305,7 +305,7 @@ func TestCacheWrapper_GetPendingDeviceCodesCount_CacheMiss(t *testing.T) {
 
 func TestCacheWrapper_GetTotalDeviceCodesCount_DBError(t *testing.T) {
 	ctx := context.Background()
-	memCache := cache.NewMemoryCache()
+	memCache := cache.NewMemoryCache[int64]()
 
 	expectedErr := errors.New("database timeout")
 	store := &mockStore{
@@ -324,7 +324,7 @@ func TestCacheWrapper_GetTotalDeviceCodesCount_DBError(t *testing.T) {
 
 func TestCacheWrapper_GetPendingDeviceCodesCount_DBError(t *testing.T) {
 	ctx := context.Background()
-	memCache := cache.NewMemoryCache()
+	memCache := cache.NewMemoryCache[int64]()
 
 	expectedErr := errors.New("database timeout")
 	store := &mockStore{
@@ -343,7 +343,7 @@ func TestCacheWrapper_GetPendingDeviceCodesCount_DBError(t *testing.T) {
 
 // mockCacheAside is a mock cache that implements cacheAsideSupport interface
 type mockCacheAside struct {
-	*cache.MemoryCache
+	*cache.MemoryCache[int64]
 	getWithFetchCalled bool
 	fetchFunc          func(ctx context.Context, key string) (int64, error)
 }
@@ -374,7 +374,7 @@ func (m *mockCacheAside) GetWithFetch(
 func TestCacheWrapper_UsesGetWithFetch(t *testing.T) {
 	ctx := context.Background()
 	mockCache := &mockCacheAside{
-		MemoryCache: cache.NewMemoryCache(),
+		MemoryCache: cache.NewMemoryCache[int64](),
 	}
 
 	store := &mockStore{
@@ -412,7 +412,7 @@ func TestCacheWrapper_UsesGetWithFetch(t *testing.T) {
 
 func TestCacheWrapper_FallbackToManualCacheAside(t *testing.T) {
 	ctx := context.Background()
-	memCache := cache.NewMemoryCache()
+	memCache := cache.NewMemoryCache[int64]()
 
 	dbCalled := false
 	store := &mockStore{
@@ -448,7 +448,7 @@ func TestCacheWrapper_FallbackToManualCacheAside(t *testing.T) {
 func TestCacheWrapper_GetTotalDeviceCodesCount_WithCacheAside(t *testing.T) {
 	ctx := context.Background()
 	mockCache := &mockCacheAside{
-		MemoryCache: cache.NewMemoryCache(),
+		MemoryCache: cache.NewMemoryCache[int64](),
 	}
 
 	callCount := 0
@@ -498,7 +498,7 @@ func TestCacheWrapper_GetTotalDeviceCodesCount_WithCacheAside(t *testing.T) {
 func TestCacheWrapper_GetPendingDeviceCodesCount_WithCacheAside(t *testing.T) {
 	ctx := context.Background()
 	mockCache := &mockCacheAside{
-		MemoryCache: cache.NewMemoryCache(),
+		MemoryCache: cache.NewMemoryCache[int64](),
 	}
 
 	callCount := 0

@@ -2,8 +2,8 @@ package cache
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/redis/rueidis"
@@ -13,7 +13,7 @@ import (
 // RueidisAsideCache implements Cache interface using rueidisaside for cache-aside pattern.
 // Uses rueidis' automatic client-side caching with RESP3 protocol for cache invalidation.
 // Suitable for high-load multi-instance deployments (5+ pods).
-type RueidisAsideCache struct {
+type RueidisAsideCache[T any] struct {
 	client    rueidisaside.CacheAsideClient
 	keyPrefix string
 	clientTTL time.Duration
@@ -25,14 +25,14 @@ type RueidisAsideCache struct {
 // cacheSizeMB is the client-side cache size per connection in megabytes.
 // Note: Rueidis uses connection pooling (typically ~10 connections based on GOMAXPROCS),
 // so total memory usage will be cacheSizeMB * number_of_connections.
-func NewRueidisAsideCache(
+func NewRueidisAsideCache[T any](
 	ctx context.Context,
 	addr, password string,
 	db int,
 	keyPrefix string,
 	clientTTL time.Duration,
 	cacheSizeMB int,
-) (*RueidisAsideCache, error) {
+) (*RueidisAsideCache[T], error) {
 	cacheSizeBytes := cacheSizeMB * 1024 * 1024
 	client, err := rueidisaside.NewClient(rueidisaside.ClientOption{
 		ClientOption: rueidis.ClientOption{
@@ -54,7 +54,7 @@ func NewRueidisAsideCache(
 		return nil, fmt.Errorf("failed to ping Redis: %w", err)
 	}
 
-	return &RueidisAsideCache{
+	return &RueidisAsideCache[T]{
 		client:    client,
 		keyPrefix: keyPrefix,
 		clientTTL: clientTTL,
@@ -63,7 +63,7 @@ func NewRueidisAsideCache(
 
 // Get retrieves a value from Redis with client-side caching.
 // Uses DoCache to leverage RESP3 client-side caching with automatic invalidation.
-func (r *RueidisAsideCache) Get(ctx context.Context, key string) (int64, error) {
+func (r *RueidisAsideCache[T]) Get(ctx context.Context, key string) (T, error) {
 	fullKey := r.keyPrefix + key
 
 	// Use DoCache for client-side caching (RESP3 automatic invalidation)
@@ -71,20 +71,23 @@ func (r *RueidisAsideCache) Get(ctx context.Context, key string) (int64, error) 
 	resp := r.client.Client().DoCache(ctx, cmd, r.clientTTL)
 
 	if err := resp.Error(); err != nil {
+		var zero T
 		if rueidis.IsRedisNil(err) {
-			return 0, ErrCacheMiss
+			return zero, ErrCacheMiss
 		}
-		return 0, fmt.Errorf("%w: %v", ErrCacheUnavailable, err)
+		return zero, fmt.Errorf("%w: %v", ErrCacheUnavailable, err)
 	}
 
 	str, err := resp.ToString()
 	if err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrInvalidValue, err)
+		var zero T
+		return zero, fmt.Errorf("%w: %v", ErrInvalidValue, err)
 	}
 
-	value, err := strconv.ParseInt(str, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrInvalidValue, err)
+	var value T
+	if err := json.Unmarshal([]byte(str), &value); err != nil {
+		var zero T
+		return zero, fmt.Errorf("%w: %v", ErrInvalidValue, err)
 	}
 
 	return value, nil
@@ -93,12 +96,12 @@ func (r *RueidisAsideCache) Get(ctx context.Context, key string) (int64, error) 
 // GetWithFetch retrieves a value using rueidisaside's cache-aside pattern.
 // This is an enhanced method that leverages rueidisaside's automatic cache management.
 // The fetchFunc is called automatically on cache miss to populate the cache.
-func (r *RueidisAsideCache) GetWithFetch(
+func (r *RueidisAsideCache[T]) GetWithFetch(
 	ctx context.Context,
 	key string,
 	ttl time.Duration,
-	fetchFunc func(ctx context.Context, key string) (int64, error),
-) (int64, error) {
+	fetchFunc func(ctx context.Context, key string) (T, error),
+) (T, error) {
 	fullKey := r.keyPrefix + key
 
 	val, err := r.client.Get(
@@ -111,34 +114,41 @@ func (r *RueidisAsideCache) GetWithFetch(
 			if err != nil {
 				return "", err
 			}
-			return strconv.FormatInt(value, 10), nil
+			return rueidis.JSON(value), nil
 		},
 	)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get with fetch: %w", err)
+		var zero T
+		return zero, fmt.Errorf("failed to get with fetch: %w", err)
 	}
 
-	value, err := strconv.ParseInt(val, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrInvalidValue, err)
+	var result T
+	if err := json.Unmarshal([]byte(val), &result); err != nil {
+		var zero T
+		return zero, fmt.Errorf("%w: %v", ErrInvalidValue, err)
 	}
 
-	return value, nil
+	return result, nil
 }
 
 // Set stores a value in Redis with TTL.
-func (r *RueidisAsideCache) Set(
+func (r *RueidisAsideCache[T]) Set(
 	ctx context.Context,
 	key string,
-	value int64,
+	value T,
 	ttl time.Duration,
 ) error {
 	fullKey := r.keyPrefix + key
 
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidValue, err)
+	}
+
 	// Use standard SET command via the underlying client
 	cmd := r.client.Client().B().Set().
 		Key(fullKey).
-		Value(strconv.FormatInt(value, 10)).
+		Value(string(encoded)).
 		Ex(ttl).
 		Build()
 
@@ -150,9 +160,9 @@ func (r *RueidisAsideCache) Set(
 }
 
 // MGet retrieves multiple values from Redis with client-side caching.
-func (r *RueidisAsideCache) MGet(ctx context.Context, keys []string) (map[string]int64, error) {
+func (r *RueidisAsideCache[T]) MGet(ctx context.Context, keys []string) (map[string]T, error) {
 	if len(keys) == 0 {
-		return make(map[string]int64), nil
+		return make(map[string]T), nil
 	}
 
 	// Build full keys
@@ -174,7 +184,7 @@ func (r *RueidisAsideCache) MGet(ctx context.Context, keys []string) (map[string
 		return nil, fmt.Errorf("%w: %v", ErrInvalidValue, err)
 	}
 
-	result := make(map[string]int64)
+	result := make(map[string]T)
 	for i, val := range values {
 		if val.IsNil() {
 			continue // Skip missing keys
@@ -185,21 +195,21 @@ func (r *RueidisAsideCache) MGet(ctx context.Context, keys []string) (map[string
 			continue // Skip invalid values
 		}
 
-		num, err := strconv.ParseInt(str, 10, 64)
-		if err != nil {
-			continue // Skip invalid numbers
+		var item T
+		if err := json.Unmarshal([]byte(str), &item); err != nil {
+			continue // Skip invalid values
 		}
 
-		result[keys[i]] = num
+		result[keys[i]] = item
 	}
 
 	return result, nil
 }
 
 // MSet stores multiple values in Redis with TTL.
-func (r *RueidisAsideCache) MSet(
+func (r *RueidisAsideCache[T]) MSet(
 	ctx context.Context,
-	values map[string]int64,
+	values map[string]T,
 	ttl time.Duration,
 ) error {
 	if len(values) == 0 {
@@ -210,9 +220,15 @@ func (r *RueidisAsideCache) MSet(
 	cmds := make(rueidis.Commands, 0, len(values))
 	for key, value := range values {
 		fullKey := r.keyPrefix + key
+
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidValue, err)
+		}
+
 		cmd := r.client.Client().B().Set().
 			Key(fullKey).
-			Value(strconv.FormatInt(value, 10)).
+			Value(string(encoded)).
 			Ex(ttl).
 			Build()
 		cmds = append(cmds, cmd)
@@ -228,7 +244,7 @@ func (r *RueidisAsideCache) MSet(
 }
 
 // Delete removes a key from Redis.
-func (r *RueidisAsideCache) Delete(ctx context.Context, key string) error {
+func (r *RueidisAsideCache[T]) Delete(ctx context.Context, key string) error {
 	fullKey := r.keyPrefix + key
 
 	cmd := r.client.Client().B().Del().Key(fullKey).Build()
@@ -240,13 +256,13 @@ func (r *RueidisAsideCache) Delete(ctx context.Context, key string) error {
 }
 
 // Close closes the Redis connection.
-func (r *RueidisAsideCache) Close() error {
+func (r *RueidisAsideCache[T]) Close() error {
 	r.client.Close()
 	return nil
 }
 
 // Health checks if Redis is reachable.
-func (r *RueidisAsideCache) Health(ctx context.Context) error {
+func (r *RueidisAsideCache[T]) Health(ctx context.Context) error {
 	cmd := r.client.Client().B().Ping().Build()
 	if err := r.client.Client().Do(ctx, cmd).Error(); err != nil {
 		return fmt.Errorf("%w: %v", ErrCacheUnavailable, err)
