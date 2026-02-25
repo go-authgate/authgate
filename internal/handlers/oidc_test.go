@@ -214,6 +214,12 @@ func TestDiscovery_ReturnsCorrectMetadata(t *testing.T) {
 	require.True(t, ok)
 	assert.Contains(t, claims, "sub")
 	assert.Contains(t, claims, "iss")
+	assert.Contains(t, claims, "aud")
+	assert.Contains(t, claims, "exp")
+	assert.Contains(t, claims, "iat")
+	assert.Contains(t, claims, "auth_time")
+	assert.Contains(t, claims, "nonce")
+	assert.Contains(t, claims, "at_hash")
 	assert.Contains(t, claims, "email_verified")
 }
 

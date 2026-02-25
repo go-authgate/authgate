@@ -82,6 +82,12 @@ func (h *OIDCHandler) Discovery(c *gin.Context) {
 		ClaimsSupported: []string{
 			"sub",
 			"iss",
+			"aud",
+			"exp",
+			"iat",
+			"auth_time",
+			"nonce",
+			"at_hash",
 			"name",
 			"preferred_username",
 			"email",

@@ -665,7 +665,7 @@ func TestExchangeAuthorizationCode_IssuesTokens(t *testing.T) {
 	userID := uuid.New().String()
 	authCode := createTestAuthCodeRecord(t, s, client, userID)
 
-	accessToken, refreshToken, err := tokenService.ExchangeAuthorizationCode(
+	accessToken, refreshToken, _, err := tokenService.ExchangeAuthorizationCode(
 		context.Background(),
 		authCode,
 		nil, // no authorization ID
@@ -698,7 +698,7 @@ func TestExchangeAuthorizationCode_WithAuthorizationID(t *testing.T) {
 
 	// Simulate a UserAuthorization ID being set
 	authID := uint(42)
-	accessToken, _, err := tokenService.ExchangeAuthorizationCode(
+	accessToken, _, _, err := tokenService.ExchangeAuthorizationCode(
 		context.Background(),
 		authCode,
 		&authID,
@@ -707,6 +707,128 @@ func TestExchangeAuthorizationCode_WithAuthorizationID(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, accessToken)
 	assert.Equal(t, &authID, accessToken.AuthorizationID)
+}
+
+// ============================================================
+// ExchangeAuthorizationCode – ID Token (OIDC)
+// ============================================================
+
+func TestExchangeAuthorizationCode_IDToken_IssuedWhenOpenIDScope(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		JWTExpiration:          1 * time.Hour,
+		JWTSecret:              "test-secret",
+		BaseURL:                "http://localhost:8080",
+		EnableRefreshTokens:    true,
+		RefreshTokenExpiration: 30 * 24 * time.Hour,
+	}
+	tokenService := createTestTokenService(s, cfg)
+
+	client := createTestClient(t, s, true)
+	userID := uuid.New().String()
+
+	// Create a user so the ID Token profile-claims path can fetch it
+	require.NoError(t, s.CreateUser(&models.User{
+		ID:       userID,
+		Username: "testuser",
+		Email:    "test@example.com",
+		FullName: "Test User",
+	}))
+
+	// Authorization code with openid + profile + email scopes
+	now := time.Now()
+	authCode := &models.AuthorizationCode{
+		UUID:          "test-uuid-" + uuid.New().String(),
+		CodeHash:      "hash-" + uuid.New().String(),
+		CodePrefix:    "testpfx2",
+		ApplicationID: client.ID,
+		ClientID:      client.ClientID,
+		UserID:        userID,
+		RedirectURI:   "https://app.example.com/callback",
+		Scopes:        "openid profile email",
+		Nonce:         "test-nonce-12345",
+		ExpiresAt:     now.Add(10 * time.Minute),
+	}
+	require.NoError(t, s.CreateAuthorizationCode(authCode))
+
+	_, _, idToken, err := tokenService.ExchangeAuthorizationCode(
+		context.Background(),
+		authCode,
+		nil,
+	)
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, idToken, "id_token must be returned when openid scope is granted")
+}
+
+func TestExchangeAuthorizationCode_IDToken_NotIssuedWithoutOpenIDScope(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		JWTExpiration:          1 * time.Hour,
+		JWTSecret:              "test-secret",
+		BaseURL:                "http://localhost:8080",
+		EnableRefreshTokens:    true,
+		RefreshTokenExpiration: 30 * 24 * time.Hour,
+	}
+	tokenService := createTestTokenService(s, cfg)
+
+	client := createTestClient(t, s, true)
+	userID := uuid.New().String()
+	authCode := createTestAuthCodeRecord(t, s, client, userID) // scopes: "read write"
+
+	_, _, idToken, err := tokenService.ExchangeAuthorizationCode(
+		context.Background(),
+		authCode,
+		nil,
+	)
+
+	require.NoError(t, err)
+	assert.Empty(t, idToken, "id_token must be absent when openid scope is not granted")
+}
+
+func TestExchangeAuthorizationCode_IDToken_ContainsNonce(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		JWTExpiration:          1 * time.Hour,
+		JWTSecret:              "test-secret",
+		BaseURL:                "http://localhost:8080",
+		EnableRefreshTokens:    true,
+		RefreshTokenExpiration: 30 * 24 * time.Hour,
+	}
+	tokenService := createTestTokenService(s, cfg)
+
+	client := createTestClient(t, s, true)
+	userID := uuid.New().String()
+
+	now := time.Now()
+	authCode := &models.AuthorizationCode{
+		UUID:          "test-uuid-" + uuid.New().String(),
+		CodeHash:      "hash-" + uuid.New().String(),
+		CodePrefix:    "testpfx3",
+		ApplicationID: client.ID,
+		ClientID:      client.ClientID,
+		UserID:        userID,
+		RedirectURI:   "https://app.example.com/callback",
+		Scopes:        "openid",
+		Nonce:         "my-unique-nonce",
+		ExpiresAt:     now.Add(10 * time.Minute),
+	}
+	require.NoError(t, s.CreateAuthorizationCode(authCode))
+
+	_, _, idToken, err := tokenService.ExchangeAuthorizationCode(
+		context.Background(),
+		authCode,
+		nil,
+	)
+
+	require.NoError(t, err)
+	require.NotEmpty(t, idToken)
+
+	// Parse the ID token claims
+	localProvider := token.NewLocalTokenProvider(cfg)
+	result, err := localProvider.ValidateToken(context.Background(), idToken)
+	require.NoError(t, err)
+	assert.Equal(t, "my-unique-nonce", result.Claims["nonce"])
 }
 
 // ============================================================

@@ -24,6 +24,9 @@ type AuthorizationCode struct {
 	CodeChallenge       string `gorm:"default:''"`     // code_challenge (empty = PKCE not used)
 	CodeChallengeMethod string `gorm:"default:'S256'"` // "S256" or "plain"
 
+	// OIDC (OpenID Connect Core 1.0 §3.1.2.1)
+	Nonce string `gorm:"default:''"` // nonce from authorization request (empty if not provided)
+
 	ExpiresAt time.Time
 	UsedAt    *time.Time // Set immediately upon exchange; prevents replay attacks
 	CreatedAt time.Time

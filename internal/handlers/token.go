@@ -397,8 +397,8 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 		authorizationID = &id
 	}
 
-	// Issue access + refresh tokens
-	accessToken, refreshToken, err := h.tokenService.ExchangeAuthorizationCode(
+	// Issue access + refresh tokens (+ ID token when openid scope was granted)
+	accessToken, refreshToken, idToken, err := h.tokenService.ExchangeAuthorizationCode(
 		c.Request.Context(),
 		authCode,
 		authorizationID,
@@ -419,6 +419,9 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 	}
 	if refreshToken != nil && h.config.EnableRefreshTokens {
 		resp["refresh_token"] = refreshToken.Token
+	}
+	if idToken != "" {
+		resp["id_token"] = idToken
 	}
 
 	c.JSON(http.StatusOK, resp)

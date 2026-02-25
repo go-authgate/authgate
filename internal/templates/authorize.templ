@@ -57,6 +57,7 @@ templ AuthorizePage(props AuthorizePageProps) {
 						<input type="hidden" name="redirect_uri" value={ props.RedirectURI }/>
 						<input type="hidden" name="scope" value={ props.Scopes }/>
 						<input type="hidden" name="state" value={ props.State }/>
+						<input type="hidden" name="nonce" value={ props.Nonce }/>
 						<input type="hidden" name="code_challenge" value={ props.CodeChallenge }/>
 						<input type="hidden" name="code_challenge_method" value={ props.CodeChallengeMethod }/>
 						<button type="submit" class="authorize-btn-allow">

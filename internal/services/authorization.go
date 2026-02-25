@@ -43,6 +43,7 @@ type AuthorizationRequest struct {
 	State               string
 	CodeChallenge       string
 	CodeChallengeMethod string
+	Nonce               string
 }
 
 // AuthorizationService manages the OAuth 2.0 Authorization Code Flow (RFC 6749)
@@ -67,7 +68,7 @@ func NewAuthorizationService(
 // ValidateAuthorizationRequest validates all parameters of an incoming authorization request.
 // Returns the parsed AuthorizationRequest on success.
 func (s *AuthorizationService) ValidateAuthorizationRequest(
-	clientID, redirectURI, responseType, scope, codeChallengeMethod string,
+	clientID, redirectURI, responseType, scope, codeChallengeMethod, nonce string,
 ) (*AuthorizationRequest, error) {
 	// 1. response_type must be "code"
 	if responseType != "code" {
@@ -118,6 +119,7 @@ func (s *AuthorizationService) ValidateAuthorizationRequest(
 		RedirectURI:         redirectURI,
 		Scopes:              scope,
 		CodeChallengeMethod: codeChallengeMethod,
+		Nonce:               nonce,
 	}, nil
 }
 
@@ -126,7 +128,7 @@ func (s *AuthorizationService) ValidateAuthorizationRequest(
 func (s *AuthorizationService) CreateAuthorizationCode(
 	ctx context.Context,
 	applicationID int64,
-	clientID, userID, redirectURI, scopes, codeChallenge, codeChallengeMethod string,
+	clientID, userID, redirectURI, scopes, codeChallenge, codeChallengeMethod, nonce string,
 ) (plainCode string, record *models.AuthorizationCode, err error) {
 	// Generate 32 cryptographically random bytes (256-bit entropy)
 	rawBytes, err := util.CryptoRandomBytes(32)
@@ -151,6 +153,7 @@ func (s *AuthorizationService) CreateAuthorizationCode(
 		Scopes:              scopes,
 		CodeChallenge:       codeChallenge,
 		CodeChallengeMethod: codeChallengeMethod,
+		Nonce:               nonce,
 		ExpiresAt:           time.Now().Add(s.config.AuthCodeExpiration),
 	}
 
