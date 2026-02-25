@@ -85,7 +85,7 @@ AuthGate also serves as a lightweight **centralised identity gateway** for inter
 ## ✨ Key Features
 
 - **Three OAuth 2.0 Grant Types**: Device Authorization Grant ([RFC 8628][rfc8628]) for CLI/IoT, Authorization Code Flow with PKCE ([RFC 6749][rfc6749] + [RFC 7636][rfc7636]) for web/mobile apps, and Client Credentials Grant ([RFC 6749][rfc6749] §4.4) for machine-to-machine authentication
-- **OIDC ID Token & UserInfo**: Issues a signed `id_token` (OIDC Core 1.0) alongside the access token when `openid` scope is granted. Supports `nonce`, `at_hash`, and scope-gated profile/email claims. Includes `/.well-known/openid-configuration` discovery and `/oauth/userinfo` endpoints.
+- **OIDC ID Token & UserInfo**: When `TOKEN_PROVIDER_MODE=local`, issues a signed `id_token` (OIDC Core 1.0) alongside the access token when `openid` scope is granted. In `TOKEN_PROVIDER_MODE=http_api`, no ID tokens are generated. Supports `nonce`, `at_hash`, and scope-gated profile/email claims. Includes `/.well-known/openid-configuration` discovery and `/oauth/userinfo` endpoints.
 - **User Consent Management**: Users can review and revoke per-app access at `/account/authorizations`; admins can force re-authentication for all users of any client
 - **Security First**: Rate limiting, audit logging, CSRF protection, PKCE enforcement, and session management built-in
 - **Production Ready**: Built-in monitoring with Prometheus metrics, health checks, comprehensive audit trails, and graceful shutdown with configurable timeouts
