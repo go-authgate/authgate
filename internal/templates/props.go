@@ -92,19 +92,20 @@ type ClientsPageProps struct {
 
 // ClientDisplay wraps OAuthApplication with string fields for template rendering
 type ClientDisplay struct {
-	ID                 int64
-	ClientID           string
-	ClientName         string
-	Description        string
-	Scopes             string
-	GrantTypes         string
-	RedirectURIs       string // Comma-separated string
-	ClientType         string // "confidential" or "public"
-	EnableDeviceFlow   bool
-	EnableAuthCodeFlow bool
-	IsActive           bool
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID                          int64
+	ClientID                    string
+	ClientName                  string
+	Description                 string
+	Scopes                      string
+	GrantTypes                  string
+	RedirectURIs                string // Comma-separated string
+	ClientType                  string // "confidential" or "public"
+	EnableDeviceFlow            bool
+	EnableAuthCodeFlow          bool
+	EnableClientCredentialsFlow bool
+	IsActive                    bool
+	CreatedAt                   time.Time
+	UpdatedAt                   time.Time
 }
 
 // ClientFormPageProps contains properties for the client form page

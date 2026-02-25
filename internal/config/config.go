@@ -103,6 +103,9 @@ type Config struct {
 	EnableRefreshTokens    bool          // Feature flag to enable/disable refresh tokens (default: true)
 	EnableTokenRotation    bool          // Enable token rotation mode (default: false, fixed mode)
 
+	// Client Credentials Flow settings (RFC 6749 §4.4)
+	ClientCredentialsTokenExpiration time.Duration // Access token lifetime for client_credentials grant (default: 1h, same as JWTExpiration)
+
 	// OAuth settings
 	// GitHub OAuth
 	GitHubOAuthEnabled     bool
@@ -254,6 +257,12 @@ func Load() *Config {
 		), // 30 days
 		EnableRefreshTokens: getEnvBool("ENABLE_REFRESH_TOKENS", true),
 		EnableTokenRotation: getEnvBool("ENABLE_TOKEN_ROTATION", false),
+
+		// Client Credentials Flow settings
+		ClientCredentialsTokenExpiration: getEnvDuration(
+			"CLIENT_CREDENTIALS_TOKEN_EXPIRATION",
+			time.Hour,
+		), // 1 hour default; keep short — no refresh token means no rotation mechanism
 
 		// OAuth settings
 		// GitHub OAuth

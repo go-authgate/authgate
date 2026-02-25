@@ -1,6 +1,6 @@
 # Authorization Code Flow Guide
 
-AuthGate supports two OAuth 2.0 flows side-by-side. This guide covers the **Authorization Code Flow** (RFC 6749 §4.1) with PKCE (RFC 7636), suitable for web apps that can perform browser redirects.
+AuthGate supports three OAuth 2.0 grant types. This guide covers the **Authorization Code Flow** (RFC 6749 §4.1) with PKCE (RFC 7636), suitable for web apps that can perform browser redirects.
 
 ## Table of Contents
 
@@ -32,11 +32,12 @@ AuthGate supports two OAuth 2.0 flows side-by-side. This guide covers the **Auth
 
 ## Which Flow Should I Use?
 
-| Scenario                            | Recommended Flow                                   |
-| ----------------------------------- | -------------------------------------------------- |
-| CLI tools, IoT devices, TV apps     | **Device Code Flow** (RFC 8628)                    |
-| Web apps with a server-side backend | **Authorization Code Flow** (confidential client)  |
-| Single-page apps (SPA), mobile apps | **Authorization Code Flow + PKCE** (public client) |
+| Scenario                                   | Recommended Flow                                                           |
+| ------------------------------------------ | -------------------------------------------------------------------------- |
+| CLI tools, IoT devices, TV apps            | **Device Code Flow** (RFC 8628)                                            |
+| Web apps with a server-side backend        | **Authorization Code Flow** (confidential client)                          |
+| Single-page apps (SPA), mobile apps        | **Authorization Code Flow + PKCE** (public client)                         |
+| Microservices / server-to-server (no user) | **[Client Credentials Grant](CLIENT_CREDENTIALS_FLOW.md)** (RFC 6749 §4.4) |
 
 ---
 

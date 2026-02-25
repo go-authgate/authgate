@@ -123,15 +123,16 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 
 	req := services.CreateClientRequest{
-		ClientName:         c.PostForm("client_name"),
-		Description:        c.PostForm("description"),
-		UserID:             userID.(string),
-		Scopes:             c.PostForm("scopes"),
-		RedirectURIs:       parseRedirectURIs(c.PostForm("redirect_uris")),
-		CreatedBy:          userID.(string),
-		ClientType:         c.PostForm("client_type"),
-		EnableDeviceFlow:   c.PostForm("enable_device_flow") == queryValueTrue,
-		EnableAuthCodeFlow: c.PostForm("enable_auth_code_flow") == queryValueTrue,
+		ClientName:                  c.PostForm("client_name"),
+		Description:                 c.PostForm("description"),
+		UserID:                      userID.(string),
+		Scopes:                      c.PostForm("scopes"),
+		RedirectURIs:                parseRedirectURIs(c.PostForm("redirect_uris")),
+		CreatedBy:                   userID.(string),
+		ClientType:                  c.PostForm("client_type"),
+		EnableDeviceFlow:            c.PostForm("enable_device_flow") == queryValueTrue,
+		EnableAuthCodeFlow:          c.PostForm("enable_auth_code_flow") == queryValueTrue,
+		EnableClientCredentialsFlow: c.PostForm("enable_client_credentials_flow") == queryValueTrue,
 	}
 
 	resp, err := h.clientService.CreateClient(c.Request.Context(), req)
@@ -141,13 +142,14 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 
 		// Convert request data to ClientDisplay struct for template
 		clientData := &templates.ClientDisplay{
-			ClientName:         req.ClientName,
-			Description:        req.Description,
-			Scopes:             req.Scopes,
-			RedirectURIs:       strings.Join(req.RedirectURIs, ", "),
-			ClientType:         req.ClientType,
-			EnableDeviceFlow:   req.EnableDeviceFlow,
-			EnableAuthCodeFlow: req.EnableAuthCodeFlow,
+			ClientName:                  req.ClientName,
+			Description:                 req.Description,
+			Scopes:                      req.Scopes,
+			RedirectURIs:                strings.Join(req.RedirectURIs, ", "),
+			ClientType:                  req.ClientType,
+			EnableDeviceFlow:            req.EnableDeviceFlow,
+			EnableAuthCodeFlow:          req.EnableAuthCodeFlow,
+			EnableClientCredentialsFlow: req.EnableClientCredentialsFlow,
 		}
 
 		templates.RenderTempl(
@@ -177,17 +179,18 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 
 	// Convert OAuthApplication to ClientDisplay for template
 	clientDisplay := &templates.ClientDisplay{
-		ID:                 resp.ID,
-		ClientID:           resp.ClientID,
-		ClientName:         resp.ClientName,
-		Description:        resp.Description,
-		Scopes:             resp.Scopes,
-		GrantTypes:         resp.GrantTypes,
-		RedirectURIs:       resp.RedirectURIs.Join(", "),
-		ClientType:         resp.ClientType,
-		EnableDeviceFlow:   resp.EnableDeviceFlow,
-		EnableAuthCodeFlow: resp.EnableAuthCodeFlow,
-		IsActive:           resp.IsActive,
+		ID:                          resp.ID,
+		ClientID:                    resp.ClientID,
+		ClientName:                  resp.ClientName,
+		Description:                 resp.Description,
+		Scopes:                      resp.Scopes,
+		GrantTypes:                  resp.GrantTypes,
+		RedirectURIs:                resp.RedirectURIs.Join(", "),
+		ClientType:                  resp.ClientType,
+		EnableDeviceFlow:            resp.EnableDeviceFlow,
+		EnableAuthCodeFlow:          resp.EnableAuthCodeFlow,
+		EnableClientCredentialsFlow: resp.EnableClientCredentialsFlow,
+		IsActive:                    resp.IsActive,
 	}
 
 	templates.RenderTempl(
@@ -223,19 +226,20 @@ func (h *ClientHandler) ShowEditClientPage(c *gin.Context) {
 
 	// Convert OAuthApplication to ClientDisplay for template
 	clientDisplay := &templates.ClientDisplay{
-		ID:                 client.ID,
-		ClientID:           client.ClientID,
-		ClientName:         client.ClientName,
-		Description:        client.Description,
-		Scopes:             client.Scopes,
-		GrantTypes:         client.GrantTypes,
-		RedirectURIs:       client.RedirectURIs.Join(", "),
-		ClientType:         client.ClientType,
-		EnableDeviceFlow:   client.EnableDeviceFlow,
-		EnableAuthCodeFlow: client.EnableAuthCodeFlow,
-		IsActive:           client.IsActive,
-		CreatedAt:          client.CreatedAt,
-		UpdatedAt:          client.UpdatedAt,
+		ID:                          client.ID,
+		ClientID:                    client.ClientID,
+		ClientName:                  client.ClientName,
+		Description:                 client.Description,
+		Scopes:                      client.Scopes,
+		GrantTypes:                  client.GrantTypes,
+		RedirectURIs:                client.RedirectURIs.Join(", "),
+		ClientType:                  client.ClientType,
+		EnableDeviceFlow:            client.EnableDeviceFlow,
+		EnableAuthCodeFlow:          client.EnableAuthCodeFlow,
+		EnableClientCredentialsFlow: client.EnableClientCredentialsFlow,
+		IsActive:                    client.IsActive,
+		CreatedAt:                   client.CreatedAt,
+		UpdatedAt:                   client.UpdatedAt,
 	}
 
 	templates.RenderTempl(c, http.StatusOK, templates.AdminClientForm(templates.ClientFormPageProps{
@@ -258,14 +262,15 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 	clientID := c.Param("id")
 
 	req := services.UpdateClientRequest{
-		ClientName:         c.PostForm("client_name"),
-		Description:        c.PostForm("description"),
-		Scopes:             c.PostForm("scopes"),
-		RedirectURIs:       parseRedirectURIs(c.PostForm("redirect_uris")),
-		IsActive:           c.PostForm("is_active") == queryValueTrue,
-		ClientType:         c.PostForm("client_type"),
-		EnableDeviceFlow:   c.PostForm("enable_device_flow") == queryValueTrue,
-		EnableAuthCodeFlow: c.PostForm("enable_auth_code_flow") == queryValueTrue,
+		ClientName:                  c.PostForm("client_name"),
+		Description:                 c.PostForm("description"),
+		Scopes:                      c.PostForm("scopes"),
+		RedirectURIs:                parseRedirectURIs(c.PostForm("redirect_uris")),
+		IsActive:                    c.PostForm("is_active") == queryValueTrue,
+		ClientType:                  c.PostForm("client_type"),
+		EnableDeviceFlow:            c.PostForm("enable_device_flow") == queryValueTrue,
+		EnableAuthCodeFlow:          c.PostForm("enable_auth_code_flow") == queryValueTrue,
+		EnableClientCredentialsFlow: c.PostForm("enable_client_credentials_flow") == queryValueTrue,
 	}
 
 	userID, _ := c.Get("user_id")
@@ -278,18 +283,19 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 
 		// Convert form data to ClientDisplay for template
 		clientDisplay := &templates.ClientDisplay{
-			ID:                 client.ID,
-			ClientID:           client.ClientID,
-			ClientName:         req.ClientName,
-			Description:        req.Description,
-			Scopes:             req.Scopes,
-			RedirectURIs:       strings.Join(req.RedirectURIs, ", "),
-			ClientType:         req.ClientType,
-			EnableDeviceFlow:   req.EnableDeviceFlow,
-			EnableAuthCodeFlow: req.EnableAuthCodeFlow,
-			IsActive:           req.IsActive,
-			CreatedAt:          client.CreatedAt,
-			UpdatedAt:          client.UpdatedAt,
+			ID:                          client.ID,
+			ClientID:                    client.ClientID,
+			ClientName:                  req.ClientName,
+			Description:                 req.Description,
+			Scopes:                      req.Scopes,
+			RedirectURIs:                strings.Join(req.RedirectURIs, ", "),
+			ClientType:                  req.ClientType,
+			EnableDeviceFlow:            req.EnableDeviceFlow,
+			EnableAuthCodeFlow:          req.EnableAuthCodeFlow,
+			EnableClientCredentialsFlow: req.EnableClientCredentialsFlow,
+			IsActive:                    req.IsActive,
+			CreatedAt:                   client.CreatedAt,
+			UpdatedAt:                   client.UpdatedAt,
 		}
 
 		templates.RenderTempl(

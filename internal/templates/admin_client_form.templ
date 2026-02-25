@@ -82,8 +82,20 @@ templ AdminClientForm(props ClientFormPageProps) {
 										— for web apps with a redirect URI callback
 									</span>
 								</label>
+								<label class="admin-form-checkbox-label">
+									<input
+										type="checkbox"
+										name="enable_client_credentials_flow"
+										value="true"
+										checked?={ props.Client != nil && props.Client.EnableClientCredentialsFlow }
+									/>
+									<span>
+										<strong>Client Credentials Flow</strong> (RFC 6749 §4.4)
+										— for machine-to-machine (M2M) access; <em>confidential clients only</em>
+									</span>
+								</label>
 							</div>
-							<small class="admin-form-hint">At least one grant type must be selected.</small>
+							<small class="admin-form-hint">At least one grant type must be selected. Client Credentials Flow is silently ignored for public clients.</small>
 						</div>
 						<!-- Scopes -->
 						<div class="admin-form-group">

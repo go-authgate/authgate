@@ -116,6 +116,17 @@ func (p *LocalTokenProvider) Name() string {
 	return "local"
 }
 
+// GenerateClientCredentialsToken creates an access token for the client_credentials grant
+// using its own configurable expiry (CLIENT_CREDENTIALS_TOKEN_EXPIRATION).
+// The userID field carries the synthetic machine identity "client:<clientID>".
+func (p *LocalTokenProvider) GenerateClientCredentialsToken(
+	ctx context.Context,
+	userID, clientID, scopes string,
+) (*Result, error) {
+	expiresAt := time.Now().Add(p.config.ClientCredentialsTokenExpiration)
+	return p.generateJWT(userID, clientID, scopes, "access", expiresAt)
+}
+
 // GenerateRefreshToken creates a refresh token JWT with longer expiration
 func (p *LocalTokenProvider) GenerateRefreshToken(
 	ctx context.Context,

@@ -21,22 +21,23 @@ const lowerBase32Chars = "abcdefghijklmnopqrstuvwxyz234567"
 var base32Lower = base32.NewEncoding(lowerBase32Chars).WithPadding(base32.NoPadding)
 
 type OAuthApplication struct {
-	ID                 int64       `gorm:"primaryKey;autoIncrement"`
-	ClientID           string      `gorm:"uniqueIndex;not null"`
-	ClientSecret       string      `gorm:"not null"` // bcrypt hashed secret
-	ClientName         string      `gorm:"not null"`
-	Description        string      `gorm:"type:text"`
-	UserID             string      `gorm:"not null"`
-	Scopes             string      `gorm:"not null"`
-	GrantTypes         string      `gorm:"not null;default:'device_code'"`
-	RedirectURIs       StringArray `gorm:"type:json"`
-	ClientType         string      `gorm:"not null;default:'public'"` // "confidential" or "public"
-	EnableDeviceFlow   bool        `gorm:"not null;default:true"`
-	EnableAuthCodeFlow bool        `gorm:"not null;default:false"`
-	IsActive           bool        `gorm:"not null;default:true"`
-	CreatedBy          string
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID                          int64       `gorm:"primaryKey;autoIncrement"`
+	ClientID                    string      `gorm:"uniqueIndex;not null"`
+	ClientSecret                string      `gorm:"not null"` // bcrypt hashed secret
+	ClientName                  string      `gorm:"not null"`
+	Description                 string      `gorm:"type:text"`
+	UserID                      string      `gorm:"not null"`
+	Scopes                      string      `gorm:"not null"`
+	GrantTypes                  string      `gorm:"not null;default:'device_code'"`
+	RedirectURIs                StringArray `gorm:"type:json"`
+	ClientType                  string      `gorm:"not null;default:'public'"` // "confidential" or "public"
+	EnableDeviceFlow            bool        `gorm:"not null;default:true"`
+	EnableAuthCodeFlow          bool        `gorm:"not null;default:false"`
+	EnableClientCredentialsFlow bool        `gorm:"not null;default:false"` // Client Credentials Grant (RFC 6749 §4.4); confidential clients only
+	IsActive                    bool        `gorm:"not null;default:true"`
+	CreatedBy                   string
+	CreatedAt                   time.Time
+	UpdatedAt                   time.Time
 }
 
 // GenerateClientSecret will generate the client secret and returns the plaintext and saves the hash at the database
