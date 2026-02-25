@@ -221,6 +221,10 @@ func TestDiscovery_ReturnsCorrectMetadata(t *testing.T) {
 	assert.Contains(t, claims, "nonce")
 	assert.Contains(t, claims, "at_hash")
 	assert.Contains(t, claims, "email_verified")
+	assert.Contains(t, claims, "name")
+	assert.Contains(t, claims, "preferred_username")
+	assert.Contains(t, claims, "picture")
+	assert.Contains(t, claims, "updated_at")
 }
 
 func TestDiscovery_StripsTrailingSlashFromBaseURL(t *testing.T) {
