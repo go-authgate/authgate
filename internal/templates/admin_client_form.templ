@@ -82,20 +82,22 @@ templ AdminClientForm(props ClientFormPageProps) {
 										— for web apps with a redirect URI callback
 									</span>
 								</label>
-								<label class="admin-form-checkbox-label">
+								<label class="admin-form-checkbox-label" id="client_credentials_label">
 									<input
 										type="checkbox"
+										id="enable_client_credentials_flow"
 										name="enable_client_credentials_flow"
 										value="true"
 										checked?={ props.Client != nil && props.Client.EnableClientCredentialsFlow }
 									/>
 									<span>
 										<strong>Client Credentials Flow</strong> (RFC 6749 §4.4)
-										— for machine-to-machine (M2M) access; <em>confidential clients only</em>
+										— for machine-to-machine (M2M) access
+										<span class="admin-form-badge-confidential" id="cc_flow_badge">Confidential only</span>
 									</span>
 								</label>
 							</div>
-							<small class="admin-form-hint">At least one grant type must be selected. Client Credentials Flow is silently ignored for public clients.</small>
+							<small class="admin-form-hint">At least one grant type must be selected. Client Credentials Flow requires a confidential client.</small>
 						</div>
 						<!-- Scopes -->
 						<div class="admin-form-group">
@@ -157,6 +159,25 @@ templ AdminClientForm(props ClientFormPageProps) {
 							<a href="/admin/clients" class="admin-form-cancel-btn">Cancel</a>
 						</div>
 					</form>
+					<script>
+						(function () {
+							var clientTypeSelect = document.getElementById('client_type');
+							var ccCheckbox = document.getElementById('enable_client_credentials_flow');
+							var ccLabel = document.getElementById('client_credentials_label');
+
+							function syncClientCredentials() {
+								var isConfidential = clientTypeSelect.value === 'confidential';
+								ccCheckbox.disabled = !isConfidential;
+								if (!isConfidential) {
+									ccCheckbox.checked = false;
+								}
+								ccLabel.classList.toggle('admin-form-checkbox-label--disabled', !isConfidential);
+							}
+
+							clientTypeSelect.addEventListener('change', syncClientCredentials);
+							syncClientCredentials();
+						})();
+					</script>
 				</div>
 			</div>
 		</div>

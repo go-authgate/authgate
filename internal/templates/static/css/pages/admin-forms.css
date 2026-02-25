@@ -139,6 +139,38 @@
   color: var(--color-text-primary);
 }
 
+/* Disabled state for grant type checkboxes (e.g. Client Credentials for public clients) */
+.admin-form-checkbox-label--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.admin-form-checkbox-label--disabled input[type="checkbox"] {
+  cursor: not-allowed;
+}
+
+/* "Confidential only" badge shown next to unavailable grant types */
+.admin-form-badge-confidential {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(245, 158, 11, 0.9);
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 4px;
+  vertical-align: middle;
+  transition: opacity var(--transition-fast);
+}
+
+.admin-form-checkbox-label:not(.admin-form-checkbox-label--disabled) .admin-form-badge-confidential {
+  display: none;
+}
+
 .admin-form-hint {
   display: block;
   margin-top: var(--space-2);
