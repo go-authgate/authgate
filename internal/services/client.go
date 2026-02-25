@@ -66,26 +66,28 @@ func NewClientService(s *store.Store, auditService *AuditService) *ClientService
 }
 
 type CreateClientRequest struct {
-	ClientName         string
-	Description        string
-	UserID             string
-	Scopes             string
-	RedirectURIs       []string
-	CreatedBy          string
-	ClientType         string // ClientTypeConfidential or ClientTypePublic (default: ClientTypeConfidential)
-	EnableDeviceFlow   bool   // Enable Device Authorization Grant (RFC 8628)
-	EnableAuthCodeFlow bool   // Enable Authorization Code Flow (RFC 6749)
+	ClientName                  string
+	Description                 string
+	UserID                      string
+	Scopes                      string
+	RedirectURIs                []string
+	CreatedBy                   string
+	ClientType                  string // ClientTypeConfidential or ClientTypePublic (default: ClientTypeConfidential)
+	EnableDeviceFlow            bool   // Enable Device Authorization Grant (RFC 8628)
+	EnableAuthCodeFlow          bool   // Enable Authorization Code Flow (RFC 6749)
+	EnableClientCredentialsFlow bool   // Enable Client Credentials Grant (RFC 6749 §4.4); confidential clients only
 }
 
 type UpdateClientRequest struct {
-	ClientName         string
-	Description        string
-	Scopes             string
-	RedirectURIs       []string
-	IsActive           bool
-	ClientType         string
-	EnableDeviceFlow   bool
-	EnableAuthCodeFlow bool
+	ClientName                  string
+	Description                 string
+	Scopes                      string
+	RedirectURIs                []string
+	IsActive                    bool
+	ClientType                  string
+	EnableDeviceFlow            bool
+	EnableAuthCodeFlow          bool
+	EnableClientCredentialsFlow bool // Enable Client Credentials Grant (RFC 6749 §4.4); confidential clients only
 }
 
 type ClientResponse struct {
@@ -130,10 +132,14 @@ func (s *ClientService) CreateClient(
 		clientType = ClientTypeConfidential
 	}
 
+	// Client credentials flow is only available for confidential clients
+	enableClientCredentials := req.EnableClientCredentialsFlow &&
+		clientType == ClientTypeConfidential
+
 	// If neither flow is explicitly enabled, default to device flow
 	enableDevice := req.EnableDeviceFlow
 	enableAuthCode := req.EnableAuthCodeFlow
-	if !enableDevice && !enableAuthCode {
+	if !enableDevice && !enableAuthCode && !enableClientCredentials {
 		enableDevice = true
 	}
 
@@ -145,21 +151,25 @@ func (s *ClientService) CreateClient(
 	if enableAuthCode {
 		grants = append(grants, "authorization_code")
 	}
+	if enableClientCredentials {
+		grants = append(grants, "client_credentials")
+	}
 	grantTypes := strings.Join(grants, " ")
 
 	client := &models.OAuthApplication{
-		ClientID:           clientID,
-		ClientName:         strings.TrimSpace(req.ClientName),
-		Description:        strings.TrimSpace(req.Description),
-		UserID:             req.UserID,
-		Scopes:             scopes,
-		GrantTypes:         grantTypes,
-		RedirectURIs:       models.StringArray(req.RedirectURIs),
-		ClientType:         clientType,
-		EnableDeviceFlow:   enableDevice,
-		EnableAuthCodeFlow: enableAuthCode,
-		IsActive:           true,
-		CreatedBy:          req.CreatedBy,
+		ClientID:                    clientID,
+		ClientName:                  strings.TrimSpace(req.ClientName),
+		Description:                 strings.TrimSpace(req.Description),
+		UserID:                      req.UserID,
+		Scopes:                      scopes,
+		GrantTypes:                  grantTypes,
+		RedirectURIs:                models.StringArray(req.RedirectURIs),
+		ClientType:                  clientType,
+		EnableDeviceFlow:            enableDevice,
+		EnableAuthCodeFlow:          enableAuthCode,
+		EnableClientCredentialsFlow: enableClientCredentials,
+		IsActive:                    true,
+		CreatedBy:                   req.CreatedBy,
 	}
 
 	// Generate client secret
@@ -206,7 +216,7 @@ func (s *ClientService) UpdateClient(
 		return ErrClientNameRequired
 	}
 
-	if !req.EnableDeviceFlow && !req.EnableAuthCodeFlow {
+	if !req.EnableDeviceFlow && !req.EnableAuthCodeFlow && !req.EnableClientCredentialsFlow {
 		return ErrAtLeastOneGrantRequired
 	}
 
@@ -237,14 +247,21 @@ func (s *ClientService) UpdateClient(
 	}
 
 	// Rebuild GrantTypes from enablement flags
+	// Client credentials flow is restricted to confidential clients
+	enableClientCredentials := req.EnableClientCredentialsFlow &&
+		client.ClientType == ClientTypeConfidential
 	client.EnableDeviceFlow = req.EnableDeviceFlow
 	client.EnableAuthCodeFlow = req.EnableAuthCodeFlow
+	client.EnableClientCredentialsFlow = enableClientCredentials
 	var grants []string
 	if req.EnableDeviceFlow {
 		grants = append(grants, "device_code")
 	}
 	if req.EnableAuthCodeFlow {
 		grants = append(grants, "authorization_code")
+	}
+	if enableClientCredentials {
+		grants = append(grants, "client_credentials")
 	}
 	client.GrantTypes = strings.Join(grants, " ")
 

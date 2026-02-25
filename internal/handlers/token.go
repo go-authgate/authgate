@@ -20,6 +20,8 @@ const (
 	GrantTypeRefreshToken = "refresh_token"
 	// https://datatracker.ietf.org/doc/html/rfc6749#section-4.1
 	GrantTypeAuthorizationCode = "authorization_code"
+	// https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
+	GrantTypeClientCredentials = "client_credentials"
 	// errInvalidGrant is reused across authorization code grant error paths
 	errInvalidGrant = "invalid_grant"
 )
@@ -69,10 +71,12 @@ func (h *TokenHandler) Token(c *gin.Context) {
 		h.handleRefreshTokenGrant(c)
 	case GrantTypeAuthorizationCode:
 		h.handleAuthorizationCodeGrant(c)
+	case GrantTypeClientCredentials:
+		h.handleClientCredentialsGrant(c)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "unsupported_grant_type",
-			"error_description": "Supported grant types: device_code, refresh_token, authorization_code",
+			"error_description": "Supported grant types: device_code, refresh_token, authorization_code, client_credentials",
 		})
 	}
 }
@@ -223,13 +227,20 @@ func (h *TokenHandler) TokenInfo(c *gin.Context) {
 		return
 	}
 
+	// Identify whether this is a user-delegated token or a machine (client credentials) token
+	subjectType := "user"
+	if strings.HasPrefix(result.UserID, "client:") {
+		subjectType = "client"
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"active":    result.Valid,
-		"user_id":   result.UserID,
-		"client_id": result.ClientID,
-		"scope":     result.Scopes,
-		"exp":       result.ExpiresAt.Unix(),
-		"iss":       h.config.BaseURL,
+		"active":       result.Valid,
+		"user_id":      result.UserID,
+		"client_id":    result.ClientID,
+		"scope":        result.Scopes,
+		"exp":          result.ExpiresAt.Unix(),
+		"iss":          h.config.BaseURL,
+		"subject_type": subjectType,
 	})
 }
 
@@ -274,6 +285,74 @@ func (h *TokenHandler) Revoke(c *gin.Context) {
 
 	// Success response (RFC 7009)
 	c.Status(http.StatusOK)
+}
+
+// handleClientCredentialsGrant handles the client_credentials grant type (RFC 6749 §4.4).
+// Client authentication is accepted via HTTP Basic Auth (preferred per RFC 6749 §2.3.1)
+// or as client_id / client_secret form-body parameters.
+// Only confidential clients with the client_credentials flow enabled may use this endpoint.
+// No refresh token is issued in the response.
+func (h *TokenHandler) handleClientCredentialsGrant(c *gin.Context) {
+	// Prefer HTTP Basic Auth; fall back to form-body parameters
+	clientID, clientSecret, ok := c.Request.BasicAuth()
+	if !ok {
+		clientID = c.PostForm("client_id")
+		clientSecret = c.PostForm("client_secret")
+	}
+
+	if clientID == "" || clientSecret == "" {
+		c.Header("WWW-Authenticate", `Basic realm="authgate"`)
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":             "invalid_client",
+			"error_description": "Client authentication required: use HTTP Basic Auth or provide client_id and client_secret in the request body",
+		})
+		return
+	}
+
+	requestedScopes := c.PostForm("scope") // Optional
+
+	accessToken, err := h.tokenService.IssueClientCredentialsToken(
+		c.Request.Context(),
+		clientID,
+		clientSecret,
+		requestedScopes,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrInvalidClientCredentials),
+			errors.Is(err, services.ErrClientNotConfidential):
+			// RFC 6749 §5.2: use 401 + WWW-Authenticate for invalid_client
+			c.Header("WWW-Authenticate", `Basic realm="authgate"`)
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error":             "invalid_client",
+				"error_description": "Client authentication failed",
+			})
+		case errors.Is(err, services.ErrClientCredentialsFlowDisabled):
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "unauthorized_client",
+				"error_description": "Client credentials flow is not enabled for this client",
+			})
+		case errors.Is(err, token.ErrInvalidScope):
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "invalid_scope",
+				"error_description": "Requested scope exceeds client permissions or contains restricted scopes (openid, offline_access are not permitted)",
+			})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":             "server_error",
+				"error_description": "Token issuance failed",
+			})
+		}
+		return
+	}
+
+	// RFC 6749 §4.4.3: response MUST NOT include a refresh_token
+	c.JSON(http.StatusOK, gin.H{
+		"access_token": accessToken.Token,
+		"token_type":   accessToken.TokenType,
+		"expires_in":   int(time.Until(accessToken.ExpiresAt).Seconds()),
+		"scope":        accessToken.Scopes,
+	})
 }
 
 // handleAuthorizationCodeGrant handles the authorization_code grant type (RFC 6749 §4.1.3).

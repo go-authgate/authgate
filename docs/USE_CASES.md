@@ -6,29 +6,221 @@ This guide provides real-world examples of how to use AuthGate for different sce
 
 - [Use Cases and Examples](#use-cases-and-examples)
   - [Table of Contents](#table-of-contents)
+  - [Machine-to-Machine (M2M) Authentication](#machine-to-machine-m2m-authentication)
   - [CLI Tool Authentication](#cli-tool-authentication)
-    - [Scenario](#scenario)
-    - [Requirements](#requirements)
-    - [Implementation](#implementation)
   - [IoT Device Authentication](#iot-device-authentication)
-    - [Scenario](#scenario-1)
-    - [Requirements](#requirements-1)
-    - [Implementation](#implementation-1)
   - [CI/CD Pipeline Authentication](#cicd-pipeline-authentication)
-    - [Scenario](#scenario-2)
-    - [Requirements](#requirements-2)
-    - [Implementation](#implementation-2)
   - [Smart TV Authentication](#smart-tv-authentication)
-    - [Scenario](#scenario-3)
-    - [Requirements](#requirements-3)
-    - [Implementation](#implementation-3)
   - [Security Incident Response](#security-incident-response)
-    - [Scenario](#scenario-4)
-    - [User Actions](#user-actions)
-    - [Admin Response](#admin-response)
   - [Multi-Device User Management](#multi-device-user-management)
-    - [Scenario](#scenario-5)
-    - [Features](#features)
+
+---
+
+## Machine-to-Machine (M2M) Authentication
+
+### Scenario
+
+A backend microservice, daemon, or CI/CD job needs to call a protected internal API without any user involvement.
+
+### Requirements
+
+- No browser or user interaction
+- Service authenticates itself using a pre-shared client secret
+- Token cached in memory and refreshed automatically when expired
+- No refresh token — simplifies secret rotation (just update the secret)
+
+### Setup
+
+**1. Create a confidential OAuth client in Admin:**
+
+```
+Admin → OAuth Clients → New Client
+  Client Name: "Metrics Exporter"
+  Client Type: Confidential
+  Grant Types: [x] Client Credentials Flow (RFC 6749 §4.4)
+  Scopes: metrics:read
+```
+
+**2. Save the generated `client_id` and `client_secret`.**
+
+### Implementation (Go)
+
+```go
+package main
+
+import (
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "net/url"
+    "strings"
+    "sync"
+    "time"
+)
+
+const (
+    authServer   = "https://auth.example.com"
+    clientID     = "your-client-id"
+    clientSecret = "your-client-secret"
+    scope        = "metrics:read"
+)
+
+type tokenCache struct {
+    mu        sync.Mutex
+    token     string
+    expiresAt time.Time
+}
+
+var cache = &tokenCache{}
+
+func (c *tokenCache) getToken() (string, error) {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+
+    // Return cached token if still valid (with 30s buffer)
+    if c.token != "" && time.Now().Add(30*time.Second).Before(c.expiresAt) {
+        return c.token, nil
+    }
+
+    // Request new token via Client Credentials Grant
+    data := url.Values{
+        "grant_type": {"client_credentials"},
+        "scope":      {scope},
+    }
+
+    req, _ := http.NewRequest("POST", authServer+"/oauth/token",
+        strings.NewReader(data.Encode()))
+    req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+    req.SetBasicAuth(clientID, clientSecret) // Preferred per RFC 6749 §2.3.1
+
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil {
+        return "", fmt.Errorf("token request failed: %w", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        return "", fmt.Errorf("token request returned %d", resp.StatusCode)
+    }
+
+    var result struct {
+        AccessToken string `json:"access_token"`
+        ExpiresIn   int    `json:"expires_in"`
+        TokenType   string `json:"token_type"`
+    }
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        return "", fmt.Errorf("failed to decode token response: %w", err)
+    }
+
+    c.token = result.AccessToken
+    c.expiresAt = time.Now().Add(time.Duration(result.ExpiresIn) * time.Second)
+    return c.token, nil
+}
+
+func callProtectedAPI() error {
+    token, err := cache.getToken()
+    if err != nil {
+        return err
+    }
+
+    req, _ := http.NewRequest("GET", "https://api.example.com/metrics", nil)
+    req.Header.Set("Authorization", "Bearer "+token)
+
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+
+    fmt.Printf("API response status: %s\n", resp.Status)
+    return nil
+}
+
+func main() {
+    if err := callProtectedAPI(); err != nil {
+        fmt.Printf("Error: %v\n", err)
+    }
+}
+```
+
+### Implementation (curl)
+
+```bash
+# Get access token
+TOKEN=$(curl -s -X POST https://auth.example.com/oauth/token \
+  -u "$CLIENT_ID:$CLIENT_SECRET" \
+  -d "grant_type=client_credentials&scope=metrics:read" \
+  | jq -r '.access_token')
+
+# Use the token
+curl -H "Authorization: Bearer $TOKEN" \
+  https://api.example.com/metrics
+```
+
+### Implementation (Python)
+
+```python
+import requests
+import time
+import threading
+
+class M2MTokenClient:
+    def __init__(self, auth_server, client_id, client_secret, scope=""):
+        self.auth_server = auth_server
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.scope = scope
+        self._token = None
+        self._expires_at = 0
+        self._lock = threading.Lock()
+
+    def get_token(self):
+        with self._lock:
+            # Return cached token if still valid (30s buffer)
+            if self._token and time.time() + 30 < self._expires_at:
+                return self._token
+
+            response = requests.post(
+                f"{self.auth_server}/oauth/token",
+                data={
+                    "grant_type": "client_credentials",
+                    "scope": self.scope,
+                },
+                auth=(self.client_id, self.client_secret),  # HTTP Basic Auth
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            self._token = data["access_token"]
+            self._expires_at = time.time() + data["expires_in"]
+            return self._token
+
+    def get_headers(self):
+        return {"Authorization": f"Bearer {self.get_token()}"}
+
+
+# Usage
+client = M2MTokenClient(
+    auth_server="https://auth.example.com",
+    client_id="your-client-id",
+    client_secret="your-client-secret",
+    scope="metrics:read",
+)
+
+response = requests.get(
+    "https://api.example.com/metrics",
+    headers=client.get_headers(),
+)
+print(response.json())
+```
+
+### Security Considerations
+
+- Store `client_secret` in environment variables or a secrets manager (never in source code)
+- Keep `CLIENT_CREDENTIALS_TOKEN_EXPIRATION` short (default: 1h); no rotation mechanism exists since there is no refresh token
+- Rotate the client secret periodically via **Admin → OAuth Clients → Regenerate Secret**
+- Restrict scopes to the minimum required by the service
+- Audit token issuance via **Admin → Audit Logs** (event: `CLIENT_CREDENTIALS_TOKEN_ISSUED`)
 
 ---
 
@@ -734,6 +926,7 @@ Show helpful information:
 
 **Next Steps:**
 
+- [Client Credentials Flow Guide](CLIENT_CREDENTIALS_FLOW.md) - M2M / service-to-service authentication
 - [Authorization Code Flow Guide](AUTHORIZATION_CODE_FLOW.md) - Web and mobile app integration
 - [Development Guide](DEVELOPMENT.md) - Build your own integration
 - [API Reference (README)](../README.md#key-endpoints) - Endpoint documentation

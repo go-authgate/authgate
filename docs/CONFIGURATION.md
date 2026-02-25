@@ -80,6 +80,10 @@ REFRESH_TOKEN_EXPIRATION=720h        # Refresh token lifetime (default: 30 days)
 ENABLE_REFRESH_TOKENS=true          # Feature flag to enable/disable refresh tokens
 ENABLE_TOKEN_ROTATION=false         # Enable rotation mode (default: fixed mode)
 
+# Client Credentials Flow (RFC 6749 §4.4)
+# CLIENT_CREDENTIALS_TOKEN_EXPIRATION=1h  # Access token lifetime for client_credentials grant (default: 1h)
+#                                           # Keep short — no refresh token means no rotation mechanism
+
 # OAuth Configuration (optional - for third-party login)
 # GitHub OAuth
 GITHUB_OAUTH_ENABLED=false
@@ -131,6 +135,7 @@ AuthGate supports configurable timeout durations for all lifecycle operations, e
 ### Overview
 
 Initialization operations share a unified context flow from the graceful shutdown manager, while shutdown operations run with independent, timeout-bound contexts:
+
 - **Initialization timeouts**: Control how long to wait for database, Redis, and cache connections during startup and are cancelled if the manager context is stopped (for example, with Ctrl+C)
 - **Shutdown timeouts**: Control how long to wait for graceful cleanup of resources; each shutdown job runs with a fresh context derived from `context.Background()` and is bounded only by its configured timeout
 - **Cancellation support**: Pressing Ctrl+C during startup cancels in-flight initialization work via the manager context; once shutdown has begun, shutdown work continues until its timeout expires, even if Ctrl+C is pressed again
@@ -160,6 +165,7 @@ AUDIT_SHUTDOWN_TIMEOUT=10s   # Audit service shutdown timeout (default: 10s)
 ### Use Cases
 
 **Slow Network Connections**
+
 ```bash
 # Increase timeouts for remote database/Redis
 DB_INIT_TIMEOUT=60s
@@ -167,12 +173,14 @@ REDIS_CONN_TIMEOUT=15s
 ```
 
 **Large Audit Buffer**
+
 ```bash
 # Allow more time to flush audit logs on shutdown
 AUDIT_SHUTDOWN_TIMEOUT=30s
 ```
 
 **Fast Deployment Rollouts**
+
 ```bash
 # Reduce shutdown timeouts for faster pod termination
 SERVER_SHUTDOWN_TIMEOUT=3s

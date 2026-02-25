@@ -74,9 +74,10 @@ func (h *OIDCHandler) Discovery(c *gin.Context) {
 			"none",
 		},
 		GrantTypesSupported: []string{
-			"authorization_code",
+			GrantTypeAuthorizationCode,
 			GrantTypeDeviceCode,
 			GrantTypeRefreshToken,
+			GrantTypeClientCredentials,
 		},
 		ClaimsSupported: []string{
 			"sub",

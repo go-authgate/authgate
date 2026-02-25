@@ -9,6 +9,7 @@ This document provides a detailed overview of AuthGate's architecture, design pa
 - [Device Flow Sequence](#device-flow-sequence)
 - [Key Endpoints](#key-endpoints)
 - [Refresh Token Architecture](#refresh-token-architecture)
+- [Client Credentials Architecture](#client-credentials-architecture)
 
 ---
 
@@ -66,6 +67,7 @@ authgate/
 ├── docs/            # Documentation
 │   ├── ARCHITECTURE.md             # System architecture and design patterns
 │   ├── AUTHORIZATION_CODE_FLOW.md  # Auth Code Flow with PKCE guide
+│   ├── CLIENT_CREDENTIALS_FLOW.md  # Client Credentials Grant (M2M) guide
 │   ├── CONFIGURATION.md            # Environment variables and configuration
 │   ├── DEPLOYMENT.md               # Production deployment guide
 │   ├── DEVELOPMENT.md              # Developer guide and extension points
@@ -151,8 +153,8 @@ sequenceDiagram
 | `/oauth/device/code`                | POST     | No            | Request device and user codes (CLI/device)                                     |
 | `/oauth/authorize`                  | GET      | Yes (Session) | Authorization Code Flow consent page (web apps)                                |
 | `/oauth/authorize`                  | POST     | Yes (Session) | Submit consent decision (allow/deny)                                           |
-| `/oauth/token`                      | POST     | No            | Token endpoint (grant_type=device_code, authorization_code, or refresh_token)  |
-| `/oauth/tokeninfo`                  | GET      | No            | Verify token validity (pass token as query)                                    |
+| `/oauth/token`                      | POST     | No            | Token endpoint (grant_type=device_code, authorization_code, refresh_token, or client_credentials) |
+| `/oauth/tokeninfo`                  | GET      | No (Bearer)   | Verify token validity from Authorization: Bearer access token                  |
 | `/oauth/userinfo`                   | GET/POST | No (Bearer)   | OIDC UserInfo — returns profile claims for authenticated user (OIDC Core §5.3) |
 | `/oauth/revoke`                     | POST     | No            | Revoke access token (RFC 7009)                                                 |
 | `/device`                           | GET      | Yes (Session) | User authorization page (browser)                                              |
@@ -186,6 +188,11 @@ sequenceDiagram
     - Request with `refresh_token`, `client_id`, and optional `scope`
     - Returns new `access_token` (fixed mode) or new `access_token` + `refresh_token` (rotation mode)
     - Returns `invalid_grant` error if refresh token is invalid/expired
+  - **Client Credentials Grant**: `grant_type=client_credentials`
+    - Authenticate via HTTP Basic Auth (`Authorization: Basic base64(client_id:client_secret)`) or form body
+    - Returns `access_token`, `token_type`, `expires_in`, `scope` — **no** `refresh_token`
+    - Requires confidential client with `EnableClientCredentialsFlow = true`
+    - Returns `401 Unauthorized` with `WWW-Authenticate: Basic realm="authgate"` for auth failures
 
 #### User Authorization (Browser)
 
@@ -194,7 +201,7 @@ sequenceDiagram
 
 #### Token Validation
 
-- `GET /oauth/tokeninfo?access_token=<JWT>` - Returns token details or error
+- `GET /oauth/tokeninfo` with `Authorization: Bearer <JWT>` header — returns token details or error. Pass the token in the header, not as a query string, to prevent token leakage via server logs and `Referer` headers.
 
 #### OIDC Discovery & UserInfo
 
@@ -302,7 +309,9 @@ AuthGate supports refresh tokens following RFC 6749 with configurable rotation m
 ### Grant Type Support
 
 - `urn:ietf:params:oauth:grant-type:device_code` - Device authorization flow (returns access + refresh)
+- `authorization_code` - Authorization Code Flow (returns access + refresh)
 - `refresh_token` - RFC 6749 refresh token grant (returns new tokens)
+- `client_credentials` - Machine-to-machine grant (returns access token only, no refresh token)
 
 ### Security Considerations
 
@@ -321,6 +330,67 @@ AuthGate supports refresh tokens following RFC 6749 with configurable rotation m
 - Sessions stored in encrypted cookies (gin-contrib/sessions), 7-day expiry
 - Polling interval is 5 seconds (Config.PollingInterval)
 - Templates and static files embedded via go:embed in main.go
+
+---
+
+## Client Credentials Architecture
+
+AuthGate supports the **Client Credentials Grant** (RFC 6749 §4.4) for machine-to-machine (M2M) authentication where no user context is involved.
+
+### Design Principles
+
+- **Confidential clients only** — public clients cannot securely store a secret; enabling the flow for a public client is silently ignored at the service layer
+- **No refresh token** — per RFC 6749 §4.4.3; the client simply requests a new token when the current one expires
+- **Machine UserID** — tokens are stored with `user_id = "client:<clientID>"` to clearly distinguish M2M tokens from user-delegated tokens throughout the system
+- **`subject_type` field** — `/oauth/tokeninfo` returns `"subject_type": "client"` when `user_id` starts with `"client:"`, and `"subject_type": "user"` otherwise
+- **Independent TTL** — `CLIENT_CREDENTIALS_TOKEN_EXPIRATION` (default: 1h) is separate from the user access token TTL; keep short per RFC 9700 recommendations
+
+### Scope Handling
+
+| Request scope | Effective scope |
+|---------------|-----------------|
+| Empty (`""`) | All scopes registered on the client |
+| Subset (e.g., `"read"`) | Only the requested scopes (validated against client's registered scopes) |
+| Superset or unknown scope | `invalid_scope` error |
+| `openid` or `offline_access` | `invalid_scope` error (user-centric OIDC scopes are not permitted) |
+
+### Client Authentication
+
+Per RFC 6749 §2.3.1, HTTP Basic Authentication is preferred:
+
+```
+Authorization: Basic base64(client_id + ":" + client_secret)
+```
+
+Form body is also accepted as a fallback:
+
+```
+POST /oauth/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&client_id=<id>&client_secret=<secret>&scope=read
+```
+
+### Error Responses
+
+| Condition | HTTP Status | OAuth Error |
+|-----------|-------------|-------------|
+| Missing or invalid credentials | 401 + `WWW-Authenticate: Basic realm="authgate"` | `invalid_client` |
+| Client is public | 400 | `unauthorized_client` |
+| Flow not enabled for client | 400 | `unauthorized_client` |
+| Scope exceeds client's registered scopes | 400 | `invalid_scope` |
+| `openid` / `offline_access` requested | 400 | `invalid_scope` |
+
+### Environment Variables
+
+- `CLIENT_CREDENTIALS_TOKEN_EXPIRATION=1h` — Access token lifetime (default: 1 hour)
+
+### Per-Client Setup (Admin UI)
+
+1. Create or edit an OAuth client in **Admin → OAuth Clients**
+2. Set **Client Type** to `Confidential`
+3. Check **Client Credentials Flow (RFC 6749 §4.4)**
+4. Save — the client can now authenticate with `grant_type=client_credentials`
 
 ---
 

@@ -47,6 +47,9 @@ const (
 	EventUserAuthorizationRevoked   EventType = "USER_AUTHORIZATION_REVOKED"
 	EventClientTokensRevokedAll     EventType = "CLIENT_TOKENS_REVOKED_ALL" //nolint:gosec // G101: false positive, this is a const string describing an event type, not a credential
 
+	// Client Credentials Flow events (RFC 6749 §4.4)
+	EventClientCredentialsTokenIssued EventType = "CLIENT_CREDENTIALS_TOKEN_ISSUED" //nolint:gosec // G101: false positive
+
 	// Audit events
 	EventTypeAuditLogView     EventType = "AUDIT_LOG_VIEWED"
 	EventTypeAuditLogExported EventType = "AUDIT_LOG_EXPORTED"
