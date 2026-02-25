@@ -201,7 +201,7 @@ sequenceDiagram
 
 #### Token Validation
 
-- `GET /oauth/tokeninfo?access_token=<JWT>` - Returns token details or error
+- `GET /oauth/tokeninfo` with `Authorization: Bearer <JWT>` header — returns token details or error. Pass the token in the header, not as a query string, to prevent token leakage via server logs and `Referer` headers.
 
 #### OIDC Discovery & UserInfo
 

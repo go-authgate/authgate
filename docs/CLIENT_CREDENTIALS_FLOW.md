@@ -157,10 +157,13 @@ grant_type=client_credentials&client_id=<id>&client_secret=<secret>&scope=read
 
 ### Verify a Token
 
-Resource servers can verify tokens using the tokeninfo endpoint:
+Resource servers can verify tokens using the tokeninfo endpoint. Always pass the token in the `Authorization` header — **never** in a URL query string.
+
+> **Security note:** Tokens in query strings appear in HTTP access logs, reverse proxy logs, browser history, and `Referer` headers on cross-domain redirects. An attacker with read access to any of these logs can replay the token against your protected APIs for its remaining lifetime. The `/oauth/tokeninfo` endpoint only accepts the `Authorization: Bearer` header; query-string transport is not supported.
 
 ```http
-GET /oauth/tokeninfo?access_token=eyJhbGc...
+GET /oauth/tokeninfo HTTP/1.1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
 Response for a client credentials token:
