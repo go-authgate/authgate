@@ -1091,8 +1091,11 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		return nil, nil, "", fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	// Generate OIDC ID Token when openid scope was granted (OIDC Core 1.0 §3.1.3.3)
+	// Generate OIDC ID Token when openid scope was granted (OIDC Core 1.0 §3.1.3.3).
 	// ID tokens are not stored in the database; they are short-lived and non-revocable.
+	// NOTE: ID token generation is only supported when a local token provider is configured.
+	// When TOKEN_PROVIDER_MODE is set to http_api, s.localTokenProvider is nil and this block
+	// is skipped, so no ID token will be returned even if the openid scope is requested.
 	var idToken string
 	if s.localTokenProvider != nil {
 		scopeSet := token.ScopeSet(authCode.Scopes)
