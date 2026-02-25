@@ -154,7 +154,7 @@ sequenceDiagram
 | `/oauth/authorize`                  | GET      | Yes (Session) | Authorization Code Flow consent page (web apps)                                |
 | `/oauth/authorize`                  | POST     | Yes (Session) | Submit consent decision (allow/deny)                                           |
 | `/oauth/token`                      | POST     | No            | Token endpoint (grant_type=device_code, authorization_code, refresh_token, or client_credentials) |
-| `/oauth/tokeninfo`                  | GET      | No            | Verify token validity (pass token as query)                                    |
+| `/oauth/tokeninfo`                  | GET      | No (Bearer)   | Verify token validity from Authorization: Bearer access token                  |
 | `/oauth/userinfo`                   | GET/POST | No (Bearer)   | OIDC UserInfo — returns profile claims for authenticated user (OIDC Core §5.3) |
 | `/oauth/revoke`                     | POST     | No            | Revoke access token (RFC 7009)                                                 |
 | `/device`                           | GET      | Yes (Session) | User authorization page (browser)                                              |
