@@ -959,14 +959,16 @@ func (s *TokenService) GetActiveRefreshTokens(userID string) ([]models.AccessTok
 	return s.store.GetTokensByCategoryAndStatus(userID, "refresh", "active")
 }
 
-// ExchangeAuthorizationCode issues an access token and a refresh token for an already-validated
-// authorization code. The AuthorizationCode record must have been validated and marked as used
-// by AuthorizationService.ExchangeCode before calling this method.
+// ExchangeAuthorizationCode issues an access token, a refresh token, and (when the openid scope
+// was granted) an OIDC ID Token for an already-validated authorization code.
+// The AuthorizationCode record must have been validated and marked as used by
+// AuthorizationService.ExchangeCode before calling this method.
+// Returns: accessToken, refreshToken, idToken (empty string when openid not requested), error.
 func (s *TokenService) ExchangeAuthorizationCode(
 	ctx context.Context,
 	authCode *models.AuthorizationCode,
 	authorizationID *uint,
-) (*models.AccessToken, *models.AccessToken, error) {
+) (*models.AccessToken, *models.AccessToken, string, error) {
 	start := time.Now()
 
 	// Generate access token via configured provider
@@ -976,7 +978,7 @@ func (s *TokenService) ExchangeAuthorizationCode(
 	switch s.tokenProviderMode {
 	case config.TokenProviderModeHTTPAPI:
 		if s.httpTokenProvider == nil {
-			return nil, nil, errors.New(
+			return nil, nil, "", errors.New(
 				"HTTP token provider not configured (TOKEN_PROVIDER_MODE=http_api requires TOKEN_API_URL)",
 			)
 		}
@@ -988,7 +990,7 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		)
 	default:
 		if s.localTokenProvider == nil {
-			return nil, nil, errors.New("local token provider not configured")
+			return nil, nil, "", errors.New("local token provider not configured")
 		}
 		accessTokenResult, providerErr = s.localTokenProvider.GenerateToken(
 			ctx,
@@ -1004,10 +1006,10 @@ func (s *TokenService) ExchangeAuthorizationCode(
 			s.tokenProviderMode,
 			providerErr,
 		)
-		return nil, nil, fmt.Errorf("token generation failed: %w", providerErr)
+		return nil, nil, "", fmt.Errorf("token generation failed: %w", providerErr)
 	}
 	if !accessTokenResult.Success {
-		return nil, nil, errors.New("token generation unsuccessful")
+		return nil, nil, "", errors.New("token generation unsuccessful")
 	}
 
 	// Generate refresh token
@@ -1036,10 +1038,10 @@ func (s *TokenService) ExchangeAuthorizationCode(
 			s.tokenProviderMode,
 			providerErr,
 		)
-		return nil, nil, fmt.Errorf("refresh token generation failed: %w", providerErr)
+		return nil, nil, "", fmt.Errorf("refresh token generation failed: %w", providerErr)
 	}
 	if !refreshTokenResult.Success {
-		return nil, nil, errors.New("refresh token generation unsuccessful")
+		return nil, nil, "", errors.New("refresh token generation unsuccessful")
 	}
 
 	// Build token records — link to UserAuthorization for cascade-revoke support
@@ -1079,14 +1081,55 @@ func (s *TokenService) ExchangeAuthorizationCode(
 
 	if err := tx.Create(accessToken).Error; err != nil {
 		tx.Rollback()
-		return nil, nil, fmt.Errorf("failed to save access token: %w", err)
+		return nil, nil, "", fmt.Errorf("failed to save access token: %w", err)
 	}
 	if err := tx.Create(refreshToken).Error; err != nil {
 		tx.Rollback()
-		return nil, nil, fmt.Errorf("failed to save refresh token: %w", err)
+		return nil, nil, "", fmt.Errorf("failed to save refresh token: %w", err)
 	}
 	if err := tx.Commit().Error; err != nil {
-		return nil, nil, fmt.Errorf("failed to commit transaction: %w", err)
+		return nil, nil, "", fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Generate OIDC ID Token when openid scope was granted (OIDC Core 1.0 §3.1.3.3).
+	// ID tokens are not stored in the database; they are short-lived and non-revocable.
+	// NOTE: ID token generation is only supported when a local token provider is configured.
+	// When TOKEN_PROVIDER_MODE is set to http_api, s.localTokenProvider is nil and this block
+	// is skipped, so no ID token will be returned even if the openid scope is requested.
+	var idToken string
+	if s.localTokenProvider != nil {
+		scopeSet := token.ScopeSet(authCode.Scopes)
+		if scopeSet["openid"] {
+			params := token.IDTokenParams{
+				Issuer:   strings.TrimRight(s.config.BaseURL, "/"),
+				Subject:  authCode.UserID,
+				Audience: authCode.ClientID,
+				AuthTime: authCode.CreatedAt,
+				Nonce:    authCode.Nonce,
+				AtHash:   token.ComputeAtHash(accessTokenResult.TokenString),
+			}
+
+			// Fetch user profile for scope-gated claims
+			if user, err := s.store.GetUserByID(authCode.UserID); err == nil {
+				if scopeSet["profile"] {
+					params.Name = user.FullName
+					params.PreferredUsername = user.Username
+					params.Picture = user.AvatarURL
+					updatedAt := user.UpdatedAt
+					params.UpdatedAt = &updatedAt
+				}
+				if scopeSet["email"] {
+					params.Email = user.Email
+					params.EmailVerified = false // AuthGate does not verify email addresses
+				}
+			}
+
+			if generated, err := s.localTokenProvider.GenerateIDToken(params); err == nil {
+				idToken = generated
+			} else {
+				log.Printf("[Token] ID token generation failed: %v", err)
+			}
+		}
 	}
 
 	// Metrics
@@ -1128,5 +1171,5 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		})
 	}
 
-	return accessToken, refreshToken, nil
+	return accessToken, refreshToken, idToken, nil
 }

@@ -147,15 +147,16 @@ The user's browser is redirected to this URL to begin the authorization flow.
 
 **Query Parameters:**
 
-| Parameter               | Required          | Description                                                            |
-| ----------------------- | ----------------- | ---------------------------------------------------------------------- |
-| `client_id`             | ✅                | Your OAuth client ID (UUID)                                            |
-| `redirect_uri`          | ✅                | Must exactly match a registered Redirect URI                           |
-| `response_type`         | ✅                | Must be `code`                                                         |
-| `scope`                 | ○                 | Space-separated scopes. Defaults to all scopes allowed for the client. |
-| `state`                 | Recommended       | Random string to prevent CSRF. Returned unchanged in the redirect.     |
-| `code_challenge`        | Public clients ✅ | Base64url(SHA256(code_verifier))                                       |
-| `code_challenge_method` | Public clients ✅ | Must be `S256`                                                         |
+| Parameter               | Required          | Description                                                                                             |
+| ----------------------- | ----------------- | ------------------------------------------------------------------------------------------------------- |
+| `client_id`             | ✅                | Your OAuth client ID (UUID)                                                                             |
+| `redirect_uri`          | ✅                | Must exactly match a registered Redirect URI                                                            |
+| `response_type`         | ✅                | Must be `code`                                                                                          |
+| `scope`                 | ○                 | Space-separated scopes. Include `openid` to receive an ID Token. Defaults to all client-allowed scopes. |
+| `state`                 | Recommended       | Random string to prevent CSRF. Returned unchanged in the redirect.                                      |
+| `nonce`                 | OIDC Recommended  | Random string bound to the session; included verbatim in the `id_token` to prevent replay attacks.      |
+| `code_challenge`        | Public clients ✅ | Base64url(SHA256(code_verifier))                                                                        |
+| `code_challenge_method` | Public clients ✅ | Must be `S256`                                                                                          |
 
 **Example (confidential client):**
 
@@ -237,7 +238,7 @@ curl -X POST https://auth.example.com/oauth/token \
   -d code_verifier=your-original-verifier
 ```
 
-**Success Response (200 OK):**
+**Success Response (200 OK) — without `openid` scope:**
 
 ```json
 {
@@ -248,6 +249,56 @@ curl -X POST https://auth.example.com/oauth/token \
   "scope": "read write"
 }
 ```
+
+**Success Response (200 OK) — with `openid` scope (OIDC):**
+
+When `openid` is included in `scope`, the response also contains an `id_token`:
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "id_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "scope": "openid profile email"
+}
+```
+
+The `id_token` is a signed HS256 JWT (OIDC Core 1.0 §2). Its claims depend on the granted scopes:
+
+| Claim                | Always           | `profile` scope | `email` scope |
+| -------------------- | ---------------- | --------------- | ------------- |
+| `iss`                | ✅               |                 |               |
+| `sub`                | ✅               |                 |               |
+| `aud`                | ✅               |                 |               |
+| `exp`, `iat`         | ✅               |                 |               |
+| `auth_time`          | ✅               |                 |               |
+| `jti`                | ✅               |                 |               |
+| `nonce`              | ✅ (if provided) |                 |               |
+| `at_hash`            | ✅               |                 |               |
+| `name`               |                  | ✅              |               |
+| `preferred_username` |                  | ✅              |               |
+| `picture`            |                  | ✅ (if set)     |               |
+| `updated_at`         |                  | ✅              |               |
+| `email`              |                  |                 | ✅            |
+| `email_verified`     |                  |                 | ✅            |
+
+**Example authorization request with OIDC:**
+
+```
+GET /oauth/authorize?
+  client_id=550e8400-e29b-41d4-a716-446655440000
+  &redirect_uri=https%3A%2F%2Fapp.example.com%2Fcallback
+  &response_type=code
+  &scope=openid%20profile%20email
+  &state=abc123xyz
+  &nonce=random-nonce-value
+  &code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+  &code_challenge_method=S256
+```
+
+> **Note:** The `id_token` is not stored in the database and is not revocable. Use the `access_token` to call `/oauth/userinfo` if you need up-to-date user claims after the initial login.
 
 **Refreshing tokens** works identically to the device flow — use `grant_type=refresh_token`:
 

@@ -158,6 +158,7 @@ type AuthorizePageProps struct {
 	Scopes              string   // Space-separated scope string
 	ScopeList           []string // Pre-split scope list for template iteration
 	State               string
+	Nonce               string
 	CodeChallenge       string
 	CodeChallengeMethod string
 	Error               string

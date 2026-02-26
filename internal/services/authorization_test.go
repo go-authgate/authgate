@@ -75,6 +75,7 @@ func TestValidateAuthorizationRequest_Success(t *testing.T) {
 		"code",
 		"read",
 		"",
+		"",
 	)
 
 	require.NoError(t, err)
@@ -87,7 +88,7 @@ func TestValidateAuthorizationRequest_DefaultScope(t *testing.T) {
 	client := createAuthCodeFlowClient(t, svc, "confidential")
 
 	req, err := svc.ValidateAuthorizationRequest(
-		client.ClientID, "https://app.example.com/callback", "code", "", "",
+		client.ClientID, "https://app.example.com/callback", "code", "", "", "",
 	)
 
 	require.NoError(t, err)
@@ -100,7 +101,7 @@ func TestValidateAuthorizationRequest_InvalidResponseType(t *testing.T) {
 	client := createAuthCodeFlowClient(t, svc, "confidential")
 
 	_, err := svc.ValidateAuthorizationRequest(
-		client.ClientID, "https://app.example.com/callback", "token", "", "",
+		client.ClientID, "https://app.example.com/callback", "token", "", "", "",
 	)
 	assert.ErrorIs(t, err, ErrUnsupportedResponseType)
 }
@@ -109,7 +110,7 @@ func TestValidateAuthorizationRequest_UnknownClient(t *testing.T) {
 	svc := createTestAuthorizationService(t)
 
 	_, err := svc.ValidateAuthorizationRequest(
-		"nonexistent", "https://app.example.com/callback", "code", "", "",
+		"nonexistent", "https://app.example.com/callback", "code", "", "", "",
 	)
 	assert.ErrorIs(t, err, ErrUnauthorizedClient)
 }
@@ -131,7 +132,7 @@ func TestValidateAuthorizationRequest_AuthCodeFlowDisabled(t *testing.T) {
 	require.NoError(t, svc.store.CreateClient(client))
 
 	_, err := svc.ValidateAuthorizationRequest(
-		client.ClientID, "https://app.example.com/callback", "code", "", "",
+		client.ClientID, "https://app.example.com/callback", "code", "", "", "",
 	)
 	assert.ErrorIs(t, err, ErrUnauthorizedClient)
 }
@@ -141,7 +142,7 @@ func TestValidateAuthorizationRequest_InvalidRedirectURI(t *testing.T) {
 	client := createAuthCodeFlowClient(t, svc, "confidential")
 
 	_, err := svc.ValidateAuthorizationRequest(
-		client.ClientID, "https://evil.example.com/callback", "code", "", "",
+		client.ClientID, "https://evil.example.com/callback", "code", "", "", "",
 	)
 	assert.ErrorIs(t, err, ErrInvalidRedirectURI)
 }
@@ -151,7 +152,7 @@ func TestValidateAuthorizationRequest_InvalidScope(t *testing.T) {
 	client := createAuthCodeFlowClient(t, svc, "confidential")
 
 	_, err := svc.ValidateAuthorizationRequest(
-		client.ClientID, "https://app.example.com/callback", "code", "admin", "",
+		client.ClientID, "https://app.example.com/callback", "code", "admin", "", "",
 	)
 	assert.ErrorIs(t, err, ErrInvalidAuthCodeScope)
 }
@@ -162,7 +163,7 @@ func TestValidateAuthorizationRequest_PublicClientRequiresPKCE(t *testing.T) {
 
 	// No code_challenge_method → should fail for public client
 	_, err := svc.ValidateAuthorizationRequest(
-		client.ClientID, "https://app.example.com/callback", "code", "read", "",
+		client.ClientID, "https://app.example.com/callback", "code", "read", "", "",
 	)
 	assert.ErrorIs(t, err, ErrPKCERequired)
 }
@@ -172,7 +173,7 @@ func TestValidateAuthorizationRequest_PublicClientWithPKCE(t *testing.T) {
 	client := createAuthCodeFlowClient(t, svc, "public")
 
 	req, err := svc.ValidateAuthorizationRequest(
-		client.ClientID, "https://app.example.com/callback", "code", "read", "S256",
+		client.ClientID, "https://app.example.com/callback", "code", "read", "S256", "",
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "S256", req.CodeChallengeMethod)
@@ -194,7 +195,7 @@ func TestCreateAuthorizationCode_Success(t *testing.T) {
 		userID,
 		"https://app.example.com/callback",
 		"read write",
-		"", "",
+		"", "", "",
 	)
 
 	require.NoError(t, err)
@@ -219,7 +220,7 @@ func TestCreateAuthorizationCode_WithPKCE(t *testing.T) {
 		context.Background(),
 		client.ID, client.ClientID, userID,
 		"https://app.example.com/callback", "read",
-		challenge, "S256",
+		challenge, "S256", "",
 	)
 
 	require.NoError(t, err)
@@ -239,7 +240,7 @@ func TestExchangeCode_Success_ConfidentialClient(t *testing.T) {
 	plainCode, _, err := svc.CreateAuthorizationCode(
 		context.Background(),
 		client.ID, client.ClientID, userID,
-		"https://app.example.com/callback", "read write", "", "",
+		"https://app.example.com/callback", "read write", "", "", "",
 	)
 	require.NoError(t, err)
 
@@ -272,7 +273,7 @@ func TestExchangeCode_Success_PublicClient_PKCE_S256(t *testing.T) {
 		context.Background(),
 		client.ID, client.ClientID, userID,
 		"https://app.example.com/callback", "read",
-		challenge, "S256",
+		challenge, "S256", "",
 	)
 	require.NoError(t, err)
 
@@ -293,7 +294,7 @@ func TestExchangeCode_ReplayAttack(t *testing.T) {
 	plainCode, _, err := svc.CreateAuthorizationCode(
 		context.Background(),
 		client.ID, client.ClientID, userID,
-		"https://app.example.com/callback", "read", "", "",
+		"https://app.example.com/callback", "read", "", "", "",
 	)
 	require.NoError(t, err)
 
@@ -317,7 +318,7 @@ func TestExchangeCode_ExpiredCode(t *testing.T) {
 	plainCode, _, err := svc.CreateAuthorizationCode(
 		context.Background(),
 		client.ID, client.ClientID, userID,
-		"https://app.example.com/callback", "read", "", "",
+		"https://app.example.com/callback", "read", "", "", "",
 	)
 	require.NoError(t, err)
 
@@ -334,7 +335,7 @@ func TestExchangeCode_WrongRedirectURI(t *testing.T) {
 	plainCode, _, err := svc.CreateAuthorizationCode(
 		context.Background(),
 		client.ID, client.ClientID, userID,
-		"https://app.example.com/callback", "read", "", "",
+		"https://app.example.com/callback", "read", "", "", "",
 	)
 	require.NoError(t, err)
 
@@ -351,7 +352,7 @@ func TestExchangeCode_WrongClientSecret(t *testing.T) {
 	plainCode, _, err := svc.CreateAuthorizationCode(
 		context.Background(),
 		client.ID, client.ClientID, userID,
-		"https://app.example.com/callback", "read", "", "",
+		"https://app.example.com/callback", "read", "", "", "",
 	)
 	require.NoError(t, err)
 
@@ -373,7 +374,7 @@ func TestExchangeCode_WrongCodeVerifier(t *testing.T) {
 		context.Background(),
 		client.ID, client.ClientID, userID,
 		"https://app.example.com/callback", "read",
-		challenge, "S256",
+		challenge, "S256", "",
 	)
 	require.NoError(t, err)
 
@@ -609,13 +610,13 @@ func TestValidateAuthorizationRequest_GlobalPKCERequired(t *testing.T) {
 
 	// Without PKCE → must fail
 	_, err := svc.ValidateAuthorizationRequest(
-		client.ClientID, "https://app.example.com/callback", "code", "read", "",
+		client.ClientID, "https://app.example.com/callback", "code", "read", "", "",
 	)
 	require.ErrorIs(t, err, ErrPKCERequired)
 
 	// With S256 → must succeed
 	req, err := svc.ValidateAuthorizationRequest(
-		client.ClientID, "https://app.example.com/callback", "code", "read", "S256",
+		client.ClientID, "https://app.example.com/callback", "code", "read", "S256", "",
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "S256", req.CodeChallengeMethod)
@@ -627,7 +628,7 @@ func TestValidateAuthorizationRequest_UnsupportedChallengeMethod(t *testing.T) {
 
 	// "RS256" is not a valid code_challenge_method
 	_, err := svc.ValidateAuthorizationRequest(
-		client.ClientID, "https://app.example.com/callback", "code", "read", "RS256",
+		client.ClientID, "https://app.example.com/callback", "code", "read", "RS256", "",
 	)
 	assert.ErrorIs(t, err, ErrInvalidAuthCodeRequest)
 }
@@ -659,7 +660,7 @@ func TestExchangeCode_WrongClientID(t *testing.T) {
 	plainCode, _, err := svc.CreateAuthorizationCode(
 		context.Background(),
 		client.ID, client.ClientID, userID,
-		"https://app.example.com/callback", "read", "", "",
+		"https://app.example.com/callback", "read", "", "", "",
 	)
 	require.NoError(t, err)
 
@@ -685,7 +686,7 @@ func TestExchangeCode_PublicClientMissingCodeChallenge(t *testing.T) {
 		context.Background(),
 		client.ID, client.ClientID, userID,
 		"https://app.example.com/callback", "read",
-		"", "", // no PKCE challenge
+		"", "", "", // no PKCE challenge, no nonce
 	)
 	require.NoError(t, err)
 
