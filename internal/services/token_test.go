@@ -831,6 +831,52 @@ func TestExchangeAuthorizationCode_IDToken_ContainsNonce(t *testing.T) {
 	assert.Equal(t, "my-unique-nonce", result.Claims["nonce"])
 }
 
+func TestExchangeAuthorizationCode_IDToken_ContainsAtHash(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		JWTExpiration:          1 * time.Hour,
+		JWTSecret:              "test-secret",
+		BaseURL:                "http://localhost:8080",
+		EnableRefreshTokens:    true,
+		RefreshTokenExpiration: 30 * 24 * time.Hour,
+	}
+	tokenService := createTestTokenService(s, cfg)
+
+	client := createTestClient(t, s, true)
+	userID := uuid.New().String()
+
+	now := time.Now()
+	authCode := &models.AuthorizationCode{
+		UUID:          "test-uuid-" + uuid.New().String(),
+		CodeHash:      "hash-" + uuid.New().String(),
+		CodePrefix:    "testpfx4",
+		ApplicationID: client.ID,
+		ClientID:      client.ClientID,
+		UserID:        userID,
+		RedirectURI:   "https://app.example.com/callback",
+		Scopes:        "openid",
+		ExpiresAt:     now.Add(10 * time.Minute),
+	}
+	require.NoError(t, s.CreateAuthorizationCode(authCode))
+
+	accessToken, _, idToken, err := tokenService.ExchangeAuthorizationCode(
+		context.Background(),
+		authCode,
+		nil,
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, idToken)
+
+	// The at_hash in the ID token must be derived from the issued access token string.
+	expectedAtHash := token.ComputeAtHash(accessToken.Token)
+
+	localProvider := token.NewLocalTokenProvider(cfg)
+	result, err := localProvider.ValidateToken(context.Background(), idToken)
+	require.NoError(t, err)
+	assert.Equal(t, expectedAtHash, result.Claims["at_hash"],
+		"at_hash in ID token must be the base64url-encoded left-half SHA-256 of the access token")
+}
+
 // ============================================================
 // DisableToken / EnableToken — state transition checks
 // ============================================================

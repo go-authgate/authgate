@@ -24,6 +24,7 @@ const (
 	// Token events
 	EventAccessTokenIssued  EventType = "ACCESS_TOKEN_ISSUED"
 	EventRefreshTokenIssued EventType = "REFRESH_TOKEN_ISSUED"
+	EventIDTokenIssued      EventType = "ID_TOKEN_ISSUED"
 	EventTokenRefreshed     EventType = "TOKEN_REFRESHED"
 	EventTokenRevoked       EventType = "TOKEN_REVOKED"
 	EventTokenDisabled      EventType = "TOKEN_DISABLED"

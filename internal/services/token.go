@@ -1122,10 +1122,32 @@ func (s *TokenService) ExchangeAuthorizationCode(
 					params.Email = user.Email
 					params.EmailVerified = false // AuthGate does not verify email addresses
 				}
+			} else if scopeSet["profile"] || scopeSet["email"] {
+				log.Printf(
+					"[Token] ID token: failed to fetch user profile for user_id=%s, profile/email claims will be omitted: %v",
+					authCode.UserID, err,
+				)
 			}
 
 			if generated, err := s.localTokenProvider.GenerateIDToken(params); err == nil {
 				idToken = generated
+				if s.auditService != nil {
+					s.auditService.Log(ctx, AuditLogEntry{
+						EventType:    models.EventIDTokenIssued,
+						Severity:     models.SeverityInfo,
+						ActorUserID:  authCode.UserID,
+						ResourceType: models.ResourceToken,
+						ResourceID:   accessToken.ID,
+						Action:       "ID token issued via authorization code exchange",
+						Details: models.AuditDetails{
+							"client_id":       authCode.ClientID,
+							"scopes":          authCode.Scopes,
+							"token_provider":  s.tokenProviderMode,
+							"access_token_id": accessToken.ID,
+						},
+						Success: true,
+					})
+				}
 			} else {
 				log.Printf("[Token] ID token generation failed: %v", err)
 			}

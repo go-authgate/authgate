@@ -61,6 +61,17 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 		return
 	}
 
+	if len(nonce) > maxNonceLength {
+		h.redirectWithError(
+			c,
+			redirectURI,
+			state,
+			errInvalidRequest,
+			"nonce parameter exceeds maximum length",
+		)
+		return
+	}
+
 	// Validate the authorization request parameters
 	req, err := h.authorizationService.ValidateAuthorizationRequest(
 		clientID, redirectURI, responseType, scope, codeChallengeMethod, nonce,
@@ -140,6 +151,17 @@ func (h *AuthorizationHandler) HandleAuthorize(c *gin.Context) {
 			"",
 			errInvalidRequest,
 			"state parameter exceeds maximum length",
+		)
+		return
+	}
+
+	if len(nonce) > maxNonceLength {
+		h.redirectWithError(
+			c,
+			redirectURI,
+			state,
+			errInvalidRequest,
+			"nonce parameter exceeds maximum length",
 		)
 		return
 	}
@@ -357,6 +379,7 @@ func (h *AuthorizationHandler) RevokeAuthorization(c *gin.Context) {
 const (
 	errInvalidRequest = "invalid_request"
 	maxStateLength    = 1024
+	maxNonceLength    = 1024
 )
 
 // oauthErrorCode maps service errors to RFC 6749 error codes.
