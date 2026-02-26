@@ -66,6 +66,8 @@
 
 Modern CLI tools and IoT devices need secure user authentication, but traditional OAuth flows don't work well for devices without browsers or keyboards. **AuthGate** implements the OAuth 2.0 Device Authorization Grant ([RFC 8628][rfc8628]), allowing users to authenticate on a separate device while keeping credentials secure.
 
+AuthGate also serves as a lightweight **centralised identity gateway** for internal platforms — unifying login across enterprise tools, giving every user full visibility and control over their active sessions and per-app grants, and providing security teams with a complete audit trail of all authentication events.
+
 **Perfect for:**
 
 - 🖥️ CLI tools (like `gh`, `aws-cli`) — **Device Code Flow**
@@ -74,6 +76,9 @@ Modern CLI tools and IoT devices need secure user authentication, but traditiona
 - 📱 Single-page apps and mobile apps — **Authorization Code Flow + PKCE (public)**
 - 🤖 CI/CD pipelines and automation scripts — **Device Code Flow** or **Client Credentials**
 - ⚙️ Microservices and server-to-server APIs — **Client Credentials Grant**
+- 🏢 Enterprise teams needing **token self-service** — users manage and revoke their own active sessions and per-app grants via the built-in web UI (`/account/sessions`, `/account/authorizations`), no admin intervention required
+- 🔑 Organisations wanting a **unified internal SSO portal** — centralise login across all internal tools and services through a single OAuth 2.0 gateway, eliminating per-system password management
+- 🔍 **Security & compliance teams** — comprehensive audit logs of every authentication, token, and admin event with filtering and CSV export (`/admin/audit`), satisfying audit and regulatory requirements
 
 ---
 
