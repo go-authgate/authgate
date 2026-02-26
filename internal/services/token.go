@@ -1125,7 +1125,8 @@ func (s *TokenService) ExchangeAuthorizationCode(
 			} else if scopeSet["profile"] || scopeSet["email"] {
 				log.Printf(
 					"[Token] ID token: failed to fetch user profile for user_id=%s, profile/email claims will be omitted: %v",
-					authCode.UserID, err,
+					authCode.UserID,
+					err,
 				)
 			}
 
