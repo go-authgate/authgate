@@ -37,6 +37,7 @@ type OAuthHandler struct {
 	providers                   map[string]*auth.OAuthProvider
 	userService                 *services.UserService
 	httpClient                  *http.Client // Custom HTTP client for OAuth requests
+	baseURL                     string
 	sessionFingerprintEnabled   bool
 	sessionFingerprintIncludeIP bool
 	metrics                     metrics.Recorder
@@ -47,6 +48,7 @@ func NewOAuthHandler(
 	providers map[string]*auth.OAuthProvider,
 	userService *services.UserService,
 	httpClient *http.Client,
+	baseURL string,
 	fingerprintEnabled bool,
 	fingerprintIncludeIP bool,
 	m metrics.Recorder,
@@ -55,6 +57,7 @@ func NewOAuthHandler(
 		providers:                   providers,
 		userService:                 userService,
 		httpClient:                  httpClient,
+		baseURL:                     baseURL,
 		sessionFingerprintEnabled:   fingerprintEnabled,
 		sessionFingerprintIncludeIP: fingerprintIncludeIP,
 		metrics:                     m,
@@ -97,8 +100,8 @@ func (h *OAuthHandler) LoginWithProvider(c *gin.Context) {
 	session.Set("oauth_state", state)
 	session.Set("oauth_provider", provider)
 
-	// Save original redirect URL if present
-	if redirect := c.Query("redirect"); redirect != "" {
+	// Save original redirect URL if present, validating it is safe first
+	if redirect := c.Query("redirect"); redirect != "" && isRedirectSafe(redirect, h.baseURL) {
 		session.Set("oauth_redirect", redirect)
 	}
 
