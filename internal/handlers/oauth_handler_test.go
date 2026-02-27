@@ -75,7 +75,12 @@ func readSession(
 	cookies []*http.Cookie,
 ) map[string]any {
 	t.Helper()
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test-session", nil)
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/test-session",
+		nil,
+	)
 	require.NoError(t, err)
 	for _, c := range cookies {
 		req.AddCookie(c)
@@ -97,7 +102,12 @@ func TestLoginWithProvider_UnknownProvider_Returns400(t *testing.T) {
 	h := newTestOAuthHandler("http://localhost:8080")
 	r := setupOAuthRouter(h)
 
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/oauth/unknown", nil)
+	req, _ := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/oauth/unknown",
+		nil,
+	)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
