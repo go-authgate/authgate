@@ -15,6 +15,7 @@ import (
 	"github.com/go-authgate/authgate/internal/metrics"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/templates"
+	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -101,7 +102,7 @@ func (h *OAuthHandler) LoginWithProvider(c *gin.Context) {
 	session.Set("oauth_provider", provider)
 
 	// Save original redirect URL if present, validating it is safe first
-	if redirect := c.Query("redirect"); redirect != "" && isRedirectSafe(redirect, h.baseURL) {
+	if redirect := c.Query("redirect"); redirect != "" && util.IsRedirectSafe(redirect, h.baseURL) {
 		session.Set("oauth_redirect", redirect)
 	}
 

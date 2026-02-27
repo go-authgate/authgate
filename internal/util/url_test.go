@@ -1,4 +1,4 @@
-package handlers
+package util
 
 import (
 	"testing"
@@ -164,9 +164,9 @@ func TestIsRedirectSafe(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isRedirectSafe(tt.redirectURL, tt.baseURL)
+			got := IsRedirectSafe(tt.redirectURL, tt.baseURL)
 			if got != tt.want {
-				t.Errorf("isRedirectSafe(%q, %q) = %v, want %v",
+				t.Errorf("IsRedirectSafe(%q, %q) = %v, want %v",
 					tt.redirectURL, tt.baseURL, got, tt.want)
 			}
 		})
