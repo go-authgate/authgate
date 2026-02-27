@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -118,9 +119,10 @@ func (h *TokenHandler) handleDeviceCodeGrant(c *gin.Context) {
 				"error": "access_denied",
 			})
 		default:
+			log.Printf("[token] device code exchange error: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error":             "server_error",
-				"error_description": err.Error(),
+				"error_description": "An internal error occurred",
 			})
 		}
 		return
@@ -220,9 +222,10 @@ func (h *TokenHandler) TokenInfo(c *gin.Context) {
 	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 	result, err := h.tokenService.ValidateToken(c.Request.Context(), tokenString)
 	if err != nil {
+		log.Printf("[token] token validation error: %v", err)
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error":             "invalid_token",
-			"error_description": err.Error(),
+			"error_description": "Token is invalid or expired",
 		})
 		return
 	}

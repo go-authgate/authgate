@@ -53,6 +53,7 @@ func initializeHandlers(
 			oauthProviders,
 			userService,
 			oauthHTTPClient,
+			cfg.BaseURL,
 			cfg.SessionFingerprint,
 			cfg.SessionFingerprintIP,
 			prometheusMetrics,

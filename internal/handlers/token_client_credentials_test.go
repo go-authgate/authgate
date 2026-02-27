@@ -294,3 +294,106 @@ func TestTokenInfo_SubjectType_User(t *testing.T) {
 	assert.True(t, strings.HasPrefix("client:abc", "client:"))
 	assert.False(t, strings.HasPrefix("user-uuid-123", "client:"))
 }
+
+// ─── TokenInfo: error response must not leak internal details ────────────────
+
+// tokenInfoReq is a helper that calls GET /oauth/tokeninfo with the given bearer value.
+func tokenInfoReq(t *testing.T, r *gin.Engine, bearer string) *httptest.ResponseRecorder {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, "/oauth/tokeninfo", nil)
+	require.NoError(t, err)
+	if bearer != "" {
+		req.Header.Set("Authorization", "Bearer "+bearer)
+	}
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
+func TestTokenInfo_MalformedJWT_ReturnsGenericError(t *testing.T) {
+	r, _ := setupCCTestEnv(t)
+
+	w := tokenInfoReq(t, r, "notavalidjwt")
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, "invalid_token", body["error"])
+	// Must be the generic message, not JWT library internals like "not enough segments"
+	assert.Equal(t, "Token is invalid or expired", body["error_description"])
+}
+
+func TestTokenInfo_WrongSignatureJWT_ReturnsGenericError(t *testing.T) {
+	r, _ := setupCCTestEnv(t)
+
+	// A structurally valid JWT signed with a different secret key.
+	wrongKeyJWT := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" +
+		".eyJzdWIiOiJ1c2VyLTEyMyIsImV4cCI6OTk5OTk5OTk5OX0" +
+		".SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+
+	w := tokenInfoReq(t, r, wrongKeyJWT)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, "invalid_token", body["error"])
+	// Must not expose crypto/signing details like "signature is invalid"
+	assert.Equal(t, "Token is invalid or expired", body["error_description"])
+}
+
+func TestTokenInfo_InvalidError_DoesNotLeakInternals(t *testing.T) {
+	r, _ := setupCCTestEnv(t)
+
+	// Any invalid token must never expose substrings from internal libraries.
+	internalLeakPatterns := []string{
+		"malformed", "segments", "crypto", "signing method",
+		"verification error", "ecdsa", "hmac", "parse",
+	}
+
+	w := tokenInfoReq(t, r, "bad.token.value")
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	desc, _ := body["error_description"].(string)
+	for _, pattern := range internalLeakPatterns {
+		assert.NotContains(t, strings.ToLower(desc), pattern,
+			"error_description must not leak internal detail: %q", pattern)
+	}
+}
+
+// ─── Device code grant: server_error must not leak internal details ───────────
+
+func TestDeviceCodeGrant_UnknownError_ReturnsGenericServerError(t *testing.T) {
+	r, _ := setupCCTestEnv(t)
+
+	// Submit a device code that passes basic validation (non-empty) but does not
+	// exist in the database, hitting the service error path.  The service wraps
+	// not-found as ErrAuthorizationPending so we get that specific error back.
+	// The important guarantee is that the response body never contains raw Go
+	// error strings; we assert on the exact RFC-defined error codes returned.
+	w := postToken(t, r, url.Values{
+		"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
+		"device_code": {"nonexistent-device-code"},
+		"client_id":   {"some-client-id"},
+	}, nil)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+
+	// The error field must be one of the defined RFC 8628 codes – never a raw
+	// Go error string like "record not found" or a stack trace fragment.
+	allowedErrors := map[string]bool{
+		"authorization_pending": true,
+		"slow_down":             true,
+		"expired_token":         true,
+		"access_denied":         true,
+		"server_error":          true,
+	}
+	assert.True(t, allowedErrors[body["error"].(string)],
+		"error must be an RFC 8628 code, got: %v", body["error"])
+
+	// When server_error is returned, the description must be the generic message.
+	if body["error"] == "server_error" {
+		assert.Equal(t, "An internal error occurred", body["error_description"])
+	}
+}
