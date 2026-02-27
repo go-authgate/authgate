@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
 
 	"github.com/gin-contrib/sessions"
@@ -44,12 +45,16 @@ func RequireAuth(userService *services.UserService) gin.HandlerFunc {
 			return
 		}
 
-		c.Set("user_id", userID)
+		userIDStr := userID.(string)
+		c.Set("user_id", userIDStr)
 
 		// Load user object for audit logging and other purposes
-		user, err := userService.GetUserByID(userID.(string))
+		user, err := userService.GetUserByID(userIDStr)
 		if err == nil {
 			c.Set("user", user)
+
+			// Store user in request context for services layer
+			c.Request = c.Request.WithContext(models.SetUserContext(c.Request.Context(), user))
 		}
 
 		c.Next()
@@ -181,6 +186,10 @@ func RequireAdmin(userService *services.UserService) gin.HandlerFunc {
 		}
 
 		c.Set("user", user)
+
+		// Store user in request context for services layer
+		c.Request = c.Request.WithContext(models.SetUserContext(c.Request.Context(), user))
+
 		c.Next()
 	}
 }
