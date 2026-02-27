@@ -26,7 +26,7 @@ type Application struct {
 	// Core infrastructure
 	DB                   *store.Store
 	MetricsRecorder      metrics.Recorder
-	MetricsCache         cache.Cache
+	MetricsCache         cache.Cache[int64]
 	MetricsCacheCloser   func() error
 	RateLimitRedisClient *redis.Client
 

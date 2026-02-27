@@ -7,7 +7,7 @@ import (
 )
 
 func TestMemoryCache_GetSet(t *testing.T) {
-	cache := NewMemoryCache()
+	cache := NewMemoryCache[int64]()
 	ctx := context.Background()
 
 	// Test Set and Get
@@ -27,7 +27,7 @@ func TestMemoryCache_GetSet(t *testing.T) {
 }
 
 func TestMemoryCache_GetMiss(t *testing.T) {
-	cache := NewMemoryCache()
+	cache := NewMemoryCache[int64]()
 	ctx := context.Background()
 
 	_, err := cache.Get(ctx, "non-existent")
@@ -37,7 +37,7 @@ func TestMemoryCache_GetMiss(t *testing.T) {
 }
 
 func TestMemoryCache_Expiration(t *testing.T) {
-	cache := NewMemoryCache()
+	cache := NewMemoryCache[int64]()
 	ctx := context.Background()
 
 	// Set with very short TTL
@@ -66,7 +66,7 @@ func TestMemoryCache_Expiration(t *testing.T) {
 }
 
 func TestMemoryCache_MGetMSet(t *testing.T) {
-	cache := NewMemoryCache()
+	cache := NewMemoryCache[int64]()
 	ctx := context.Background()
 
 	// Test MSet
@@ -101,7 +101,7 @@ func TestMemoryCache_MGetMSet(t *testing.T) {
 }
 
 func TestMemoryCache_MGetExpiration(t *testing.T) {
-	cache := NewMemoryCache()
+	cache := NewMemoryCache[int64]()
 	ctx := context.Background()
 
 	// Set values with short TTL
@@ -137,7 +137,7 @@ func TestMemoryCache_MGetExpiration(t *testing.T) {
 }
 
 func TestMemoryCache_Delete(t *testing.T) {
-	cache := NewMemoryCache()
+	cache := NewMemoryCache[int64]()
 	ctx := context.Background()
 
 	// Set a value
@@ -166,7 +166,7 @@ func TestMemoryCache_Delete(t *testing.T) {
 }
 
 func TestMemoryCache_Close(t *testing.T) {
-	cache := NewMemoryCache()
+	cache := NewMemoryCache[int64]()
 	ctx := context.Background()
 
 	// Set some values
@@ -187,7 +187,7 @@ func TestMemoryCache_Close(t *testing.T) {
 }
 
 func TestMemoryCache_Health(t *testing.T) {
-	cache := NewMemoryCache()
+	cache := NewMemoryCache[int64]()
 	ctx := context.Background()
 
 	err := cache.Health(ctx)
@@ -197,7 +197,7 @@ func TestMemoryCache_Health(t *testing.T) {
 }
 
 func TestMemoryCache_Concurrent(t *testing.T) {
-	cache := NewMemoryCache()
+	cache := NewMemoryCache[int64]()
 	ctx := context.Background()
 
 	// Test concurrent writes and reads
@@ -236,8 +236,8 @@ func TestMemoryCache_Concurrent(t *testing.T) {
 	}
 }
 
-func TestMemoryCache_GetWithFetch(t *testing.T) {
-	cache := NewMemoryCache()
+func TestGetWithFetch(t *testing.T) {
+	c := NewMemoryCache[int64]()
 	ctx := context.Background()
 
 	fetchCount := 0
@@ -247,7 +247,7 @@ func TestMemoryCache_GetWithFetch(t *testing.T) {
 	}
 
 	// First call - should fetch
-	value, err := cache.GetWithFetch(ctx, "test-key", time.Minute, fetchFunc)
+	value, err := GetWithFetch(ctx, c, "test-key", time.Minute, fetchFunc)
 	if err != nil {
 		t.Fatalf("GetWithFetch failed: %v", err)
 	}
@@ -259,7 +259,7 @@ func TestMemoryCache_GetWithFetch(t *testing.T) {
 	}
 
 	// Second call - should use cache
-	value, err = cache.GetWithFetch(ctx, "test-key", time.Minute, fetchFunc)
+	value, err = GetWithFetch(ctx, c, "test-key", time.Minute, fetchFunc)
 	if err != nil {
 		t.Fatalf("GetWithFetch failed: %v", err)
 	}
@@ -271,8 +271,8 @@ func TestMemoryCache_GetWithFetch(t *testing.T) {
 	}
 }
 
-func TestMemoryCache_GetWithFetchError(t *testing.T) {
-	cache := NewMemoryCache()
+func TestGetWithFetch_Error(t *testing.T) {
+	c := NewMemoryCache[int64]()
 	ctx := context.Background()
 
 	expectedErr := ErrCacheUnavailable
@@ -281,14 +281,14 @@ func TestMemoryCache_GetWithFetchError(t *testing.T) {
 	}
 
 	// Should return fetch error
-	_, err := cache.GetWithFetch(ctx, "test-key", time.Minute, fetchFunc)
+	_, err := GetWithFetch(ctx, c, "test-key", time.Minute, fetchFunc)
 	if err != expectedErr {
 		t.Errorf("Expected error %v, got %v", expectedErr, err)
 	}
 }
 
-func TestMemoryCache_GetWithFetchExpiration(t *testing.T) {
-	cache := NewMemoryCache()
+func TestGetWithFetch_Expiration(t *testing.T) {
+	c := NewMemoryCache[int64]()
 	ctx := context.Background()
 
 	fetchCount := 0
@@ -298,7 +298,7 @@ func TestMemoryCache_GetWithFetchExpiration(t *testing.T) {
 	}
 
 	// First call - should fetch
-	value, err := cache.GetWithFetch(ctx, "expire-key", 50*time.Millisecond, fetchFunc)
+	value, err := GetWithFetch(ctx, c, "expire-key", 50*time.Millisecond, fetchFunc)
 	if err != nil {
 		t.Fatalf("GetWithFetch failed: %v", err)
 	}
@@ -310,7 +310,7 @@ func TestMemoryCache_GetWithFetchExpiration(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Should fetch again after expiration
-	value, err = cache.GetWithFetch(ctx, "expire-key", 50*time.Millisecond, fetchFunc)
+	value, err = GetWithFetch(ctx, c, "expire-key", 50*time.Millisecond, fetchFunc)
 	if err != nil {
 		t.Fatalf("GetWithFetch failed: %v", err)
 	}

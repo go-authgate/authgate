@@ -21,11 +21,11 @@ type metricsStore interface {
 // Uses the cache's GetWithFetch method for optimal cache-aside pattern support.
 type CacheWrapper struct {
 	store metricsStore
-	cache cache.Cache
+	cache cache.Cache[int64]
 }
 
 // NewCacheWrapper creates a new cache wrapper for metrics.
-func NewCacheWrapper(store *store.Store, cache cache.Cache) *CacheWrapper {
+func NewCacheWrapper(store *store.Store, cache cache.Cache[int64]) *CacheWrapper {
 	return &CacheWrapper{
 		store: store,
 		cache: cache,
@@ -49,25 +49,24 @@ func (m *CacheWrapper) GetActiveTokensCount(
 	)
 }
 
-// getCountWithCache is a generic helper for cache-aside pattern.
-// All cache implementations provide GetWithFetch for optimal cache-aside support.
+// getCountWithCache retrieves a count using the cache-aside pattern.
+// If the cache implements WithFetch (e.g. RueidisAsideCache), its optimized
+// stampede-safe implementation is used. Otherwise, falls back to the generic helper.
 func (m *CacheWrapper) getCountWithCache(
 	ctx context.Context,
 	key string,
 	ttl time.Duration,
 	fetchFunc func() (int64, error),
 ) (int64, error) {
-	// Use GetWithFetch for cache-aside pattern
-	// All cache implementations (MemoryCache, RueidisCache, RueidisAsideCache) provide this method.
-	// RueidisAsideCache uses an optimized implementation via rueidisaside.
-	return m.cache.GetWithFetch(
-		ctx,
-		key,
-		ttl,
-		func(ctx context.Context, key string) (int64, error) {
-			return fetchFunc()
-		},
-	)
+	wrapped := func(ctx context.Context, key string) (int64, error) {
+		return fetchFunc()
+	}
+
+	if cwa, ok := m.cache.(cache.WithFetch[int64]); ok {
+		return cwa.GetWithFetch(ctx, key, ttl, wrapped)
+	}
+
+	return cache.GetWithFetch(ctx, m.cache, key, ttl, wrapped)
 }
 
 // GetTotalDeviceCodesCount retrieves the count of total (non-expired) device codes.

@@ -25,7 +25,7 @@ func initializeMetrics(cfg *config.Config) metrics.Recorder {
 func initializeMetricsCache(
 	ctx context.Context,
 	cfg *config.Config,
-) (cache.Cache, func() error, error) {
+) (cache.Cache[int64], func() error, error) {
 	if !cfg.MetricsEnabled || !cfg.MetricsGaugeUpdateEnabled {
 		return nil, nil, nil
 	}
@@ -34,12 +34,12 @@ func initializeMetricsCache(
 	ctx, cancel := context.WithTimeout(ctx, cfg.CacheInitTimeout)
 	defer cancel()
 
-	var metricsCache cache.Cache
+	var metricsCache cache.Cache[int64]
 	var err error
 
 	switch cfg.MetricsCacheType {
 	case config.MetricsCacheTypeRedisAside:
-		metricsCache, err = cache.NewRueidisAsideCache(
+		metricsCache, err = cache.NewRueidisAsideCache[int64](
 			ctx,
 			cfg.RedisAddr,
 			cfg.RedisPassword,
@@ -60,7 +60,7 @@ func initializeMetricsCache(
 		)
 
 	case config.MetricsCacheTypeRedis:
-		metricsCache, err = cache.NewRueidisCache(
+		metricsCache, err = cache.NewRueidisCache[int64](
 			ctx,
 			cfg.RedisAddr,
 			cfg.RedisPassword,
@@ -73,7 +73,7 @@ func initializeMetricsCache(
 		log.Printf("Metrics cache: redis (addr=%s, db=%d)", cfg.RedisAddr, cfg.RedisDB)
 
 	default: // memory
-		metricsCache = cache.NewMemoryCache()
+		metricsCache = cache.NewMemoryCache[int64]()
 		log.Println("Metrics cache: memory (single instance only)")
 	}
 
