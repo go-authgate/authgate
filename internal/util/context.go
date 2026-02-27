@@ -2,24 +2,28 @@ package util
 
 import (
 	"context"
-
-	"github.com/gin-gonic/gin"
 )
 
+// contextKey is a private type to prevent key collisions in context
+type contextKey int
+
+const (
+	contextKeyClientIP contextKey = iota
+)
+
+// SetIPContext embeds client IP into a standard context
+func SetIPContext(ctx context.Context, ip string) context.Context {
+	if ip != "" {
+		return context.WithValue(ctx, contextKeyClientIP, ip)
+	}
+	return ctx
+}
+
 // GetIPFromContext extracts the client IP address from the context.
-// It first attempts to extract from Gin context (via ClientIP method),
-// then falls back to checking for "client_ip" value set by IPMiddleware.
 // Returns empty string if IP cannot be determined.
 func GetIPFromContext(ctx context.Context) string {
-	// Try to extract from Gin context first
-	if ginCtx, ok := ctx.(*gin.Context); ok {
-		return ginCtx.ClientIP()
-	}
-
-	// Try to get from context value (set by middleware)
-	if ip, ok := ctx.Value("client_ip").(string); ok {
+	if ip, ok := ctx.Value(contextKeyClientIP).(string); ok {
 		return ip
 	}
-
 	return ""
 }

@@ -155,6 +155,11 @@ func (s *AuditService) Log(ctx context.Context, entry AuditLogEntry) {
 		entry.ActorUsername = models.GetUsernameFromContext(ctx)
 	}
 
+	// Extract user ID from context if not provided
+	if entry.ActorUserID == "" {
+		entry.ActorUserID = models.GetUserIDFromContext(ctx)
+	}
+
 	// Mask sensitive data
 	entry.Details = maskSensitiveDetails(entry.Details)
 
@@ -204,6 +209,11 @@ func (s *AuditService) LogSync(ctx context.Context, entry AuditLogEntry) error {
 	// Extract username from context if not provided
 	if entry.ActorUsername == "" {
 		entry.ActorUsername = models.GetUsernameFromContext(ctx)
+	}
+
+	// Extract user ID from context if not provided
+	if entry.ActorUserID == "" {
+		entry.ActorUserID = models.GetUserIDFromContext(ctx)
 	}
 
 	// Mask sensitive data
