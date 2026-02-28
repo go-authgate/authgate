@@ -341,7 +341,7 @@ func TestCacheWrapper_GetPendingDeviceCodesCount_DBError(t *testing.T) {
 	}
 }
 
-// mockCacheAside is a mock cache that implements cacheAsideSupport interface
+// mockCacheAside is a mock cache that overrides GetWithFetch to track calls.
 type mockCacheAside struct {
 	*cache.MemoryCache[int64]
 	getWithFetchCalled bool
@@ -410,7 +410,7 @@ func TestCacheWrapper_UsesGetWithFetch(t *testing.T) {
 	}
 }
 
-func TestCacheWrapper_FallbackToManualCacheAside(t *testing.T) {
+func TestCacheWrapper_MemoryCacheAside(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache[int64]()
 

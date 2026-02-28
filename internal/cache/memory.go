@@ -11,6 +11,9 @@ type cacheItem[T any] struct {
 	expiresAt time.Time
 }
 
+// Compile-time interface check.
+var _ Cache[struct{}] = (*MemoryCache[struct{}])(nil)
+
 // MemoryCache implements Cache interface with in-memory storage.
 // Uses lazy expiration (checks expiry on Get).
 // Suitable for single-instance deployments.
@@ -113,4 +116,25 @@ func (m *MemoryCache[T]) Close() error {
 // Health checks if the cache is healthy (always true for memory cache).
 func (m *MemoryCache[T]) Health(ctx context.Context) error {
 	return nil
+}
+
+// GetWithFetch retrieves a value using the cache-aside pattern.
+// On cache miss, fetchFunc is called and the result is stored in cache.
+// No stampede protection is provided (single-instance memory cache).
+func (m *MemoryCache[T]) GetWithFetch(
+	ctx context.Context,
+	key string,
+	ttl time.Duration,
+	fetchFunc func(ctx context.Context, key string) (T, error),
+) (T, error) {
+	if value, err := m.Get(ctx, key); err == nil {
+		return value, nil
+	}
+	value, err := fetchFunc(ctx, key)
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	_ = m.Set(ctx, key, value, ttl)
+	return value, nil
 }

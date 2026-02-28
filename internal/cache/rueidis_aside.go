@@ -10,6 +10,9 @@ import (
 	"github.com/redis/rueidis/rueidisaside"
 )
 
+// Compile-time interface check.
+var _ Cache[struct{}] = (*RueidisAsideCache[struct{}])(nil)
+
 // RueidisAsideCache implements Cache interface using rueidisaside for cache-aside pattern.
 // Uses rueidis' automatic client-side caching with RESP3 protocol for cache invalidation.
 // Suitable for high-load multi-instance deployments (5+ pods).

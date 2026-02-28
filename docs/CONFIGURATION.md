@@ -741,11 +741,11 @@ The cache uses a **cache-aside pattern**:
 
 ### Cache Backends
 
-| Backend     | Env value          | Use case                                              |
-| ----------- | ------------------ | ----------------------------------------------------- |
-| Memory      | `memory` (default) | Single-instance, zero external dependencies           |
-| Redis       | `redis`            | 2–5 pods, shared cache across instances               |
-| Redis-aside | `redis-aside`      | 5+ pods, client-side caching with stampede protection |
+| Backend     | Env value          | Use case                                                                          |
+| ----------- | ------------------ | --------------------------------------------------------------------------------- |
+| Memory      | `memory` (default) | Single-instance, zero external dependencies                                       |
+| Redis       | `redis`            | 2–5 pods, shared cache across instances                                           |
+| Redis-aside | `redis-aside`      | 5+ pods, client-side caching with stampede protection — **requires Redis >= 7.0** |
 
 ### Configuration
 
@@ -798,7 +798,7 @@ USER_CACHE_CLIENT_TTL=30s
 USER_CACHE_SIZE_PER_CONN=32  # Adjust based on available memory per pod
 ```
 
-> **Note**: `redis-aside` uses RESP3 client-side caching for automatic invalidation across all pods. Memory usage per pod is `USER_CACHE_SIZE_PER_CONN × ~10 connections` (default ~320MB). Adjust `USER_CACHE_SIZE_PER_CONN` if memory is constrained.
+> **Note**: `redis-aside` uses RESP3 client-side caching for automatic invalidation across all pods and requires **Redis >= 7.0**. If you are running an older Redis version, use `USER_CACHE_TYPE=redis` instead. Memory usage per pod is `USER_CACHE_SIZE_PER_CONN × ~10 connections` (default ~320MB). Adjust `USER_CACHE_SIZE_PER_CONN` if memory is constrained.
 
 ---
 

@@ -15,11 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// spyCache wraps a MemoryCache and counts Get/Set calls for test assertions.
+// spyCache wraps a MemoryCache and counts Get/Set/GetWithFetch calls for test assertions.
 type spyCache struct {
-	inner    *cache.MemoryCache[models.User]
-	getCalls atomic.Int64
-	setCalls atomic.Int64
+	inner          *cache.MemoryCache[models.User]
+	getCalls       atomic.Int64
+	setCalls       atomic.Int64
+	withFetchCalls atomic.Int64
 }
 
 func newSpyCache() *spyCache {
@@ -65,20 +66,23 @@ func (s *spyCache) Health(ctx context.Context) error {
 	return s.inner.Health(ctx)
 }
 
-// withFetchSpyCache wraps spyCache and also implements cache.WithFetch.
-type withFetchSpyCache struct {
-	*spyCache
-	withFetchCalls atomic.Int64
-}
-
-func (w *withFetchSpyCache) GetWithFetch(
+func (s *spyCache) GetWithFetch(
 	ctx context.Context,
 	key string,
 	ttl time.Duration,
 	fetchFunc func(ctx context.Context, key string) (models.User, error),
 ) (models.User, error) {
-	w.withFetchCalls.Add(1)
-	return cache.GetWithFetch(ctx, w.spyCache, key, ttl, fetchFunc)
+	s.withFetchCalls.Add(1)
+	if value, err := s.Get(ctx, key); err == nil {
+		return value, nil
+	}
+	value, err := fetchFunc(ctx, key)
+	if err != nil {
+		var zero models.User
+		return zero, err
+	}
+	_ = s.Set(ctx, key, value, ttl)
+	return value, nil
 }
 
 func newUserServiceWithStore(db *store.Store, c cache.Cache[models.User]) *UserService {
@@ -184,16 +188,15 @@ func TestGetUserByID_ErrUserNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, ErrUserNotFound)
 }
 
-func TestGetUserByID_WithFetchInterface(t *testing.T) {
+func TestGetUserByID_UsesGetWithFetch(t *testing.T) {
 	db := setupTestStore(t)
-	wf := &withFetchSpyCache{spyCache: newSpyCache()}
-	svc := newUserServiceWithStore(db, wf)
+	spy := newSpyCache()
+	svc := newUserServiceWithStore(db, spy)
 	u := makeTestUser(t, db)
 
 	result, err := svc.GetUserByID(u.ID)
 	require.NoError(t, err)
 	assert.Equal(t, u.ID, result.ID)
 
-	// Verify the WithFetch path was taken
-	assert.Equal(t, int64(1), wf.withFetchCalls.Load(), "expected WithFetch to be called")
+	assert.Equal(t, int64(1), spy.withFetchCalls.Load(), "expected GetWithFetch to be called")
 }

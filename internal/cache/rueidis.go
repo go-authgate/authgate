@@ -9,6 +9,9 @@ import (
 	"github.com/redis/rueidis"
 )
 
+// Compile-time interface check.
+var _ Cache[struct{}] = (*RueidisCache[struct{}])(nil)
+
 // RueidisCache implements Cache interface using Redis via rueidis client.
 // Suitable for multi-instance deployments where cache needs to be shared.
 type RueidisCache[T any] struct {
@@ -201,4 +204,25 @@ func (r *RueidisCache[T]) Health(ctx context.Context) error {
 		return fmt.Errorf("%w: %v", ErrCacheUnavailable, err)
 	}
 	return nil
+}
+
+// GetWithFetch retrieves a value using the cache-aside pattern.
+// On cache miss, fetchFunc is called and the result is stored in cache.
+// No stampede protection is provided.
+func (r *RueidisCache[T]) GetWithFetch(
+	ctx context.Context,
+	key string,
+	ttl time.Duration,
+	fetchFunc func(ctx context.Context, key string) (T, error),
+) (T, error) {
+	if value, err := r.Get(ctx, key); err == nil {
+		return value, nil
+	}
+	value, err := fetchFunc(ctx, key)
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	_ = r.Set(ctx, key, value, ttl)
+	return value, nil
 }

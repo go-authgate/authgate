@@ -2,6 +2,9 @@ package cache
 
 import (
 	"context"
+	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -236,7 +239,7 @@ func TestMemoryCache_Concurrent(t *testing.T) {
 	}
 }
 
-func TestGetWithFetch(t *testing.T) {
+func TestMemoryCache_GetWithFetch_CacheMiss(t *testing.T) {
 	c := NewMemoryCache[int64]()
 	ctx := context.Background()
 
@@ -246,78 +249,69 @@ func TestGetWithFetch(t *testing.T) {
 		return 42, nil
 	}
 
-	// First call - should fetch
-	value, err := GetWithFetch(ctx, c, "test-key", time.Minute, fetchFunc)
+	value, err := c.GetWithFetch(ctx, "key", time.Minute, fetchFunc)
 	if err != nil {
-		t.Fatalf("GetWithFetch failed: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if value != 42 {
-		t.Errorf("Expected value 42, got %d", value)
+		t.Errorf("expected 42, got %d", value)
 	}
 	if fetchCount != 1 {
-		t.Errorf("Expected fetch count 1, got %d", fetchCount)
+		t.Errorf("expected fetchFunc called once, got %d", fetchCount)
 	}
 
-	// Second call - should use cache
-	value, err = GetWithFetch(ctx, c, "test-key", time.Minute, fetchFunc)
+	// Second call should use cache (fetchFunc not called again)
+	value, err = c.GetWithFetch(ctx, "key", time.Minute, fetchFunc)
 	if err != nil {
-		t.Fatalf("GetWithFetch failed: %v", err)
+		t.Fatalf("unexpected error on second call: %v", err)
 	}
 	if value != 42 {
-		t.Errorf("Expected value 42, got %d", value)
+		t.Errorf("expected 42 on cache hit, got %d", value)
 	}
 	if fetchCount != 1 {
-		t.Errorf("Expected fetch count 1 (cached), got %d", fetchCount)
+		t.Errorf("expected fetchFunc not called on cache hit, got %d calls", fetchCount)
 	}
 }
 
-func TestGetWithFetch_Error(t *testing.T) {
+func TestMemoryCache_GetWithFetch_FetchError(t *testing.T) {
 	c := NewMemoryCache[int64]()
 	ctx := context.Background()
 
-	expectedErr := ErrCacheUnavailable
-	fetchFunc := func(ctx context.Context, key string) (int64, error) {
-		return 0, expectedErr
-	}
-
-	// Should return fetch error
-	_, err := GetWithFetch(ctx, c, "test-key", time.Minute, fetchFunc)
-	if err != expectedErr {
-		t.Errorf("Expected error %v, got %v", expectedErr, err)
+	expectedErr := errors.New("fetch failed")
+	_, err := c.GetWithFetch(
+		ctx,
+		"key",
+		time.Minute,
+		func(ctx context.Context, key string) (int64, error) {
+			return 0, expectedErr
+		},
+	)
+	if !errors.Is(err, expectedErr) {
+		t.Errorf("expected fetch error, got %v", err)
 	}
 }
 
-func TestGetWithFetch_Expiration(t *testing.T) {
+func TestMemoryCache_GetWithFetch_Concurrent(t *testing.T) {
 	c := NewMemoryCache[int64]()
 	ctx := context.Background()
 
-	fetchCount := 0
+	var fetchCount atomic.Int64
 	fetchFunc := func(ctx context.Context, key string) (int64, error) {
-		fetchCount++
-		return int64(fetchCount * 10), nil
+		fetchCount.Add(1)
+		return 99, nil
 	}
 
-	// First call - should fetch
-	value, err := GetWithFetch(ctx, c, "expire-key", 50*time.Millisecond, fetchFunc)
-	if err != nil {
-		t.Fatalf("GetWithFetch failed: %v", err)
+	var wg sync.WaitGroup
+	for range 50 {
+		wg.Go(func() {
+			val, err := c.GetWithFetch(ctx, "shared-key", time.Minute, fetchFunc)
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if val != 99 {
+				t.Errorf("expected 99, got %d", val)
+			}
+		})
 	}
-	if value != 10 {
-		t.Errorf("Expected value 10, got %d", value)
-	}
-
-	// Wait for expiration
-	time.Sleep(100 * time.Millisecond)
-
-	// Should fetch again after expiration
-	value, err = GetWithFetch(ctx, c, "expire-key", 50*time.Millisecond, fetchFunc)
-	if err != nil {
-		t.Fatalf("GetWithFetch failed: %v", err)
-	}
-	if value != 20 {
-		t.Errorf("Expected value 20 after expiration, got %d", value)
-	}
-	if fetchCount != 2 {
-		t.Errorf("Expected fetch count 2, got %d", fetchCount)
-	}
+	wg.Wait()
 }
