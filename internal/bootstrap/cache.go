@@ -96,13 +96,13 @@ func initializeUserCache(
 			cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB,
 			"authgate:users:",
 			cfg.UserCacheClientTTL,
-			cfg.MetricsCacheSizePerConn,
+			cfg.UserCacheSizePerConn,
 		)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to initialize redis-aside user cache: %w", err)
 		}
-		log.Printf("User cache: redis-aside (addr=%s, db=%d, client_ttl=%s)",
-			cfg.RedisAddr, cfg.RedisDB, cfg.UserCacheClientTTL)
+		log.Printf("User cache: redis-aside (addr=%s, db=%d, client_ttl=%s, cache_size_per_conn=%dMB)",
+			cfg.RedisAddr, cfg.RedisDB, cfg.UserCacheClientTTL, cfg.UserCacheSizePerConn)
 		return c, c.Close, nil
 
 	case config.UserCacheTypeRedis:

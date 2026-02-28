@@ -124,6 +124,7 @@ CONSENT_REMEMBER=true               # Skip consent page if user already approved
 # USER_CACHE_TYPE=memory              # Options: memory, redis, redis-aside (default: memory)
 # USER_CACHE_TTL=5m                   # How long to cache a user object (default: 5m)
 # USER_CACHE_CLIENT_TTL=30s           # Client-side TTL for redis-aside mode only (default: 30s)
+# USER_CACHE_SIZE_PER_CONN=32         # Client-side cache size per connection in MB for redis-aside (default: 32MB)
 
 # Audit Logging
 # Comprehensive audit logging for security and compliance
@@ -752,13 +753,17 @@ The cache uses a **cache-aside pattern**:
 # Cache backend: memory (default), redis, or redis-aside
 USER_CACHE_TYPE=memory
 
-# How long a cached user object is valid (default: 5m)
+# How long a cached user object is valid (default: 5m); must be > 0
 # Shorter → password/role changes propagate faster
 # Longer  → more aggressive DB protection
 USER_CACHE_TTL=5m
 
-# Client-side TTL for redis-aside mode only (default: 30s)
+# Client-side TTL for redis-aside mode only (default: 30s); must be > 0
 USER_CACHE_CLIENT_TTL=30s
+
+# Client-side cache size per connection in MB for redis-aside mode only (default: 32MB)
+# Total memory per pod = cache_size × connections (~10 based on GOMAXPROCS) → default ~320MB
+USER_CACHE_SIZE_PER_CONN=32
 ```
 
 Redis-based backends also require the shared Redis settings:
@@ -790,9 +795,10 @@ REDIS_ADDR=redis-service:6379
 USER_CACHE_TYPE=redis-aside
 REDIS_ADDR=redis-service:6379
 USER_CACHE_CLIENT_TTL=30s
+USER_CACHE_SIZE_PER_CONN=32  # Adjust based on available memory per pod
 ```
 
-> **Note**: `redis-aside` uses RESP3 client-side caching for automatic invalidation across all pods. Memory usage per pod is `METRICS_CACHE_SIZE_PER_CONN × ~10 connections` (default ~320MB). Adjust `METRICS_CACHE_SIZE_PER_CONN` if memory is constrained.
+> **Note**: `redis-aside` uses RESP3 client-side caching for automatic invalidation across all pods. Memory usage per pod is `USER_CACHE_SIZE_PER_CONN × ~10 connections` (default ~320MB). Adjust `USER_CACHE_SIZE_PER_CONN` if memory is constrained.
 
 ---
 

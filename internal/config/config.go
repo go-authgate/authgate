@@ -174,9 +174,10 @@ type Config struct {
 	MetricsCacheSizePerConn    int           // Client-side cache size per connection in MB for redis-aside (default: 32MB)
 
 	// User Cache settings
-	UserCacheType      string        // USER_CACHE_TYPE: memory|redis|redis-aside (default: memory)
-	UserCacheTTL       time.Duration // USER_CACHE_TTL (default: 5m)
-	UserCacheClientTTL time.Duration // USER_CACHE_CLIENT_TTL for redis-aside client-side TTL (default: 30s)
+	UserCacheType        string        // USER_CACHE_TYPE: memory|redis|redis-aside (default: memory)
+	UserCacheTTL         time.Duration // USER_CACHE_TTL (default: 5m)
+	UserCacheClientTTL   time.Duration // USER_CACHE_CLIENT_TTL for redis-aside client-side TTL (default: 30s)
+	UserCacheSizePerConn int           // USER_CACHE_SIZE_PER_CONN: client-side cache size per connection in MB for redis-aside (default: 32MB)
 
 	// Authorization Code Flow settings (RFC 6749)
 	AuthCodeExpiration time.Duration // Authorization code lifetime (default: 10 minutes)
@@ -340,9 +341,10 @@ func Load() *Config {
 		MetricsCacheSizePerConn:    getEnvInt("METRICS_CACHE_SIZE_PER_CONN", 32), // 32MB default
 
 		// User Cache settings
-		UserCacheType:      getEnv("USER_CACHE_TYPE", UserCacheTypeMemory),
-		UserCacheTTL:       getEnvDuration("USER_CACHE_TTL", 5*time.Minute),
-		UserCacheClientTTL: getEnvDuration("USER_CACHE_CLIENT_TTL", 30*time.Second),
+		UserCacheType:        getEnv("USER_CACHE_TYPE", UserCacheTypeMemory),
+		UserCacheTTL:         getEnvDuration("USER_CACHE_TTL", 5*time.Minute),
+		UserCacheClientTTL:   getEnvDuration("USER_CACHE_CLIENT_TTL", 30*time.Second),
+		UserCacheSizePerConn: getEnvInt("USER_CACHE_SIZE_PER_CONN", 32), // 32MB default
 
 		// Authorization Code Flow settings
 		AuthCodeExpiration: getEnvDuration("AUTH_CODE_EXPIRATION", 10*time.Minute),
@@ -470,6 +472,22 @@ func (c *Config) Validate() error {
 		return fmt.Errorf(
 			"USER_CACHE_TYPE=%q requires REDIS_ADDR to be configured",
 			c.UserCacheType,
+		)
+	}
+
+	// USER_CACHE_TTL must be positive
+	if c.UserCacheTTL <= 0 {
+		return fmt.Errorf(
+			"USER_CACHE_TTL must be a positive duration (got %s)",
+			c.UserCacheTTL,
+		)
+	}
+
+	// USER_CACHE_CLIENT_TTL must be positive when using redis-aside
+	if c.UserCacheType == UserCacheTypeRedisAside && c.UserCacheClientTTL <= 0 {
+		return fmt.Errorf(
+			"USER_CACHE_CLIENT_TTL must be a positive duration when USER_CACHE_TYPE=%q (got %s)",
+			UserCacheTypeRedisAside, c.UserCacheClientTTL,
 		)
 	}
 
