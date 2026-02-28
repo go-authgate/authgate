@@ -321,14 +321,14 @@ server {
 
 ### Endpoint-Specific Performance
 
-| Endpoint             | Avg Latency | P95 Latency | Notes                        |
-| -------------------- | ----------- | ----------- | ---------------------------- |
-| GET /health          | 1ms         | 3ms         | Minimal database query       |
-| POST /login          | 150ms       | 300ms       | bcrypt hashing overhead      |
-| POST /device/code    | 10ms        | 25ms        | UUID generation + DB insert  |
-| POST /oauth/token    | 15ms        | 35ms        | JWT generation + DB query    |
-| GET /oauth/tokeninfo | 8ms         | 20ms        | JWT verification only        |
-| POST /device/verify  | 12ms        | 30ms        | DB update + session check    |
+| Endpoint             | Avg Latency | P95 Latency | Notes                       |
+| -------------------- | ----------- | ----------- | --------------------------- |
+| GET /health          | 1ms         | 3ms         | Minimal database query      |
+| POST /login          | 150ms       | 300ms       | bcrypt hashing overhead     |
+| POST /device/code    | 10ms        | 25ms        | UUID generation + DB insert |
+| POST /oauth/token    | 15ms        | 35ms        | JWT generation + DB query   |
+| GET /oauth/tokeninfo | 8ms         | 20ms        | JWT verification only       |
+| POST /device/verify  | 12ms        | 30ms        | DB update + session check   |
 
 ### Bottlenecks
 
@@ -437,32 +437,26 @@ func (s *TokenService) ValidateTokenCached(token string) (*CachedTokenInfo, erro
 }
 ```
 
-### Session Caching
+### User Object Caching (Built-in)
 
-Cache user sessions to reduce database queries:
+`GetUserByID` is called on **every protected request** (once by `RequireAuth`, once more by `RequireAdmin`). AuthGate ships with a built-in user cache that absorbs this DB load automatically — no additional configuration required.
 
-```go
-// Cache user object for session duration
-func (h *AuthHandler) getCurrentUser(c *gin.Context) (*models.User, error) {
-    session := sessions.Default(c)
-    userID := session.Get("user_id")
+**How it works:**
 
-    // Check in-memory cache
-    if cached := h.userCache.Get(userID); cached != nil {
-        return cached, nil
-    }
+- First request: DB lookup, result written to cache
+- Subsequent requests: served from cache, zero DB queries
+- Cache invalidated automatically after writes (e.g., OAuth profile sync)
+- `USER_CACHE_TTL` controls how long a cached user entry is valid (default: 5 minutes)
 
-    // Load from database
-    user, err := h.userService.GetByID(userID)
-    if err != nil {
-        return nil, err
-    }
+**Deployment guidance:**
 
-    // Cache for 5 minutes
-    h.userCache.Set(userID, user, 5*time.Minute)
-    return user, nil
-}
-```
+| Deployment                | Recommended backend | Config                        |
+| ------------------------- | ------------------- | ----------------------------- |
+| Single instance           | `memory` (default)  | No changes needed             |
+| 2–5 pods                  | `redis`             | `USER_CACHE_TYPE=redis`       |
+| 5+ pods / DDoS protection | `redis-aside`       | `USER_CACHE_TYPE=redis-aside` |
+
+See the [User Cache configuration section](CONFIGURATION.md#user-cache) for all options.
 
 ---
 

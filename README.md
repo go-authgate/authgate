@@ -483,7 +483,7 @@ docker run -d \
 
 - **SQLite**: Suitable for < 1000 concurrent devices, single-instance deployments
 - **PostgreSQL**: Recommended for production, supports horizontal scaling
-- **Multi-Pod**: Use PostgreSQL + Redis for rate limiting across pods
+- **Multi-Pod**: Use PostgreSQL + Redis for rate limiting and user cache across pods (`RATE_LIMIT_STORE=redis`, `USER_CACHE_TYPE=redis` or `redis-aside`)
 
 **[Performance Guide →](docs/PERFORMANCE.md)**
 

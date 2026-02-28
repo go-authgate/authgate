@@ -8,6 +8,7 @@ import (
 	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/metrics"
+	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/store"
 
@@ -28,6 +29,8 @@ type Application struct {
 	MetricsRecorder      metrics.Recorder
 	MetricsCache         cache.Cache[int64]
 	MetricsCacheCloser   func() error
+	UserCache            cache.Cache[models.User]
+	UserCacheCloser      func() error
 	RateLimitRedisClient *redis.Client
 
 	// Services
@@ -98,6 +101,12 @@ func (app *Application) initializeInfrastructure(ctx context.Context) error {
 		return err
 	}
 
+	// User Cache
+	app.UserCache, app.UserCacheCloser, err = initializeUserCache(ctx, app.Config)
+	if err != nil {
+		return err
+	}
+
 	// Redis (for rate limiting)
 	app.RateLimitRedisClient, err = initializeRateLimitRedisClient(ctx, app.Config)
 	if err != nil {
@@ -126,6 +135,7 @@ func (app *Application) initializeBusinessLayer() {
 		app.DB,
 		app.AuditService,
 		app.MetricsRecorder,
+		app.UserCache,
 	)
 }
 
@@ -175,6 +185,7 @@ func (app *Application) startWithGracefulShutdown() {
 	addAuditServiceShutdownJob(m, app.AuditService, app.Config)
 	addRedisClientShutdownJob(m, app.RateLimitRedisClient, app.Config)
 	addCacheCleanupJob(m, app.MetricsCache, app.Config)
+	addUserCacheCleanupJob(m, app.UserCache, app.Config)
 	addDatabaseShutdownJob(m, app.DB, app.Config)
 	addAuditLogCleanupJob(m, app.Config, app.AuditService)
 	addMetricsGaugeUpdateJob(m, app.Config, app.DB, app.MetricsRecorder, app.MetricsCache)
