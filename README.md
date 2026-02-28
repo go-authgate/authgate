@@ -4,6 +4,7 @@
 
 [![Security Scanning](https://github.com/go-authgate/authgate/actions/workflows/security.yml/badge.svg)](https://github.com/go-authgate/authgate/actions/workflows/security.yml)
 [![Lint and Testing](https://github.com/go-authgate/authgate/actions/workflows/testing.yml/badge.svg)](https://github.com/go-authgate/authgate/actions/workflows/testing.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/go-authgate/authgate)](https://goreportcard.com/report/github.com/go-authgate/authgate)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## Table of Contents
