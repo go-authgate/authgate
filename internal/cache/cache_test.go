@@ -315,3 +315,50 @@ func TestMemoryCache_GetWithFetch_Concurrent(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestMemoryCache_GetWithFetch_Expiration(t *testing.T) {
+	c := NewMemoryCache[int64]()
+	ctx := context.Background()
+
+	fetchCount := 0
+	fetchFunc := func(ctx context.Context, key string) (int64, error) {
+		fetchCount++
+		return int64(fetchCount * 10), nil
+	}
+
+	// First call — cache miss, fetchFunc invoked
+	value, err := c.GetWithFetch(ctx, "expire-key", 50*time.Millisecond, fetchFunc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if value != 10 {
+		t.Errorf("expected 10, got %d", value)
+	}
+
+	// Immediate second call — cache hit, fetchFunc must NOT be invoked again
+	value, err = c.GetWithFetch(ctx, "expire-key", 50*time.Millisecond, fetchFunc)
+	if err != nil {
+		t.Fatalf("unexpected error on cache hit: %v", err)
+	}
+	if value != 10 {
+		t.Errorf("expected cached value 10, got %d", value)
+	}
+	if fetchCount != 1 {
+		t.Errorf("expected 1 fetch before expiry, got %d", fetchCount)
+	}
+
+	// Wait for TTL to expire
+	time.Sleep(100 * time.Millisecond)
+
+	// Call after expiry — cache miss, fetchFunc must be invoked again
+	value, err = c.GetWithFetch(ctx, "expire-key", 50*time.Millisecond, fetchFunc)
+	if err != nil {
+		t.Fatalf("unexpected error after expiry: %v", err)
+	}
+	if value != 20 {
+		t.Errorf("expected 20 after expiry, got %d", value)
+	}
+	if fetchCount != 2 {
+		t.Errorf("expected 2 fetches after expiry, got %d", fetchCount)
+	}
+}
