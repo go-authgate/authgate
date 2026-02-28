@@ -31,7 +31,12 @@ func (s *spyCache) Get(ctx context.Context, key string) (models.User, error) {
 	return s.inner.Get(ctx, key)
 }
 
-func (s *spyCache) Set(ctx context.Context, key string, value models.User, ttl time.Duration) error {
+func (s *spyCache) Set(
+	ctx context.Context,
+	key string,
+	value models.User,
+	ttl time.Duration,
+) error {
 	s.setCalls.Add(1)
 	return s.inner.Set(ctx, key, value, ttl)
 }
@@ -40,7 +45,11 @@ func (s *spyCache) MGet(ctx context.Context, keys []string) (map[string]models.U
 	return s.inner.MGet(ctx, keys)
 }
 
-func (s *spyCache) MSet(ctx context.Context, values map[string]models.User, ttl time.Duration) error {
+func (s *spyCache) MSet(
+	ctx context.Context,
+	values map[string]models.User,
+	ttl time.Duration,
+) error {
 	return s.inner.MSet(ctx, values, ttl)
 }
 
@@ -152,8 +161,18 @@ func TestGetUserByID_CacheInvalidation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, u.ID, result.ID)
 
-	assert.Equal(t, int64(1), spy.getCalls.Load(), "expected one Get call after invalidation (cache miss)")
-	assert.Equal(t, int64(1), spy.setCalls.Load(), "expected one Set call to repopulate cache after invalidation")
+	assert.Equal(
+		t,
+		int64(1),
+		spy.getCalls.Load(),
+		"expected one Get call after invalidation (cache miss)",
+	)
+	assert.Equal(
+		t,
+		int64(1),
+		spy.setCalls.Load(),
+		"expected one Set call to repopulate cache after invalidation",
+	)
 }
 
 func TestGetUserByID_ErrUserNotFound(t *testing.T) {

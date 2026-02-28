@@ -51,7 +51,7 @@ func createTestUserService(t *testing.T) *services.UserService {
 	return services.NewUserService(
 		testStore,
 		localProvider,
-		nil,   // httpAPIProvider not needed
+		nil, // httpAPIProvider not needed
 		"local",
 		false, // oauthAutoRegister
 		nil,   // auditService not needed for these tests

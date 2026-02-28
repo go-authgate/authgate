@@ -197,70 +197,57 @@ func addMetricsGaugeUpdateJob(
 	})
 }
 
-// addUserCacheCleanupJob adds user cache cleanup on shutdown
-func addUserCacheCleanupJob(m *graceful.Manager, userCache cache.Cache[models.User], cfg *config.Config) {
-	if userCache == nil {
-		return
-	}
-
+// addNamedCacheShutdownJob registers a shutdown job that closes a cache with timeout protection.
+// name is used in log messages (e.g. "metrics cache", "user cache").
+func addNamedCacheShutdownJob(
+	m *graceful.Manager,
+	name string,
+	closeFn func() error,
+	timeout time.Duration,
+) {
 	m.AddShutdownJob(func() error {
-		log.Println("Closing user cache...")
+		log.Printf("Closing %s...", name)
 
-		ctx, cancel := context.WithTimeout(context.Background(), cfg.CacheCloseTimeout)
+		// Use fresh context with timeout (not derived from already-canceled shutdown context)
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 
 		done := make(chan error, 1)
-		go func() {
-			done <- userCache.Close()
-		}()
+		go func() { done <- closeFn() }()
 
 		select {
 		case err := <-done:
 			if err != nil {
-				log.Printf("Error closing user cache: %v", err)
+				log.Printf("Error closing %s: %v", name, err)
 				return err
 			}
-			log.Println("User cache closed")
+			log.Printf("%s closed", name)
 			return nil
 		case <-ctx.Done():
-			log.Println("User cache close timed out")
+			log.Printf("%s close timed out", name)
 			return ctx.Err()
 		}
 	})
 }
 
-// addCacheCleanupJob adds cache cleanup on shutdown
+// addCacheCleanupJob adds metrics cache cleanup on shutdown
 func addCacheCleanupJob(m *graceful.Manager, metricsCache cache.Cache[int64], cfg *config.Config) {
 	if metricsCache == nil {
 		return
 	}
+	addNamedCacheShutdownJob(m, "metrics cache", metricsCache.Close, cfg.CacheCloseTimeout)
+}
 
-	m.AddShutdownJob(func() error {
-		log.Println("Closing metrics cache...")
-
-		// Use fresh context with timeout (not derived from already-canceled shutdown context)
-		ctx, cancel := context.WithTimeout(context.Background(), cfg.CacheCloseTimeout)
-		defer cancel()
-
-		// Close operation with timeout protection
-		done := make(chan error, 1)
-		go func() {
-			done <- metricsCache.Close()
-		}()
-
-		select {
-		case err := <-done:
-			if err != nil {
-				log.Printf("Error closing metrics cache: %v", err)
-				return err
-			}
-			log.Println("Metrics cache closed")
-			return nil
-		case <-ctx.Done():
-			log.Println("Metrics cache close timeout exceeded")
-			return ctx.Err()
-		}
-	})
+// addUserCacheCleanupJob adds user cache cleanup on shutdown
+func addUserCacheCleanupJob(
+	m *graceful.Manager,
+	userCache cache.Cache[models.User],
+	cfg *config.Config,
+) {
+	if userCache == nil {
+		return
+	}
+	addNamedCacheShutdownJob(m, "user cache", userCache.Close, cfg.CacheCloseTimeout)
 }
 
 // addDatabaseShutdownJob adds database connection close handler

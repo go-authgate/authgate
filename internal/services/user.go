@@ -321,6 +321,11 @@ func (s *UserService) GetUserByID(id string) (*models.User, error) {
 		if err != nil {
 			return models.User{}, ErrUserNotFound
 		}
+		// Strip credential material before caching: PasswordHash must never be
+		// written to a shared cache backend (Redis) where it could be read if
+		// the cache is compromised. GetUserByID callers only need identity/role
+		// data, so this field is safe to omit from the cached copy.
+		u.PasswordHash = ""
 		return *u, nil
 	}
 
@@ -333,7 +338,13 @@ func (s *UserService) GetUserByID(id string) (*models.User, error) {
 		return &user, nil
 	}
 
-	user, err := cache.GetWithFetch(context.Background(), s.userCache, cacheKey, s.userCacheTTL, fetchFn)
+	user, err := cache.GetWithFetch(
+		context.Background(),
+		s.userCache,
+		cacheKey,
+		s.userCacheTTL,
+		fetchFn,
+	)
 	if err != nil {
 		return nil, err
 	}
