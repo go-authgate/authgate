@@ -20,6 +20,7 @@ func TestConfig_Validate(t *testing.T) {
 			config: &Config{
 				RateLimitStore:   RateLimitStoreMemory,
 				MetricsCacheType: MetricsCacheTypeMemory,
+				UserCacheType:    UserCacheTypeMemory,
 			},
 			expectError: false,
 		},
@@ -28,6 +29,7 @@ func TestConfig_Validate(t *testing.T) {
 			config: &Config{
 				RateLimitStore:   RateLimitStoreRedis,
 				MetricsCacheType: MetricsCacheTypeMemory,
+				UserCacheType:    UserCacheTypeMemory,
 			},
 			expectError: false,
 		},
@@ -36,6 +38,7 @@ func TestConfig_Validate(t *testing.T) {
 			config: &Config{
 				RateLimitStore:   "reddis",
 				MetricsCacheType: MetricsCacheTypeMemory,
+				UserCacheType:    UserCacheTypeMemory,
 			},
 			expectError: true,
 			errorMsg:    `invalid RATE_LIMIT_STORE value: "reddis"`,
@@ -45,6 +48,7 @@ func TestConfig_Validate(t *testing.T) {
 			config: &Config{
 				RateLimitStore:   "memcache",
 				MetricsCacheType: MetricsCacheTypeMemory,
+				UserCacheType:    UserCacheTypeMemory,
 			},
 			expectError: true,
 			errorMsg:    `invalid RATE_LIMIT_STORE value: "memcache"`,
@@ -54,6 +58,7 @@ func TestConfig_Validate(t *testing.T) {
 			config: &Config{
 				RateLimitStore:   "",
 				MetricsCacheType: MetricsCacheTypeMemory,
+				UserCacheType:    UserCacheTypeMemory,
 			},
 			expectError: true,
 			errorMsg:    `invalid RATE_LIMIT_STORE value: ""`,
@@ -63,6 +68,7 @@ func TestConfig_Validate(t *testing.T) {
 			config: &Config{
 				RateLimitStore:   "MEMORY",
 				MetricsCacheType: MetricsCacheTypeMemory,
+				UserCacheType:    UserCacheTypeMemory,
 			},
 			expectError: true,
 			errorMsg:    `invalid RATE_LIMIT_STORE value: "MEMORY"`,
@@ -101,6 +107,7 @@ func TestMetricsCacheValidation(t *testing.T) {
 			config: &Config{
 				RateLimitStore:   RateLimitStoreMemory,
 				MetricsCacheType: MetricsCacheTypeMemory,
+				UserCacheType:    UserCacheTypeMemory,
 			},
 			expectError: false,
 		},
@@ -109,6 +116,7 @@ func TestMetricsCacheValidation(t *testing.T) {
 			config: &Config{
 				RateLimitStore:   RateLimitStoreMemory,
 				MetricsCacheType: MetricsCacheTypeRedis,
+				UserCacheType:    UserCacheTypeMemory,
 				RedisAddr:        "localhost:6379",
 			},
 			expectError: false,
@@ -118,6 +126,7 @@ func TestMetricsCacheValidation(t *testing.T) {
 			config: &Config{
 				RateLimitStore:   RateLimitStoreMemory,
 				MetricsCacheType: MetricsCacheTypeRedisAside,
+				UserCacheType:    UserCacheTypeMemory,
 				RedisAddr:        "localhost:6379",
 			},
 			expectError: false,
@@ -174,6 +183,95 @@ func TestMetricsCacheValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUserCacheValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      *Config
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "valid memory user cache",
+			config: &Config{
+				RateLimitStore:   RateLimitStoreMemory,
+				MetricsCacheType: MetricsCacheTypeMemory,
+				UserCacheType:    UserCacheTypeMemory,
+			},
+			expectError: false,
+		},
+		{
+			name: "valid redis user cache with redis address",
+			config: &Config{
+				RateLimitStore:   RateLimitStoreMemory,
+				MetricsCacheType: MetricsCacheTypeMemory,
+				UserCacheType:    UserCacheTypeRedis,
+				RedisAddr:        "localhost:6379",
+			},
+			expectError: false,
+		},
+		{
+			name: "valid redis-aside user cache with redis address",
+			config: &Config{
+				RateLimitStore:   RateLimitStoreMemory,
+				MetricsCacheType: MetricsCacheTypeMemory,
+				UserCacheType:    UserCacheTypeRedisAside,
+				RedisAddr:        "localhost:6379",
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid user cache type",
+			config: &Config{
+				RateLimitStore:   RateLimitStoreMemory,
+				MetricsCacheType: MetricsCacheTypeMemory,
+				UserCacheType:    "invalid",
+			},
+			expectError: true,
+			errorMsg:    `invalid USER_CACHE_TYPE value: "invalid"`,
+		},
+		{
+			name: "redis user cache without redis address",
+			config: &Config{
+				RateLimitStore:   RateLimitStoreMemory,
+				MetricsCacheType: MetricsCacheTypeMemory,
+				UserCacheType:    UserCacheTypeRedis,
+				RedisAddr:        "",
+			},
+			expectError: true,
+			errorMsg:    `USER_CACHE_TYPE="redis" requires REDIS_ADDR`,
+		},
+		{
+			name: "redis-aside user cache without redis address",
+			config: &Config{
+				RateLimitStore:   RateLimitStoreMemory,
+				MetricsCacheType: MetricsCacheTypeMemory,
+				UserCacheType:    UserCacheTypeRedisAside,
+				RedisAddr:        "",
+			},
+			expectError: true,
+			errorMsg:    `USER_CACHE_TYPE="redis-aside" requires REDIS_ADDR`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestUserCacheConstants(t *testing.T) {
+	assert.Equal(t, "memory", UserCacheTypeMemory)
+	assert.Equal(t, "redis", UserCacheTypeRedis)
+	assert.Equal(t, "redis-aside", UserCacheTypeRedisAside)
 }
 
 func TestMetricsCacheConstants(t *testing.T) {

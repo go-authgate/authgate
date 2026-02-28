@@ -12,6 +12,7 @@ This guide covers all configuration options for AuthGate, including environment 
 - [Pluggable Token Providers](#pluggable-token-providers)
 - [Service-to-Service Authentication](#service-to-service-authentication)
 - [HTTP Retry with Exponential Backoff](#http-retry-with-exponential-backoff)
+- [User Cache](#user-cache)
 - [Rate Limiting](#rate-limiting)
 
 ---
@@ -117,6 +118,12 @@ OAUTH_INSECURE_SKIP_VERIFY=false # Skip TLS verification for OAuth (dev/testing 
 AUTH_CODE_EXPIRATION=10m            # Authorization code lifetime (default: 10 min)
 PKCE_REQUIRED=false                 # Require PKCE for all clients, including confidential (default: false)
 CONSENT_REMEMBER=true               # Skip consent page if user already approved same scopes (default: true)
+
+# User Cache
+# Caches GetUserByID results — called on every protected request (RequireAuth + RequireAdmin)
+# USER_CACHE_TYPE=memory              # Options: memory, redis, redis-aside (default: memory)
+# USER_CACHE_TTL=5m                   # How long to cache a user object (default: 5m)
+# USER_CACHE_CLIENT_TTL=30s           # Client-side TTL for redis-aside mode only (default: 30s)
 
 # Audit Logging
 # Comprehensive audit logging for security and compliance
@@ -714,6 +721,78 @@ HTTP_API_TIMEOUT=15s
 - Retry logic wraps the authentication-enabled HTTP client
 - All authentication headers (Simple, HMAC) are preserved across retries
 - Request bodies are cloned for retries to avoid consumed stream issues
+
+---
+
+## User Cache
+
+`GetUserByID` is called on **every protected request** — once by the `RequireAuth` middleware and once more by `RequireAdmin`. Without caching, each request incurs at least one synchronous DB round-trip. Under heavy traffic or DDoS conditions this translates directly into database pressure.
+
+AuthGate ships with a built-in user cache (always enabled, no feature flag required) that absorbs these lookups before they reach the database.
+
+### How It Works
+
+The cache uses a **cache-aside pattern**:
+
+1. On the first request for a user ID, the DB is queried and the result is stored in cache with a TTL
+2. Subsequent requests within the TTL window are served entirely from cache
+3. Cache entries are invalidated automatically whenever user data is mutated (OAuth sync, profile updates)
+
+### Cache Backends
+
+| Backend     | Env value          | Use case                                              |
+| ----------- | ------------------ | ----------------------------------------------------- |
+| Memory      | `memory` (default) | Single-instance, zero external dependencies           |
+| Redis       | `redis`            | 2–5 pods, shared cache across instances               |
+| Redis-aside | `redis-aside`      | 5+ pods, client-side caching with stampede protection |
+
+### Configuration
+
+```bash
+# Cache backend: memory (default), redis, or redis-aside
+USER_CACHE_TYPE=memory
+
+# How long a cached user object is valid (default: 5m)
+# Shorter → password/role changes propagate faster
+# Longer  → more aggressive DB protection
+USER_CACHE_TTL=5m
+
+# Client-side TTL for redis-aside mode only (default: 30s)
+USER_CACHE_CLIENT_TTL=30s
+```
+
+Redis-based backends also require the shared Redis settings:
+
+```bash
+REDIS_ADDR=localhost:6379
+REDIS_PASSWORD=
+REDIS_DB=0
+```
+
+### TTL Trade-offs
+
+| TTL   | Behaviour                                                        |
+| ----- | ---------------------------------------------------------------- |
+| `1m`  | Role or password changes take effect within 1 minute             |
+| `5m`  | Default — good balance between security and DB protection        |
+| `15m` | Aggressive DB protection; suitable when user data rarely changes |
+
+### Multi-Pod Recommendation
+
+For Kubernetes or cloud deployments with multiple replicas:
+
+```bash
+# 2–5 pods: Redis shared cache
+USER_CACHE_TYPE=redis
+REDIS_ADDR=redis-service:6379
+
+# 5+ pods or DDoS protection: redis-aside with client-side caching
+USER_CACHE_TYPE=redis-aside
+REDIS_ADDR=redis-service:6379
+USER_CACHE_CLIENT_TTL=30s
+```
+
+> **Note**: `redis-aside` uses RESP3 client-side caching for automatic invalidation across all pods. Memory usage per pod is `METRICS_CACHE_SIZE_PER_CONN × ~10 connections` (default ~320MB). Adjust `METRICS_CACHE_SIZE_PER_CONN` if memory is constrained.
 
 ---
 

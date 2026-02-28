@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/auth"
+	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/store"
 
@@ -40,6 +41,8 @@ type UserService struct {
 	authMode          string
 	oauthAutoRegister bool
 	auditService      *AuditService
+	userCache         cache.Cache[models.User]
+	userCacheTTL      time.Duration
 }
 
 func NewUserService(
@@ -49,6 +52,8 @@ func NewUserService(
 	authMode string,
 	oauthAutoRegister bool,
 	auditService *AuditService,
+	userCache cache.Cache[models.User],
+	userCacheTTL time.Duration,
 ) *UserService {
 	return &UserService{
 		store:             s,
@@ -57,6 +62,8 @@ func NewUserService(
 		authMode:          authMode,
 		oauthAutoRegister: oauthAutoRegister,
 		auditService:      auditService,
+		userCache:         userCache,
+		userCacheTTL:      userCacheTTL,
 	}
 }
 
@@ -303,15 +310,42 @@ func (s *UserService) syncExternalUser(
 		return nil, fmt.Errorf("failed to upsert external user: %w", err)
 	}
 
+	s.InvalidateUserCache(user.ID)
 	return user, nil
 }
 
 func (s *UserService) GetUserByID(id string) (*models.User, error) {
-	user, err := s.store.GetUserByID(id)
-	if err != nil {
-		return nil, ErrUserNotFound
+	cacheKey := "user:" + id
+	fetchFn := func(ctx context.Context, key string) (models.User, error) {
+		u, err := s.store.GetUserByID(id)
+		if err != nil {
+			return models.User{}, ErrUserNotFound
+		}
+		return *u, nil
 	}
-	return user, nil
+
+	// Prefer WithFetch (provides stampede protection in RueidisAsideCache)
+	if cwa, ok := s.userCache.(cache.WithFetch[models.User]); ok {
+		user, err := cwa.GetWithFetch(context.Background(), cacheKey, s.userCacheTTL, fetchFn)
+		if err != nil {
+			return nil, err
+		}
+		return &user, nil
+	}
+
+	user, err := cache.GetWithFetch(context.Background(), s.userCache, cacheKey, s.userCacheTTL, fetchFn)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// InvalidateUserCache removes the cached user entry for the given user ID.
+// Call this after any mutation to user data to ensure stale data is not served.
+func (s *UserService) InvalidateUserCache(id string) {
+	if err := s.userCache.Delete(context.Background(), "user:"+id); err != nil {
+		log.Printf("[UserCache] Failed to invalidate cache for user=%s: %v", id, err)
+	}
 }
 
 // AuthenticateWithOAuth authenticates a user via OAuth and creates/updates user account
@@ -393,6 +427,7 @@ func (s *UserService) updateOAuthConnectionAndGetUser(
 			log.Printf("[OAuth] Failed to update user info: %v", err)
 			// Continue with login even if update fails
 		}
+		s.InvalidateUserCache(user.ID)
 	}
 
 	log.Printf("[OAuth] User login: user=%s provider=%s", user.Username, connection.Provider)
@@ -458,6 +493,7 @@ func (s *UserService) linkOAuthToExistingUser(
 			log.Printf("[OAuth] Failed to update user avatar: %v", err)
 			// Continue with login even if update fails
 		}
+		s.InvalidateUserCache(user.ID)
 	}
 
 	log.Printf("[OAuth] Linked existing user: user=%s provider=%s", user.Username, provider)

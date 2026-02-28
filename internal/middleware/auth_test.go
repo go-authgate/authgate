@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/auth"
+	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/store"
 
@@ -49,10 +51,12 @@ func createTestUserService(t *testing.T) *services.UserService {
 	return services.NewUserService(
 		testStore,
 		localProvider,
-		nil, // httpAPIProvider not needed
+		nil,   // httpAPIProvider not needed
 		"local",
 		false, // oauthAutoRegister
 		nil,   // auditService not needed for these tests
+		cache.NewMemoryCache[models.User](),
+		5*time.Minute,
 	)
 }
 

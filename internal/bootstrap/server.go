@@ -9,6 +9,7 @@ import (
 	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/metrics"
+	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/store"
 
@@ -192,6 +193,38 @@ func addMetricsGaugeUpdateJob(
 			case <-ctx.Done():
 				return nil
 			}
+		}
+	})
+}
+
+// addUserCacheCleanupJob adds user cache cleanup on shutdown
+func addUserCacheCleanupJob(m *graceful.Manager, userCache cache.Cache[models.User], cfg *config.Config) {
+	if userCache == nil {
+		return
+	}
+
+	m.AddShutdownJob(func() error {
+		log.Println("Closing user cache...")
+
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.CacheCloseTimeout)
+		defer cancel()
+
+		done := make(chan error, 1)
+		go func() {
+			done <- userCache.Close()
+		}()
+
+		select {
+		case err := <-done:
+			if err != nil {
+				log.Printf("Error closing user cache: %v", err)
+				return err
+			}
+			log.Println("User cache closed")
+			return nil
+		case <-ctx.Done():
+			log.Println("User cache close timed out")
+			return ctx.Err()
 		}
 	})
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/metrics"
+	"github.com/go-authgate/authgate/internal/models"
 )
 
 // initializeMetrics initializes Prometheus metrics
@@ -78,4 +79,47 @@ func initializeMetricsCache(
 	}
 
 	return metricsCache, metricsCache.Close, nil
+}
+
+// initializeUserCache initializes the user cache (always enabled, defaults to memory)
+func initializeUserCache(
+	ctx context.Context,
+	cfg *config.Config,
+) (cache.Cache[models.User], func() error, error) {
+	ctx, cancel := context.WithTimeout(ctx, cfg.CacheInitTimeout)
+	defer cancel()
+
+	switch cfg.UserCacheType {
+	case config.UserCacheTypeRedisAside:
+		c, err := cache.NewRueidisAsideCache[models.User](
+			ctx,
+			cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB,
+			"authgate:users:",
+			cfg.UserCacheClientTTL,
+			cfg.MetricsCacheSizePerConn,
+		)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to initialize redis-aside user cache: %w", err)
+		}
+		log.Printf("User cache: redis-aside (addr=%s, db=%d, client_ttl=%s)",
+			cfg.RedisAddr, cfg.RedisDB, cfg.UserCacheClientTTL)
+		return c, c.Close, nil
+
+	case config.UserCacheTypeRedis:
+		c, err := cache.NewRueidisCache[models.User](
+			ctx,
+			cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB,
+			"authgate:users:",
+		)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to initialize redis user cache: %w", err)
+		}
+		log.Printf("User cache: redis (addr=%s, db=%d)", cfg.RedisAddr, cfg.RedisDB)
+		return c, c.Close, nil
+
+	default: // memory
+		c := cache.NewMemoryCache[models.User]()
+		log.Println("User cache: memory (single instance only)")
+		return c, c.Close, nil
+	}
 }
