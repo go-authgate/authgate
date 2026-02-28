@@ -454,7 +454,9 @@ func (s *TokenService) ValidateTokenCached(token string) (*CachedTokenInfo, erro
 | ------------------------- | ------------------- | ----------------------------- |
 | Single instance           | `memory` (default)  | No changes needed             |
 | 2–5 pods                  | `redis`             | `USER_CACHE_TYPE=redis`       |
-| 5+ pods / DDoS protection | `redis-aside`       | `USER_CACHE_TYPE=redis-aside` |
+| 5+ pods / DDoS protection | `redis-aside` ¹     | `USER_CACHE_TYPE=redis-aside` |
+
+¹ `redis-aside` requires **Redis >= 7.0** (RESP3 client-side caching). Use `redis` for older Redis versions.
 
 See the [User Cache configuration section](CONFIGURATION.md#user-cache) for all options.
 

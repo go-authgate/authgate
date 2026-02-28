@@ -30,47 +30,14 @@ type Cache[T any] interface {
 
 	// Health checks if the cache is healthy
 	Health(ctx context.Context) error
-}
 
-// WithFetch extends Cache with an optimized cache-aside operation.
-// Implementations that can provide stampede protection (e.g. RueidisAsideCache)
-// should implement this interface. Callers should prefer this over the generic
-// GetWithFetch helper when available, via type assertion.
-type WithFetch[T any] interface {
-	Cache[T]
-
-	// GetWithFetch retrieves a value using an optimized cache-aside pattern.
-	// On cache miss, fetchFunc is called exactly once even under concurrent load,
-	// and the result is stored in cache automatically.
+	// GetWithFetch retrieves a value using the cache-aside pattern.
+	// On cache miss, fetchFunc is called and the result is stored in cache.
+	// Implementations may provide stampede protection (e.g. RueidisAsideCache).
 	GetWithFetch(
 		ctx context.Context,
 		key string,
 		ttl time.Duration,
 		fetchFunc func(ctx context.Context, key string) (T, error),
 	) (T, error)
-}
-
-// GetWithFetch is a generic cache-aside helper for any Cache implementation.
-// On cache miss it calls fetchFunc, stores the result, and returns it.
-// Use this when the cache does not implement WithFetch.
-// Note: does not provide stampede protection under concurrent load.
-func GetWithFetch[T any](
-	ctx context.Context,
-	c Cache[T],
-	key string,
-	ttl time.Duration,
-	fetchFunc func(ctx context.Context, key string) (T, error),
-) (T, error) {
-	if value, err := c.Get(ctx, key); err == nil {
-		return value, nil
-	}
-
-	value, err := fetchFunc(ctx, key)
-	if err != nil {
-		var zero T
-		return zero, err
-	}
-
-	_ = c.Set(ctx, key, value, ttl)
-	return value, nil
 }

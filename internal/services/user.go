@@ -329,22 +329,7 @@ func (s *UserService) GetUserByID(id string) (*models.User, error) {
 		return *u, nil
 	}
 
-	// Prefer WithFetch (provides stampede protection in RueidisAsideCache)
-	if cwa, ok := s.userCache.(cache.WithFetch[models.User]); ok {
-		user, err := cwa.GetWithFetch(context.Background(), cacheKey, s.userCacheTTL, fetchFn)
-		if err != nil {
-			return nil, err
-		}
-		return &user, nil
-	}
-
-	user, err := cache.GetWithFetch(
-		context.Background(),
-		s.userCache,
-		cacheKey,
-		s.userCacheTTL,
-		fetchFn,
-	)
+	user, err := s.userCache.GetWithFetch(context.Background(), cacheKey, s.userCacheTTL, fetchFn)
 	if err != nil {
 		return nil, err
 	}

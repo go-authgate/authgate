@@ -50,23 +50,20 @@ func (m *CacheWrapper) GetActiveTokensCount(
 }
 
 // getCountWithCache retrieves a count using the cache-aside pattern.
-// If the cache implements WithFetch (e.g. RueidisAsideCache), its optimized
-// stampede-safe implementation is used. Otherwise, falls back to the generic helper.
 func (m *CacheWrapper) getCountWithCache(
 	ctx context.Context,
 	key string,
 	ttl time.Duration,
 	fetchFunc func() (int64, error),
 ) (int64, error) {
-	wrapped := func(ctx context.Context, key string) (int64, error) {
-		return fetchFunc()
-	}
-
-	if cwa, ok := m.cache.(cache.WithFetch[int64]); ok {
-		return cwa.GetWithFetch(ctx, key, ttl, wrapped)
-	}
-
-	return cache.GetWithFetch(ctx, m.cache, key, ttl, wrapped)
+	return m.cache.GetWithFetch(
+		ctx,
+		key,
+		ttl,
+		func(ctx context.Context, key string) (int64, error) {
+			return fetchFunc()
+		},
+	)
 }
 
 // GetTotalDeviceCodesCount retrieves the count of total (non-expired) device codes.
