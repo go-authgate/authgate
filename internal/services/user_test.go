@@ -38,12 +38,12 @@ func makeTestUser(t *testing.T, db *store.Store) *models.User {
 // callFetchFn is a DoAndReturn helper that invokes the cache fetch function,
 // simulating a cache miss where the real DB fetch is executed.
 func callFetchFn[T any](
-	_ context.Context,
+	ctx context.Context,
 	key string,
 	_ time.Duration,
 	fn func(context.Context, string) (T, error),
 ) (T, error) {
-	return fn(context.Background(), key)
+	return fn(ctx, key)
 }
 
 func TestGetUserByID_CacheMiss(t *testing.T) {
@@ -95,13 +95,17 @@ func TestGetUserByID_CacheInvalidation(t *testing.T) {
 	mockCache := mocks.NewMockCache[models.User](ctrl)
 	u := makeTestUser(t, db)
 
-	mockCache.EXPECT().
-		GetWithFetch(gomock.Any(), "user:"+u.ID, gomock.Any(), gomock.Any()).
-		DoAndReturn(callFetchFn[models.User]).Times(2) // both calls are cache misses
-
-	mockCache.EXPECT().
-		Delete(gomock.Any(), "user:"+u.ID).
-		Return(nil).Times(1)
+	gomock.InOrder(
+		mockCache.EXPECT().
+			GetWithFetch(gomock.Any(), "user:"+u.ID, gomock.Any(), gomock.Any()).
+			DoAndReturn(callFetchFn[models.User]), // first call: cache miss → fetch from DB
+		mockCache.EXPECT().
+			Delete(gomock.Any(), "user:"+u.ID).
+			Return(nil), // invalidate cache entry
+		mockCache.EXPECT().
+			GetWithFetch(gomock.Any(), "user:"+u.ID, gomock.Any(), gomock.Any()).
+			DoAndReturn(callFetchFn[models.User]), // re-fetch after invalidation: cache miss → fetch from DB
+	)
 
 	svc := newUserServiceWithStore(db, mockCache)
 
