@@ -36,8 +36,8 @@ var (
 
 type UserService struct {
 	store             *store.Store
-	localProvider     *auth.LocalAuthProvider
-	httpAPIProvider   *auth.HTTPAPIAuthProvider
+	localProvider     core.AuthProvider
+	httpAPIProvider   core.AuthProvider
 	authMode          string
 	oauthAutoRegister bool
 	auditService      *AuditService
@@ -47,8 +47,8 @@ type UserService struct {
 
 func NewUserService(
 	s *store.Store,
-	localProvider *auth.LocalAuthProvider,
-	httpAPIProvider *auth.HTTPAPIAuthProvider,
+	localProvider core.AuthProvider,
+	httpAPIProvider core.AuthProvider,
 	authMode string,
 	oauthAutoRegister bool,
 	auditService *AuditService,
@@ -94,7 +94,7 @@ func (s *UserService) authenticateExistingUser(
 	user *models.User,
 	password string,
 ) (*models.User, error) {
-	var authResult *auth.Result
+	var authResult *core.AuthResult
 	var err error
 	var providerName string
 
@@ -292,7 +292,7 @@ func (s *UserService) authenticateAndCreateExternalUser(
 
 // syncExternalUser creates or updates local user record from external auth result
 func (s *UserService) syncExternalUser(
-	result *auth.Result,
+	result *core.AuthResult,
 	authSource string,
 ) (*models.User, error) {
 	user, err := s.store.UpsertExternalUser(

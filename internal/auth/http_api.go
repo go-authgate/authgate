@@ -10,7 +10,10 @@ import (
 	retry "github.com/appleboy/go-httpretry"
 
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/core"
 )
+
+var _ core.AuthProvider = (*HTTPAPIAuthProvider)(nil)
 
 // HTTPAPIAuthProvider handles HTTP API-based authentication
 type HTTPAPIAuthProvider struct {
