@@ -100,7 +100,7 @@ rebuild: clean build
 install-templ:
 	@command -v templ >/dev/null 2>&1 || $(GO) install github.com/a-h/templ/cmd/templ@$(TEMPL_VERSION)
 
-## generate: run templ generate to compile .templ files and generate mocks
+## generate: run go generate (templ compilation + mocks via go:generate directives)
 generate: install-templ swagger
 	$(GO) generate ./...
 
