@@ -11,6 +11,12 @@ import (
 	"github.com/google/uuid"
 )
 
+// IDTokenProvider is an optional capability of a TokenProvider.
+// Only LocalTokenProvider implements it; HTTP API providers cannot produce OIDC ID tokens.
+type IDTokenProvider interface {
+	GenerateIDToken(params IDTokenParams) (string, error)
+}
+
 // IDTokenParams holds all data needed to generate an OIDC ID Token (OIDC Core 1.0 §2).
 type IDTokenParams struct {
 	Issuer   string

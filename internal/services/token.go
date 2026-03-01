@@ -46,35 +46,29 @@ var (
 )
 
 type TokenService struct {
-	store              *store.Store
-	config             *config.Config
-	deviceService      *DeviceService
-	localTokenProvider *token.LocalTokenProvider
-	httpTokenProvider  *token.HTTPTokenProvider
-	tokenProviderMode  string
-	auditService       *AuditService
-	metrics            core.Recorder
+	store         *store.Store
+	config        *config.Config
+	deviceService *DeviceService
+	tokenProvider core.TokenProvider
+	auditService  *AuditService
+	metrics       core.Recorder
 }
 
 func NewTokenService(
 	s *store.Store,
 	cfg *config.Config,
 	ds *DeviceService,
-	localProvider *token.LocalTokenProvider,
-	httpProvider *token.HTTPTokenProvider,
-	providerMode string,
+	provider core.TokenProvider,
 	auditService *AuditService,
 	m core.Recorder,
 ) *TokenService {
 	return &TokenService{
-		store:              s,
-		config:             cfg,
-		deviceService:      ds,
-		localTokenProvider: localProvider,
-		httpTokenProvider:  httpProvider,
-		tokenProviderMode:  providerMode,
-		auditService:       auditService,
-		metrics:            m,
+		store:         s,
+		config:        cfg,
+		deviceService: ds,
+		tokenProvider: provider,
+		auditService:  auditService,
+		metrics:       m,
 	}
 }
 
@@ -125,40 +119,17 @@ func (s *TokenService) ExchangeDeviceCode(
 
 	// Generate access token using provider
 	start := time.Now()
-	var accessTokenResult *token.Result
-	var providerErr error
 
-	switch s.tokenProviderMode {
-	case config.TokenProviderModeHTTPAPI:
-		if s.httpTokenProvider == nil {
-			return nil, nil, errors.New(
-				"HTTP token provider not configured (TOKEN_PROVIDER_MODE=http_api requires TOKEN_API_URL)",
-			)
-		}
-		accessTokenResult, providerErr = s.httpTokenProvider.GenerateToken(
-			ctx,
-			dc.UserID,
-			dc.ClientID,
-			dc.Scopes,
-		)
-	case config.TokenProviderModeLocal:
-		fallthrough
-	default:
-		if s.localTokenProvider == nil {
-			return nil, nil, errors.New("local token provider not configured")
-		}
-		accessTokenResult, providerErr = s.localTokenProvider.GenerateToken(
-			ctx,
-			dc.UserID,
-			dc.ClientID,
-			dc.Scopes,
-		)
-	}
-
+	accessTokenResult, providerErr := s.tokenProvider.GenerateToken(
+		ctx,
+		dc.UserID,
+		dc.ClientID,
+		dc.Scopes,
+	)
 	if providerErr != nil {
 		log.Printf(
 			"[Token] Access token generation failed provider=%s: %v",
-			s.tokenProviderMode,
+			s.tokenProvider.Name(),
 			providerErr,
 		)
 		return nil, nil, fmt.Errorf("token generation failed: %w", providerErr)
@@ -169,31 +140,16 @@ func (s *TokenService) ExchangeDeviceCode(
 	}
 
 	// Generate refresh token using provider
-	var refreshTokenResult *token.Result
-
-	switch s.tokenProviderMode {
-	case config.TokenProviderModeHTTPAPI:
-		refreshTokenResult, providerErr = s.httpTokenProvider.GenerateRefreshToken(
-			ctx,
-			dc.UserID,
-			dc.ClientID,
-			dc.Scopes,
-		)
-	case config.TokenProviderModeLocal:
-		fallthrough
-	default:
-		refreshTokenResult, providerErr = s.localTokenProvider.GenerateRefreshToken(
-			ctx,
-			dc.UserID,
-			dc.ClientID,
-			dc.Scopes,
-		)
-	}
-
+	refreshTokenResult, providerErr := s.tokenProvider.GenerateRefreshToken(
+		ctx,
+		dc.UserID,
+		dc.ClientID,
+		dc.Scopes,
+	)
 	if providerErr != nil {
 		log.Printf(
 			"[Token] Refresh token generation failed provider=%s: %v",
-			s.tokenProviderMode,
+			s.tokenProvider.Name(),
 			providerErr,
 		)
 		return nil, nil, fmt.Errorf("refresh token generation failed: %w", providerErr)
@@ -253,8 +209,9 @@ func (s *TokenService) ExchangeDeviceCode(
 
 	// Record token issuance metrics
 	duration := time.Since(start)
-	s.metrics.RecordTokenIssued("access", "device_code", duration, s.tokenProviderMode)
-	s.metrics.RecordTokenIssued("refresh", "device_code", duration, s.tokenProviderMode)
+	providerName := s.tokenProvider.Name()
+	s.metrics.RecordTokenIssued("access", "device_code", duration, providerName)
+	s.metrics.RecordTokenIssued("refresh", "device_code", duration, providerName)
 
 	// Delete the used device code
 	_ = s.store.DeleteDeviceCodeByID(dc.ID)
@@ -271,7 +228,7 @@ func (s *TokenService) ExchangeDeviceCode(
 			Details: models.AuditDetails{
 				"client_id":        accessToken.ClientID,
 				"scopes":           accessToken.Scopes,
-				"token_provider":   s.tokenProviderMode,
+				"token_provider":   providerName,
 				"refresh_token_id": refreshToken.ID,
 			},
 			Success: true,
@@ -287,7 +244,7 @@ func (s *TokenService) ExchangeDeviceCode(
 			Details: models.AuditDetails{
 				"client_id":       refreshToken.ClientID,
 				"scopes":          refreshToken.Scopes,
-				"token_provider":  s.tokenProviderMode,
+				"token_provider":  providerName,
 				"access_token_id": accessToken.ID,
 			},
 			Success: true,
@@ -302,40 +259,23 @@ func (s *TokenService) ValidateToken(
 	ctx context.Context,
 	tokenString string,
 ) (*token.ValidationResult, error) {
-	var result *token.ValidationResult
-	var err error
-
-	switch s.tokenProviderMode {
-	case config.TokenProviderModeHTTPAPI:
-		if s.httpTokenProvider == nil {
-			return nil, errors.New("HTTP token provider not configured")
-		}
-		result, err = s.httpTokenProvider.ValidateToken(ctx, tokenString)
-	case config.TokenProviderModeLocal:
-		fallthrough
-	default:
-		if s.localTokenProvider == nil {
-			return nil, errors.New("local token provider not configured")
-		}
-		result, err = s.localTokenProvider.ValidateToken(ctx, tokenString)
-	}
-
+	result, err := s.tokenProvider.ValidateToken(ctx, tokenString)
 	if err != nil {
 		return nil, err
 	}
 
 	// Check token exists in database and validate its state (revocation, expiry, category)
-	token, err := s.store.GetAccessToken(tokenString)
+	tok, err := s.store.GetAccessToken(tokenString)
 	if err != nil {
 		return nil, errors.New("token not found or revoked")
 	}
-	if !token.IsAccessToken() {
+	if !tok.IsAccessToken() {
 		return nil, errors.New("token is not an access token")
 	}
-	if !token.IsActive() {
+	if !tok.IsActive() {
 		return nil, errors.New("token not found or revoked")
 	}
-	if token.IsExpired() {
+	if tok.IsExpired() {
 		return nil, errors.New("token has expired")
 	}
 
@@ -345,19 +285,19 @@ func (s *TokenService) ValidateToken(
 // RevokeToken revokes a token by its JWT string
 func (s *TokenService) RevokeToken(tokenString string) error {
 	// Get the token from database
-	token, err := s.store.GetAccessToken(tokenString)
+	tok, err := s.store.GetAccessToken(tokenString)
 	if err != nil {
 		return errors.New("token not found")
 	}
 
 	// Delete the token
-	return s.store.RevokeToken(token.ID)
+	return s.store.RevokeToken(tok.ID)
 }
 
 // RevokeTokenByID revokes a token by its ID
 func (s *TokenService) RevokeTokenByID(ctx context.Context, tokenID, actorUserID string) error {
 	// Get token info before revocation
-	token, err := s.store.GetAccessTokenByID(tokenID)
+	tok, err := s.store.GetAccessTokenByID(tokenID)
 	if err != nil {
 		return err
 	}
@@ -373,7 +313,7 @@ func (s *TokenService) RevokeTokenByID(ctx context.Context, tokenID, actorUserID
 				ResourceType: models.ResourceToken,
 				ResourceID:   tokenID,
 				Action:       "Token revocation failed",
-				Details:      models.AuditDetails{"token_category": token.TokenCategory},
+				Details:      models.AuditDetails{"token_category": tok.TokenCategory},
 				Success:      false,
 				ErrorMessage: err.Error(),
 			})
@@ -382,7 +322,7 @@ func (s *TokenService) RevokeTokenByID(ctx context.Context, tokenID, actorUserID
 	}
 
 	// Record revocation
-	s.metrics.RecordTokenRevoked(token.TokenCategory, "user_request")
+	s.metrics.RecordTokenRevoked(tok.TokenCategory, "user_request")
 
 	// Log token revocation
 	if s.auditService != nil {
@@ -394,9 +334,9 @@ func (s *TokenService) RevokeTokenByID(ctx context.Context, tokenID, actorUserID
 			ResourceID:   tokenID,
 			Action:       "Token revoked",
 			Details: models.AuditDetails{
-				"token_category": token.TokenCategory,
-				"client_id":      token.ClientID,
-				"token_user_id":  token.UserID,
+				"token_category": tok.TokenCategory,
+				"client_id":      tok.ClientID,
+				"token_user_id":  tok.UserID,
 			},
 			Success: true,
 		})
@@ -423,8 +363,8 @@ func (s *TokenService) GetUserTokensWithClient(userID string) ([]TokenWithClient
 
 	// Collect unique client IDs
 	clientIDSet := make(map[string]bool)
-	for _, token := range tokens {
-		clientIDSet[token.ClientID] = true
+	for _, tok := range tokens {
+		clientIDSet[tok.ClientID] = true
 	}
 
 	clientIDs := make([]string, 0, len(clientIDSet))
@@ -440,14 +380,14 @@ func (s *TokenService) GetUserTokensWithClient(userID string) ([]TokenWithClient
 
 	// Combine tokens with client information
 	result := make([]TokenWithClient, 0, len(tokens))
-	for _, token := range tokens {
-		clientName := token.ClientID // Default to ClientID if not found
-		if client, ok := clientMap[token.ClientID]; ok && client != nil {
+	for _, tok := range tokens {
+		clientName := tok.ClientID // Default to ClientID if not found
+		if client, ok := clientMap[tok.ClientID]; ok && client != nil {
 			clientName = client.ClientName
 		}
 
 		result = append(result, TokenWithClient{
-			AccessToken: token,
+			AccessToken: tok,
 			ClientName:  clientName,
 		})
 	}
@@ -471,8 +411,8 @@ func (s *TokenService) GetUserTokensWithClientPaginated(
 
 	// Collect unique client IDs
 	clientIDSet := make(map[string]bool)
-	for _, token := range tokens {
-		clientIDSet[token.ClientID] = true
+	for _, tok := range tokens {
+		clientIDSet[tok.ClientID] = true
 	}
 
 	clientIDs := make([]string, 0, len(clientIDSet))
@@ -488,14 +428,14 @@ func (s *TokenService) GetUserTokensWithClientPaginated(
 
 	// Combine tokens with client information
 	result := make([]TokenWithClient, 0, len(tokens))
-	for _, token := range tokens {
-		clientName := token.ClientID // Default to ClientID if not found
-		if client, ok := clientMap[token.ClientID]; ok && client != nil {
+	for _, tok := range tokens {
+		clientName := tok.ClientID // Default to ClientID if not found
+		if client, ok := clientMap[tok.ClientID]; ok && client != nil {
 			clientName = client.ClientName
 		}
 
 		result = append(result, TokenWithClient{
-			AccessToken: token,
+			AccessToken: tok,
 			ClientName:  clientName,
 		})
 	}
@@ -550,34 +490,14 @@ func (s *TokenService) RefreshAccessToken(
 
 	// 6. Use provider to generate new tokens (pass rotation config)
 	enableRotation := s.config.EnableTokenRotation
-	var refreshResult *token.RefreshResult
-	var providerErr error
 
-	switch s.tokenProviderMode {
-	case config.TokenProviderModeHTTPAPI:
-		if s.httpTokenProvider == nil {
-			return nil, nil, errors.New("HTTP token provider not configured")
-		}
-		refreshResult, providerErr = s.httpTokenProvider.RefreshAccessToken(
-			ctx,
-			refreshTokenString,
-			enableRotation,
-		)
-	case config.TokenProviderModeLocal:
-		fallthrough
-	default:
-		if s.localTokenProvider == nil {
-			return nil, nil, errors.New("local token provider not configured")
-		}
-		refreshResult, providerErr = s.localTokenProvider.RefreshAccessToken(
-			ctx,
-			refreshTokenString,
-			enableRotation,
-		)
-	}
-
+	refreshResult, providerErr := s.tokenProvider.RefreshAccessToken(
+		ctx,
+		refreshTokenString,
+		enableRotation,
+	)
 	if providerErr != nil {
-		log.Printf("[Token] Refresh failed provider=%s: %v", s.tokenProviderMode, providerErr)
+		log.Printf("[Token] Refresh failed provider=%s: %v", s.tokenProvider.Name(), providerErr)
 		s.metrics.RecordTokenRefresh(false)
 		return nil, nil, providerErr
 	}
@@ -663,10 +583,11 @@ func (s *TokenService) RefreshAccessToken(
 
 	// Log token refresh
 	if s.auditService != nil {
+		providerName := s.tokenProvider.Name()
 		details := models.AuditDetails{
 			"client_id":           newAccessToken.ClientID,
 			"scopes":              newAccessToken.Scopes,
-			"token_provider":      s.tokenProviderMode,
+			"token_provider":      providerName,
 			"rotation_enabled":    enableRotation,
 			"new_access_token_id": newAccessToken.ID,
 		}
@@ -744,39 +665,16 @@ func (s *TokenService) IssueClientCredentialsToken(
 	start := time.Now()
 	machineUserID := "client:" + clientID
 
-	var accessTokenResult *token.Result
-	var providerErr error
-
-	switch s.tokenProviderMode {
-	case config.TokenProviderModeHTTPAPI:
-		if s.httpTokenProvider == nil {
-			return nil, errors.New(
-				"HTTP token provider not configured (TOKEN_PROVIDER_MODE=http_api requires TOKEN_API_URL)",
-			)
-		}
-		// HTTP API provider uses GenerateToken; the machineUserID is passed as user_id
-		accessTokenResult, providerErr = s.httpTokenProvider.GenerateToken(
-			ctx,
-			machineUserID,
-			clientID,
-			effectiveScopes,
-		)
-	default:
-		if s.localTokenProvider == nil {
-			return nil, errors.New("local token provider not configured")
-		}
-		accessTokenResult, providerErr = s.localTokenProvider.GenerateClientCredentialsToken(
-			ctx,
-			machineUserID,
-			clientID,
-			effectiveScopes,
-		)
-	}
-
+	accessTokenResult, providerErr := s.tokenProvider.GenerateClientCredentialsToken(
+		ctx,
+		machineUserID,
+		clientID,
+		effectiveScopes,
+	)
 	if providerErr != nil {
 		log.Printf(
 			"[Token] Client credentials token generation failed provider=%s: %v",
-			s.tokenProviderMode,
+			s.tokenProvider.Name(),
 			providerErr,
 		)
 		return nil, fmt.Errorf("token generation failed: %w", providerErr)
@@ -803,8 +701,9 @@ func (s *TokenService) IssueClientCredentialsToken(
 	}
 
 	// 8. Metrics
+	providerName := s.tokenProvider.Name()
 	duration := time.Since(start)
-	s.metrics.RecordTokenIssued("access", "client_credentials", duration, s.tokenProviderMode)
+	s.metrics.RecordTokenIssued("access", "client_credentials", duration, providerName)
 
 	// 9. Audit log
 	if s.auditService != nil {
@@ -818,7 +717,7 @@ func (s *TokenService) IssueClientCredentialsToken(
 			Details: models.AuditDetails{
 				"client_id":      clientID,
 				"scopes":         effectiveScopes,
-				"token_provider": s.tokenProviderMode,
+				"token_provider": providerName,
 			},
 			Success: true,
 		})
@@ -864,7 +763,7 @@ func (s *TokenService) updateTokenStatusWithAudit(
 	actionSuccess, actionFailed string,
 ) error {
 	// Get token info before updating
-	token, err := s.store.GetAccessTokenByID(tokenID)
+	tok, err := s.store.GetAccessTokenByID(tokenID)
 	if err != nil {
 		return err
 	}
@@ -873,12 +772,12 @@ func (s *TokenService) updateTokenStatusWithAudit(
 	switch newStatus {
 	case "disabled":
 		// Only active tokens can be disabled
-		if !token.IsActive() {
+		if !tok.IsActive() {
 			return ErrTokenCannotDisable
 		}
 	case "active":
 		// Re-enabling is only allowed from disabled state; revoked tokens must not be re-activated
-		if !token.IsDisabled() {
+		if !tok.IsDisabled() {
 			return ErrTokenCannotEnable
 		}
 	}
@@ -894,7 +793,7 @@ func (s *TokenService) updateTokenStatusWithAudit(
 				ResourceType: models.ResourceToken,
 				ResourceID:   tokenID,
 				Action:       actionFailed,
-				Details:      models.AuditDetails{"token_category": token.TokenCategory},
+				Details:      models.AuditDetails{"token_category": tok.TokenCategory},
 				Success:      false,
 				ErrorMessage: err.Error(),
 			})
@@ -912,9 +811,9 @@ func (s *TokenService) updateTokenStatusWithAudit(
 			ResourceID:   tokenID,
 			Action:       actionSuccess,
 			Details: models.AuditDetails{
-				"token_category": token.TokenCategory,
-				"client_id":      token.ClientID,
-				"token_user_id":  token.UserID,
+				"token_category": tok.TokenCategory,
+				"client_id":      tok.ClientID,
+				"token_user_id":  tok.UserID,
 			},
 			Success: true,
 		})
@@ -970,40 +869,19 @@ func (s *TokenService) ExchangeAuthorizationCode(
 	authorizationID *uint,
 ) (*models.AccessToken, *models.AccessToken, string, error) {
 	start := time.Now()
+	providerName := s.tokenProvider.Name()
 
 	// Generate access token via configured provider
-	var accessTokenResult *token.Result
-	var providerErr error
-
-	switch s.tokenProviderMode {
-	case config.TokenProviderModeHTTPAPI:
-		if s.httpTokenProvider == nil {
-			return nil, nil, "", errors.New(
-				"HTTP token provider not configured (TOKEN_PROVIDER_MODE=http_api requires TOKEN_API_URL)",
-			)
-		}
-		accessTokenResult, providerErr = s.httpTokenProvider.GenerateToken(
-			ctx,
-			authCode.UserID,
-			authCode.ClientID,
-			authCode.Scopes,
-		)
-	default:
-		if s.localTokenProvider == nil {
-			return nil, nil, "", errors.New("local token provider not configured")
-		}
-		accessTokenResult, providerErr = s.localTokenProvider.GenerateToken(
-			ctx,
-			authCode.UserID,
-			authCode.ClientID,
-			authCode.Scopes,
-		)
-	}
-
+	accessTokenResult, providerErr := s.tokenProvider.GenerateToken(
+		ctx,
+		authCode.UserID,
+		authCode.ClientID,
+		authCode.Scopes,
+	)
 	if providerErr != nil {
 		log.Printf(
 			"[Token] Access token generation failed provider=%s: %v",
-			s.tokenProviderMode,
+			providerName,
 			providerErr,
 		)
 		return nil, nil, "", fmt.Errorf("token generation failed: %w", providerErr)
@@ -1013,29 +891,16 @@ func (s *TokenService) ExchangeAuthorizationCode(
 	}
 
 	// Generate refresh token
-	var refreshTokenResult *token.Result
-
-	switch s.tokenProviderMode {
-	case config.TokenProviderModeHTTPAPI:
-		refreshTokenResult, providerErr = s.httpTokenProvider.GenerateRefreshToken(
-			ctx,
-			authCode.UserID,
-			authCode.ClientID,
-			authCode.Scopes,
-		)
-	default:
-		refreshTokenResult, providerErr = s.localTokenProvider.GenerateRefreshToken(
-			ctx,
-			authCode.UserID,
-			authCode.ClientID,
-			authCode.Scopes,
-		)
-	}
-
+	refreshTokenResult, providerErr := s.tokenProvider.GenerateRefreshToken(
+		ctx,
+		authCode.UserID,
+		authCode.ClientID,
+		authCode.Scopes,
+	)
 	if providerErr != nil {
 		log.Printf(
 			"[Token] Refresh token generation failed provider=%s: %v",
-			s.tokenProviderMode,
+			providerName,
 			providerErr,
 		)
 		return nil, nil, "", fmt.Errorf("refresh token generation failed: %w", providerErr)
@@ -1093,11 +958,10 @@ func (s *TokenService) ExchangeAuthorizationCode(
 
 	// Generate OIDC ID Token when openid scope was granted (OIDC Core 1.0 §3.1.3.3).
 	// ID tokens are not stored in the database; they are short-lived and non-revocable.
-	// NOTE: ID token generation is only supported when a local token provider is configured.
-	// When TOKEN_PROVIDER_MODE is set to http_api, s.localTokenProvider is nil and this block
-	// is skipped, so no ID token will be returned even if the openid scope is requested.
+	// ID token generation is only supported when the provider implements IDTokenProvider
+	// (i.e. LocalTokenProvider). HTTP API providers cannot produce OIDC ID tokens.
 	var idToken string
-	if s.localTokenProvider != nil {
+	if idp, ok := s.tokenProvider.(token.IDTokenProvider); ok {
 		scopeSet := token.ScopeSet(authCode.Scopes)
 		if scopeSet["openid"] {
 			params := token.IDTokenParams{
@@ -1130,7 +994,7 @@ func (s *TokenService) ExchangeAuthorizationCode(
 				)
 			}
 
-			if generated, err := s.localTokenProvider.GenerateIDToken(params); err == nil {
+			if generated, err := idp.GenerateIDToken(params); err == nil {
 				idToken = generated
 				if s.auditService != nil {
 					s.auditService.Log(ctx, AuditLogEntry{
@@ -1143,7 +1007,7 @@ func (s *TokenService) ExchangeAuthorizationCode(
 						Details: models.AuditDetails{
 							"client_id":       authCode.ClientID,
 							"scopes":          authCode.Scopes,
-							"token_provider":  s.tokenProviderMode,
+							"token_provider":  providerName,
 							"access_token_id": accessToken.ID,
 						},
 						Success: true,
@@ -1157,8 +1021,8 @@ func (s *TokenService) ExchangeAuthorizationCode(
 
 	// Metrics
 	duration := time.Since(start)
-	s.metrics.RecordTokenIssued("access", "authorization_code", duration, s.tokenProviderMode)
-	s.metrics.RecordTokenIssued("refresh", "authorization_code", duration, s.tokenProviderMode)
+	s.metrics.RecordTokenIssued("access", "authorization_code", duration, providerName)
+	s.metrics.RecordTokenIssued("refresh", "authorization_code", duration, providerName)
 
 	// Audit
 	if s.auditService != nil {
@@ -1172,7 +1036,7 @@ func (s *TokenService) ExchangeAuthorizationCode(
 			Details: models.AuditDetails{
 				"client_id":        accessToken.ClientID,
 				"scopes":           accessToken.Scopes,
-				"token_provider":   s.tokenProviderMode,
+				"token_provider":   providerName,
 				"refresh_token_id": refreshToken.ID,
 			},
 			Success: true,
@@ -1187,7 +1051,7 @@ func (s *TokenService) ExchangeAuthorizationCode(
 			Details: models.AuditDetails{
 				"client_id":       refreshToken.ClientID,
 				"scopes":          refreshToken.Scopes,
-				"token_provider":  s.tokenProviderMode,
+				"token_provider":  providerName,
 				"access_token_id": accessToken.ID,
 			},
 			Success: true,

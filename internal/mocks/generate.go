@@ -5,3 +5,4 @@ package mocks
 //go:generate go run go.uber.org/mock/mockgen -source=../core/cache.go -destination=mock_cache.go -package=mocks
 //go:generate go run go.uber.org/mock/mockgen -source=../core/metrics.go -destination=mock_metrics.go -package=mocks
 //go:generate go run go.uber.org/mock/mockgen -source=../core/auth.go -destination=mock_auth.go -package=mocks
+//go:generate go run go.uber.org/mock/mockgen -source=../core/token.go -destination=mock_token.go -package=mocks
