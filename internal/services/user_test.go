@@ -265,3 +265,116 @@ func TestAuthenticate_UserNotFound_LocalMode(t *testing.T) {
 	_, err := svc.Authenticate(context.Background(), "nonexistent-user", "pass")
 	assert.ErrorIs(t, err, ErrInvalidCredentials)
 }
+
+// TestAuthenticate_LocalSuccessFalse covers the if !authResult.Success branch in
+// authenticateExistingUser when the provider returns a non-nil result with Success=false
+// and a nil error (distinct from the error-return path).
+func TestAuthenticate_LocalSuccessFalse(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	mockLocalProvider := mocks.NewMockAuthProvider(ctrl)
+
+	u := makeTestUser(t, db)
+
+	mockLocalProvider.EXPECT().
+		Authenticate(gomock.Any(), u.Username, "bad-pass").
+		Return(&core.AuthResult{Username: u.Username, Success: false}, nil).
+		Times(1)
+
+	svc := newUserServiceForAuth(db, mockLocalProvider, nil, AuthModeLocal, mockCache)
+	_, err := svc.Authenticate(context.Background(), u.Username, "bad-pass")
+	assert.ErrorIs(t, err, ErrInvalidCredentials)
+}
+
+// TestAuthenticate_HTTPAPIExistingUser_SuccessFalse covers the if !authResult.Success branch
+// for an existing HTTP API user (no sync occurs because Success=false).
+func TestAuthenticate_HTTPAPIExistingUser_SuccessFalse(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	mockHTTPAPIProvider := mocks.NewMockAuthProvider(ctrl)
+
+	u := makeTestHTTPAPIUser(t, db)
+
+	mockHTTPAPIProvider.EXPECT().
+		Authenticate(gomock.Any(), u.Username, "bad-pass").
+		Return(&core.AuthResult{Username: u.Username, ExternalID: u.ExternalID, Success: false}, nil).
+		Times(1)
+
+	// No cache.Delete call expected: sync only runs when Success=true.
+	svc := newUserServiceForAuth(db, nil, mockHTTPAPIProvider, AuthModeHTTPAPI, mockCache)
+	_, err := svc.Authenticate(context.Background(), u.Username, "bad-pass")
+	assert.ErrorIs(t, err, ErrInvalidCredentials)
+}
+
+// TestAuthenticate_HTTPAPINewUser_Success covers authenticateAndCreateExternalUser when
+// the user does not yet exist and the HTTP API provider returns a successful result,
+// triggering new-user creation via syncExternalUser.
+func TestAuthenticate_HTTPAPINewUser_Success(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	mockHTTPAPIProvider := mocks.NewMockAuthProvider(ctrl)
+
+	newUsername := "new-httpuser-" + uuid.New().String()[:8]
+	newExtID := "ext-new-" + uuid.New().String()[:8]
+
+	mockHTTPAPIProvider.EXPECT().
+		Authenticate(gomock.Any(), newUsername, "pass").
+		Return(&core.AuthResult{
+			Username:   newUsername,
+			ExternalID: newExtID,
+			Email:      newUsername + "@example.com",
+			Success:    true,
+		}, nil).
+		Times(1)
+
+	// syncExternalUser calls InvalidateUserCache → cache.Delete for the new user.
+	mockCache.EXPECT().
+		Delete(gomock.Any(), gomock.Any()).
+		Return(nil).
+		Times(1)
+
+	svc := newUserServiceForAuth(db, nil, mockHTTPAPIProvider, AuthModeHTTPAPI, mockCache)
+	result, err := svc.Authenticate(context.Background(), newUsername, "pass")
+	require.NoError(t, err)
+	assert.Equal(t, newUsername, result.Username)
+	assert.Equal(t, newExtID, result.ExternalID)
+}
+
+// TestAuthenticate_HTTPAPINewUser_SuccessFalse covers authenticateAndCreateExternalUser when
+// the user does not exist and the HTTP API provider returns Success=false with a nil error.
+func TestAuthenticate_HTTPAPINewUser_SuccessFalse(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	mockHTTPAPIProvider := mocks.NewMockAuthProvider(ctrl)
+
+	mockHTTPAPIProvider.EXPECT().
+		Authenticate(gomock.Any(), "ghost-user", "bad-pass").
+		Return(&core.AuthResult{Username: "ghost-user", Success: false}, nil).
+		Times(1)
+
+	svc := newUserServiceForAuth(db, nil, mockHTTPAPIProvider, AuthModeHTTPAPI, mockCache)
+	_, err := svc.Authenticate(context.Background(), "ghost-user", "bad-pass")
+	assert.ErrorIs(t, err, ErrInvalidCredentials)
+}
+
+// TestAuthenticate_HTTPAPINewUser_AuthError covers authenticateAndCreateExternalUser when
+// the user does not exist and the HTTP API provider returns an error (distinct from Success=false).
+func TestAuthenticate_HTTPAPINewUser_AuthError(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	mockHTTPAPIProvider := mocks.NewMockAuthProvider(ctrl)
+
+	mockHTTPAPIProvider.EXPECT().
+		Authenticate(gomock.Any(), "ghost-user", "bad-pass").
+		Return(nil, errors.New("provider unavailable")).
+		Times(1)
+
+	svc := newUserServiceForAuth(db, nil, mockHTTPAPIProvider, AuthModeHTTPAPI, mockCache)
+	_, err := svc.Authenticate(context.Background(), "ghost-user", "bad-pass")
+	assert.ErrorIs(t, err, ErrInvalidCredentials)
+}
