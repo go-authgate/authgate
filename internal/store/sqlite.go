@@ -463,9 +463,9 @@ func (s *Store) CreateAccessToken(token *models.AccessToken) error {
 	return s.db.Create(token).Error
 }
 
-func (s *Store) GetAccessToken(token string) (*models.AccessToken, error) {
+func (s *Store) GetAccessTokenByHash(hash string) (*models.AccessToken, error) {
 	var t models.AccessToken
-	if err := s.db.Where("token = ?", token).First(&t).Error; err != nil {
+	if err := s.db.Where("token_hash = ?", hash).First(&t).Error; err != nil {
 		return nil, err
 	}
 	return &t, nil

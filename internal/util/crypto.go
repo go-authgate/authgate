@@ -30,3 +30,11 @@ func HashToken(token, salt string) string {
 	hash := pbkdf2.Key([]byte(token), []byte(salt), 10000, 50, sha256.New)
 	return hex.EncodeToString(hash)
 }
+
+// SHA256Hex returns the SHA-256 hash of s as a lowercase hex string.
+// Intended for use with high-entropy, unguessable values (e.g., randomly
+// generated tokens); for such inputs, a salt is not required for security.
+func SHA256Hex(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])
+}

@@ -43,6 +43,35 @@ func TestCryptoRandomString(t *testing.T) {
 	})
 }
 
+func TestSHA256Hex(t *testing.T) {
+	t.Run("Known vector", func(t *testing.T) {
+		// echo -n "hello" | sha256sum → 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+		assert.Equal(t, "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824", SHA256Hex("hello"))
+	})
+
+	t.Run("Output is 64 lowercase hex characters", func(t *testing.T) {
+		result := SHA256Hex("any input")
+		assert.Len(t, result, 64)
+		for _, c := range result {
+			assert.True(t, (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'),
+				"Character '%c' is not a lowercase hex digit", c)
+		}
+	})
+
+	t.Run("Same input produces same hash", func(t *testing.T) {
+		assert.Equal(t, SHA256Hex("token"), SHA256Hex("token"))
+	})
+
+	t.Run("Different inputs produce different hashes", func(t *testing.T) {
+		assert.NotEqual(t, SHA256Hex("token-a"), SHA256Hex("token-b"))
+	})
+
+	t.Run("Empty string has known hash", func(t *testing.T) {
+		// SHA-256 of empty string is well-defined
+		assert.Equal(t, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", SHA256Hex(""))
+	})
+}
+
 func TestHashToken(t *testing.T) {
 	t.Run("Same input produces same hash", func(t *testing.T) {
 		token := "test-device-code-12345"

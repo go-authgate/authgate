@@ -6,7 +6,8 @@ import (
 
 type AccessToken struct {
 	ID              string `gorm:"primaryKey"`
-	Token           string `gorm:"uniqueIndex;not null"`
+	TokenHash       string `gorm:"uniqueIndex;not null"`
+	RawToken        string `gorm:"-"` // In-memory only; never persisted to DB
 	TokenType       string `gorm:"not null;default:'Bearer'"`
 	TokenCategory   string `gorm:"not null;default:'access';index"` // 'access' or 'refresh'
 	Status          string `gorm:"not null;default:'active';index"` // 'active', 'disabled', 'revoked'

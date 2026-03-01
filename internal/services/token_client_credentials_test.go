@@ -78,7 +78,7 @@ func TestIssueClientCredentialsToken_Success_DefaultScopes(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, tok)
-	assert.NotEmpty(t, tok.Token)
+	assert.NotEmpty(t, tok.RawToken)
 	assert.Equal(t, "Bearer", tok.TokenType)
 	assert.Equal(t, "access", tok.TokenCategory)
 	assert.Equal(t, "active", tok.Status)
@@ -245,7 +245,7 @@ func TestIssueClientCredentialsToken_TokenPersisted(t *testing.T) {
 	require.NoError(t, err)
 
 	// Validate through the service — token must be in the database
-	result, err := svc.ValidateToken(context.Background(), tok.Token)
+	result, err := svc.ValidateToken(context.Background(), tok.RawToken)
 	require.NoError(t, err)
 	assert.True(t, result.Valid)
 	assert.Equal(t, "client:"+client.ClientID, result.UserID)
