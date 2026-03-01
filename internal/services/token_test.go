@@ -10,6 +10,7 @@ import (
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/store"
 	"github.com/go-authgate/authgate/internal/token"
+	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -74,7 +75,7 @@ func TestExchangeDeviceCode_ActiveClient(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, token)
-	assert.NotEmpty(t, token.Token)
+	assert.NotEmpty(t, token.RawToken)
 	assert.Equal(t, "Bearer", token.TokenType)
 	assert.Equal(t, client.ClientID, token.ClientID)
 	assert.Equal(t, "read write", token.Scopes)
@@ -251,7 +252,7 @@ func TestValidateToken_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	// Validate the token
-	claims, err := tokenService.ValidateToken(context.Background(), token.Token)
+	claims, err := tokenService.ValidateToken(context.Background(), token.RawToken)
 
 	// Assert
 	require.NoError(t, err)
@@ -301,7 +302,7 @@ func TestValidateToken_WrongSecret(t *testing.T) {
 		JWTSecret: "different-secret",
 	}
 	differentTokenService := createTestTokenService(s, differentCfg)
-	claims, err := differentTokenService.ValidateToken(context.Background(), token.Token)
+	claims, err := differentTokenService.ValidateToken(context.Background(), token.RawToken)
 
 	// Assert
 	require.Error(t, err)
@@ -330,13 +331,13 @@ func TestRevokeToken_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	// Revoke the token
-	err = tokenService.RevokeToken(token.Token)
+	err = tokenService.RevokeToken(token.RawToken)
 
 	// Assert
 	require.NoError(t, err)
 
 	// Verify token is removed from database
-	_, err = s.GetAccessToken(token.Token)
+	_, err = s.GetAccessTokenByHash(util.SHA256Hex(token.RawToken))
 	assert.Error(t, err) // Should not be found
 }
 
@@ -671,7 +672,7 @@ func TestExchangeAuthorizationCode_IssuesTokens(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, accessToken)
-	assert.NotEmpty(t, accessToken.Token)
+	assert.NotEmpty(t, accessToken.RawToken)
 	assert.Equal(t, "Bearer", accessToken.TokenType)
 	assert.Equal(t, userID, accessToken.UserID)
 	assert.Equal(t, client.ClientID, accessToken.ClientID)
@@ -866,7 +867,7 @@ func TestExchangeAuthorizationCode_IDToken_ContainsAtHash(t *testing.T) {
 	require.NotEmpty(t, idToken)
 
 	// The at_hash in the ID token must be derived from the issued access token string.
-	expectedAtHash := token.ComputeAtHash(accessToken.Token)
+	expectedAtHash := token.ComputeAtHash(accessToken.RawToken)
 
 	localProvider := token.NewLocalTokenProvider(cfg)
 	result, err := localProvider.ValidateToken(context.Background(), idToken)
@@ -1072,7 +1073,7 @@ func TestValidateToken_RevokedToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// Validate should now fail
-	claims, err := tokenService.ValidateToken(context.Background(), accessToken.Token)
+	claims, err := tokenService.ValidateToken(context.Background(), accessToken.RawToken)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "revoked")
 	assert.Nil(t, claims)
@@ -1103,7 +1104,7 @@ func TestValidateToken_DisabledToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// Validate should now fail
-	claims, err := tokenService.ValidateToken(context.Background(), accessToken.Token)
+	claims, err := tokenService.ValidateToken(context.Background(), accessToken.RawToken)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "revoked")
 	assert.Nil(t, claims)
@@ -1136,7 +1137,7 @@ func TestValidateToken_ExpiredDBRecord(t *testing.T) {
 	require.NoError(t, err)
 
 	// Validate should fail due to DB-side expiry check
-	claims, err := tokenService.ValidateToken(context.Background(), accessToken.Token)
+	claims, err := tokenService.ValidateToken(context.Background(), accessToken.RawToken)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expired")
 	assert.Nil(t, claims)
@@ -1166,7 +1167,7 @@ func TestValidateToken_RefreshTokenRejected(t *testing.T) {
 	require.NotNil(t, refreshToken)
 
 	// Passing a refresh token to ValidateToken must be rejected
-	claims, err := tokenService.ValidateToken(context.Background(), refreshToken.Token)
+	claims, err := tokenService.ValidateToken(context.Background(), refreshToken.RawToken)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not an access token")
 	assert.Nil(t, claims)

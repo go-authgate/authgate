@@ -138,8 +138,7 @@ func (s *AuthorizationService) CreateAuthorizationCode(
 	plainCode = hex.EncodeToString(rawBytes) // 64-char hex string
 
 	// SHA-256 hash for secure storage (no salt needed: 256-bit entropy is sufficient)
-	sum := sha256.Sum256([]byte(plainCode))
-	codeHash := hex.EncodeToString(sum[:])
+	codeHash := util.SHA256Hex(plainCode)
 	codePrefix := plainCode[:8]
 
 	record = &models.AuthorizationCode{
@@ -189,8 +188,7 @@ func (s *AuthorizationService) ExchangeCode(
 	plainCode, clientID, redirectURI, clientSecret, codeVerifier string,
 ) (*models.AuthorizationCode, error) {
 	// Hash the incoming code for lookup
-	sum := sha256.Sum256([]byte(plainCode))
-	codeHash := hex.EncodeToString(sum[:])
+	codeHash := util.SHA256Hex(plainCode)
 
 	record, err := s.store.GetAuthorizationCodeByHash(codeHash)
 	if err != nil {

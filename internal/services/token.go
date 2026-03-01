@@ -13,6 +13,7 @@ import (
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/store"
 	"github.com/go-authgate/authgate/internal/token"
+	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/google/uuid"
 )
@@ -162,7 +163,8 @@ func (s *TokenService) ExchangeDeviceCode(
 	// Create access token record
 	accessToken := &models.AccessToken{
 		ID:            uuid.New().String(),
-		Token:         accessTokenResult.TokenString,
+		TokenHash:     util.SHA256Hex(accessTokenResult.TokenString),
+		RawToken:      accessTokenResult.TokenString,
 		TokenType:     accessTokenResult.TokenType,
 		TokenCategory: "access", // Explicitly set token category
 		Status:        "active", // Set initial status
@@ -175,7 +177,8 @@ func (s *TokenService) ExchangeDeviceCode(
 	// Create refresh token record
 	refreshToken := &models.AccessToken{
 		ID:            uuid.New().String(),
-		Token:         refreshTokenResult.TokenString,
+		TokenHash:     util.SHA256Hex(refreshTokenResult.TokenString),
+		RawToken:      refreshTokenResult.TokenString,
 		TokenType:     refreshTokenResult.TokenType,
 		TokenCategory: "refresh", // Mark as refresh token
 		Status:        "active",  // Set initial status
@@ -265,7 +268,7 @@ func (s *TokenService) ValidateToken(
 	}
 
 	// Check token exists in database and validate its state (revocation, expiry, category)
-	tok, err := s.store.GetAccessToken(tokenString)
+	tok, err := s.store.GetAccessTokenByHash(util.SHA256Hex(tokenString))
 	if err != nil {
 		return nil, errors.New("token not found or revoked")
 	}
@@ -285,7 +288,7 @@ func (s *TokenService) ValidateToken(
 // RevokeToken revokes a token by its JWT string
 func (s *TokenService) RevokeToken(tokenString string) error {
 	// Get the token from database
-	tok, err := s.store.GetAccessToken(tokenString)
+	tok, err := s.store.GetAccessTokenByHash(util.SHA256Hex(tokenString))
 	if err != nil {
 		return errors.New("token not found")
 	}
@@ -454,7 +457,7 @@ func (s *TokenService) RefreshAccessToken(
 	refreshTokenString, clientID, requestedScopes string,
 ) (*models.AccessToken, *models.AccessToken, error) {
 	// 1. Get refresh token from database
-	refreshToken, err := s.store.GetAccessToken(refreshTokenString)
+	refreshToken, err := s.store.GetAccessTokenByHash(util.SHA256Hex(refreshTokenString))
 	if err != nil {
 		s.metrics.RecordTokenRefresh(false)
 		return nil, nil, token.ErrInvalidRefreshToken
@@ -518,7 +521,8 @@ func (s *TokenService) RefreshAccessToken(
 	// 7.1 Create new access token
 	newAccessToken := &models.AccessToken{
 		ID:            uuid.New().String(),
-		Token:         refreshResult.AccessToken.TokenString,
+		TokenHash:     util.SHA256Hex(refreshResult.AccessToken.TokenString),
+		RawToken:      refreshResult.AccessToken.TokenString,
 		TokenCategory: "access",
 		Status:        "active",
 		TokenType:     refreshResult.AccessToken.TokenType,
@@ -541,7 +545,8 @@ func (s *TokenService) RefreshAccessToken(
 		// Rotation mode: create new refresh token, revoke old one
 		newRefreshToken = &models.AccessToken{
 			ID:            uuid.New().String(),
-			Token:         refreshResult.RefreshToken.TokenString,
+			TokenHash:     util.SHA256Hex(refreshResult.RefreshToken.TokenString),
+			RawToken:      refreshResult.RefreshToken.TokenString,
 			TokenCategory: "refresh",
 			Status:        "active",
 			TokenType:     refreshResult.RefreshToken.TokenType,
@@ -569,7 +574,9 @@ func (s *TokenService) RefreshAccessToken(
 			tx.Rollback()
 			return nil, nil, fmt.Errorf("failed to update refresh token last_used_at: %w", err)
 		}
-		// Return original refresh token (unchanged)
+		// Return original refresh token, restoring RawToken so the handler can
+		// echo it back to the client (RawToken is gorm:"-" and was not loaded from DB).
+		refreshToken.RawToken = refreshTokenString
 		newRefreshToken = refreshToken
 	}
 
@@ -686,7 +693,8 @@ func (s *TokenService) IssueClientCredentialsToken(
 	// 7. Persist the token record (no AuthorizationID — no user consent)
 	accessToken := &models.AccessToken{
 		ID:            uuid.New().String(),
-		Token:         accessTokenResult.TokenString,
+		TokenHash:     util.SHA256Hex(accessTokenResult.TokenString),
+		RawToken:      accessTokenResult.TokenString,
 		TokenType:     accessTokenResult.TokenType,
 		TokenCategory: "access",
 		Status:        "active",
@@ -912,7 +920,8 @@ func (s *TokenService) ExchangeAuthorizationCode(
 	// Build token records — link to UserAuthorization for cascade-revoke support
 	accessToken := &models.AccessToken{
 		ID:              uuid.New().String(),
-		Token:           accessTokenResult.TokenString,
+		TokenHash:       util.SHA256Hex(accessTokenResult.TokenString),
+		RawToken:        accessTokenResult.TokenString,
 		TokenType:       accessTokenResult.TokenType,
 		TokenCategory:   "access",
 		Status:          "active",
@@ -925,7 +934,8 @@ func (s *TokenService) ExchangeAuthorizationCode(
 
 	refreshToken := &models.AccessToken{
 		ID:              uuid.New().String(),
-		Token:           refreshTokenResult.TokenString,
+		TokenHash:       util.SHA256Hex(refreshTokenResult.TokenString),
+		RawToken:        refreshTokenResult.TokenString,
 		TokenType:       refreshTokenResult.TokenType,
 		TokenCategory:   "refresh",
 		Status:          "active",

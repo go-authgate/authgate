@@ -129,8 +129,8 @@ func (h *TokenHandler) handleDeviceCodeGrant(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"access_token":  accessToken.Token,
-		"refresh_token": refreshToken.Token,
+		"access_token":  accessToken.RawToken,
+		"refresh_token": refreshToken.RawToken,
 		"token_type":    accessToken.TokenType,
 		"expires_in":    int(h.config.JWTExpiration.Seconds()),
 		"scope":         accessToken.Scopes,
@@ -190,8 +190,8 @@ func (h *TokenHandler) handleRefreshTokenGrant(c *gin.Context) {
 
 	// 5. Return new tokens (RFC 6749 format)
 	c.JSON(http.StatusOK, gin.H{
-		"access_token":  newAccessToken.Token,
-		"refresh_token": newRefreshToken.Token,
+		"access_token":  newAccessToken.RawToken,
+		"refresh_token": newRefreshToken.RawToken,
 		"token_type":    newAccessToken.TokenType,
 		"expires_in":    int(h.config.JWTExpiration.Seconds()),
 		"scope":         newAccessToken.Scopes,
@@ -351,7 +351,7 @@ func (h *TokenHandler) handleClientCredentialsGrant(c *gin.Context) {
 
 	// RFC 6749 §4.4.3: response MUST NOT include a refresh_token
 	c.JSON(http.StatusOK, gin.H{
-		"access_token": accessToken.Token,
+		"access_token": accessToken.RawToken,
 		"token_type":   accessToken.TokenType,
 		"expires_in":   int(time.Until(accessToken.ExpiresAt).Seconds()),
 		"scope":        accessToken.Scopes,
@@ -415,13 +415,13 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 	}
 
 	resp := gin.H{
-		"access_token": accessToken.Token,
+		"access_token": accessToken.RawToken,
 		"token_type":   accessToken.TokenType,
 		"expires_in":   int(time.Until(accessToken.ExpiresAt).Seconds()),
 		"scope":        accessToken.Scopes,
 	}
 	if refreshToken != nil && h.config.EnableRefreshTokens {
-		resp["refresh_token"] = refreshToken.Token
+		resp["refresh_token"] = refreshToken.RawToken
 	}
 	if idToken != "" {
 		resp["id_token"] = idToken

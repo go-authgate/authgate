@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -203,9 +204,10 @@ func testBasicOperations(t *testing.T, driver string, pgContainer *postgres.Post
 	t.Run("CreateAndGetAccessToken", func(t *testing.T) {
 		store := createFreshStore(t, driver, pgContainer)
 
+		rawToken := uuid.New().String()
 		token := &models.AccessToken{
 			ID:        uuid.New().String(),
-			Token:     uuid.New().String(),
+			TokenHash: util.SHA256Hex(rawToken),
 			UserID:    uuid.New().String(),
 			ClientID:  uuid.New().String(),
 			Scopes:    "read write",
@@ -214,10 +216,10 @@ func testBasicOperations(t *testing.T, driver string, pgContainer *postgres.Post
 		err := store.CreateAccessToken(token)
 		require.NoError(t, err)
 
-		retrieved, err := store.GetAccessToken(token.Token)
+		retrieved, err := store.GetAccessTokenByHash(token.TokenHash)
 		require.NoError(t, err)
 		assert.Equal(t, token.ID, retrieved.ID)
-		assert.Equal(t, token.Token, retrieved.Token)
+		assert.Equal(t, token.TokenHash, retrieved.TokenHash)
 	})
 
 	t.Run("DeleteExpiredTokens", func(t *testing.T) {
@@ -226,7 +228,7 @@ func testBasicOperations(t *testing.T, driver string, pgContainer *postgres.Post
 		// Create expired token
 		expiredToken := &models.AccessToken{
 			ID:        uuid.New().String(),
-			Token:     uuid.New().String(),
+			TokenHash: util.SHA256Hex(uuid.New().String()),
 			UserID:    uuid.New().String(),
 			ClientID:  uuid.New().String(),
 			Scopes:    "read write",
@@ -240,7 +242,7 @@ func testBasicOperations(t *testing.T, driver string, pgContainer *postgres.Post
 		require.NoError(t, err)
 
 		// Verify token was deleted
-		_, err = store.GetAccessToken(expiredToken.Token)
+		_, err = store.GetAccessTokenByHash(expiredToken.TokenHash)
 		assert.Error(t, err)
 	})
 
