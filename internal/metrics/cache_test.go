@@ -6,57 +6,31 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/mock/gomock"
+
 	"github.com/go-authgate/authgate/internal/cache"
+	"github.com/go-authgate/authgate/internal/mocks"
 )
 
-// mockStore is a mock implementation of store.Store for testing
-type mockStore struct {
-	countActiveTokensFunc       func(category string) (int64, error)
-	countTotalDeviceCodesFunc   func() (int64, error)
-	countPendingDeviceCodesFunc func() (int64, error)
-}
-
-func (m *mockStore) CountActiveTokensByCategory(category string) (int64, error) {
-	if m.countActiveTokensFunc != nil {
-		return m.countActiveTokensFunc(category)
-	}
-	return 0, nil
-}
-
-func (m *mockStore) CountTotalDeviceCodes() (int64, error) {
-	if m.countTotalDeviceCodesFunc != nil {
-		return m.countTotalDeviceCodesFunc()
-	}
-	return 0, nil
-}
-
-func (m *mockStore) CountPendingDeviceCodes() (int64, error) {
-	if m.countPendingDeviceCodesFunc != nil {
-		return m.countPendingDeviceCodesFunc()
-	}
-	return 0, nil
-}
-
-// newTestCacheWrapper creates a CacheWrapper for testing
-func newTestCacheWrapper(store *mockStore, cache cache.Cache[int64]) *CacheWrapper {
-	return &CacheWrapper{
-		store: store,
-		cache: cache,
-	}
+// callFetchFn is a DoAndReturn helper that invokes the cache fetch function,
+// simulating a cache miss where the real DB fetch is executed.
+func callFetchFn[T any](
+	_ context.Context,
+	key string,
+	_ time.Duration,
+	fn func(context.Context, string) (T, error),
+) (T, error) {
+	return fn(context.Background(), key)
 }
 
 func TestCacheWrapper_GetActiveTokensCount_CacheHit(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache[int64]()
+	ctrl := gomock.NewController(t)
+	mockStore := mocks.NewMockMetricsStore(ctrl)
+	// No expectations: if CountActiveTokensByCategory is called, gomock fails automatically
 
-	store := &mockStore{
-		countActiveTokensFunc: func(category string) (int64, error) {
-			t.Fatal("Should not call store on cache hit")
-			return 0, nil
-		},
-	}
-
-	wrapper := newTestCacheWrapper(store, memCache)
+	wrapper := NewCacheWrapper(mockStore, memCache)
 
 	// Pre-populate cache
 	_ = memCache.Set(ctx, "tokens:access", 42, time.Minute)
@@ -74,19 +48,11 @@ func TestCacheWrapper_GetActiveTokensCount_CacheHit(t *testing.T) {
 func TestCacheWrapper_GetActiveTokensCount_CacheMiss(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache[int64]()
+	ctrl := gomock.NewController(t)
+	mockStore := mocks.NewMockMetricsStore(ctrl)
+	mockStore.EXPECT().CountActiveTokensByCategory("access").Return(int64(100), nil).Times(1)
 
-	dbCalled := false
-	store := &mockStore{
-		countActiveTokensFunc: func(category string) (int64, error) {
-			dbCalled = true
-			if category != "access" {
-				t.Errorf("Expected category 'access', got '%s'", category)
-			}
-			return 100, nil
-		},
-	}
-
-	wrapper := newTestCacheWrapper(store, memCache)
+	wrapper := NewCacheWrapper(mockStore, memCache)
 
 	count, err := wrapper.GetActiveTokensCount(ctx, "access", time.Minute)
 	if err != nil {
@@ -95,10 +61,6 @@ func TestCacheWrapper_GetActiveTokensCount_CacheMiss(t *testing.T) {
 
 	if count != 100 {
 		t.Errorf("Expected count 100, got %d", count)
-	}
-
-	if !dbCalled {
-		t.Error("Expected database to be called on cache miss")
 	}
 
 	// Verify cache was updated
@@ -115,15 +77,12 @@ func TestCacheWrapper_GetActiveTokensCount_CacheMiss(t *testing.T) {
 func TestCacheWrapper_GetActiveTokensCount_DBError(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache[int64]()
-
+	ctrl := gomock.NewController(t)
 	expectedErr := errors.New("database connection failed")
-	store := &mockStore{
-		countActiveTokensFunc: func(category string) (int64, error) {
-			return 0, expectedErr
-		},
-	}
+	mockStore := mocks.NewMockMetricsStore(ctrl)
+	mockStore.EXPECT().CountActiveTokensByCategory("access").Return(int64(0), expectedErr).Times(1)
 
-	wrapper := newTestCacheWrapper(store, memCache)
+	wrapper := NewCacheWrapper(mockStore, memCache)
 
 	_, err := wrapper.GetActiveTokensCount(ctx, "access", time.Minute)
 	if err != expectedErr {
@@ -134,16 +93,26 @@ func TestCacheWrapper_GetActiveTokensCount_DBError(t *testing.T) {
 func TestCacheWrapper_GetActiveTokensCount_CacheExpiration(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache[int64]()
+	ctrl := gomock.NewController(t)
+	mockStore := mocks.NewMockMetricsStore(ctrl)
 
 	callCount := 0
-	store := &mockStore{
-		countActiveTokensFunc: func(category string) (int64, error) {
-			callCount++
-			return int64(callCount * 10), nil
-		},
-	}
+	gomock.InOrder(
+		mockStore.EXPECT().
+			CountActiveTokensByCategory("access").
+			DoAndReturn(func(category string) (int64, error) {
+				callCount++
+				return int64(callCount * 10), nil
+			}),
+		mockStore.EXPECT().
+			CountActiveTokensByCategory("access").
+			DoAndReturn(func(category string) (int64, error) {
+				callCount++
+				return int64(callCount * 10), nil
+			}),
+	)
 
-	wrapper := newTestCacheWrapper(store, memCache)
+	wrapper := NewCacheWrapper(mockStore, memCache)
 
 	// First call - cache miss, should query DB
 	count1, _ := wrapper.GetActiveTokensCount(ctx, "access", 50*time.Millisecond)
@@ -178,15 +147,11 @@ func TestCacheWrapper_GetActiveTokensCount_CacheExpiration(t *testing.T) {
 func TestCacheWrapper_GetTotalDeviceCodesCount_CacheHit(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache[int64]()
+	ctrl := gomock.NewController(t)
+	mockStore := mocks.NewMockMetricsStore(ctrl)
+	// No expectations: if CountTotalDeviceCodes is called, gomock fails automatically
 
-	store := &mockStore{
-		countTotalDeviceCodesFunc: func() (int64, error) {
-			t.Fatal("Should not call store on cache hit")
-			return 0, nil
-		},
-	}
-
-	wrapper := newTestCacheWrapper(store, memCache)
+	wrapper := NewCacheWrapper(mockStore, memCache)
 
 	// Pre-populate cache
 	_ = memCache.Set(ctx, "devices:total", 100, time.Minute)
@@ -204,15 +169,11 @@ func TestCacheWrapper_GetTotalDeviceCodesCount_CacheHit(t *testing.T) {
 func TestCacheWrapper_GetPendingDeviceCodesCount_CacheHit(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache[int64]()
+	ctrl := gomock.NewController(t)
+	mockStore := mocks.NewMockMetricsStore(ctrl)
+	// No expectations: if CountPendingDeviceCodes is called, gomock fails automatically
 
-	store := &mockStore{
-		countPendingDeviceCodesFunc: func() (int64, error) {
-			t.Fatal("Should not call store on cache hit")
-			return 0, nil
-		},
-	}
-
-	wrapper := newTestCacheWrapper(store, memCache)
+	wrapper := NewCacheWrapper(mockStore, memCache)
 
 	// Pre-populate cache
 	_ = memCache.Set(ctx, "devices:pending", 25, time.Minute)
@@ -230,16 +191,11 @@ func TestCacheWrapper_GetPendingDeviceCodesCount_CacheHit(t *testing.T) {
 func TestCacheWrapper_GetTotalDeviceCodesCount_CacheMiss(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache[int64]()
+	ctrl := gomock.NewController(t)
+	mockStore := mocks.NewMockMetricsStore(ctrl)
+	mockStore.EXPECT().CountTotalDeviceCodes().Return(int64(200), nil).Times(1)
 
-	dbCalled := false
-	store := &mockStore{
-		countTotalDeviceCodesFunc: func() (int64, error) {
-			dbCalled = true
-			return 200, nil
-		},
-	}
-
-	wrapper := newTestCacheWrapper(store, memCache)
+	wrapper := NewCacheWrapper(mockStore, memCache)
 
 	count, err := wrapper.GetTotalDeviceCodesCount(ctx, time.Minute)
 	if err != nil {
@@ -248,10 +204,6 @@ func TestCacheWrapper_GetTotalDeviceCodesCount_CacheMiss(t *testing.T) {
 
 	if count != 200 {
 		t.Errorf("Expected count 200, got %d", count)
-	}
-
-	if !dbCalled {
-		t.Error("Expected database to be called on cache miss")
 	}
 
 	// Verify cache was updated
@@ -268,16 +220,11 @@ func TestCacheWrapper_GetTotalDeviceCodesCount_CacheMiss(t *testing.T) {
 func TestCacheWrapper_GetPendingDeviceCodesCount_CacheMiss(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache[int64]()
+	ctrl := gomock.NewController(t)
+	mockStore := mocks.NewMockMetricsStore(ctrl)
+	mockStore.EXPECT().CountPendingDeviceCodes().Return(int64(50), nil).Times(1)
 
-	dbCalled := false
-	store := &mockStore{
-		countPendingDeviceCodesFunc: func() (int64, error) {
-			dbCalled = true
-			return 50, nil
-		},
-	}
-
-	wrapper := newTestCacheWrapper(store, memCache)
+	wrapper := NewCacheWrapper(mockStore, memCache)
 
 	count, err := wrapper.GetPendingDeviceCodesCount(ctx, time.Minute)
 	if err != nil {
@@ -286,10 +233,6 @@ func TestCacheWrapper_GetPendingDeviceCodesCount_CacheMiss(t *testing.T) {
 
 	if count != 50 {
 		t.Errorf("Expected count 50, got %d", count)
-	}
-
-	if !dbCalled {
-		t.Error("Expected database to be called on cache miss")
 	}
 
 	// Verify cache was updated
@@ -306,15 +249,12 @@ func TestCacheWrapper_GetPendingDeviceCodesCount_CacheMiss(t *testing.T) {
 func TestCacheWrapper_GetTotalDeviceCodesCount_DBError(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache[int64]()
-
+	ctrl := gomock.NewController(t)
 	expectedErr := errors.New("database timeout")
-	store := &mockStore{
-		countTotalDeviceCodesFunc: func() (int64, error) {
-			return 0, expectedErr
-		},
-	}
+	mockStore := mocks.NewMockMetricsStore(ctrl)
+	mockStore.EXPECT().CountTotalDeviceCodes().Return(int64(0), expectedErr).Times(1)
 
-	wrapper := newTestCacheWrapper(store, memCache)
+	wrapper := NewCacheWrapper(mockStore, memCache)
 
 	_, err := wrapper.GetTotalDeviceCodesCount(ctx, time.Minute)
 	if err != expectedErr {
@@ -325,15 +265,12 @@ func TestCacheWrapper_GetTotalDeviceCodesCount_DBError(t *testing.T) {
 func TestCacheWrapper_GetPendingDeviceCodesCount_DBError(t *testing.T) {
 	ctx := context.Background()
 	memCache := cache.NewMemoryCache[int64]()
-
+	ctrl := gomock.NewController(t)
 	expectedErr := errors.New("database timeout")
-	store := &mockStore{
-		countPendingDeviceCodesFunc: func() (int64, error) {
-			return 0, expectedErr
-		},
-	}
+	mockStore := mocks.NewMockMetricsStore(ctrl)
+	mockStore.EXPECT().CountPendingDeviceCodes().Return(int64(0), expectedErr).Times(1)
 
-	wrapper := newTestCacheWrapper(store, memCache)
+	wrapper := NewCacheWrapper(mockStore, memCache)
 
 	_, err := wrapper.GetPendingDeviceCodesCount(ctx, time.Minute)
 	if err != expectedErr {
@@ -341,49 +278,19 @@ func TestCacheWrapper_GetPendingDeviceCodesCount_DBError(t *testing.T) {
 	}
 }
 
-// mockCacheAside is a mock cache that overrides GetWithFetch to track calls.
-type mockCacheAside struct {
-	*cache.MemoryCache[int64]
-	getWithFetchCalled bool
-	fetchFunc          func(ctx context.Context, key string) (int64, error)
-}
-
-func (m *mockCacheAside) GetWithFetch(
-	ctx context.Context,
-	key string,
-	ttl time.Duration,
-	fetchFunc func(ctx context.Context, key string) (int64, error),
-) (int64, error) {
-	m.getWithFetchCalled = true
-	m.fetchFunc = fetchFunc
-
-	// Check cache first
-	if value, err := m.Get(ctx, key); err == nil {
-		return value, nil
-	}
-
-	// Cache miss - call the fetch function and cache the result
-	value, err := fetchFunc(ctx, key)
-	if err != nil {
-		return 0, err
-	}
-	_ = m.Set(ctx, key, value, ttl)
-	return value, nil
-}
-
 func TestCacheWrapper_UsesGetWithFetch(t *testing.T) {
 	ctx := context.Background()
-	mockCache := &mockCacheAside{
-		MemoryCache: cache.NewMemoryCache[int64](),
-	}
+	ctrl := gomock.NewController(t)
+	mockStore := mocks.NewMockMetricsStore(ctrl)
+	mockStore.EXPECT().CountActiveTokensByCategory("access").Return(int64(42), nil).Times(1)
 
-	store := &mockStore{
-		countActiveTokensFunc: func(category string) (int64, error) {
-			return 42, nil
-		},
-	}
+	mockCache := mocks.NewMockCache[int64](ctrl)
+	mockCache.EXPECT().
+		GetWithFetch(gomock.Any(), "tokens:access", time.Minute, gomock.Any()).
+		DoAndReturn(callFetchFn[int64]).
+		Times(1)
 
-	wrapper := newTestCacheWrapper(store, mockCache)
+	wrapper := NewCacheWrapper(mockStore, mockCache)
 
 	count, err := wrapper.GetActiveTokensCount(ctx, "access", time.Minute)
 	if err != nil {
@@ -393,73 +300,29 @@ func TestCacheWrapper_UsesGetWithFetch(t *testing.T) {
 	if count != 42 {
 		t.Errorf("Expected count 42, got %d", count)
 	}
-
-	if !mockCache.getWithFetchCalled {
-		t.Error("Expected GetWithFetch to be called, but it wasn't")
-	}
-
-	// Verify the fetch function works correctly
-	if mockCache.fetchFunc != nil {
-		val, err := mockCache.fetchFunc(ctx, "test")
-		if err != nil {
-			t.Errorf("Fetch function returned error: %v", err)
-		}
-		if val != 42 {
-			t.Errorf("Fetch function returned %d, expected 42", val)
-		}
-	}
-}
-
-func TestCacheWrapper_MemoryCacheAside(t *testing.T) {
-	ctx := context.Background()
-	memCache := cache.NewMemoryCache[int64]()
-
-	dbCalled := false
-	store := &mockStore{
-		countActiveTokensFunc: func(category string) (int64, error) {
-			dbCalled = true
-			return 100, nil
-		},
-	}
-
-	wrapper := newTestCacheWrapper(store, memCache)
-
-	count, err := wrapper.GetActiveTokensCount(ctx, "access", time.Minute)
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
-
-	if count != 100 {
-		t.Errorf("Expected count 100, got %d", count)
-	}
-
-	if !dbCalled {
-		t.Error("Expected database to be called for cache miss")
-	}
-
-	// Verify cache was updated
-	cached, _ := memCache.Get(ctx, "tokens:access")
-	if cached != 100 {
-		t.Errorf("Expected cached value 100, got %d", cached)
-	}
 }
 
 //nolint:dupl // Similar test structure to GetPendingDeviceCodesCount test is intentional
 func TestCacheWrapper_GetTotalDeviceCodesCount_WithCacheAside(t *testing.T) {
 	ctx := context.Background()
-	mockCache := &mockCacheAside{
-		MemoryCache: cache.NewMemoryCache[int64](),
-	}
+	ctrl := gomock.NewController(t)
+	mockStore := mocks.NewMockMetricsStore(ctrl)
 
 	callCount := 0
-	store := &mockStore{
-		countTotalDeviceCodesFunc: func() (int64, error) {
-			callCount++
-			return 100, nil
-		},
-	}
+	mockStore.EXPECT().CountTotalDeviceCodes().DoAndReturn(func() (int64, error) {
+		callCount++
+		return int64(100), nil
+	}).Times(1)
 
-	wrapper := newTestCacheWrapper(store, mockCache)
+	mockCache := mocks.NewMockCache[int64](ctrl)
+	gomock.InOrder(
+		mockCache.EXPECT().GetWithFetch(gomock.Any(), "devices:total", gomock.Any(), gomock.Any()).
+			DoAndReturn(callFetchFn[int64]),
+		mockCache.EXPECT().GetWithFetch(gomock.Any(), "devices:total", gomock.Any(), gomock.Any()).
+			Return(int64(100), nil),
+	)
+
+	wrapper := NewCacheWrapper(mockStore, mockCache)
 
 	// First call - cache miss, should query DB
 	count, err := wrapper.GetTotalDeviceCodesCount(ctx, time.Minute)
@@ -473,10 +336,6 @@ func TestCacheWrapper_GetTotalDeviceCodesCount_WithCacheAside(t *testing.T) {
 
 	if callCount != 1 {
 		t.Errorf("Expected 1 DB call, got %d", callCount)
-	}
-
-	if !mockCache.getWithFetchCalled {
-		t.Error("Expected GetWithFetch to be called")
 	}
 
 	// Second call - should hit cache (no DB call)
@@ -497,19 +356,26 @@ func TestCacheWrapper_GetTotalDeviceCodesCount_WithCacheAside(t *testing.T) {
 //nolint:dupl // Similar test structure to GetTotalDeviceCodesCount test is intentional
 func TestCacheWrapper_GetPendingDeviceCodesCount_WithCacheAside(t *testing.T) {
 	ctx := context.Background()
-	mockCache := &mockCacheAside{
-		MemoryCache: cache.NewMemoryCache[int64](),
-	}
+	ctrl := gomock.NewController(t)
+	mockStore := mocks.NewMockMetricsStore(ctrl)
 
 	callCount := 0
-	store := &mockStore{
-		countPendingDeviceCodesFunc: func() (int64, error) {
-			callCount++
-			return 25, nil
-		},
-	}
+	mockStore.EXPECT().CountPendingDeviceCodes().DoAndReturn(func() (int64, error) {
+		callCount++
+		return int64(25), nil
+	}).Times(1)
 
-	wrapper := newTestCacheWrapper(store, mockCache)
+	mockCache := mocks.NewMockCache[int64](ctrl)
+	gomock.InOrder(
+		mockCache.EXPECT().
+			GetWithFetch(gomock.Any(), "devices:pending", gomock.Any(), gomock.Any()).
+			DoAndReturn(callFetchFn[int64]),
+		mockCache.EXPECT().
+			GetWithFetch(gomock.Any(), "devices:pending", gomock.Any(), gomock.Any()).
+			Return(int64(25), nil),
+	)
+
+	wrapper := NewCacheWrapper(mockStore, mockCache)
 
 	// First call - cache miss, should query DB
 	count, err := wrapper.GetPendingDeviceCodesCount(ctx, time.Minute)
@@ -523,10 +389,6 @@ func TestCacheWrapper_GetPendingDeviceCodesCount_WithCacheAside(t *testing.T) {
 
 	if callCount != 1 {
 		t.Errorf("Expected 1 DB call, got %d", callCount)
-	}
-
-	if !mockCache.getWithFetchCalled {
-		t.Error("Expected GetWithFetch to be called")
 	}
 
 	// Second call - should hit cache (no DB call)
