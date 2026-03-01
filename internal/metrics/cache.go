@@ -5,27 +5,18 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/cache"
-	"github.com/go-authgate/authgate/internal/store"
 )
-
-// metricsStore defines the interface for database operations needed by CacheWrapper.
-// This interface allows for easier testing without requiring a full store.Store.
-type metricsStore interface {
-	CountActiveTokensByCategory(category string) (int64, error)
-	CountTotalDeviceCodes() (int64, error)
-	CountPendingDeviceCodes() (int64, error)
-}
 
 // CacheWrapper provides a read-through cache for metrics data.
 // It queries the database on cache miss and updates the cache for subsequent requests.
 // Uses the cache's GetWithFetch method for optimal cache-aside pattern support.
 type CacheWrapper struct {
-	store metricsStore
+	store MetricsStore
 	cache cache.Cache[int64]
 }
 
 // NewCacheWrapper creates a new cache wrapper for metrics.
-func NewCacheWrapper(store *store.Store, cache cache.Cache[int64]) *CacheWrapper {
+func NewCacheWrapper(store MetricsStore, cache cache.Cache[int64]) *CacheWrapper {
 	return &CacheWrapper{
 		store: store,
 		cache: cache,

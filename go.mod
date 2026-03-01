@@ -24,6 +24,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.40.0
 	github.com/ulule/limiter/v3 v3.11.2
+	go.uber.org/mock v0.6.0
 	golang.org/x/crypto v0.48.0
 	golang.org/x/oauth2 v0.35.0
 	gorm.io/driver/postgres v1.6.0

@@ -92,7 +92,7 @@ rebuild: clean build
 
 .PHONY: help build build-all install test coverage fmt lint clean rebuild
 .PHONY: build_linux_amd64 build_linux_arm64
-.PHONY: build_all_linux_amd64 build_all_linux_arm64 install-templ generate watch air dev
+.PHONY: build_all_linux_amd64 build_all_linux_arm64 install-templ generate watch air dev mocks
 .PHONY: install-golangci-lint mod-download mod-tidy mod-verify check-tools version
 .PHONY: docker-build docker-run install-swag swagger swagger-init swagger-fmt swagger-validate
 
@@ -100,9 +100,13 @@ rebuild: clean build
 install-templ:
 	@command -v templ >/dev/null 2>&1 || $(GO) install github.com/a-h/templ/cmd/templ@$(TEMPL_VERSION)
 
-## generate: run templ generate to compile .templ files
+## generate: run templ generate to compile .templ files and generate mocks
 generate: install-templ swagger
-	templ generate
+	$(GO) generate ./...
+
+## mocks: generate mock files only (all directives in internal/mocks/)
+mocks:
+	$(GO) generate ./internal/mocks/
 
 ## watch: watch mode for automatic regeneration
 watch: install-templ
