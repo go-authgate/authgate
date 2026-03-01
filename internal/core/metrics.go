@@ -1,9 +1,9 @@
-package metrics
+package core
 
 import "time"
 
-// Recorder defines the interface for recording application metrics
-// Implementations include Metrics (Prometheus-based) and NoopMetrics (no-op)
+// Recorder defines the interface for recording application metrics.
+// Implementations include Metrics (Prometheus-based) and NoopMetrics (no-op).
 type Recorder interface {
 	// OAuth Device Flow
 	RecordOAuthDeviceCodeGenerated(success bool)
@@ -37,8 +37,6 @@ type Recorder interface {
 }
 
 // MetricsStore defines the DB operations needed by CacheWrapper.
-//
-//nolint:revive // MetricsStore is intentionally named to avoid ambiguity with store.Store
 type MetricsStore interface {
 	CountActiveTokensByCategory(category string) (int64, error)
 	CountTotalDeviceCodes() (int64, error)

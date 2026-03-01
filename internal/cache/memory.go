@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/go-authgate/authgate/internal/core"
 )
 
 type cacheItem[T any] struct {
@@ -12,7 +14,7 @@ type cacheItem[T any] struct {
 }
 
 // Compile-time interface check.
-var _ Cache[struct{}] = (*MemoryCache[struct{}])(nil)
+var _ core.Cache[struct{}] = (*MemoryCache[struct{}])(nil)
 
 // MemoryCache implements Cache interface with in-memory storage.
 // Uses lazy expiration (checks expiry on Get).

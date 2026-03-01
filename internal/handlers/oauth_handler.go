@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/auth"
-	"github.com/go-authgate/authgate/internal/metrics"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/templates"
 	"github.com/go-authgate/authgate/internal/util"
@@ -41,7 +41,7 @@ type OAuthHandler struct {
 	baseURL                     string
 	sessionFingerprintEnabled   bool
 	sessionFingerprintIncludeIP bool
-	metrics                     metrics.Recorder
+	metrics                     core.Recorder
 }
 
 // NewOAuthHandler creates a new OAuth handler
@@ -52,7 +52,7 @@ func NewOAuthHandler(
 	baseURL string,
 	fingerprintEnabled bool,
 	fingerprintIncludeIP bool,
-	m metrics.Recorder,
+	m core.Recorder,
 ) *OAuthHandler {
 	return &OAuthHandler{
 		providers:                   providers,

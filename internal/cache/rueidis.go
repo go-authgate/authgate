@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-authgate/authgate/internal/core"
+
 	"github.com/redis/rueidis"
 )
 
 // Compile-time interface check.
-var _ Cache[struct{}] = (*RueidisCache[struct{}])(nil)
+var _ core.Cache[struct{}] = (*RueidisCache[struct{}])(nil)
 
 // RueidisCache implements Cache interface using Redis via rueidis client.
 // Suitable for multi-instance deployments where cache needs to be shared.

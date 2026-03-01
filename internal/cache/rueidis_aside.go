@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-authgate/authgate/internal/core"
+
 	"github.com/redis/rueidis"
 	"github.com/redis/rueidis/rueidisaside"
 )
 
 // Compile-time interface check.
-var _ Cache[struct{}] = (*RueidisAsideCache[struct{}])(nil)
+var _ core.Cache[struct{}] = (*RueidisAsideCache[struct{}])(nil)
 
 // RueidisAsideCache implements Cache interface using rueidisaside for cache-aside pattern.
 // Uses rueidis' automatic client-side caching with RESP3 protocol for cache invalidation.

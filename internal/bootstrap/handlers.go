@@ -5,8 +5,8 @@ import (
 
 	"github.com/go-authgate/authgate/internal/auth"
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/handlers"
-	"github.com/go-authgate/authgate/internal/metrics"
 	"github.com/go-authgate/authgate/internal/services"
 )
 
@@ -35,7 +35,7 @@ func initializeHandlers(
 	auditService *services.AuditService,
 	oauthProviders map[string]*auth.OAuthProvider,
 	oauthHTTPClient *http.Client,
-	prometheusMetrics metrics.Recorder,
+	prometheusMetrics core.Recorder,
 ) handlerSet {
 	return handlerSet{
 		auth: handlers.NewAuthHandler(

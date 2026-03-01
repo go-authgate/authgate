@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/config"
-	"github.com/go-authgate/authgate/internal/metrics"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/store"
 	"github.com/go-authgate/authgate/internal/util"
@@ -31,14 +31,14 @@ type DeviceService struct {
 	store        *store.Store
 	config       *config.Config
 	auditService *AuditService
-	metrics      metrics.Recorder
+	metrics      core.Recorder
 }
 
 func NewDeviceService(
 	s *store.Store,
 	cfg *config.Config,
 	auditService *AuditService,
-	m metrics.Recorder,
+	m core.Recorder,
 ) *DeviceService {
 	return &DeviceService{
 		store:        s,

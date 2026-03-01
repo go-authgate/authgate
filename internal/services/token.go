@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/config"
-	"github.com/go-authgate/authgate/internal/metrics"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/store"
 	"github.com/go-authgate/authgate/internal/token"
@@ -53,7 +53,7 @@ type TokenService struct {
 	httpTokenProvider  *token.HTTPTokenProvider
 	tokenProviderMode  string
 	auditService       *AuditService
-	metrics            metrics.Recorder
+	metrics            core.Recorder
 }
 
 func NewTokenService(
@@ -64,7 +64,7 @@ func NewTokenService(
 	httpProvider *token.HTTPTokenProvider,
 	providerMode string,
 	auditService *AuditService,
-	m metrics.Recorder,
+	m core.Recorder,
 ) *TokenService {
 	return &TokenService{
 		store:              s,
