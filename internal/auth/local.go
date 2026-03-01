@@ -3,10 +3,13 @@ package auth
 import (
 	"context"
 
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/store"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+var _ core.AuthProvider = (*LocalAuthProvider)(nil)
 
 // LocalAuthProvider handles local database authentication
 type LocalAuthProvider struct {

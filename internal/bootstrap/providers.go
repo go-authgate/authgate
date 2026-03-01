@@ -6,11 +6,14 @@ import (
 	"github.com/go-authgate/authgate/internal/auth"
 	"github.com/go-authgate/authgate/internal/client"
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/token"
 )
 
-// initializeHTTPAPIAuthProvider creates HTTP API auth provider when configured
-func initializeHTTPAPIAuthProvider(cfg *config.Config) *auth.HTTPAPIAuthProvider {
+// initializeHTTPAPIAuthProvider creates HTTP API auth provider when configured.
+// Returns core.AuthProvider (not *auth.HTTPAPIAuthProvider) so that the nil
+// default case is an untyped nil interface, keeping == nil checks in UserService safe.
+func initializeHTTPAPIAuthProvider(cfg *config.Config) core.AuthProvider {
 	switch cfg.AuthMode {
 	case config.AuthModeHTTPAPI:
 		authRetryClient, err := client.CreateRetryClient(
