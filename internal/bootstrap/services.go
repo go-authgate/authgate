@@ -7,7 +7,6 @@ import (
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/store"
-	"github.com/go-authgate/authgate/internal/token"
 )
 
 // initializeServices creates all business logic services
@@ -22,9 +21,8 @@ func initializeServices(
 	localProvider := auth.NewLocalAuthProvider(db)
 	httpAPIProvider := initializeHTTPAPIAuthProvider(cfg)
 
-	// Initialize token providers
-	localTokenProvider := token.NewLocalTokenProvider(cfg)
-	httpTokenProvider := initializeHTTPTokenProvider(cfg)
+	// Initialize token provider (single interface, mode selected at bootstrap time)
+	tokenProvider := initializeTokenProvider(cfg)
 
 	// Initialize services
 	userService := services.NewUserService(
@@ -42,9 +40,7 @@ func initializeServices(
 		db,
 		cfg,
 		deviceService,
-		localTokenProvider,
-		httpTokenProvider,
-		cfg.TokenProviderMode,
+		tokenProvider,
 		auditService,
 		prometheusMetrics,
 	)

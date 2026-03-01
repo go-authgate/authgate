@@ -7,9 +7,12 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
+
+var _ core.TokenProvider = (*LocalTokenProvider)(nil)
 
 // LocalTokenProvider generates and validates JWT tokens locally
 type LocalTokenProvider struct {

@@ -11,7 +11,10 @@ import (
 	retry "github.com/appleboy/go-httpretry"
 
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/core"
 )
+
+var _ core.TokenProvider = (*HTTPTokenProvider)(nil)
 
 // HTTPTokenProvider generates and validates tokens via external HTTP API
 type HTTPTokenProvider struct {
@@ -263,6 +266,15 @@ func (p *HTTPTokenProvider) GenerateRefreshToken(
 	userID, clientID, scopes string,
 ) (*Result, error) {
 	return p.generateTokenInternal(ctx, userID, clientID, scopes, p.config.RefreshTokenExpiration)
+}
+
+// GenerateClientCredentialsToken generates a token for the client_credentials grant.
+// The HTTP API provider delegates to GenerateToken with the standard JWT expiration.
+func (p *HTTPTokenProvider) GenerateClientCredentialsToken(
+	ctx context.Context,
+	userID, clientID, scopes string,
+) (*Result, error) {
+	return p.GenerateToken(ctx, userID, clientID, scopes)
 }
 
 // ValidateRefreshToken requests refresh token validation from external API

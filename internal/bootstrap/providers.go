@@ -36,8 +36,10 @@ func initializeHTTPAPIAuthProvider(cfg *config.Config) core.AuthProvider {
 	}
 }
 
-// initializeHTTPTokenProvider creates HTTP token provider when configured
-func initializeHTTPTokenProvider(cfg *config.Config) *token.HTTPTokenProvider {
+// initializeTokenProvider returns the configured TokenProvider.
+// It always returns a concrete core.TokenProvider: an HTTP API provider when
+// TokenProviderModeHTTPAPI is set, or a local token provider by default.
+func initializeTokenProvider(cfg *config.Config) core.TokenProvider {
 	switch cfg.TokenProviderMode {
 	case config.TokenProviderModeHTTPAPI:
 		tokenRetryClient, err := client.CreateRetryClient(
@@ -56,6 +58,6 @@ func initializeHTTPTokenProvider(cfg *config.Config) *token.HTTPTokenProvider {
 		log.Printf("HTTP API token provider enabled: %s", cfg.TokenAPIURL)
 		return token.NewHTTPTokenProvider(cfg, tokenRetryClient)
 	default:
-		return nil
+		return token.NewLocalTokenProvider(cfg)
 	}
 }

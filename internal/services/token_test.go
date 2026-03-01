@@ -25,8 +25,6 @@ func createTestTokenService(s *store.Store, cfg *config.Config) *TokenService {
 		deviceService,
 		localProvider,
 		nil,
-		"local",
-		nil,
 		metrics.NewNoopMetrics(),
 	)
 }
