@@ -106,7 +106,7 @@ install-mockgen:
 install-tools: install-templ install-swag install-golangci-lint install-mockgen
 
 ## generate: run go generate (templ compilation + mocks via go:generate directives)
-generate: install-templ install-mockgen swagger
+generate: install-tools
 	$(GO) generate ./...
 
 ## mocks: generate mock files only (all directives in internal/mocks/)
