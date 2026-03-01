@@ -32,8 +32,8 @@ func HashToken(token, salt string) string {
 }
 
 // SHA256Hex returns the SHA-256 hash of s as a lowercase hex string.
-// Used for storing tokens securely in the database (no salt needed:
-// JWT signatures already carry sufficient entropy).
+// Intended for use with high-entropy, unguessable values (e.g., randomly
+// generated tokens); for such inputs, a salt is not required for security.
 func SHA256Hex(s string) string {
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:])
