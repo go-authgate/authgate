@@ -2,8 +2,6 @@ GO ?= go
 EXECUTABLE := authgate
 GOFILES := $(shell find . -type f -name "*.go")
 TAGS ?=
-TEMPL_VERSION ?= latest
-SWAG_VERSION ?= latest
 
 ifneq ($(shell uname), Darwin)
 	EXTLDFLAGS = -extldflags "-static" $(null)
@@ -58,7 +56,7 @@ coverage: test
 
 ## install-golangci-lint: install golangci-lint if not present
 install-golangci-lint:
-	@command -v golangci-lint >/dev/null 2>&1 || curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $$($(GO) env GOPATH)/bin v2.7.2
+	@command -v golangci-lint >/dev/null 2>&1 || $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(shell $(GO) list -m -f '{{.Version}}' github.com/golangci/golangci-lint/v2)
 
 ## fmt: format go files using golangci-lint
 fmt: install-golangci-lint
@@ -93,19 +91,26 @@ rebuild: clean build
 .PHONY: help build build-all install test coverage fmt lint clean rebuild
 .PHONY: build_linux_amd64 build_linux_arm64
 .PHONY: build_all_linux_amd64 build_all_linux_arm64 install-templ generate watch air dev mocks
-.PHONY: install-golangci-lint mod-download mod-tidy mod-verify check-tools version
+.PHONY: install-golangci-lint install-mockgen install-tools mod-download mod-tidy mod-verify check-tools version
 .PHONY: docker-build docker-run install-swag swagger swagger-init swagger-fmt swagger-validate
 
 ## install-templ: install templ CLI if not installed
 install-templ:
-	@command -v templ >/dev/null 2>&1 || $(GO) install github.com/a-h/templ/cmd/templ@$(TEMPL_VERSION)
+	@command -v templ >/dev/null 2>&1 || $(GO) install github.com/a-h/templ/cmd/templ@$(shell $(GO) list -m -f '{{.Version}}' github.com/a-h/templ)
+
+## install-mockgen: install mockgen if not installed
+install-mockgen:
+	@command -v mockgen >/dev/null 2>&1 || $(GO) install go.uber.org/mock/mockgen@$(shell $(GO) list -m -f '{{.Version}}' go.uber.org/mock)
+
+## install-tools: install all required development tools
+install-tools: install-templ install-swag install-golangci-lint install-mockgen
 
 ## generate: run go generate (templ compilation + mocks via go:generate directives)
-generate: install-templ swagger
+generate: install-templ install-mockgen swagger
 	$(GO) generate ./...
 
 ## mocks: generate mock files only (all directives in internal/mocks/)
-mocks:
+mocks: install-mockgen
 	$(GO) generate ./internal/mocks/
 
 ## watch: watch mode for automatic regeneration
@@ -132,8 +137,10 @@ mod-verify:
 ## check-tools: verify required tools are installed
 check-tools:
 	@command -v $(GO) >/dev/null 2>&1 || (echo "Go not found" && exit 1)
-	@command -v templ >/dev/null 2>&1 || echo "templ not installed (run: make install-templ)"
-	@command -v golangci-lint >/dev/null 2>&1 || echo "golangci-lint not installed (run: make install-golangci-lint)"
+	@command -v templ >/dev/null 2>&1 || echo "templ not installed (run: make install-tools)"
+	@command -v swag >/dev/null 2>&1 || echo "swag not installed (run: make install-tools)"
+	@command -v golangci-lint >/dev/null 2>&1 || echo "golangci-lint not installed (run: make install-tools)"
+	@command -v mockgen >/dev/null 2>&1 || echo "mockgen not installed (run: make install-tools)"
 
 ## version: display version information
 version:
@@ -151,7 +158,7 @@ docker-run:
 
 ## install-swag: install swag CLI if not installed
 install-swag:
-	@command -v swag >/dev/null 2>&1 || $(GO) install github.com/swaggo/swag/cmd/swag@$(SWAG_VERSION)
+	@command -v swag >/dev/null 2>&1 || $(GO) install github.com/swaggo/swag/cmd/swag@$(shell $(GO) list -m -f '{{.Version}}' github.com/swaggo/swag)
 
 ## swagger-init: generate swagger documentation
 swagger-init: install-swag
