@@ -961,7 +961,7 @@ func (s *TokenService) ExchangeAuthorizationCode(
 	// ID token generation is only supported when the provider implements IDTokenProvider
 	// (i.e. LocalTokenProvider). HTTP API providers cannot produce OIDC ID tokens.
 	var idToken string
-	if idp, ok := s.tokenProvider.(token.IDTokenProvider); ok {
+	if idp, ok := s.tokenProvider.(core.IDTokenProvider); ok {
 		scopeSet := token.ScopeSet(authCode.Scopes)
 		if scopeSet["openid"] {
 			params := token.IDTokenParams{

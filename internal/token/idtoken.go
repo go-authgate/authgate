@@ -7,36 +7,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-authgate/authgate/internal/core"
+
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
 // IDTokenProvider is an optional capability of a TokenProvider.
 // Only LocalTokenProvider implements it; HTTP API providers cannot produce OIDC ID tokens.
-type IDTokenProvider interface {
-	GenerateIDToken(params IDTokenParams) (string, error)
-}
+// Re-exported from core for callers that import only the token package.
+type IDTokenProvider = core.IDTokenProvider
 
 // IDTokenParams holds all data needed to generate an OIDC ID Token (OIDC Core 1.0 §2).
-type IDTokenParams struct {
-	Issuer   string
-	Subject  string // UserID
-	Audience string // ClientID
-	AuthTime time.Time
-	Nonce    string
-	Expiry   time.Duration
-	AtHash   string // base64url(SHA-256(access_token)[:16]) – optional
-
-	// Scope-gated profile claims (include when "profile" scope was granted)
-	Name              string
-	PreferredUsername string
-	Picture           string
-	UpdatedAt         *time.Time
-
-	// Scope-gated email claims (include when "email" scope was granted)
-	Email         string
-	EmailVerified bool
-}
+// Re-exported from core as a type alias so existing callers (token.IDTokenParams{...}) compile
+// unchanged while the canonical definition lives in core.
+type IDTokenParams = core.IDTokenParams
 
 // GenerateIDToken creates a signed HS256 JWT ID Token for the given params.
 // ID tokens are not stored in the database; they are short-lived and non-revocable by design.

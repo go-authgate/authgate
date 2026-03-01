@@ -17,6 +17,45 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
+// MockIDTokenProvider is a mock of IDTokenProvider interface.
+type MockIDTokenProvider struct {
+	ctrl     *gomock.Controller
+	recorder *MockIDTokenProviderMockRecorder
+	isgomock struct{}
+}
+
+// MockIDTokenProviderMockRecorder is the mock recorder for MockIDTokenProvider.
+type MockIDTokenProviderMockRecorder struct {
+	mock *MockIDTokenProvider
+}
+
+// NewMockIDTokenProvider creates a new mock instance.
+func NewMockIDTokenProvider(ctrl *gomock.Controller) *MockIDTokenProvider {
+	mock := &MockIDTokenProvider{ctrl: ctrl}
+	mock.recorder = &MockIDTokenProviderMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockIDTokenProvider) EXPECT() *MockIDTokenProviderMockRecorder {
+	return m.recorder
+}
+
+// GenerateIDToken mocks base method.
+func (m *MockIDTokenProvider) GenerateIDToken(params core.IDTokenParams) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GenerateIDToken", params)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GenerateIDToken indicates an expected call of GenerateIDToken.
+func (mr *MockIDTokenProviderMockRecorder) GenerateIDToken(params any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateIDToken", reflect.TypeOf((*MockIDTokenProvider)(nil).GenerateIDToken), params)
+}
+
 // MockTokenProvider is a mock of TokenProvider interface.
 type MockTokenProvider struct {
 	ctrl     *gomock.Controller
