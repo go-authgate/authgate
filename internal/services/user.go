@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/auth"
-	"github.com/go-authgate/authgate/internal/cache"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/store"
 
@@ -41,7 +41,7 @@ type UserService struct {
 	authMode          string
 	oauthAutoRegister bool
 	auditService      *AuditService
-	userCache         cache.Cache[models.User]
+	userCache         core.Cache[models.User]
 	userCacheTTL      time.Duration
 }
 
@@ -52,7 +52,7 @@ func NewUserService(
 	authMode string,
 	oauthAutoRegister bool,
 	auditService *AuditService,
-	userCache cache.Cache[models.User],
+	userCache core.Cache[models.User],
 	userCacheTTL time.Duration,
 ) *UserService {
 	return &UserService{

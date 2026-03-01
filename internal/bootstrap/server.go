@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/metrics"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
@@ -159,8 +159,8 @@ func addMetricsGaugeUpdateJob(
 	m *graceful.Manager,
 	cfg *config.Config,
 	db *store.Store,
-	prometheusMetrics metrics.Recorder,
-	metricsCache cache.Cache[int64],
+	prometheusMetrics core.Recorder,
+	metricsCache core.Cache[int64],
 ) {
 	if !cfg.MetricsEnabled || !cfg.MetricsGaugeUpdateEnabled {
 		return
@@ -231,7 +231,7 @@ func addNamedCacheShutdownJob(
 }
 
 // addCacheCleanupJob adds metrics cache cleanup on shutdown
-func addCacheCleanupJob(m *graceful.Manager, metricsCache cache.Cache[int64], cfg *config.Config) {
+func addCacheCleanupJob(m *graceful.Manager, metricsCache core.Cache[int64], cfg *config.Config) {
 	if metricsCache == nil {
 		return
 	}
@@ -241,7 +241,7 @@ func addCacheCleanupJob(m *graceful.Manager, metricsCache cache.Cache[int64], cf
 // addUserCacheCleanupJob adds user cache cleanup on shutdown
 func addUserCacheCleanupJob(
 	m *graceful.Manager,
-	userCache cache.Cache[models.User],
+	userCache core.Cache[models.User],
 	cfg *config.Config,
 ) {
 	if userCache == nil {
@@ -302,7 +302,7 @@ var gaugeErrorLogger = newErrorLogger()
 func updateGaugeMetricsWithCache(
 	ctx context.Context,
 	cacheWrapper *metrics.CacheWrapper,
-	m metrics.Recorder,
+	m core.Recorder,
 	cacheTTL time.Duration,
 ) {
 	// Update active access tokens count

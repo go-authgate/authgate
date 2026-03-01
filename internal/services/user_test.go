@@ -7,7 +7,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	"github.com/go-authgate/authgate/internal/cache"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/mocks"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/store"
@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newUserServiceWithStore(db *store.Store, c cache.Cache[models.User]) *UserService {
+func newUserServiceWithStore(db *store.Store, c core.Cache[models.User]) *UserService {
 	return NewUserService(db, nil, nil, AuthModeLocal, false, nil, c, 5*time.Minute)
 }
 

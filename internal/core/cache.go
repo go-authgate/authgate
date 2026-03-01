@@ -1,11 +1,11 @@
-package cache
+package core
 
 import (
 	"context"
 	"time"
 )
 
-// Cache defines the primitive operations for a key-value cache.
+// Cache[T] defines the primitive operations for a key-value cache.
 // T is the type of value stored in the cache (e.g. int64, string, or a struct).
 type Cache[T any] interface {
 	// Get retrieves a single value from cache.

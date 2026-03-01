@@ -4,19 +4,19 @@ import (
 	"context"
 	"time"
 
-	"github.com/go-authgate/authgate/internal/cache"
+	"github.com/go-authgate/authgate/internal/core"
 )
 
 // CacheWrapper provides a read-through cache for metrics data.
 // It queries the database on cache miss and updates the cache for subsequent requests.
 // Uses the cache's GetWithFetch method for optimal cache-aside pattern support.
 type CacheWrapper struct {
-	store MetricsStore
-	cache cache.Cache[int64]
+	store core.MetricsStore
+	cache core.Cache[int64]
 }
 
 // NewCacheWrapper creates a new cache wrapper for metrics.
-func NewCacheWrapper(store MetricsStore, cache cache.Cache[int64]) *CacheWrapper {
+func NewCacheWrapper(store core.MetricsStore, cache core.Cache[int64]) *CacheWrapper {
 	return &CacheWrapper{
 		store: store,
 		cache: cache,

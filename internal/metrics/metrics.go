@@ -3,12 +3,14 @@ package metrics
 import (
 	"sync"
 
+	"github.com/go-authgate/authgate/internal/core"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 // Ensure Metrics implements Recorder interface at compile time
-var _ Recorder = (*Metrics)(nil)
+var _ core.Recorder = (*Metrics)(nil)
 
 // Metrics holds all Prometheus metrics for the application
 type Metrics struct {
@@ -62,7 +64,7 @@ var (
 // If enabled=true, returns Prometheus-based Metrics
 // If enabled=false, returns NoopMetrics (zero overhead)
 // Uses sync.Once to ensure Prometheus metrics are only registered once
-func Init(enabled bool) Recorder {
+func Init(enabled bool) core.Recorder {
 	if !enabled {
 		return NewNoopMetrics()
 	}

@@ -5,9 +5,8 @@ import (
 	"embed"
 	"net/http"
 
-	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/config"
-	"github.com/go-authgate/authgate/internal/metrics"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/store"
@@ -26,10 +25,10 @@ type Application struct {
 
 	// Core infrastructure
 	DB                   *store.Store
-	MetricsRecorder      metrics.Recorder
-	MetricsCache         cache.Cache[int64]
+	MetricsRecorder      core.Recorder
+	MetricsCache         core.Cache[int64]
 	MetricsCacheCloser   func() error
-	UserCache            cache.Cache[models.User]
+	UserCache            core.Cache[models.User]
 	UserCacheCloser      func() error
 	RateLimitRedisClient *redis.Client
 

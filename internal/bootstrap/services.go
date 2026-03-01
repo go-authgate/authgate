@@ -2,9 +2,8 @@ package bootstrap
 
 import (
 	"github.com/go-authgate/authgate/internal/auth"
-	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/config"
-	"github.com/go-authgate/authgate/internal/metrics"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/store"
@@ -16,8 +15,8 @@ func initializeServices(
 	cfg *config.Config,
 	db *store.Store,
 	auditService *services.AuditService,
-	prometheusMetrics metrics.Recorder,
-	userCache cache.Cache[models.User],
+	prometheusMetrics core.Recorder,
+	userCache core.Cache[models.User],
 ) (*services.UserService, *services.DeviceService, *services.TokenService, *services.ClientService, *services.AuthorizationService) {
 	// Initialize authentication providers
 	localProvider := auth.NewLocalAuthProvider(db)

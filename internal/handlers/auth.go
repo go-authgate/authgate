@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/auth"
-	"github.com/go-authgate/authgate/internal/metrics"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/middleware"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/templates"
@@ -41,7 +41,7 @@ type AuthHandler struct {
 	baseURL                     string
 	sessionFingerprintEnabled   bool
 	sessionFingerprintIncludeIP bool
-	metrics                     metrics.Recorder
+	metrics                     core.Recorder
 }
 
 func NewAuthHandler(
@@ -49,7 +49,7 @@ func NewAuthHandler(
 	baseURL string,
 	fingerprintEnabled bool,
 	fingerprintIncludeIP bool,
-	m metrics.Recorder,
+	m core.Recorder,
 ) *AuthHandler {
 	return &AuthHandler{
 		userService:                 us,

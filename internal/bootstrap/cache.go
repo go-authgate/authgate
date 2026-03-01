@@ -7,12 +7,13 @@ import (
 
 	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/metrics"
 	"github.com/go-authgate/authgate/internal/models"
 )
 
 // initializeMetrics initializes Prometheus metrics
-func initializeMetrics(cfg *config.Config) metrics.Recorder {
+func initializeMetrics(cfg *config.Config) core.Recorder {
 	prometheusMetrics := metrics.Init(cfg.MetricsEnabled)
 	if cfg.MetricsEnabled {
 		log.Println("Prometheus metrics initialized")
@@ -26,7 +27,7 @@ func initializeMetrics(cfg *config.Config) metrics.Recorder {
 func initializeMetricsCache(
 	ctx context.Context,
 	cfg *config.Config,
-) (cache.Cache[int64], func() error, error) {
+) (core.Cache[int64], func() error, error) {
 	if !cfg.MetricsEnabled || !cfg.MetricsGaugeUpdateEnabled {
 		return nil, nil, nil
 	}
@@ -35,7 +36,7 @@ func initializeMetricsCache(
 	ctx, cancel := context.WithTimeout(ctx, cfg.CacheInitTimeout)
 	defer cancel()
 
-	var metricsCache cache.Cache[int64]
+	var metricsCache core.Cache[int64]
 	var err error
 
 	switch cfg.MetricsCacheType {
@@ -85,7 +86,7 @@ func initializeMetricsCache(
 func initializeUserCache(
 	ctx context.Context,
 	cfg *config.Config,
-) (cache.Cache[models.User], func() error, error) {
+) (core.Cache[models.User], func() error, error) {
 	ctx, cancel := context.WithTimeout(ctx, cfg.CacheInitTimeout)
 	defer cancel()
 

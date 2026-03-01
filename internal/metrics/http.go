@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-authgate/authgate/internal/core"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -14,7 +16,7 @@ const (
 )
 
 // HTTPMetricsMiddleware creates a Gin middleware that records HTTP metrics
-func HTTPMetricsMiddleware(m Recorder) gin.HandlerFunc {
+func HTTPMetricsMiddleware(m core.Recorder) gin.HandlerFunc {
 	// If NoopMetrics, return a lightweight middleware that does nothing
 	if _, ok := m.(*NoopMetrics); ok {
 		return func(c *gin.Context) {
