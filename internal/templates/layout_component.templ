@@ -1,6 +1,10 @@
 package templates
 
-import "time"
+import (
+	"time"
+
+	"github.com/go-authgate/authgate/internal/version"
+)
 
 type LayoutType string
 
@@ -58,7 +62,14 @@ templ Layout(title string, layoutType LayoutType, navbar *NavbarProps) {
 					</nav>
 				</div>
 				<div class="footer-bottom">
-					<span class="footer-copy">© { time.Now().Format("2006") } AuthGate</span>
+					<div class="footer-bottom-left">
+						<span class="footer-copy">© { time.Now().Format("2006") } AuthGate</span>
+						if version.Version != "" {
+							<span class="footer-rfc">{ version.Version }</span>
+						} else {
+							<span class="footer-rfc">dev</span>
+						}
+					</div>
 					<div class="footer-rfcs" aria-label="Supported RFC standards">
 						<a href="https://datatracker.ietf.org/doc/html/rfc8628" class="footer-rfc" target="_blank" rel="noopener noreferrer">RFC 8628</a>
 						<a href="https://datatracker.ietf.org/doc/html/rfc6749" class="footer-rfc" target="_blank" rel="noopener noreferrer">RFC 6749</a>
