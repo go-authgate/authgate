@@ -5,6 +5,7 @@
 [![Security Scanning](https://github.com/go-authgate/authgate/actions/workflows/security.yml/badge.svg)](https://github.com/go-authgate/authgate/actions/workflows/security.yml)
 [![Lint and Testing](https://github.com/go-authgate/authgate/actions/workflows/testing.yml/badge.svg)](https://github.com/go-authgate/authgate/actions/workflows/testing.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/go-authgate/authgate)](https://goreportcard.com/report/github.com/go-authgate/authgate)
+[![codecov](https://codecov.io/gh/go-authgate/authgate/graph/badge.svg?token=z0Eq9k5Vwi)](https://codecov.io/gh/go-authgate/authgate)
 [![Go Reference](https://pkg.go.dev/badge/github.com/go-authgate/authgate.svg)](https://pkg.go.dev/github.com/go-authgate/authgate)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
