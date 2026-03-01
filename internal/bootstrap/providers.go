@@ -37,8 +37,8 @@ func initializeHTTPAPIAuthProvider(cfg *config.Config) core.AuthProvider {
 }
 
 // initializeTokenProvider returns the configured TokenProvider.
-// Returns core.TokenProvider (not *token.HTTPTokenProvider) so the nil default
-// is an untyped nil interface, keeping nil checks safe — mirrors initializeHTTPAPIAuthProvider.
+// It always returns a concrete core.TokenProvider: an HTTP API provider when
+// TokenProviderModeHTTPAPI is set, or a local token provider by default.
 func initializeTokenProvider(cfg *config.Config) core.TokenProvider {
 	switch cfg.TokenProviderMode {
 	case config.TokenProviderModeHTTPAPI:
