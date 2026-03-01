@@ -127,12 +127,13 @@ func TestGetUserByID_ErrUserNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockCache := mocks.NewMockCache[models.User](ctrl)
 
+	id := uuid.New().String()
 	mockCache.EXPECT().
-		GetWithFetch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		GetWithFetch(gomock.Any(), "user:"+id, gomock.Any(), gomock.Any()).
 		DoAndReturn(callFetchFn[models.User]).Times(1) // fetchFn returns ErrUserNotFound
 
 	svc := newUserServiceWithStore(db, mockCache)
 
-	_, err := svc.GetUserByID(uuid.New().String())
+	_, err := svc.GetUserByID(id)
 	assert.ErrorIs(t, err, ErrUserNotFound)
 }
