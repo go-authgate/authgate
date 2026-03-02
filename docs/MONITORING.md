@@ -54,7 +54,15 @@ curl http://localhost:8080/health
 
 ```yaml
 healthcheck:
-  test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+  test:
+    [
+      "CMD",
+      "wget",
+      "--no-verbose",
+      "--tries=1",
+      "--spider",
+      "http://localhost:8080/health",
+    ]
   interval: 30s
   timeout: 3s
   retries: 3

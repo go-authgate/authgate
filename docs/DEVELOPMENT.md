@@ -16,7 +16,7 @@ This guide helps developers build, test, and extend AuthGate.
 
 ## Prerequisites
 
-- **Go 1.25  or higher**
+- **Go 1.25 or higher**
 - **Make** (optional, but recommended for convenience commands)
 - **Git** (for version control)
 - **golangci-lint** (automatically installed by `make lint`)

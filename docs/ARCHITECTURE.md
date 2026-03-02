@@ -146,33 +146,33 @@ sequenceDiagram
 
 ## Key Endpoints
 
-| Endpoint                            | Method   | Auth Required | Purpose                                                                        |
-| ----------------------------------- | -------- | ------------- | ------------------------------------------------------------------------------ |
-| `/health`                           | GET      | No            | Health check with database connection test                                     |
-| `/.well-known/openid-configuration` | GET      | No            | OIDC Discovery metadata (RFC 8414 / OIDC Discovery 1.0)                        |
-| `/oauth/device/code`                | POST     | No            | Request device and user codes (CLI/device)                                     |
-| `/oauth/authorize`                  | GET      | Yes (Session) | Authorization Code Flow consent page (web apps)                                |
-| `/oauth/authorize`                  | POST     | Yes (Session) | Submit consent decision (allow/deny)                                           |
+| Endpoint                            | Method   | Auth Required | Purpose                                                                                           |
+| ----------------------------------- | -------- | ------------- | ------------------------------------------------------------------------------------------------- |
+| `/health`                           | GET      | No            | Health check with database connection test                                                        |
+| `/.well-known/openid-configuration` | GET      | No            | OIDC Discovery metadata (RFC 8414 / OIDC Discovery 1.0)                                           |
+| `/oauth/device/code`                | POST     | No            | Request device and user codes (CLI/device)                                                        |
+| `/oauth/authorize`                  | GET      | Yes (Session) | Authorization Code Flow consent page (web apps)                                                   |
+| `/oauth/authorize`                  | POST     | Yes (Session) | Submit consent decision (allow/deny)                                                              |
 | `/oauth/token`                      | POST     | No            | Token endpoint (grant_type=device_code, authorization_code, refresh_token, or client_credentials) |
-| `/oauth/tokeninfo`                  | GET      | No (Bearer)   | Verify token validity from Authorization: Bearer access token                  |
-| `/oauth/userinfo`                   | GET/POST | No (Bearer)   | OIDC UserInfo — returns profile claims for authenticated user (OIDC Core §5.3) |
-| `/oauth/revoke`                     | POST     | No            | Revoke access token (RFC 7009)                                                 |
-| `/device`                           | GET      | Yes (Session) | User authorization page (browser)                                              |
-| `/device/verify`                    | POST     | Yes (Session) | Complete authorization (submit user_code)                                      |
-| `/account/sessions`                 | GET      | Yes (Session) | View all active sessions                                                       |
-| `/account/sessions/:id/revoke`      | POST     | Yes (Session) | Revoke specific session                                                        |
-| `/account/sessions/revoke-all`      | POST     | Yes (Session) | Revoke all user sessions                                                       |
-| `/account/authorizations`           | GET      | Yes (Session) | View apps authorized via Authorization Code Flow                               |
-| `/login`                            | GET/POST | No            | User login (creates session)                                                   |
-| `/logout`                           | GET      | Yes (Session) | User logout (destroys session)                                                 |
-| `/auth/login/:provider`             | GET      | No            | Initiate OAuth login (provider: github, gitea, microsoft)                      |
-| `/auth/callback/:provider`          | GET      | No            | OAuth callback endpoint                                                        |
-| `/admin/audit`                      | GET      | Yes (Admin)   | View audit logs (HTML interface)                                               |
-| `/admin/audit/export`               | GET      | Yes (Admin)   | Export audit logs as CSV                                                       |
-| `/admin/audit/api`                  | GET      | Yes (Admin)   | List audit logs (JSON API)                                                     |
-| `/admin/audit/api/stats`            | GET      | Yes (Admin)   | Get audit log statistics                                                       |
-| `/admin/clients/:id/authorizations` | GET      | Yes (Admin)   | View all users who consented to a client                                       |
-| `/admin/clients/:id/revoke-all`     | POST     | Yes (Admin)   | Revoke all tokens and consents for a client                                    |
+| `/oauth/tokeninfo`                  | GET      | No (Bearer)   | Verify token validity from Authorization: Bearer access token                                     |
+| `/oauth/userinfo`                   | GET/POST | No (Bearer)   | OIDC UserInfo — returns profile claims for authenticated user (OIDC Core §5.3)                    |
+| `/oauth/revoke`                     | POST     | No            | Revoke access token (RFC 7009)                                                                    |
+| `/device`                           | GET      | Yes (Session) | User authorization page (browser)                                                                 |
+| `/device/verify`                    | POST     | Yes (Session) | Complete authorization (submit user_code)                                                         |
+| `/account/sessions`                 | GET      | Yes (Session) | View all active sessions                                                                          |
+| `/account/sessions/:id/revoke`      | POST     | Yes (Session) | Revoke specific session                                                                           |
+| `/account/sessions/revoke-all`      | POST     | Yes (Session) | Revoke all user sessions                                                                          |
+| `/account/authorizations`           | GET      | Yes (Session) | View apps authorized via Authorization Code Flow                                                  |
+| `/login`                            | GET/POST | No            | User login (creates session)                                                                      |
+| `/logout`                           | GET      | Yes (Session) | User logout (destroys session)                                                                    |
+| `/auth/login/:provider`             | GET      | No            | Initiate OAuth login (provider: github, gitea, microsoft)                                         |
+| `/auth/callback/:provider`          | GET      | No            | OAuth callback endpoint                                                                           |
+| `/admin/audit`                      | GET      | Yes (Admin)   | View audit logs (HTML interface)                                                                  |
+| `/admin/audit/export`               | GET      | Yes (Admin)   | Export audit logs as CSV                                                                          |
+| `/admin/audit/api`                  | GET      | Yes (Admin)   | List audit logs (JSON API)                                                                        |
+| `/admin/audit/api/stats`            | GET      | Yes (Admin)   | Get audit log statistics                                                                          |
+| `/admin/clients/:id/authorizations` | GET      | Yes (Admin)   | View all users who consented to a client                                                          |
+| `/admin/clients/:id/revoke-all`     | POST     | Yes (Admin)   | Revoke all tokens and consents for a client                                                       |
 
 ### Endpoint Details
 
@@ -347,12 +347,12 @@ AuthGate supports the **Client Credentials Grant** (RFC 6749 §4.4) for machine-
 
 ### Scope Handling
 
-| Request scope | Effective scope |
-|---------------|-----------------|
-| Empty (`""`) | All scopes registered on the client |
-| Subset (e.g., `"read"`) | Only the requested scopes (validated against client's registered scopes) |
-| Superset or unknown scope | `invalid_scope` error |
-| `openid` or `offline_access` | `invalid_scope` error (user-centric OIDC scopes are not permitted) |
+| Request scope                | Effective scope                                                          |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| Empty (`""`)                 | All scopes registered on the client                                      |
+| Subset (e.g., `"read"`)      | Only the requested scopes (validated against client's registered scopes) |
+| Superset or unknown scope    | `invalid_scope` error                                                    |
+| `openid` or `offline_access` | `invalid_scope` error (user-centric OIDC scopes are not permitted)       |
 
 ### Client Authentication
 
@@ -373,13 +373,13 @@ grant_type=client_credentials&client_id=<id>&client_secret=<secret>&scope=read
 
 ### Error Responses
 
-| Condition | HTTP Status | OAuth Error |
-|-----------|-------------|-------------|
-| Missing or invalid credentials | 401 + `WWW-Authenticate: Basic realm="authgate"` | `invalid_client` |
-| Client is public | 400 | `unauthorized_client` |
-| Flow not enabled for client | 400 | `unauthorized_client` |
-| Scope exceeds client's registered scopes | 400 | `invalid_scope` |
-| `openid` / `offline_access` requested | 400 | `invalid_scope` |
+| Condition                                | HTTP Status                                      | OAuth Error           |
+| ---------------------------------------- | ------------------------------------------------ | --------------------- |
+| Missing or invalid credentials           | 401 + `WWW-Authenticate: Basic realm="authgate"` | `invalid_client`      |
+| Client is public                         | 400                                              | `unauthorized_client` |
+| Flow not enabled for client              | 400                                              | `unauthorized_client` |
+| Scope exceeds client's registered scopes | 400                                              | `invalid_scope`       |
+| `openid` / `offline_access` requested    | 400                                              | `invalid_scope`       |
 
 ### Environment Variables
 
