@@ -124,7 +124,7 @@ func setupAllRoutes(
 
 	// Public routes
 	r.GET("/", func(c *gin.Context) {
-		c.Redirect(http.StatusFound, "/device")
+		c.Redirect(http.StatusFound, "/account/sessions")
 	})
 
 	// Swagger documentation (development only)

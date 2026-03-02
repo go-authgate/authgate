@@ -268,7 +268,7 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 	}
 
 	// Get redirect URL
-	redirectURL := "/device"
+	redirectURL := "/account/sessions"
 	if savedRedirect := session.Get("oauth_redirect"); savedRedirect != nil {
 		redirectURL = savedRedirect.(string)
 		session.Delete("oauth_redirect")

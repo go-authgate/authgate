@@ -72,8 +72,8 @@ func (h *AuthHandler) LoginPageWithOAuth(
 ) {
 	session := sessions.Default(c)
 	if session.Get(SessionUserID) != nil {
-		// Already logged in, redirect to device page
-		c.Redirect(http.StatusFound, "/device")
+		// Already logged in, redirect to sessions page
+		c.Redirect(http.StatusFound, "/account/sessions")
 		return
 	}
 
@@ -127,9 +127,9 @@ func (h *AuthHandler) Login(c *gin.Context,
 	password := c.PostForm("password")
 	redirectTo := c.PostForm("redirect")
 
-	// Validate redirect URL security
+	// Validate redirect URL security, fall back to default
 	if !util.IsRedirectSafe(redirectTo, h.baseURL) {
-		redirectTo = ""
+		redirectTo = "/account/sessions"
 	}
 
 	user, err := h.userService.Authenticate(c.Request.Context(), username, password)
@@ -215,12 +215,7 @@ func (h *AuthHandler) Login(c *gin.Context,
 		return
 	}
 
-	// Redirect
-	if redirectTo != "" {
-		c.Redirect(http.StatusFound, redirectTo)
-	} else {
-		c.Redirect(http.StatusFound, "/device")
-	}
+	c.Redirect(http.StatusFound, redirectTo)
 }
 
 // Logout clears the session and redirects to login
