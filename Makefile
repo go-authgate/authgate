@@ -23,6 +23,8 @@ LDFLAGS ?= -X 'github.com/go-authgate/authgate/internal/version.Version=$(VERSIO
 	-X 'github.com/go-authgate/authgate/internal/version.BuildOS=$(shell $(GO) env GOOS)' \
 	-X 'github.com/go-authgate/authgate/internal/version.BuildArch=$(shell $(GO) env GOARCH)'
 
+all: generate build
+
 ## build: build the authgate binary
 build: $(EXECUTABLE)
 
