@@ -31,30 +31,44 @@ func generateFingerprint(ip, userAgent string, includeIP bool) string {
 	return hex.EncodeToString(hash[:])
 }
 
+// loadUserFromSession reads the user_id from the session, fetches the user, and
+// populates "user_id", "user", and the request context. Returns false if there
+// is no session or the user cannot be loaded.
+func loadUserFromSession(c *gin.Context, userService *services.UserService) bool {
+	session := sessions.Default(c)
+	userID := session.Get(SessionUserID)
+	if userID == nil {
+		return false
+	}
+	userIDStr := userID.(string)
+	user, err := userService.GetUserByID(userIDStr)
+	if err != nil {
+		return false
+	}
+	c.Set("user_id", userIDStr)
+	c.Set("user", user)
+	c.Request = c.Request.WithContext(models.SetUserContext(c.Request.Context(), user))
+	return true
+}
+
+// OptionalAuth loads the user from session if logged in, but does not redirect if not.
+// Use for public pages that show richer UI when authenticated.
+func OptionalAuth(userService *services.UserService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		loadUserFromSession(c, userService)
+		c.Next()
+	}
+}
+
 // RequireAuth is a middleware that requires the user to be logged in
 func RequireAuth(userService *services.UserService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		session := sessions.Default(c)
-		userID := session.Get(SessionUserID)
-
-		if userID == nil {
+		if !loadUserFromSession(c, userService) {
 			// Redirect to login with return URL
 			redirectURL := c.Request.URL.String()
 			c.Redirect(http.StatusFound, "/login?redirect="+url.QueryEscape(redirectURL))
 			c.Abort()
 			return
-		}
-
-		userIDStr := userID.(string)
-		c.Set("user_id", userIDStr)
-
-		// Load user object for audit logging and other purposes
-		user, err := userService.GetUserByID(userIDStr)
-		if err == nil {
-			c.Set("user", user)
-
-			// Store user in request context for services layer
-			c.Request = c.Request.WithContext(models.SetUserContext(c.Request.Context(), user))
 		}
 
 		c.Next()

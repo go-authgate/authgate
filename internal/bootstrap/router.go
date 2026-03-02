@@ -127,9 +127,10 @@ func setupAllRoutes(
 		c.Redirect(http.StatusFound, "/account/sessions")
 	})
 
-	// Documentation routes (public)
-	r.GET("/docs", h.docs.ShowDocsIndex)
-	r.GET("/docs/:slug", h.docs.ShowDocsPage)
+	// Documentation routes (public, optional auth for navbar)
+	optionalAuth := middleware.OptionalAuth(h.userService)
+	r.GET("/docs", optionalAuth, h.docs.ShowDocsIndex)
+	r.GET("/docs/:slug", optionalAuth, h.docs.ShowDocsPage)
 
 	// Swagger documentation (development only)
 	if !cfg.IsProduction {
