@@ -127,6 +127,10 @@ func setupAllRoutes(
 		c.Redirect(http.StatusFound, "/account/sessions")
 	})
 
+	// Documentation routes (public)
+	r.GET("/docs", h.docs.ShowDocsIndex)
+	r.GET("/docs/:slug", h.docs.ShowDocsPage)
+
 	// Swagger documentation (development only)
 	if !cfg.IsProduction {
 		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))

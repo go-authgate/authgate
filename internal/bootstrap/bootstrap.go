@@ -157,6 +157,7 @@ func (app *Application) initializeHTTPLayer() {
 		oauthProviders,
 		oauthHTTPClient,
 		app.MetricsRecorder,
+		app.TemplatesFS,
 	)
 
 	// Router

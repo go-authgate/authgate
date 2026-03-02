@@ -202,6 +202,21 @@ type ClientAuthorizationsPageProps struct {
 	Error          string
 }
 
+// DocsEntry represents a single entry in the docs sidebar navigation
+type DocsEntry struct {
+	Slug     string
+	Title    string
+	IsActive bool
+}
+
+// DocsPageProps contains properties for the docs page
+type DocsPageProps struct {
+	NavbarProps
+	Title       string
+	ContentHTML string
+	Entries     []DocsEntry
+}
+
 // AuditLogsPageProps contains properties for the audit logs page
 type AuditLogsPageProps struct {
 	BaseProps

@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"embed"
 	"net/http"
 
 	"github.com/go-authgate/authgate/internal/auth"
@@ -21,6 +22,7 @@ type handlerSet struct {
 	audit         *handlers.AuditHandler
 	authorization *handlers.AuthorizationHandler
 	oidc          *handlers.OIDCHandler
+	docs          *handlers.DocsHandler
 	userService   *services.UserService
 }
 
@@ -36,6 +38,7 @@ func initializeHandlers(
 	oauthProviders map[string]*auth.OAuthProvider,
 	oauthHTTPClient *http.Client,
 	prometheusMetrics core.Recorder,
+	templatesFS embed.FS,
 ) handlerSet {
 	return handlerSet{
 		auth: handlers.NewAuthHandler(
@@ -66,6 +69,7 @@ func initializeHandlers(
 			cfg,
 		),
 		oidc:        handlers.NewOIDCHandler(tokenService, userService, cfg),
+		docs:        handlers.NewDocsHandler(templatesFS),
 		userService: userService,
 	}
 }
