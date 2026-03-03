@@ -1172,3 +1172,66 @@ func TestValidateToken_RefreshTokenRejected(t *testing.T) {
 	assert.Contains(t, err.Error(), "not an access token")
 	assert.Nil(t, claims)
 }
+
+// ============================================================
+// IsTokenOwnedByUser
+// ============================================================
+
+func TestIsTokenOwnedByUser_OwnedToken(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{JWTSecret: "test-secret"}
+	tokenService := createTestTokenService(s, cfg)
+
+	userID := uuid.New().String()
+	tok := &models.AccessToken{
+		ID:            uuid.New().String(),
+		TokenHash:     util.SHA256Hex("raw-owned-token"),
+		TokenType:     "Bearer",
+		TokenCategory: "access",
+		Status:        "active",
+		UserID:        userID,
+		ClientID:      uuid.New().String(),
+		Scopes:        "read",
+		ExpiresAt:     time.Now().Add(time.Hour),
+	}
+	require.NoError(t, s.DB().Create(tok).Error)
+
+	owned, err := tokenService.IsTokenOwnedByUser(tok.ID, userID)
+	require.NoError(t, err)
+	assert.True(t, owned)
+}
+
+func TestIsTokenOwnedByUser_NotOwnedToken(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{JWTSecret: "test-secret"}
+	tokenService := createTestTokenService(s, cfg)
+
+	ownerID := uuid.New().String()
+	tok := &models.AccessToken{
+		ID:            uuid.New().String(),
+		TokenHash:     util.SHA256Hex("raw-other-token"),
+		TokenType:     "Bearer",
+		TokenCategory: "access",
+		Status:        "active",
+		UserID:        ownerID,
+		ClientID:      uuid.New().String(),
+		Scopes:        "read",
+		ExpiresAt:     time.Now().Add(time.Hour),
+	}
+	require.NoError(t, s.DB().Create(tok).Error)
+
+	differentUserID := uuid.New().String()
+	owned, err := tokenService.IsTokenOwnedByUser(tok.ID, differentUserID)
+	require.NoError(t, err)
+	assert.False(t, owned)
+}
+
+func TestIsTokenOwnedByUser_NonExistentToken(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{JWTSecret: "test-secret"}
+	tokenService := createTestTokenService(s, cfg)
+
+	owned, err := tokenService.IsTokenOwnedByUser(uuid.New().String(), uuid.New().String())
+	require.NoError(t, err) // missing token must not produce an error
+	assert.False(t, owned)
+}

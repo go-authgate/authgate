@@ -55,13 +55,7 @@ func (h *ClientHandler) ShowClientsPage(c *gin.Context) {
 	// Get paginated clients with creator information
 	clients, pagination, err := h.clientService.ListClientsPaginatedWithCreator(params)
 	if err != nil {
-		templates.RenderTempl(
-			c,
-			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Failed to load clients: " + err.Error(),
-			}),
-		)
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to load clients: "+err.Error())
 		return
 	}
 
@@ -84,19 +78,14 @@ func (h *ClientHandler) ShowClientsPage(c *gin.Context) {
 	userModel := user.(*models.User)
 
 	templates.RenderTempl(c, http.StatusOK, templates.AdminClients(templates.ClientsPageProps{
-		BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-		NavbarProps: templates.NavbarProps{
-			Username:   userModel.Username,
-			FullName:   userModel.FullName,
-			IsAdmin:    userModel.IsAdmin(),
-			ActiveLink: "clients",
-		},
-		User:       userModel,
-		Clients:    clients,
-		Pagination: pagination,
-		Search:     search,
-		PageSize:   pageSize,
-		Success:    successMsg,
+		BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		NavbarProps: buildNavbarProps(userModel, "clients"),
+		User:        userModel,
+		Clients:     clients,
+		Pagination:  pagination,
+		Search:      search,
+		PageSize:    pageSize,
+		Success:     successMsg,
 	}))
 }
 
@@ -106,17 +95,12 @@ func (h *ClientHandler) ShowCreateClientPage(c *gin.Context) {
 	userModel := user.(*models.User)
 
 	templates.RenderTempl(c, http.StatusOK, templates.AdminClientForm(templates.ClientFormPageProps{
-		BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-		NavbarProps: templates.NavbarProps{
-			Username:   userModel.Username,
-			FullName:   userModel.FullName,
-			IsAdmin:    userModel.IsAdmin(),
-			ActiveLink: "clients",
-		},
-		Title:  "Create OAuth Client",
-		Method: http.MethodPost,
-		Action: "/admin/clients",
-		IsEdit: false,
+		BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		NavbarProps: buildNavbarProps(userModel, "clients"),
+		Title:       "Create OAuth Client",
+		Method:      http.MethodPost,
+		Action:      "/admin/clients",
+		IsEdit:      false,
 	}))
 }
 
@@ -158,19 +142,14 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 			c,
 			http.StatusBadRequest,
 			templates.AdminClientForm(templates.ClientFormPageProps{
-				BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-				NavbarProps: templates.NavbarProps{
-					Username:   userModel.Username,
-					FullName:   userModel.FullName,
-					IsAdmin:    userModel.IsAdmin(),
-					ActiveLink: "clients",
-				},
-				Client: clientData,
-				Error:  err.Error(),
-				Title:  "Create OAuth Client",
-				Method: http.MethodPost,
-				Action: "/admin/clients",
-				IsEdit: false,
+				BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				NavbarProps: buildNavbarProps(userModel, "clients"),
+				Client:      clientData,
+				Error:       err.Error(),
+				Title:       "Create OAuth Client",
+				Method:      http.MethodPost,
+				Action:      "/admin/clients",
+				IsEdit:      false,
 			}),
 		)
 		return
@@ -200,13 +179,8 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 		c,
 		http.StatusOK,
 		templates.AdminClientCreated(templates.ClientCreatedPageProps{
-			BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-			NavbarProps: templates.NavbarProps{
-				Username:   userModel.Username,
-				FullName:   userModel.FullName,
-				IsAdmin:    userModel.IsAdmin(),
-				ActiveLink: "clients",
-			},
+			BaseProps:    templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+			NavbarProps:  buildNavbarProps(userModel, "clients"),
 			Client:       clientDisplay,
 			ClientSecret: resp.ClientSecretPlain,
 		}),
@@ -219,9 +193,7 @@ func (h *ClientHandler) ShowEditClientPage(c *gin.Context) {
 
 	client, err := h.clientService.GetClient(clientID)
 	if err != nil {
-		templates.RenderTempl(c, http.StatusNotFound, templates.ErrorPage(templates.ErrorPageProps{
-			Error: "Client not found",
-		}))
+		renderErrorPage(c, http.StatusNotFound, "Client not found")
 		return
 	}
 
@@ -247,18 +219,13 @@ func (h *ClientHandler) ShowEditClientPage(c *gin.Context) {
 	}
 
 	templates.RenderTempl(c, http.StatusOK, templates.AdminClientForm(templates.ClientFormPageProps{
-		BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-		NavbarProps: templates.NavbarProps{
-			Username:   userModel.Username,
-			FullName:   userModel.FullName,
-			IsAdmin:    userModel.IsAdmin(),
-			ActiveLink: "clients",
-		},
-		Client: clientDisplay,
-		Title:  "Edit OAuth Client",
-		Method: http.MethodPost,
-		Action: "/admin/clients/" + clientID,
-		IsEdit: true,
+		BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		NavbarProps: buildNavbarProps(userModel, "clients"),
+		Client:      clientDisplay,
+		Title:       "Edit OAuth Client",
+		Method:      http.MethodPost,
+		Action:      "/admin/clients/" + clientID,
+		IsEdit:      true,
 	}))
 }
 
@@ -307,19 +274,14 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 			c,
 			http.StatusBadRequest,
 			templates.AdminClientForm(templates.ClientFormPageProps{
-				BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-				NavbarProps: templates.NavbarProps{
-					Username:   userModel.Username,
-					FullName:   userModel.FullName,
-					IsAdmin:    userModel.IsAdmin(),
-					ActiveLink: "clients",
-				},
-				Client: clientDisplay,
-				Error:  err.Error(),
-				Title:  "Edit OAuth Client",
-				Method: http.MethodPost,
-				Action: "/admin/clients/" + clientID,
-				IsEdit: true,
+				BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				NavbarProps: buildNavbarProps(userModel, "clients"),
+				Client:      clientDisplay,
+				Error:       err.Error(),
+				Title:       "Edit OAuth Client",
+				Method:      http.MethodPost,
+				Action:      "/admin/clients/" + clientID,
+				IsEdit:      true,
 			}),
 		)
 		return
@@ -335,13 +297,7 @@ func (h *ClientHandler) DeleteClient(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	err := h.clientService.DeleteClient(c.Request.Context(), clientID, userID.(string))
 	if err != nil {
-		templates.RenderTempl(
-			c,
-			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Failed to delete client: " + err.Error(),
-			}),
-		)
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to delete client: "+err.Error())
 		return
 	}
 
@@ -349,13 +305,7 @@ func (h *ClientHandler) DeleteClient(c *gin.Context) {
 	session := sessions.Default(c)
 	session.AddFlash("Client deleted successfully")
 	if err := session.Save(); err != nil {
-		templates.RenderTempl(
-			c,
-			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Failed to save session: " + err.Error(),
-			}),
-		)
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to save session: "+err.Error())
 		return
 	}
 
@@ -373,12 +323,10 @@ func (h *ClientHandler) RegenerateSecret(c *gin.Context) {
 		userID.(string),
 	)
 	if err != nil {
-		templates.RenderTempl(
+		renderErrorPage(
 			c,
 			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Failed to regenerate secret: " + err.Error(),
-			}),
+			"Failed to regenerate secret: "+err.Error(),
 		)
 		return
 	}
@@ -391,13 +339,8 @@ func (h *ClientHandler) RegenerateSecret(c *gin.Context) {
 		c,
 		http.StatusOK,
 		templates.AdminClientSecret(templates.ClientSecretPageProps{
-			BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-			NavbarProps: templates.NavbarProps{
-				Username:   userModel.Username,
-				FullName:   userModel.FullName,
-				IsAdmin:    userModel.IsAdmin(),
-				ActiveLink: "clients",
-			},
+			BaseProps:    templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+			NavbarProps:  buildNavbarProps(userModel, "clients"),
 			Client:       client,
 			ClientSecret: newSecret,
 		}),
@@ -410,9 +353,7 @@ func (h *ClientHandler) ViewClient(c *gin.Context) {
 
 	client, err := h.clientService.GetClient(clientID)
 	if err != nil {
-		templates.RenderTempl(c, http.StatusNotFound, templates.ErrorPage(templates.ErrorPageProps{
-			Error: "Client not found",
-		}))
+		renderErrorPage(c, http.StatusNotFound, "Client not found")
 		return
 	}
 
@@ -434,13 +375,8 @@ func (h *ClientHandler) ViewClient(c *gin.Context) {
 		c,
 		http.StatusOK,
 		templates.AdminClientDetail(templates.ClientDetailPageProps{
-			BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-			NavbarProps: templates.NavbarProps{
-				Username:   userModel.Username,
-				FullName:   userModel.FullName,
-				IsAdmin:    userModel.IsAdmin(),
-				ActiveLink: "clients",
-			},
+			BaseProps:        templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+			NavbarProps:      buildNavbarProps(userModel, "clients"),
 			Client:           client,
 			ActiveTokenCount: activeTokenCount,
 			Success:          successMsg,
@@ -454,20 +390,16 @@ func (h *ClientHandler) ListClientAuthorizations(c *gin.Context) {
 
 	client, err := h.clientService.GetClient(clientID)
 	if err != nil {
-		templates.RenderTempl(c, http.StatusNotFound, templates.ErrorPage(templates.ErrorPageProps{
-			Error: "Client not found",
-		}))
+		renderErrorPage(c, http.StatusNotFound, "Client not found")
 		return
 	}
 
 	auths, err := h.authorizationService.ListClientAuthorizations(c.Request.Context(), clientID)
 	if err != nil {
-		templates.RenderTempl(
+		renderErrorPage(
 			c,
 			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Failed to load authorizations: " + err.Error(),
-			}),
+			"Failed to load authorizations: "+err.Error(),
 		)
 		return
 	}
@@ -491,13 +423,8 @@ func (h *ClientHandler) ListClientAuthorizations(c *gin.Context) {
 		c,
 		http.StatusOK,
 		templates.AdminClientAuthorizations(templates.ClientAuthorizationsPageProps{
-			BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-			NavbarProps: templates.NavbarProps{
-				Username:   userModel.Username,
-				FullName:   userModel.FullName,
-				IsAdmin:    userModel.IsAdmin(),
-				ActiveLink: "clients",
-			},
+			BaseProps:      templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+			NavbarProps:    buildNavbarProps(userModel, "clients"),
 			Client:         client,
 			Authorizations: displayAuths,
 		}),
@@ -524,13 +451,8 @@ func (h *ClientHandler) RevokeAllTokens(c *gin.Context) {
 			c,
 			http.StatusInternalServerError,
 			templates.AdminClientDetail(templates.ClientDetailPageProps{
-				BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-				NavbarProps: templates.NavbarProps{
-					Username:   userModel.Username,
-					FullName:   userModel.FullName,
-					IsAdmin:    userModel.IsAdmin(),
-					ActiveLink: "clients",
-				},
+				BaseProps:        templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				NavbarProps:      buildNavbarProps(userModel, "clients"),
 				Client:           client,
 				ActiveTokenCount: activeTokenCount,
 				Error:            "Failed to revoke tokens: " + err.Error(),

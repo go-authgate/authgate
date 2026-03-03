@@ -2,10 +2,7 @@ package handlers
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"log"
 	"net/http"
@@ -14,24 +11,12 @@ import (
 	"github.com/go-authgate/authgate/internal/auth"
 	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/services"
-	"github.com/go-authgate/authgate/internal/templates"
 	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
 )
-
-// generateFingerprintOAuth creates a SHA256 hash from IP (optional) and User-Agent
-func generateFingerprintOAuth(ip, userAgent string, includeIP bool) string {
-	data := userAgent
-	if includeIP {
-		data = ip + "|" + userAgent
-	}
-
-	hash := sha256.Sum256([]byte(data))
-	return hex.EncodeToString(hash[:])
-}
 
 // OAuthHandler handles OAuth authentication
 type OAuthHandler struct {
@@ -72,12 +57,10 @@ func (h *OAuthHandler) LoginWithProvider(c *gin.Context) {
 	// Check if provider exists
 	oauthProvider, exists := h.providers[provider]
 	if !exists {
-		templates.RenderTempl(
+		renderErrorPage(
 			c,
 			http.StatusBadRequest,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Unsupported OAuth provider. The requested OAuth provider is not configured.",
-			}),
+			"Unsupported OAuth provider. The requested OAuth provider is not configured.",
 		)
 		return
 	}
@@ -86,12 +69,10 @@ func (h *OAuthHandler) LoginWithProvider(c *gin.Context) {
 	state, err := generateRandomState(32)
 	if err != nil {
 		log.Printf("[OAuth] Failed to generate state: %v", err)
-		templates.RenderTempl(
+		renderErrorPage(
 			c,
 			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Internal server error. Failed to initiate OAuth login.",
-			}),
+			"Internal server error. Failed to initiate OAuth login.",
 		)
 		return
 	}
@@ -108,12 +89,10 @@ func (h *OAuthHandler) LoginWithProvider(c *gin.Context) {
 
 	if err := session.Save(); err != nil {
 		log.Printf("[OAuth] Failed to save session: %v", err)
-		templates.RenderTempl(
+		renderErrorPage(
 			c,
 			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Internal server error. Failed to save session.",
-			}),
+			"Internal server error. Failed to save session.",
 		)
 		return
 	}
@@ -132,23 +111,15 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 	// Verify provider exists
 	oauthProvider, exists := h.providers[provider]
 	if !exists {
-		templates.RenderTempl(
-			c,
-			http.StatusBadRequest,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Invalid provider. OAuth provider not found.",
-			}),
-		)
+		renderErrorPage(c, http.StatusBadRequest, "Invalid provider. OAuth provider not found.")
 		return
 	}
 
 	if len(state) > maxStateLength {
-		templates.RenderTempl(
+		renderErrorPage(
 			c,
 			http.StatusBadRequest,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Invalid state parameter. State parameter exceeds maximum length.",
-			}),
+			"Invalid state parameter. State parameter exceeds maximum length.",
 		)
 		return
 	}
@@ -159,23 +130,19 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 	savedProvider := session.Get("oauth_provider")
 
 	if savedState == nil || savedProvider == nil {
-		templates.RenderTempl(
+		renderErrorPage(
 			c,
 			http.StatusBadRequest,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Invalid session. OAuth session expired or invalid. Please try again.",
-			}),
+			"Invalid session. OAuth session expired or invalid. Please try again.",
 		)
 		return
 	}
 
 	if state != savedState.(string) || provider != savedProvider.(string) {
-		templates.RenderTempl(
+		renderErrorPage(
 			c,
 			http.StatusBadRequest,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Invalid state. CSRF validation failed. Please try again.",
-			}),
+			"Invalid state. CSRF validation failed. Please try again.",
 		)
 		return
 	}
@@ -187,12 +154,10 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 	token, err := oauthProvider.ExchangeCode(ctx, code)
 	if err != nil {
 		log.Printf("[OAuth] Failed to exchange code: %v", err)
-		templates.RenderTempl(
+		renderErrorPage(
 			c,
 			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "OAuth error. Failed to exchange authorization code.",
-			}),
+			"OAuth error. Failed to exchange authorization code.",
 		)
 		return
 	}
@@ -201,12 +166,10 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 	userInfo, err := oauthProvider.GetUserInfo(ctx, token)
 	if err != nil {
 		log.Printf("[OAuth] Failed to get user info: %v", err)
-		templates.RenderTempl(
+		renderErrorPage(
 			c,
 			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "OAuth error. Failed to retrieve user information from provider.",
-			}),
+			"OAuth error. Failed to retrieve user information from provider.",
 		)
 		return
 	}
@@ -226,23 +189,19 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 
 		// Handle specific errors
 		if errors.Is(err, services.ErrOAuthAutoRegisterDisabled) {
-			templates.RenderTempl(
+			renderErrorPage(
 				c,
 				http.StatusForbidden,
-				templates.ErrorPage(templates.ErrorPageProps{
-					Error: "Registration Disabled. New account registration via OAuth is currently disabled. Please contact your administrator.",
-				}),
+				"Registration Disabled. New account registration via OAuth is currently disabled. Please contact your administrator.",
 			)
 			return
 		}
 
 		// Generic error
-		templates.RenderTempl(
+		renderErrorPage(
 			c,
 			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Authentication failed. Unable to authenticate your account at this time. Please try again later.",
-			}),
+			"Authentication failed. Unable to authenticate your account at this time. Please try again later.",
 		)
 		return
 	}
@@ -263,7 +222,7 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 	if h.sessionFingerprintEnabled {
 		clientIP := c.GetString("client_ip") // Set by IPMiddleware
 		userAgent := c.Request.UserAgent()
-		fingerprint := generateFingerprintOAuth(clientIP, userAgent, h.sessionFingerprintIncludeIP)
+		fingerprint := generateFingerprint(clientIP, userAgent, h.sessionFingerprintIncludeIP)
 		session.Set("session_fingerprint", fingerprint)
 	}
 
@@ -276,12 +235,10 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 
 	if err := session.Save(); err != nil {
 		log.Printf("[OAuth] Failed to save session: %v", err)
-		templates.RenderTempl(
+		renderErrorPage(
 			c,
 			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Internal server error. Failed to save session.",
-			}),
+			"Internal server error. Failed to save session.",
 		)
 		return
 	}
@@ -290,11 +247,11 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 	c.Redirect(http.StatusFound, redirectURL)
 }
 
-// generateRandomState generates a random state string for OAuth CSRF protection
-func generateRandomState(length int) (string, error) {
-	bytes := make([]byte, length)
-	if _, err := rand.Read(bytes); err != nil {
+// generateRandomState returns a URL-safe base64-encoded string of nBytes random bytes.
+func generateRandomState(nBytes int) (string, error) {
+	b, err := util.CryptoRandomBytes(int64(nBytes))
+	if err != nil {
 		return "", err
 	}
-	return base64.URLEncoding.EncodeToString(bytes), nil
+	return base64.URLEncoding.EncodeToString(b), nil
 }

@@ -32,9 +32,9 @@ func NewAuditHandler(auditService *services.AuditService) *AuditHandler {
 	}
 }
 
-// ShowAuditLogsPage displays the audit logs HTML page
-func (h *AuditHandler) ShowAuditLogsPage(c *gin.Context) {
-	// Parse pagination parameters
+// parseAuditParams parses pagination and filter query parameters from the request.
+// Note: uses a local max page size of 100 (not the default store limit of 50).
+func parseAuditParams(c *gin.Context) (store.PaginationParams, store.AuditLogFilters) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 
@@ -51,7 +51,6 @@ func (h *AuditHandler) ShowAuditLogsPage(c *gin.Context) {
 		Search:   c.Query("search"),
 	}
 
-	// Parse filters
 	filters := store.AuditLogFilters{
 		EventType:    models.EventType(c.Query("event_type")),
 		ActorUserID:  c.Query("actor_user_id"),
@@ -62,13 +61,11 @@ func (h *AuditHandler) ShowAuditLogsPage(c *gin.Context) {
 		Search:       c.Query("search"),
 	}
 
-	// Parse success filter (optional boolean)
 	if successStr := c.Query("success"); successStr != "" {
 		success := successStr == queryValueTrue
 		filters.Success = &success
 	}
 
-	// Parse time range
 	if startTimeStr := c.Query("start_time"); startTimeStr != "" {
 		if t, err := time.Parse(time.RFC3339, startTimeStr); err == nil {
 			filters.StartTime = t
@@ -80,40 +77,27 @@ func (h *AuditHandler) ShowAuditLogsPage(c *gin.Context) {
 		}
 	}
 
-	// Get audit logs
+	return params, filters
+}
+
+// ShowAuditLogsPage displays the audit logs HTML page
+func (h *AuditHandler) ShowAuditLogsPage(c *gin.Context) {
+	params, filters := parseAuditParams(c)
+
 	logs, pagination, err := h.auditService.GetAuditLogs(params, filters)
 	if err != nil {
-		templates.RenderTempl(
-			c,
-			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Failed to retrieve audit logs",
-			}),
-		)
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to retrieve audit logs")
 		return
 	}
 
-	// Get current user for navbar
 	user, _ := c.Get("user")
 	userModel := user.(*models.User)
 
-	// Convert logs slice to pointer slice
-	logPtrs := make([]*models.AuditLog, len(logs))
-	for i := range logs {
-		logPtrs[i] = &logs[i]
-	}
-
-	// Render templ template
 	templates.RenderTempl(c, http.StatusOK, templates.AdminAuditLogs(templates.AuditLogsPageProps{
-		BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-		NavbarProps: templates.NavbarProps{
-			Username:   userModel.Username,
-			FullName:   userModel.FullName,
-			IsAdmin:    userModel.IsAdmin(),
-			ActiveLink: "audit",
-		},
+		BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		NavbarProps: buildNavbarProps(userModel, "audit"),
 		User:        userModel,
-		Logs:        logPtrs,
+		Logs:        toPointerSlice(logs),
 		Page:        pagination.CurrentPage,
 		PageSize:    pagination.PageSize,
 		TotalItems:  int(pagination.Total),
@@ -131,51 +115,7 @@ func (h *AuditHandler) ShowAuditLogsPage(c *gin.Context) {
 
 // ListAuditLogs retrieves audit logs with pagination and filtering (JSON API)
 func (h *AuditHandler) ListAuditLogs(c *gin.Context) {
-	// Parse pagination parameters
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
-
-	params := store.PaginationParams{
-		Page:     page,
-		PageSize: pageSize,
-		Search:   c.Query("search"),
-	}
-
-	// Parse filters
-	filters := store.AuditLogFilters{
-		EventType:    models.EventType(c.Query("event_type")),
-		ActorUserID:  c.Query("actor_user_id"),
-		ResourceType: models.ResourceType(c.Query("resource_type")),
-		ResourceID:   c.Query("resource_id"),
-		Severity:     models.EventSeverity(c.Query("severity")),
-		ActorIP:      c.Query("actor_ip"),
-		Search:       c.Query("search"),
-	}
-
-	// Parse success filter (optional boolean)
-	if successStr := c.Query("success"); successStr != "" {
-		success := successStr == queryValueTrue
-		filters.Success = &success
-	}
-
-	// Parse time range
-	if startTimeStr := c.Query("start_time"); startTimeStr != "" {
-		if t, err := time.Parse(time.RFC3339, startTimeStr); err == nil {
-			filters.StartTime = t
-		}
-	}
-	if endTimeStr := c.Query("end_time"); endTimeStr != "" {
-		if t, err := time.Parse(time.RFC3339, endTimeStr); err == nil {
-			filters.EndTime = t
-		}
-	}
+	params, filters := parseAuditParams(c)
 
 	// Get audit logs
 	logs, pagination, err := h.auditService.GetAuditLogs(params, filters)
@@ -194,8 +134,8 @@ func (h *AuditHandler) ListAuditLogs(c *gin.Context) {
 				ActorUsername: username.(string),
 				Action:        "Viewed audit logs",
 				Details: models.AuditDetails{
-					"page":      page,
-					"page_size": pageSize,
+					"page":      params.Page,
+					"page_size": params.PageSize,
 					"filters":   filters,
 				},
 				Success:       true,

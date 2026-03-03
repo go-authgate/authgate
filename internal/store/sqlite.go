@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -125,14 +125,14 @@ func (s *Store) Close(ctx context.Context) error {
 	}
 }
 
-// generateRandomPassword generates a random password of specified length
+// generateRandomPassword generates a random password of specified length.
+// Uses base64url encoding and truncates to length printable characters.
 func generateRandomPassword(length int) (string, error) {
-	bytes := make([]byte, length)
-	if _, err := rand.Read(bytes); err != nil {
+	b, err := util.CryptoRandomBytes(int64(length))
+	if err != nil {
 		return "", err
 	}
-	// Use base64 URL encoding to get a safe, printable password
-	return base64.URLEncoding.EncodeToString(bytes)[:length], nil
+	return base64.URLEncoding.EncodeToString(b)[:length], nil
 }
 
 func (s *Store) seedData(ctx context.Context, cfg *config.Config) error {

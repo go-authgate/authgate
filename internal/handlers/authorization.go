@@ -112,13 +112,8 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 
 	// Render the consent page
 	templates.RenderTempl(c, http.StatusOK, templates.AuthorizePage(templates.AuthorizePageProps{
-		BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-		NavbarProps: templates.NavbarProps{
-			Username:   user.Username,
-			FullName:   user.FullName,
-			IsAdmin:    user.IsAdmin(),
-			ActiveLink: "",
-		},
+		BaseProps:           templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		NavbarProps:         buildNavbarProps(user, ""),
 		Username:            user.Username,
 		ClientID:            req.Client.ClientID,
 		ClientName:          req.Client.ClientName,
@@ -301,13 +296,7 @@ func (h *AuthorizationHandler) ListAuthorizations(c *gin.Context) {
 
 	auths, err := h.authorizationService.ListUserAuthorizations(c.Request.Context(), userIDStr)
 	if err != nil {
-		templates.RenderTempl(
-			c,
-			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Failed to retrieve authorizations",
-			}),
-		)
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to retrieve authorizations")
 		return
 	}
 

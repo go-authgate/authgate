@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -43,15 +44,18 @@ func TestParseScopeSet_SingleScope(t *testing.T) {
 
 func TestBuildUserInfoClaims_AllScopes(t *testing.T) {
 	updatedAt := time.Unix(1708646400, 0)
+	user := &models.User{
+		FullName:  "John Doe",
+		Username:  "johndoe",
+		AvatarURL: "https://example.com/avatar.jpg",
+		Email:     "john@example.com",
+	}
+	user.UpdatedAt = updatedAt
 	claims := buildUserInfoClaims(
 		"user-123",
 		"https://auth.example.com",
 		"openid profile email",
-		"John Doe",
-		"johndoe",
-		"https://example.com/avatar.jpg",
-		"john@example.com",
-		updatedAt,
+		user,
 	)
 
 	assert.Equal(t, "user-123", claims["sub"])
@@ -65,16 +69,13 @@ func TestBuildUserInfoClaims_AllScopes(t *testing.T) {
 }
 
 func TestBuildUserInfoClaims_OpenIDOnly(t *testing.T) {
-	claims := buildUserInfoClaims(
-		"user-123",
-		"https://auth.example.com",
-		"openid",
-		"John Doe",
-		"johndoe",
-		"https://example.com/avatar.jpg",
-		"john@example.com",
-		time.Now(),
-	)
+	user := &models.User{
+		FullName:  "John Doe",
+		Username:  "johndoe",
+		AvatarURL: "https://example.com/avatar.jpg",
+		Email:     "john@example.com",
+	}
+	claims := buildUserInfoClaims("user-123", "https://auth.example.com", "openid", user)
 
 	assert.Equal(t, "user-123", claims["sub"])
 	assert.Equal(t, "https://auth.example.com", claims["iss"])
@@ -85,16 +86,14 @@ func TestBuildUserInfoClaims_OpenIDOnly(t *testing.T) {
 
 func TestBuildUserInfoClaims_ProfileScopeOnly(t *testing.T) {
 	updatedAt := time.Unix(1000000, 0)
-	claims := buildUserInfoClaims(
-		"user-456",
-		"https://auth.example.com",
-		"profile",
-		"Jane Smith",
-		"janesmith",
-		"",
-		"jane@example.com",
-		updatedAt,
-	)
+	user := &models.User{
+		FullName:  "Jane Smith",
+		Username:  "janesmith",
+		AvatarURL: "",
+		Email:     "jane@example.com",
+	}
+	user.UpdatedAt = updatedAt
+	claims := buildUserInfoClaims("user-456", "https://auth.example.com", "profile", user)
 
 	assert.Equal(t, "user-456", claims["sub"])
 	assert.Equal(t, "Jane Smith", claims["name"])
@@ -107,16 +106,13 @@ func TestBuildUserInfoClaims_ProfileScopeOnly(t *testing.T) {
 }
 
 func TestBuildUserInfoClaims_EmailScopeOnly(t *testing.T) {
-	claims := buildUserInfoClaims(
-		"user-789",
-		"https://auth.example.com",
-		"email",
-		"Bob Builder",
-		"bob",
-		"",
-		"bob@example.com",
-		time.Now(),
-	)
+	user := &models.User{
+		FullName:  "Bob Builder",
+		Username:  "bob",
+		AvatarURL: "",
+		Email:     "bob@example.com",
+	}
+	claims := buildUserInfoClaims("user-789", "https://auth.example.com", "email", user)
 
 	assert.Equal(t, "user-789", claims["sub"])
 	assert.Equal(t, "bob@example.com", claims["email"])
@@ -126,16 +122,13 @@ func TestBuildUserInfoClaims_EmailScopeOnly(t *testing.T) {
 }
 
 func TestBuildUserInfoClaims_NoScopes(t *testing.T) {
-	claims := buildUserInfoClaims(
-		"user-000",
-		"https://auth.example.com",
-		"",
-		"Nobody",
-		"nobody",
-		"",
-		"nobody@example.com",
-		time.Now(),
-	)
+	user := &models.User{
+		FullName:  "Nobody",
+		Username:  "nobody",
+		AvatarURL: "",
+		Email:     "nobody@example.com",
+	}
+	claims := buildUserInfoClaims("user-000", "https://auth.example.com", "", user)
 
 	// sub and iss are always present
 	assert.Equal(t, "user-000", claims["sub"])
@@ -145,16 +138,13 @@ func TestBuildUserInfoClaims_NoScopes(t *testing.T) {
 }
 
 func TestBuildUserInfoClaims_NoPictureWhenEmpty(t *testing.T) {
-	claims := buildUserInfoClaims(
-		"user-001",
-		"https://auth.example.com",
-		"profile",
-		"Test User",
-		"testuser",
-		"", // empty avatar
-		"test@example.com",
-		time.Now(),
-	)
+	user := &models.User{
+		FullName:  "Test User",
+		Username:  "testuser",
+		AvatarURL: "", // empty avatar
+		Email:     "test@example.com",
+	}
+	claims := buildUserInfoClaims("user-001", "https://auth.example.com", "profile", user)
 
 	// picture key should not be set when avatarURL is empty
 	_, hasPicture := claims["picture"]

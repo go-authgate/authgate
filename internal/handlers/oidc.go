@@ -3,9 +3,9 @@ package handlers
 import (
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +16,7 @@ type OIDCHandler struct {
 	tokenService *services.TokenService
 	userService  *services.UserService
 	config       *config.Config
+	issuerURL    string // BaseURL with trailing slash stripped, computed once
 }
 
 // NewOIDCHandler creates a new OIDCHandler.
@@ -28,6 +29,7 @@ func NewOIDCHandler(
 		tokenService: ts,
 		userService:  us,
 		config:       cfg,
+		issuerURL:    strings.TrimRight(cfg.BaseURL, "/"),
 	}
 }
 
@@ -57,13 +59,12 @@ type discoveryMetadata struct {
 //	@Success		200	{object}	discoveryMetadata	"Provider metadata"
 //	@Router			/.well-known/openid-configuration [get]
 func (h *OIDCHandler) Discovery(c *gin.Context) {
-	base := strings.TrimRight(h.config.BaseURL, "/")
 	meta := discoveryMetadata{
-		Issuer:                           base,
-		AuthorizationEndpoint:            base + "/oauth/authorize",
-		TokenEndpoint:                    base + "/oauth/token",
-		UserinfoEndpoint:                 base + "/oauth/userinfo",
-		RevocationEndpoint:               base + "/oauth/revoke",
+		Issuer:                           h.issuerURL,
+		AuthorizationEndpoint:            h.issuerURL + "/oauth/authorize",
+		TokenEndpoint:                    h.issuerURL + "/oauth/token",
+		UserinfoEndpoint:                 h.issuerURL + "/oauth/userinfo",
+		RevocationEndpoint:               h.issuerURL + "/oauth/revoke",
 		ResponseTypesSupported:           []string{"code"},
 		SubjectTypesSupported:            []string{"public"},
 		IDTokenSigningAlgValuesSupported: []string{"HS256"},
@@ -145,31 +146,13 @@ func (h *OIDCHandler) UserInfo(c *gin.Context) {
 		return
 	}
 
-	claims := buildUserInfoClaims(
-		result.UserID,
-		strings.TrimRight(h.config.BaseURL, "/"),
-		result.Scopes,
-		user.FullName,
-		user.Username,
-		user.AvatarURL,
-		user.Email,
-		user.UpdatedAt,
-	)
+	claims := buildUserInfoClaims(result.UserID, h.issuerURL, result.Scopes, user)
 	c.JSON(http.StatusOK, claims)
 }
 
 // buildUserInfoClaims constructs UserInfo response claims based on the granted scopes.
 // sub and iss are always included. profile and email scopes gate their respective claims.
-func buildUserInfoClaims(
-	userID string,
-	issuer string,
-	scopes string,
-	fullName string,
-	username string,
-	avatarURL string,
-	email string,
-	updatedAt time.Time,
-) map[string]any {
+func buildUserInfoClaims(userID, issuer, scopes string, user *models.User) map[string]any {
 	scopeSet := parseScopeSet(scopes)
 
 	claims := map[string]any{
@@ -178,16 +161,16 @@ func buildUserInfoClaims(
 	}
 
 	if scopeSet["profile"] {
-		claims["name"] = fullName
-		claims["preferred_username"] = username
-		if avatarURL != "" {
-			claims["picture"] = avatarURL
+		claims["name"] = user.FullName
+		claims["preferred_username"] = user.Username
+		if user.AvatarURL != "" {
+			claims["picture"] = user.AvatarURL
 		}
-		claims["updated_at"] = updatedAt.Unix()
+		claims["updated_at"] = user.UpdatedAt.Unix()
 	}
 
 	if scopeSet["email"] {
-		claims["email"] = email
+		claims["email"] = user.Email
 		claims["email_verified"] = false
 	}
 

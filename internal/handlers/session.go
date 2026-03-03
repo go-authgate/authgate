@@ -28,13 +28,7 @@ func NewSessionHandler(ts *services.TokenService, us *services.UserService) *Ses
 func (h *SessionHandler) ListSessions(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		templates.RenderTempl(
-			c,
-			http.StatusUnauthorized,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "User not authenticated",
-			}),
-		)
+		renderErrorPage(c, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
@@ -52,101 +46,59 @@ func (h *SessionHandler) ListSessions(c *gin.Context) {
 		params,
 	)
 	if err != nil {
-		templates.RenderTempl(
-			c,
-			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Failed to retrieve sessions",
-			}),
-		)
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to retrieve sessions")
 		return
 	}
 
 	// Get user info for navbar
 	user, err := h.userService.GetUserByID(userID.(string))
 	if err != nil {
-		templates.RenderTempl(
-			c,
-			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Failed to retrieve user information",
-			}),
-		)
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to retrieve user information")
 		return
 	}
 
 	templates.RenderTempl(c, http.StatusOK, templates.AccountSessions(templates.SessionsPageProps{
-		BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-		NavbarProps: templates.NavbarProps{
-			Username:   user.Username,
-			FullName:   user.FullName,
-			IsAdmin:    user.IsAdmin(),
-			ActiveLink: "sessions",
-		},
-		Sessions:   tokens,
-		Pagination: pagination,
-		Search:     search,
-		PageSize:   pageSize,
+		BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		NavbarProps: buildNavbarProps(user, "sessions"),
+		Sessions:    tokens,
+		Pagination:  pagination,
+		Search:      search,
+		PageSize:    pageSize,
 	}))
 }
 
-// validateTokenOwnership checks if the current user owns the specified token
-// Returns the tokenID if valid, otherwise renders error and returns empty string
+// validateTokenOwnership checks if the current user owns the specified token.
+// Returns the tokenID if valid, otherwise renders error and returns empty string.
 func (h *SessionHandler) validateTokenOwnership(
 	c *gin.Context,
 	actionName string,
 ) (tokenID string, valid bool) {
 	userIDVal, exists := c.Get("user_id")
 	if !exists {
-		templates.RenderTempl(
-			c,
-			http.StatusUnauthorized,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "User not authenticated",
-			}),
-		)
+		renderErrorPage(c, http.StatusUnauthorized, "User not authenticated")
 		return "", false
 	}
 
 	tokenID = c.Param("id")
 	if tokenID == "" {
-		templates.RenderTempl(
-			c,
-			http.StatusBadRequest,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Token ID is required",
-			}),
-		)
+		renderErrorPage(c, http.StatusBadRequest, "Token ID is required")
 		return "", false
 	}
 
 	userID := userIDVal.(string)
 
-	// Verify that this token belongs to the current user
-	tokens, err := h.tokenService.GetUserTokens(userID)
+	owned, err := h.tokenService.IsTokenOwnedByUser(tokenID, userID)
 	if err != nil {
-		templates.RenderTempl(
-			c,
-			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Failed to retrieve sessions",
-			}),
-		)
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to retrieve sessions")
 		return "", false
 	}
 
-	found := false
-	for _, token := range tokens {
-		if token.ID == tokenID {
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		templates.RenderTempl(c, http.StatusForbidden, templates.ErrorPage(templates.ErrorPageProps{
-			Error: "You don't have permission to " + actionName + " this token",
-		}))
+	if !owned {
+		renderErrorPage(
+			c,
+			http.StatusForbidden,
+			"You don't have permission to "+actionName+" this token",
+		)
 		return "", false
 	}
 
@@ -168,13 +120,7 @@ func (h *SessionHandler) RevokeSession(c *gin.Context) {
 		tokenID,
 		userID.(string),
 	); err != nil {
-		templates.RenderTempl(
-			c,
-			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Failed to revoke session",
-			}),
-		)
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to revoke session")
 		return
 	}
 
@@ -185,24 +131,12 @@ func (h *SessionHandler) RevokeSession(c *gin.Context) {
 func (h *SessionHandler) RevokeAllSessions(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		templates.RenderTempl(
-			c,
-			http.StatusUnauthorized,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "User not authenticated",
-			}),
-		)
+		renderErrorPage(c, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
 	if err := h.tokenService.RevokeAllUserTokens(userID.(string)); err != nil {
-		templates.RenderTempl(
-			c,
-			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Failed to revoke all sessions",
-			}),
-		)
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to revoke all sessions")
 		return
 	}
 
@@ -224,13 +158,7 @@ func (h *SessionHandler) DisableSession(c *gin.Context) {
 		tokenID,
 		userID.(string),
 	); err != nil {
-		templates.RenderTempl(
-			c,
-			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Failed to disable session",
-			}),
-		)
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to disable session")
 		return
 	}
 
@@ -252,13 +180,7 @@ func (h *SessionHandler) EnableSession(c *gin.Context) {
 		tokenID,
 		userID.(string),
 	); err != nil {
-		templates.RenderTempl(
-			c,
-			http.StatusInternalServerError,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error: "Failed to enable session",
-			}),
-		)
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to enable session")
 		return
 	}
 

@@ -16,6 +16,7 @@ import (
 	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // TokenWithClient combines token and client information for display
@@ -351,6 +352,19 @@ func (s *TokenService) RevokeTokenByID(ctx context.Context, tokenID, actorUserID
 // GetUserTokens returns all active tokens for a user
 func (s *TokenService) GetUserTokens(userID string) ([]models.AccessToken, error) {
 	return s.store.GetTokensByUserID(userID)
+}
+
+// IsTokenOwnedByUser returns true if the token with the given ID belongs to the given user.
+// A missing token is treated the same as an unowned token: returns (false, nil).
+func (s *TokenService) IsTokenOwnedByUser(tokenID, userID string) (bool, error) {
+	tok, err := s.store.GetAccessTokenByID(tokenID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return tok.UserID == userID, nil
 }
 
 // GetUserTokensWithClient returns all active tokens for a user with client information
