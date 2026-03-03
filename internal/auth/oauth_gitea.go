@@ -23,7 +23,8 @@ func (p *OAuthProvider) getGiteaUserInfo(
 	token *oauth2.Token,
 ) (*OAuthUserInfo, error) {
 	client := p.config.Client(ctx, token)
-	apiURL := strings.TrimSuffix(p.config.Endpoint.AuthURL, "/login/oauth/authorize") + "/api/v1/user"
+	apiURL := strings.TrimSuffix(p.config.Endpoint.AuthURL, "/login/oauth/authorize") +
+		"/api/v1/user"
 
 	var user giteaUser
 	if err := fetchJSON(ctx, client, apiURL, &user); err != nil {
