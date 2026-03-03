@@ -61,30 +61,17 @@ func TestHTTPAPIAuthProvider_Authenticate_Success(t *testing.T) {
 
 	cfg := &config.Config{
 		HTTPAPIURL:     server.URL,
-		HTTPAPITimeout: 10 * 1000000000, // 10 seconds in nanoseconds
+		HTTPAPITimeout: 10 * time.Second,
 	}
 
 	provider := createTestProvider(cfg)
 	result, err := provider.Authenticate(context.Background(), "testuser", "password123")
-	if err != nil {
-		t.Fatalf("Expected no error, got: %v", err)
-	}
 
-	if result.Username != "testuser" {
-		t.Errorf("Expected username 'testuser', got '%s'", result.Username)
-	}
-
-	if result.ExternalID != "ext-user-123" {
-		t.Errorf("Expected external ID 'ext-user-123', got '%s'", result.ExternalID)
-	}
-
-	if result.Email != "user@example.com" {
-		t.Errorf("Expected email 'user@example.com', got '%s'", result.Email)
-	}
-
-	if !result.Success {
-		t.Error("Expected success to be true")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "testuser", result.Username)
+	assert.Equal(t, "ext-user-123", result.ExternalID)
+	assert.Equal(t, "user@example.com", result.Email)
+	assert.True(t, result.Success)
 }
 
 func TestHTTPAPIAuthProvider_Authenticate_MissingUserID(t *testing.T) {
@@ -103,24 +90,15 @@ func TestHTTPAPIAuthProvider_Authenticate_MissingUserID(t *testing.T) {
 
 	cfg := &config.Config{
 		HTTPAPIURL:     server.URL,
-		HTTPAPITimeout: 10 * 1000000000,
+		HTTPAPITimeout: 10 * time.Second,
 	}
 
 	provider := createTestProvider(cfg)
 	result, err := provider.Authenticate(context.Background(), "testuser", "password123")
 
-	if err == nil {
-		t.Fatal("Expected error for missing user_id, got nil")
-	}
-
-	if result != nil {
-		t.Error("Expected nil result when user_id is missing")
-	}
-
-	// Check that error message mentions missing user_id
-	if err.Error() == "" {
-		t.Error("Expected non-empty error message")
-	}
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.NotEmpty(t, err.Error())
 }
 
 func TestHTTPAPIAuthProvider_Authenticate_AuthFailed(t *testing.T) {
@@ -137,19 +115,14 @@ func TestHTTPAPIAuthProvider_Authenticate_AuthFailed(t *testing.T) {
 
 	cfg := &config.Config{
 		HTTPAPIURL:     server.URL,
-		HTTPAPITimeout: 10 * 1000000000,
+		HTTPAPITimeout: 10 * time.Second,
 	}
 
 	provider := createTestProvider(cfg)
 	result, err := provider.Authenticate(context.Background(), "testuser", "wrongpassword")
 
-	if err == nil {
-		t.Fatal("Expected error for failed authentication, got nil")
-	}
-
-	if result != nil {
-		t.Error("Expected nil result when authentication fails")
-	}
+	require.Error(t, err)
+	assert.Nil(t, result)
 }
 
 func TestHTTPAPIAuthProvider_Authenticate_Non2xxStatus(t *testing.T) {
@@ -166,19 +139,14 @@ func TestHTTPAPIAuthProvider_Authenticate_Non2xxStatus(t *testing.T) {
 
 	cfg := &config.Config{
 		HTTPAPIURL:     server.URL,
-		HTTPAPITimeout: 10 * 1000000000,
+		HTTPAPITimeout: 10 * time.Second,
 	}
 
 	provider := createTestProvider(cfg)
 	result, err := provider.Authenticate(context.Background(), "testuser", "password123")
 
-	if err == nil {
-		t.Fatal("Expected error for non-2xx status, got nil")
-	}
-
-	if result != nil {
-		t.Error("Expected nil result for non-2xx status")
-	}
+	require.Error(t, err)
+	assert.Nil(t, result)
 }
 
 func TestHTTPAPIAuthProvider_Authenticate_InvalidJSON(t *testing.T) {
@@ -192,28 +160,20 @@ func TestHTTPAPIAuthProvider_Authenticate_InvalidJSON(t *testing.T) {
 
 	cfg := &config.Config{
 		HTTPAPIURL:     server.URL,
-		HTTPAPITimeout: 10 * 1000000000,
+		HTTPAPITimeout: 10 * time.Second,
 	}
 
 	provider := createTestProvider(cfg)
 	result, err := provider.Authenticate(context.Background(), "testuser", "password123")
 
-	if err == nil {
-		t.Fatal("Expected error for invalid JSON, got nil")
-	}
-
-	if result != nil {
-		t.Error("Expected nil result for invalid JSON")
-	}
+	require.Error(t, err)
+	assert.Nil(t, result)
 }
 
 func TestHTTPAPIAuthProvider_Name(t *testing.T) {
 	cfg := &config.Config{}
 	provider := createTestProvider(cfg)
-
-	if provider.Name() != "http_api" {
-		t.Errorf("Expected provider name 'http_api', got '%s'", provider.Name())
-	}
+	assert.Equal(t, "http_api", provider.Name())
 }
 
 // TestHTTPAPIAuthProvider_SimpleAuth_DefaultHeader tests Simple auth mode with default header
