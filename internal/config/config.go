@@ -137,6 +137,14 @@ type Config struct {
 	MicrosoftOAuthRedirectURL string
 	MicrosoftOAuthScopes      []string
 
+	// GitLab OAuth
+	GitLabOAuthEnabled     bool
+	GitLabURL              string // Base URL; defaults to "https://gitlab.com" for cloud
+	GitLabClientID         string
+	GitLabClientSecret     string
+	GitLabOAuthRedirectURL string
+	GitLabOAuthScopes      []string
+
 	// OAuth Auto Registration
 	OAuthAutoRegister bool // Allow OAuth to auto-create accounts (default: true)
 
@@ -303,6 +311,14 @@ func Load() *Config {
 			"MICROSOFT_SCOPES",
 			[]string{"openid", "profile", "email", "User.Read"},
 		),
+
+		// GitLab OAuth
+		GitLabOAuthEnabled:     getEnvBool("GITLAB_OAUTH_ENABLED", false),
+		GitLabURL:              getEnv("GITLAB_URL", ""),
+		GitLabClientID:         getEnv("GITLAB_CLIENT_ID", ""),
+		GitLabClientSecret:     getEnv("GITLAB_CLIENT_SECRET", ""),
+		GitLabOAuthRedirectURL: getEnv("GITLAB_REDIRECT_URL", ""),
+		GitLabOAuthScopes:      getEnvSlice("GITLAB_SCOPES", []string{"read_user"}),
 
 		// OAuth Auto Registration
 		OAuthAutoRegister: getEnvBool("OAUTH_AUTO_REGISTER", true),

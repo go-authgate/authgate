@@ -33,7 +33,8 @@ type OAuthUserInfo struct {
 // OAuthProvider handles OAuth authentication
 type OAuthProvider struct {
 	config   *oauth2.Config
-	provider string // "github", "gitea", "microsoft", etc.
+	provider string // "github", "gitea", "gitlab", "microsoft", etc.
+	apiURL   string // Pre-computed user info endpoint (set for instance-based providers)
 }
 
 // NewGitHubProvider creates a new GitHub OAuth provider
@@ -52,8 +53,10 @@ func NewGitHubProvider(cfg OAuthProviderConfig) *OAuthProvider {
 
 // NewGiteaProvider creates a new Gitea OAuth provider
 func NewGiteaProvider(cfg OAuthProviderConfig, giteaURL string) *OAuthProvider {
+	giteaURL = strings.TrimSuffix(giteaURL, "/")
 	return &OAuthProvider{
 		provider: "gitea",
+		apiURL:   giteaURL + "/api/v1/user",
 		config: &oauth2.Config{
 			ClientID:     cfg.ClientID,
 			ClientSecret: cfg.ClientSecret,
@@ -81,6 +84,31 @@ func NewMicrosoftProvider(cfg OAuthProviderConfig, tenantID string) *OAuthProvid
 	}
 }
 
+// NewGitLabProvider creates a new GitLab OAuth provider.
+// gitlabURL should be the base URL of the GitLab instance (e.g. "https://gitlab.com"
+// or "https://gitlab.example.com" for self-hosted). It defaults to "https://gitlab.com"
+// when empty.
+func NewGitLabProvider(cfg OAuthProviderConfig, gitlabURL string) *OAuthProvider {
+	if gitlabURL == "" {
+		gitlabURL = "https://gitlab.com"
+	}
+	gitlabURL = strings.TrimSuffix(gitlabURL, "/")
+	return &OAuthProvider{
+		provider: "gitlab",
+		apiURL:   gitlabURL + "/api/v4/user",
+		config: &oauth2.Config{
+			ClientID:     cfg.ClientID,
+			ClientSecret: cfg.ClientSecret,
+			RedirectURL:  cfg.RedirectURL,
+			Scopes:       cfg.Scopes,
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  gitlabURL + "/oauth/authorize",
+				TokenURL: gitlabURL + "/oauth/token",
+			},
+		},
+	}
+}
+
 // GetAuthURL returns the OAuth authorization URL
 func (p *OAuthProvider) GetAuthURL(state string) string {
 	return p.config.AuthCodeURL(state, oauth2.AccessTypeOffline)
@@ -101,6 +129,8 @@ func (p *OAuthProvider) GetUserInfo(
 		return p.getGitHubUserInfo(ctx, token)
 	case "gitea":
 		return p.getGiteaUserInfo(ctx, token)
+	case "gitlab":
+		return p.getGitLabUserInfo(ctx, token)
 	case "microsoft":
 		return p.getMicrosoftUserInfo(ctx, token)
 	default:

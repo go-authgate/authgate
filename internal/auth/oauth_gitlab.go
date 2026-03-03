@@ -9,34 +9,34 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type giteaUser struct {
+type gitlabUser struct {
 	ID        int64  `json:"id"`
-	Login     string `json:"login"`
-	FullName  string `json:"full_name"`
+	Username  string `json:"username"`
+	Name      string `json:"name"`
 	Email     string `json:"email"`
 	AvatarURL string `json:"avatar_url"`
 }
 
-func (p *OAuthProvider) getGiteaUserInfo(
+func (p *OAuthProvider) getGitLabUserInfo(
 	ctx context.Context,
 	token *oauth2.Token,
 ) (*OAuthUserInfo, error) {
 	client := p.config.Client(ctx, token)
 
-	var user giteaUser
+	var user gitlabUser
 	if err := fetchJSON(ctx, client, p.apiURL, &user); err != nil {
-		return nil, fmt.Errorf("failed to get Gitea user info: %w", err)
+		return nil, fmt.Errorf("failed to get GitLab user info: %w", err)
 	}
 
 	if user.Email == "" {
-		return nil, errors.New("gitea account has no email address")
+		return nil, errors.New("gitlab account has no email address")
 	}
 
 	return &OAuthUserInfo{
 		ProviderUserID: strconv.FormatInt(user.ID, 10),
-		Username:       user.Login,
+		Username:       user.Username,
 		Email:          user.Email,
-		FullName:       user.FullName,
+		FullName:       user.Name,
 		AvatarURL:      user.AvatarURL,
 	}, nil
 }

@@ -45,6 +45,17 @@ templ LoginPage(props LoginPageProps) {
 											<rect x="11" y="11" width="9" height="9" fill="#ffb900"></rect>
 										</svg>
 									}
+									if provider.Name == "gitlab" {
+										<svg viewBox="0 0 586 559" fill="currentColor" aria-hidden="true" focusable="false">
+											<path d="M461.8 298.9l-17-52.3-32.8-101.1c-1.6-5-8.7-5-10.3 0l-32.8 101.1H217.1L184.3 145.5c-1.6-5-8.7-5-10.3 0L141.2 246.6l-17 52.3c-1.5 4.5.2 9.4 4.2 12L293 413.6l164.6-102.7c4-2.6 5.7-7.6 4.2-12z"></path>
+											<path d="M293 413.6L368.9 246.6H217.1z" opacity=".7"></path>
+											<path d="M293 413.6l-75.9-167H141.2z" opacity=".7"></path>
+											<path d="M141.2 246.6l-17 52.3c-1.5 4.5.2 9.4 4.2 12L293 413.6l-151.8-167z" opacity=".5"></path>
+											<path d="M141.2 246.6H217.1L184.3 145.5c-1.6-5-8.7-5-10.3 0z" opacity=".7"></path>
+											<path d="M444.8 246.6l17 52.3c1.5 4.5-.2 9.4-4.2 12L293 413.6l151.8-167z" opacity=".5"></path>
+											<path d="M444.8 246.6H368.9l32.8-101.1c1.6-5 8.7-5 10.3 0z" opacity=".7"></path>
+										</svg>
+									}
 									Sign in with { provider.DisplayName }
 								</a>
 							}
