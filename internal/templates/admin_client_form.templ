@@ -248,7 +248,7 @@ templ AdminClientForm(props ClientFormPageProps) {
 								var v = hiddenInput.value.trim();
 								if (v) {
 									v.split(/\s+/).forEach(function(s) {
-										s = s.trim().toLowerCase();
+										s = s.trim();
 										if (s && selected.indexOf(s) === -1) selected.push(s);
 									});
 								}
