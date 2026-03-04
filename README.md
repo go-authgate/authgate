@@ -14,6 +14,10 @@
 - [AuthGate](#authgate)
   - [Table of Contents](#table-of-contents)
   - [Why AuthGate?](#why-authgate)
+    - [The Enterprise Case for AuthGate](#the-enterprise-case-for-authgate)
+      - [1. Fragmented authentication — every service re-inventing LDAP integration](#1-fragmented-authentication--every-service-re-inventing-ldap-integration)
+      - [2. No token lifecycle management — tokens issued, never tracked or revoked](#2-no-token-lifecycle-management--tokens-issued-never-tracked-or-revoked)
+      - [3. Service owners have no visibility or control over who is using their service](#3-service-owners-have-no-visibility-or-control-over-who-is-using-their-service)
   - [✨ Key Features](#-key-features)
   - [🚀 Quick Start](#-quick-start)
     - [Prerequisites](#prerequisites)
@@ -82,6 +86,54 @@ AuthGate also serves as a lightweight **centralised identity gateway** for inter
 - 🏢 Enterprise teams needing **token self-service** — users manage and revoke their own active sessions and per-app grants via the built-in web UI (`/account/sessions`, `/account/authorizations`), no admin intervention required
 - 🔑 Organisations wanting a **unified internal SSO portal** — centralise login across all internal tools and services through a single OAuth 2.0 gateway, eliminating per-system password management
 - 🔍 **Security & compliance teams** — comprehensive audit logs of every authentication, token, and admin event with filtering and CSV export (`/admin/audit`), satisfying audit and regulatory requirements
+
+### The Enterprise Case for AuthGate
+
+#### 1. Fragmented authentication — every service re-inventing LDAP integration
+
+**The problem:** Internal platforms (MCPs, skill services, bots, web tools, CLIs) each implement their own authentication logic. Most connect directly to LDAP, but with inconsistent patterns, password-handling rules, and session/token quality — resulting in security risk, duplicated effort, and high maintenance cost:
+
+- Every team reinvents password validation, hashing, and policy enforcement.
+- LDAP credentials and bind passwords are scattered across codebases.
+- Any LDAP schema change or credential rotation forces simultaneous updates and redeployments across all services.
+- There is no single, consistent login record across the organisation for audit purposes.
+
+**How AuthGate helps:** A single **Identity Gateway** that all services integrate with as a standard OAuth 2.0 / OIDC client — no more direct LDAP wiring:
+
+- Outward-facing: standard OAuth 2.0 APIs (Device Code, PKCE, Client Credentials).
+- Inward-facing: centralised handling of LDAP, GitHub, Microsoft, and other identity sources.
+- New services register as OAuth clients and never touch LDAP directly.
+
+#### 2. No token lifecycle management — tokens issued, never tracked or revoked
+
+**The problem:** Basic OAuth implementations (like many internal MCPs) lack centralised token storage, leaving organisations unable to answer: _Who has a valid token? When does it expire? Can it be revoked?_
+
+- No central record of issued tokens or active sessions.
+- No refresh token rotation, expiry policy, or revocation capability.
+- No audit trail: who logged in, when, from where, and which token was used?
+- During a security incident, there is no fast path to revoke a token, trace its origin, or force a platform-wide re-login.
+
+**How AuthGate helps:** Full token lifecycle management out of the box:
+
+- Users self-serve at `/account/sessions` and `/account/authorizations` to inspect and revoke active sessions and per-app grants.
+- Admins can force all users of any client to re-authenticate with a single action.
+- Complete **Audit Trails** at `/admin/audit` with CSV export satisfy incident investigation and compliance requirements.
+
+#### 3. Service owners have no visibility or control over who is using their service
+
+**The problem:** Without a centralised authorisation layer, service owners cannot answer basic operational questions:
+
+- Which users currently have access to this service?
+- When was their authorisation granted, and when does it expire?
+- What scopes were approved, and can they be narrowed?
+- How do I produce a login history, IP list, and token scope report for an audit?
+
+**How AuthGate helps:** A unified OAuth client management console gives every service owner full **visibility**, **control**, and **auditability**:
+
+- Configure client scopes, redirect URIs, token TTLs, and user authorisation records in one place.
+- View all token activity for a service in real time.
+- Revoke any user's authorisation instantly.
+- Respond to audits and security requests without digging through disparate system logs.
 
 ---
 
