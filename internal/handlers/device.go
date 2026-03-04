@@ -38,7 +38,7 @@ func NewDeviceHandler(
 //	@Accept			x-www-form-urlencoded
 //	@Produce		json
 //	@Param			client_id	formData	string																																true	"OAuth client ID"
-//	@Param			scope		formData	string																																false	"Requested scopes (space-separated, default: 'read write')"
+//	@Param			scope		formData	string																																false	"Requested scopes (space-separated, default: 'email profile')"
 //	@Success		200			{object}	object{device_code=string,user_code=string,verification_uri=string,verification_uri_complete=string,expires_in=int,interval=int}	"Device code generated successfully"
 //	@Failure		400			{object}	object{error=string,error_description=string}																						"Invalid request (invalid_client)"
 //	@Failure		429			{object}	object{error=string,error_description=string}																						"Rate limit exceeded"
@@ -73,7 +73,7 @@ func (h *DeviceHandler) DeviceCodeRequest(c *gin.Context) {
 		if s, exists := c.Get("scope"); exists {
 			scope = s.(string)
 		} else {
-			scope = "read write"
+			scope = "email profile"
 		}
 	}
 

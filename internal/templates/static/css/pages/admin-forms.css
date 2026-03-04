@@ -625,3 +625,136 @@
     transform: none !important;
   }
 }
+
+/* ============================================
+   Scope Tag Picker
+   ============================================ */
+.admin-scope-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-secondary);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  cursor: text;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  box-sizing: border-box;
+}
+.admin-scope-picker:hover {
+  border-color: var(--color-gray-400);
+  background: var(--color-bg-primary);
+}
+.admin-scope-picker:focus-within {
+  outline: none;
+  border-color: var(--color-primary);
+  background: var(--color-bg-primary);
+  box-shadow: 0 0 0 4px rgba(0, 114, 255, 0.1);
+}
+.admin-scope-tags { display: contents; }
+.admin-scope-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 3px var(--space-3);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-pale);
+  border: 1px solid rgba(0, 114, 255, 0.25);
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+  animation: scopeTagIn 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes scopeTagIn {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.admin-scope-tag-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  font-size: 13px;
+  color: var(--color-primary-dark);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity var(--transition-fast), background var(--transition-fast);
+  flex-shrink: 0;
+}
+.admin-scope-tag-remove:hover { opacity: 1; background: rgba(0, 114, 255, 0.15); }
+.admin-scope-text-input {
+  flex: 1 1 80px;
+  min-width: 80px;
+  padding: 0;
+  font-size: var(--text-sm);
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
+  background: transparent;
+  border: none;
+  outline: none;
+  line-height: 1.5;
+}
+.admin-scope-text-input::placeholder {
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+.admin-scope-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.admin-scope-presets-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.admin-scope-preset-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-3);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-secondary);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast),
+              background var(--transition-fast), opacity var(--transition-fast);
+  white-space: nowrap;
+}
+.admin-scope-preset-chip:hover:not(:disabled) {
+  color: var(--color-primary);
+  border-color: rgba(0, 114, 255, 0.4);
+  background: var(--color-primary-pale);
+}
+.admin-scope-preset-chip:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+.admin-form-hint kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-scope-tag { animation: none !important; }
+}

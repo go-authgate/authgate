@@ -188,7 +188,7 @@ func (s *Store) seedData(ctx context.Context, cfg *config.Config) error {
 			ClientID:           clientID,
 			ClientName:         "AuthGate CLI",
 			Description:        "Default CLI client for authorization flow",
-			Scopes:             "read write",
+			Scopes:             "email profile",
 			GrantTypes:         "device_code authorization_code",
 			RedirectURIs:       models.StringArray{"http://localhost:8888/callback"},
 			EnableAuthCodeFlow: true,

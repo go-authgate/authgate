@@ -123,7 +123,7 @@ func (s *ClientService) CreateClient(
 	// Default scopes
 	scopes := strings.TrimSpace(req.Scopes)
 	if scopes == "" {
-		scopes = "read write"
+		scopes = "email profile"
 	}
 
 	// Default client type

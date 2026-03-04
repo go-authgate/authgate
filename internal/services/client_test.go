@@ -306,6 +306,24 @@ func TestCreateClient_DefaultClientType(t *testing.T) {
 	assert.Equal(t, ClientTypeConfidential, resp.ClientType)
 }
 
+func TestCreateClient_DefaultScope(t *testing.T) {
+	s := setupTestStore(t)
+	svc := NewClientService(s, nil)
+	userID := uuid.New().String()
+
+	req := CreateClientRequest{
+		ClientName: "Default Scope Client",
+		UserID:     userID,
+		CreatedBy:  userID,
+		// Scopes not set → should default to "email profile"
+	}
+
+	resp, err := svc.CreateClient(context.Background(), req)
+	require.NoError(t, err)
+
+	assert.Equal(t, "email profile", resp.Scopes)
+}
+
 func TestCreateClient_OnlyAuthCodeFlow(t *testing.T) {
 	// When only auth code flow is enabled, the service should not force device flow on.
 	// The result depends on how the service handles the "neither enabled" default case.

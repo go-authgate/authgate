@@ -101,13 +101,28 @@ templ AdminClientForm(props ClientFormPageProps) {
 						</div>
 						<!-- Scopes -->
 						<div class="admin-form-group">
-							<label for="scopes" class="admin-form-label">Scopes</label>
+							<label for="scopeTextInput" class="admin-form-label">Scopes</label>
 							if props.Client != nil {
-								<input type="text" id="scopes" name="scopes" class="admin-form-input" value={ props.Client.Scopes }/>
+								<input type="hidden" id="scopes" name="scopes" value={ props.Client.Scopes }/>
 							} else {
-								<input type="text" id="scopes" name="scopes" class="admin-form-input" value="read write"/>
+								<input type="hidden" id="scopes" name="scopes" value="email profile"/>
 							}
-							<small class="admin-form-hint">Space-separated list of scopes (e.g., "read write")</small>
+							<div class="admin-scope-picker" id="scopePicker">
+								<div class="admin-scope-tags" id="scopeTags"></div>
+								<input type="text" class="admin-scope-text-input" id="scopeTextInput"
+									placeholder="Add scope..." autocomplete="off" spellcheck="false"/>
+							</div>
+							<div class="admin-scope-presets" id="scopePresets">
+								<span class="admin-scope-presets-label">Quick add:</span>
+								<button type="button" class="admin-scope-preset-chip" data-scope="openid">openid</button>
+								<button type="button" class="admin-scope-preset-chip" data-scope="email">email</button>
+								<button type="button" class="admin-scope-preset-chip" data-scope="profile">profile</button>
+								<button type="button" class="admin-scope-preset-chip" data-scope="offline_access">offline_access</button>
+							</div>
+							<small class="admin-form-hint">
+								Click a preset to add it, or type a custom scope and press <kbd>Enter</kbd> or <kbd>Space</kbd>.
+								Click <strong>&times;</strong> on a tag to remove it.
+							</small>
 						</div>
 						<!-- Redirect URIs -->
 						<div class="admin-form-group">
@@ -176,6 +191,96 @@ templ AdminClientForm(props ClientFormPageProps) {
 
 							clientTypeSelect.addEventListener('change', syncClientCredentials);
 							syncClientCredentials();
+						})();
+
+						(function () {
+							var hiddenInput  = document.getElementById('scopes');
+							var picker       = document.getElementById('scopePicker');
+							var tagsEl       = document.getElementById('scopeTags');
+							var textInput    = document.getElementById('scopeTextInput');
+							var presetsEl    = document.getElementById('scopePresets');
+							var presetChips  = presetsEl.querySelectorAll('.admin-scope-preset-chip');
+							var selected     = [];
+
+							function syncHidden() { hiddenInput.value = selected.join(' '); }
+
+							function renderTags() {
+								tagsEl.innerHTML = '';
+								selected.forEach(function (scope) {
+									var tag    = document.createElement('span');
+									tag.className = 'admin-scope-tag';
+									var label  = document.createElement('span');
+									label.className = 'admin-scope-tag-label';
+									label.textContent = scope;
+									var btn    = document.createElement('button');
+									btn.type   = 'button';
+									btn.className = 'admin-scope-tag-remove';
+									btn.setAttribute('aria-label', 'Remove ' + scope);
+									btn.textContent = '×';
+									btn.addEventListener('click', function () { removeScope(scope); });
+									tag.appendChild(label);
+									tag.appendChild(btn);
+									tagsEl.appendChild(tag);
+								});
+							}
+
+							function renderPresets() {
+								presetChips.forEach(function (chip) {
+									chip.disabled = selected.indexOf(chip.getAttribute('data-scope')) !== -1;
+								});
+							}
+
+							function render() { renderTags(); renderPresets(); syncHidden(); }
+
+							function addScope(raw) {
+								raw.trim().toLowerCase().split(/\s+/).forEach(function (s) {
+									if (s && selected.indexOf(s) === -1) { selected.push(s); }
+								});
+								render();
+							}
+
+							function removeScope(s) {
+								var i = selected.indexOf(s);
+								if (i !== -1) { selected.splice(i, 1); render(); }
+							}
+
+							function init() {
+								var v = hiddenInput.value.trim();
+								if (v) {
+									v.split(/\s+/).forEach(function(s) {
+										s = s.trim();
+										if (s && selected.indexOf(s) === -1) selected.push(s);
+									});
+								}
+								render();
+							}
+
+							textInput.addEventListener('keydown', function (e) {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									if (textInput.value.trim()) { addScope(textInput.value); textInput.value = ''; }
+								}
+								if (e.key === 'Backspace' && !textInput.value && selected.length) {
+									removeScope(selected[selected.length - 1]);
+								}
+							});
+
+							textInput.addEventListener('blur', function () {
+								if (textInput.value.trim()) { addScope(textInput.value); textInput.value = ''; }
+							});
+
+							picker.addEventListener('click', function (e) {
+								if (e.target !== textInput) { textInput.focus(); }
+							});
+
+							presetChips.forEach(function (chip) {
+								chip.addEventListener('click', function () {
+									addScope(chip.getAttribute('data-scope'));
+									textInput.focus();
+								});
+							});
+
+							init();
 						})();
 					</script>
 				</div>
