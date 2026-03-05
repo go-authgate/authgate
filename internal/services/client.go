@@ -53,7 +53,9 @@ var (
 	ErrClientOwnershipRequired  = errors.New("you do not own this client")
 	ErrCannotDeleteActiveClient = errors.New("cannot delete an active client")
 	ErrInvalidScopeForUser      = errors.New("scope not allowed for user-created clients")
-	ErrInvalidClientStatus      = errors.New("status must be \"active\", \"inactive\", or \"pending\"")
+	ErrInvalidClientStatus      = errors.New(
+		"status must be \"active\", \"inactive\", or \"pending\"",
+	)
 )
 
 // validateRedirectURIs checks that every URI in the slice is an absolute http/https
