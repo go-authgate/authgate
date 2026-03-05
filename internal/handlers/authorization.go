@@ -113,7 +113,7 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 	// Render the consent page
 	templates.RenderTempl(c, http.StatusOK, templates.AuthorizePage(templates.AuthorizePageProps{
 		BaseProps:           templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-		NavbarProps:         buildNavbarProps(user, ""),
+		NavbarProps:         buildNavbarProps(c, user, ""),
 		Username:            user.Username,
 		ClientID:            req.Client.ClientID,
 		ClientName:          req.Client.ClientName,

@@ -12,131 +12,13 @@ templ AdminClientForm(props ClientFormPageProps) {
 					@Alert(props.Error, AlertError)
 					<form method={ props.Method } action={ templ.URL(props.Action) } class="admin-form">
 						<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
-						<!-- Client Name -->
-						<div class="admin-form-group">
-							<label for="client_name" class="admin-form-label admin-form-label-required">Client Name</label>
-							if props.Client != nil {
-								<input type="text" id="client_name" name="client_name" class="admin-form-input" value={ props.Client.ClientName } required/>
-							} else {
-								<input type="text" id="client_name" name="client_name" class="admin-form-input" required/>
-							}
-							<small class="admin-form-hint">A human-readable name for this OAuth client</small>
-						</div>
-						<!-- Description -->
-						<div class="admin-form-group">
-							<label for="description" class="admin-form-label">Description</label>
-							if props.Client != nil {
-								<textarea id="description" name="description" class="admin-form-textarea" rows="3">{ props.Client.Description }</textarea>
-							} else {
-								<textarea id="description" name="description" class="admin-form-textarea" rows="3"></textarea>
-							}
-							<small class="admin-form-hint">Optional description of this client's purpose</small>
-						</div>
-						<!-- Client Type -->
-						<div class="admin-form-group">
-							<label for="client_type" class="admin-form-label admin-form-label-required">Client Type</label>
-							<select id="client_type" name="client_type" class="admin-form-select">
-								<option
-									value="public"
-									selected?={ props.Client == nil || props.Client.ClientType == "public" }
-								>
-									Public — SPAs, CLIs, mobile apps (PKCE required)
-								</option>
-								<option
-									value="confidential"
-									selected?={ props.Client != nil && props.Client.ClientType == "confidential" }
-								>
-									Confidential — server-side apps that can store a secret
-								</option>
-							</select>
-							<small class="admin-form-hint">
-								Public clients use PKCE instead (no secret required).
-								Confidential clients authenticate with a secret.
-							</small>
-						</div>
-						<!-- Grant Types (checkboxes) -->
-						<div class="admin-form-group">
-							<label class="admin-form-label admin-form-label-required">Grant Types</label>
-							<div class="admin-form-checkboxes">
-								<label class="admin-form-checkbox-label">
-									<input
-										type="checkbox"
-										name="enable_device_flow"
-										value="true"
-										checked?={ props.Client == nil || props.Client.EnableDeviceFlow }
-									/>
-									<span>
-										<strong>Device Authorization Flow</strong> (RFC 8628)
-										— for CLI tools and devices without a browser
-									</span>
-								</label>
-								<label class="admin-form-checkbox-label">
-									<input
-										type="checkbox"
-										name="enable_auth_code_flow"
-										value="true"
-										checked?={ props.Client != nil && props.Client.EnableAuthCodeFlow }
-									/>
-									<span>
-										<strong>Authorization Code Flow</strong> (RFC 6749)
-										— for web apps with a redirect URI callback
-									</span>
-								</label>
-								<label class="admin-form-checkbox-label" id="client_credentials_label">
-									<input
-										type="checkbox"
-										id="enable_client_credentials_flow"
-										name="enable_client_credentials_flow"
-										value="true"
-										checked?={ props.Client != nil && props.Client.EnableClientCredentialsFlow }
-									/>
-									<span>
-										<strong>Client Credentials Flow</strong> (RFC 6749 §4.4)
-										— for machine-to-machine (M2M) access
-										<span class="admin-form-badge-confidential" id="cc_flow_badge">Confidential only</span>
-									</span>
-								</label>
-							</div>
-							<small class="admin-form-hint">At least one grant type must be selected. Client Credentials Flow requires a confidential client.</small>
-						</div>
-						<!-- Scopes -->
-						<div class="admin-form-group">
-							<label for="scopeTextInput" class="admin-form-label">Scopes</label>
-							if props.Client != nil {
-								<input type="hidden" id="scopes" name="scopes" value={ props.Client.Scopes }/>
-							} else {
-								<input type="hidden" id="scopes" name="scopes" value="email profile"/>
-							}
-							<div class="admin-scope-picker" id="scopePicker">
-								<div class="admin-scope-tags" id="scopeTags"></div>
-								<input type="text" class="admin-scope-text-input" id="scopeTextInput"
-									placeholder="Add scope..." autocomplete="off" spellcheck="false"/>
-							</div>
-							<div class="admin-scope-presets" id="scopePresets">
-								<span class="admin-scope-presets-label">Quick add:</span>
-								<button type="button" class="admin-scope-preset-chip" data-scope="openid">openid</button>
-								<button type="button" class="admin-scope-preset-chip" data-scope="email">email</button>
-								<button type="button" class="admin-scope-preset-chip" data-scope="profile">profile</button>
-								<button type="button" class="admin-scope-preset-chip" data-scope="offline_access">offline_access</button>
-							</div>
-							<small class="admin-form-hint">
-								Click a preset to add it, or type a custom scope and press <kbd>Enter</kbd> or <kbd>Space</kbd>.
-								Click <strong>&times;</strong> on a tag to remove it.
-							</small>
-						</div>
-						<!-- Redirect URIs -->
-						<div class="admin-form-group">
-							<label for="redirect_uris" class="admin-form-label">Redirect URIs</label>
-							if props.Client != nil {
-								<textarea id="redirect_uris" name="redirect_uris" class="admin-form-textarea" rows="3">{ props.Client.RedirectURIs }</textarea>
-							} else {
-								<textarea id="redirect_uris" name="redirect_uris" class="admin-form-textarea" rows="3"></textarea>
-							}
-							<small class="admin-form-hint">
-								Comma-separated redirect URIs. Required when Authorization Code Flow is enabled.
-								Example: <code>https://app.example.com/callback</code>
-							</small>
-						</div>
+						@ClientFormCommonFields(ClientFormFieldsProps{
+							Client:                props.Client,
+							IsEdit:                props.IsEdit,
+							NameLabel:             "Client Name",
+							ShowClientCredentials: true,
+							ScopePresetsOnly:      false,
+						})
 						<!-- Status (edit only) -->
 						if props.IsEdit {
 							<div class="admin-form-group">
@@ -162,7 +44,6 @@ templ AdminClientForm(props ClientFormPageProps) {
 								</div>
 							</div>
 						}
-						<!-- Actions -->
 						<div class="admin-form-actions">
 							<button type="submit" class="admin-form-submit-btn">
 								if props.IsEdit {
@@ -174,115 +55,6 @@ templ AdminClientForm(props ClientFormPageProps) {
 							<a href="/admin/clients" class="admin-form-cancel-btn">Cancel</a>
 						</div>
 					</form>
-					<script>
-						(function () {
-							var clientTypeSelect = document.getElementById('client_type');
-							var ccCheckbox = document.getElementById('enable_client_credentials_flow');
-							var ccLabel = document.getElementById('client_credentials_label');
-
-							function syncClientCredentials() {
-								var isConfidential = clientTypeSelect.value === 'confidential';
-								ccCheckbox.disabled = !isConfidential;
-								if (!isConfidential) {
-									ccCheckbox.checked = false;
-								}
-								ccLabel.classList.toggle('admin-form-checkbox-label--disabled', !isConfidential);
-							}
-
-							clientTypeSelect.addEventListener('change', syncClientCredentials);
-							syncClientCredentials();
-						})();
-
-						(function () {
-							var hiddenInput  = document.getElementById('scopes');
-							var picker       = document.getElementById('scopePicker');
-							var tagsEl       = document.getElementById('scopeTags');
-							var textInput    = document.getElementById('scopeTextInput');
-							var presetsEl    = document.getElementById('scopePresets');
-							var presetChips  = presetsEl.querySelectorAll('.admin-scope-preset-chip');
-							var selected     = [];
-
-							function syncHidden() { hiddenInput.value = selected.join(' '); }
-
-							function renderTags() {
-								tagsEl.innerHTML = '';
-								selected.forEach(function (scope) {
-									var tag    = document.createElement('span');
-									tag.className = 'admin-scope-tag';
-									var label  = document.createElement('span');
-									label.className = 'admin-scope-tag-label';
-									label.textContent = scope;
-									var btn    = document.createElement('button');
-									btn.type   = 'button';
-									btn.className = 'admin-scope-tag-remove';
-									btn.setAttribute('aria-label', 'Remove ' + scope);
-									btn.textContent = '×';
-									btn.addEventListener('click', function () { removeScope(scope); });
-									tag.appendChild(label);
-									tag.appendChild(btn);
-									tagsEl.appendChild(tag);
-								});
-							}
-
-							function renderPresets() {
-								presetChips.forEach(function (chip) {
-									chip.disabled = selected.indexOf(chip.getAttribute('data-scope')) !== -1;
-								});
-							}
-
-							function render() { renderTags(); renderPresets(); syncHidden(); }
-
-							function addScope(raw) {
-								raw.trim().toLowerCase().split(/\s+/).forEach(function (s) {
-									if (s && selected.indexOf(s) === -1) { selected.push(s); }
-								});
-								render();
-							}
-
-							function removeScope(s) {
-								var i = selected.indexOf(s);
-								if (i !== -1) { selected.splice(i, 1); render(); }
-							}
-
-							function init() {
-								var v = hiddenInput.value.trim();
-								if (v) {
-									v.split(/\s+/).forEach(function(s) {
-										s = s.trim();
-										if (s && selected.indexOf(s) === -1) selected.push(s);
-									});
-								}
-								render();
-							}
-
-							textInput.addEventListener('keydown', function (e) {
-								if (e.key === 'Enter' || e.key === ' ') {
-									e.preventDefault();
-									if (textInput.value.trim()) { addScope(textInput.value); textInput.value = ''; }
-								}
-								if (e.key === 'Backspace' && !textInput.value && selected.length) {
-									removeScope(selected[selected.length - 1]);
-								}
-							});
-
-							textInput.addEventListener('blur', function () {
-								if (textInput.value.trim()) { addScope(textInput.value); textInput.value = ''; }
-							});
-
-							picker.addEventListener('click', function (e) {
-								if (e.target !== textInput) { textInput.focus(); }
-							});
-
-							presetChips.forEach(function (chip) {
-								chip.addEventListener('click', function () {
-									addScope(chip.getAttribute('data-scope'));
-									textInput.focus();
-								});
-							});
-
-							init();
-						})();
-					</script>
 				</div>
 			</div>
 		</div>

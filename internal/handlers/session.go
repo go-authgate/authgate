@@ -59,7 +59,7 @@ func (h *SessionHandler) ListSessions(c *gin.Context) {
 
 	templates.RenderTempl(c, http.StatusOK, templates.AccountSessions(templates.SessionsPageProps{
 		BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-		NavbarProps: buildNavbarProps(user, "sessions"),
+		NavbarProps: buildNavbarProps(c, user, "sessions"),
 		Sessions:    tokens,
 		Pagination:  pagination,
 		Search:      search,

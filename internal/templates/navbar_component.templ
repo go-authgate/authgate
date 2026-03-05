@@ -1,5 +1,7 @@
 package templates
 
+import "fmt"
+
 templ Navbar(props *NavbarProps) {
 	<nav class="navbar">
 		<div class="navbar-container">
@@ -16,10 +18,11 @@ templ Navbar(props *NavbarProps) {
 						@NavLink("/device", "Device Authorization", props.ActiveLink == "device")
 						@NavDropdown(
 							"Account",
-							props.ActiveLink == "sessions" || props.ActiveLink == "authorizations",
+							props.ActiveLink == "sessions" || props.ActiveLink == "authorizations" || props.ActiveLink == "my-apps",
 						) {
 							@NavDropdownItem("/account/sessions", "Active Sessions", props.ActiveLink == "sessions", false, false)
 							@NavDropdownItem("/account/authorizations", "Authorized Apps", props.ActiveLink == "authorizations", false, false)
+							@NavDropdownItem("/apps", "My Apps", props.ActiveLink == "my-apps", false, false)
 						}
 						@NavDropdown("Docs", props.ActiveLink == "docs-getting-started" || props.ActiveLink == "docs-device-flow" || props.ActiveLink == "docs-auth-code-flow") {
 							@NavDropdownItem("/docs/getting-started", "Getting Started", props.ActiveLink == "docs-getting-started", false, false)
@@ -32,7 +35,7 @@ templ Navbar(props *NavbarProps) {
 						if props.IsAdmin {
 							<div class="navbar-admin-divider" aria-hidden="true"></div>
 							@NavAdminDropdown(props.ActiveLink == "clients" || props.ActiveLink == "audit") {
-								@NavDropdownItem("/admin/clients", "OAuth Clients", props.ActiveLink == "clients", true, false)
+								@NavDropdownItemWithBadge("/admin/clients", "OAuth Clients", props.ActiveLink == "clients", props.PendingClientsCount)
 								@NavDropdownItem("/admin/audit", "Audit Logs", props.ActiveLink == "audit", true, false)
 							}
 						}
@@ -127,5 +130,22 @@ templ NavDropdownItem(href, label string, isActive bool, isAdmin bool, isExterna
 		}
 	>
 		{ label }
+	</a>
+}
+
+// NavDropdownItemWithBadge renders an admin dropdown item with an optional numeric badge.
+templ NavDropdownItemWithBadge(href, label string, isActive bool, badgeCount int) {
+	<a
+		href={ templ.URL(href) }
+		class={ templ.Classes("navbar-dropdown-item", templ.KV("active", isActive), "admin") }
+		role="menuitem"
+		style="display:flex;align-items:center;gap:var(--space-2);"
+	>
+		{ label }
+		if badgeCount > 0 {
+			<span style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;background:#EF4444;color:#fff;border-radius:9px;font-size:11px;font-weight:700;line-height:1;">
+				{ fmt.Sprintf("%d", badgeCount) }
+			</span>
+		}
 	</a>
 }

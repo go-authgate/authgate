@@ -14,6 +14,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// ClientStatus constants define the approval lifecycle of an OAuth client.
+const (
+	ClientStatusPending  = "pending"  // Awaiting admin approval
+	ClientStatusActive   = "active"   // Admin approved / admin-created
+	ClientStatusInactive = "inactive" // Admin rejected or disabled
+)
+
 // Base32 characters, but lowercased.
 const lowerBase32Chars = "abcdefghijklmnopqrstuvwxyz234567"
 
@@ -35,6 +42,7 @@ type OAuthApplication struct {
 	EnableAuthCodeFlow          bool        `gorm:"not null;default:false"`
 	EnableClientCredentialsFlow bool        `gorm:"not null;default:false"` // Client Credentials Grant (RFC 6749 §4.4); confidential clients only
 	IsActive                    bool        `gorm:"not null;default:true"`
+	Status                      string      `gorm:"not null;default:'active'"` // ClientStatusPending / ClientStatusActive / ClientStatusInactive
 	CreatedBy                   string
 	CreatedAt                   time.Time
 	UpdatedAt                   time.Time

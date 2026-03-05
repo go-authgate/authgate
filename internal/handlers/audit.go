@@ -95,7 +95,7 @@ func (h *AuditHandler) ShowAuditLogsPage(c *gin.Context) {
 
 	templates.RenderTempl(c, http.StatusOK, templates.AdminAuditLogs(templates.AuditLogsPageProps{
 		BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-		NavbarProps: buildNavbarProps(userModel, "audit"),
+		NavbarProps: buildNavbarProps(c, userModel, "audit"),
 		User:        userModel,
 		Logs:        toPointerSlice(logs),
 		Page:        pagination.CurrentPage,

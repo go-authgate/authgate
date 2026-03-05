@@ -1,0 +1,136 @@
+package templates
+
+import (
+	"fmt"
+
+	"github.com/go-authgate/authgate/internal/models"
+)
+
+templ UserAppDetail(props UserClientDetailPageProps) {
+	@Layout(props.Client.ClientName, LayoutHasNavbar, &props.NavbarProps) {
+		<link rel="stylesheet" href="/static/css/pages/admin-forms.css"/>
+		<div class="main-content">
+			<div class="admin-form-container">
+				<div class="card">
+					<div class="admin-form-header">
+						<h1 class="admin-form-title">{ props.Client.ClientName }</h1>
+					</div>
+					@Alert(props.Error, AlertError)
+					@Alert(props.Success, AlertSuccess)
+					<!-- Approval Status Banner -->
+					switch props.Client.Status {
+						case models.ClientStatusPending:
+							<div style="margin-bottom:var(--space-4);padding:var(--space-3);background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-md);color:#92400E;">
+								<strong>⏳ Awaiting admin approval</strong> — Your app has been registered and is pending review. It cannot be used for OAuth flows until an admin approves it.
+							</div>
+						case models.ClientStatusInactive:
+							<div style="margin-bottom:var(--space-4);padding:var(--space-3);background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:var(--radius-md);color:#991B1B;">
+								<strong>❌ App rejected / inactive</strong> — This app has been rejected or deactivated by an admin. Contact your administrator for more information.
+							</div>
+						default:
+							<div style="margin-bottom:var(--space-4);padding:var(--space-3);background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:var(--radius-md);color:#166534;">
+								<strong>✅ Active</strong> — Your app is approved and can be used for OAuth flows.
+							</div>
+					}
+					<div class="admin-detail-section">
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Client ID</div>
+							<div class="admin-detail-value">{ props.Client.ClientID }</div>
+						</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">App Name</div>
+							<div class="admin-detail-value">{ props.Client.ClientName }</div>
+						</div>
+						if props.Client.Description != "" {
+							<div class="admin-detail-row">
+								<div class="admin-detail-label">Description</div>
+								<div class="admin-detail-value">{ props.Client.Description }</div>
+							</div>
+						}
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Client Type</div>
+							<div class="admin-detail-value">
+								if props.Client.ClientType == "public" {
+									<span class="status-badge" style="background:rgba(245,158,11,0.1);color:#D97706;border:1px solid rgba(245,158,11,0.3);">Public</span>
+								} else {
+									<span class="status-badge" style="background:rgba(0,114,255,0.1);color:#0072ff;border:1px solid rgba(0,114,255,0.3);">Confidential</span>
+								}
+							</div>
+						</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Scopes</div>
+							<div class="admin-detail-value">{ props.Client.Scopes }</div>
+						</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Grant Types</div>
+							<div class="admin-detail-value">{ props.Client.GrantTypes }</div>
+						</div>
+						if props.Client.RedirectURIs != "" {
+							<div class="admin-detail-row">
+								<div class="admin-detail-label">Redirect URIs</div>
+								<div class="admin-detail-value">{ props.Client.RedirectURIs }</div>
+							</div>
+						}
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Active Tokens</div>
+							<div class="admin-detail-value">{ fmt.Sprintf("%d", props.ActiveTokens) }</div>
+						</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Created At</div>
+							<div class="admin-detail-value">{ props.Client.CreatedAt.Format("2006-01-02 15:04:05") }</div>
+						</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Updated At</div>
+							<div class="admin-detail-value">{ props.Client.UpdatedAt.Format("2006-01-02 15:04:05") }</div>
+						</div>
+					</div>
+					<!-- Actions -->
+					<div class="admin-action-buttons">
+						<a href={ templ.URL("/apps/" + props.Client.ClientID + "/edit") } class="admin-action-btn primary">
+							✏️ Edit App
+						</a>
+						if props.Client.ClientType == "confidential" {
+							<a
+								href={ templ.URL("/apps/" + props.Client.ClientID + "/regenerate-secret") }
+								class="admin-action-btn secondary"
+								onclick="return confirm('Are you sure? This will invalidate the current secret.');"
+							>
+								🔄 Regenerate Secret
+							</a>
+						}
+						<a href="/apps" class="admin-action-btn secondary">← Back to My Apps</a>
+					</div>
+					<!-- Danger Zone: Delete -->
+					if props.Client.Status != models.ClientStatusActive {
+						<div class="admin-danger-zone">
+							<div class="admin-danger-zone-header">
+								<h3 class="admin-danger-zone-title">⚠️ Danger Zone</h3>
+								<p class="admin-danger-zone-desc">
+									Deleting this app is irreversible. Active apps must be deactivated by an admin before they can be deleted.
+								</p>
+							</div>
+							<div class="admin-danger-zone-body">
+								<div class="admin-danger-item">
+									<div class="admin-danger-item-info">
+										<strong>Delete App</strong>
+										<span>Permanently remove this app and all associated data.</span>
+									</div>
+									<form method="POST" action={ templ.URL("/apps/" + props.Client.ClientID + "/delete") } style="margin:0;">
+										<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+										<button
+											type="submit"
+											class="admin-action-btn danger"
+											onclick="return confirm('Delete this app permanently? This cannot be undone.')"
+										>
+											Delete App
+										</button>
+									</form>
+								</div>
+							</div>
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}

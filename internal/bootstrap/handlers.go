@@ -17,6 +17,7 @@ type handlerSet struct {
 	device        *handlers.DeviceHandler
 	token         *handlers.TokenHandler
 	client        *handlers.ClientHandler
+	userClient    *handlers.UserClientHandler
 	session       *handlers.SessionHandler
 	oauth         *handlers.OAuthHandler
 	audit         *handlers.AuditHandler
@@ -58,8 +59,9 @@ func initializeHandlers(deps handlerDeps) handlerSet {
 			deps.services.authorization,
 			deps.cfg,
 		),
-		client:  handlers.NewClientHandler(deps.services.client, deps.services.authorization),
-		session: handlers.NewSessionHandler(deps.services.token, deps.services.user),
+		client:     handlers.NewClientHandler(deps.services.client, deps.services.authorization),
+		userClient: handlers.NewUserClientHandler(deps.services.client),
+		session:    handlers.NewSessionHandler(deps.services.token, deps.services.user),
 		oauth: handlers.NewOAuthHandler(
 			deps.oauthProviders,
 			deps.services.user,

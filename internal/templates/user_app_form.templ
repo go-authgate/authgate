@@ -1,0 +1,42 @@
+package templates
+
+templ UserAppForm(props UserClientFormPageProps) {
+	@Layout(props.Title, LayoutHasNavbar, &props.NavbarProps) {
+		<link rel="stylesheet" href="/static/css/pages/admin-forms.css"/>
+		<div class="main-content">
+			<div class="admin-form-container">
+				<div class="card">
+					<div class="admin-form-header">
+						<h1 class="admin-form-title">{ props.Title }</h1>
+					</div>
+					@Alert(props.Error, AlertError)
+					if !props.IsEdit {
+						<div class="admin-info-notice" style="margin-bottom:var(--space-4);padding:var(--space-3);background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);border-radius:var(--radius-md);color:var(--color-text-secondary);">
+							<strong>Note:</strong> New apps require admin approval before they can be used for OAuth flows. You will see a <em>Pending</em> status until an admin reviews your request.
+						</div>
+					}
+					<form method={ props.Method } action={ templ.URL(props.Action) } class="admin-form">
+						<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+						@ClientFormCommonFields(ClientFormFieldsProps{
+							Client:                props.Client,
+							IsEdit:                props.IsEdit,
+							NameLabel:             "App Name",
+							ShowClientCredentials: false,
+							ScopePresetsOnly:      true,
+						})
+						<div class="admin-form-actions">
+							<button type="submit" class="admin-form-submit-btn">
+								if props.IsEdit {
+									Update App
+								} else {
+									Register App
+								}
+							</button>
+							<a href="/apps" class="admin-form-cancel-btn">Cancel</a>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	}
+}

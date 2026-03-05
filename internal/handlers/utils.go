@@ -7,13 +7,24 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const ctxKeyPendingClientsCount = "pending_clients_count"
+
 // buildNavbarProps creates NavbarProps from a user model and active link identifier.
-func buildNavbarProps(user *models.User, activeLink string) templates.NavbarProps {
+// If the gin context contains a pending_clients_count value (set by InjectPendingCount
+// middleware), it is included in the navbar badge for admin users.
+func buildNavbarProps(c *gin.Context, user *models.User, activeLink string) templates.NavbarProps {
+	pendingCount := 0
+	if v, exists := c.Get(ctxKeyPendingClientsCount); exists {
+		if count, ok := v.(int); ok {
+			pendingCount = count
+		}
+	}
 	return templates.NavbarProps{
-		Username:   user.Username,
-		FullName:   user.FullName,
-		IsAdmin:    user.IsAdmin(),
-		ActiveLink: activeLink,
+		Username:            user.Username,
+		FullName:            user.FullName,
+		IsAdmin:             user.IsAdmin(),
+		ActiveLink:          activeLink,
+		PendingClientsCount: pendingCount,
 	}
 }
 
