@@ -16,16 +16,16 @@ import (
 func initializeHTTPAPIAuthProvider(cfg *config.Config) core.AuthProvider {
 	switch cfg.AuthMode {
 	case config.AuthModeHTTPAPI:
-		authRetryClient, err := client.CreateRetryClient(
-			cfg.HTTPAPIAuthMode,
-			cfg.HTTPAPIAuthSecret,
-			cfg.HTTPAPITimeout,
-			cfg.HTTPAPIInsecureSkipVerify,
-			cfg.HTTPAPIMaxRetries,
-			cfg.HTTPAPIRetryDelay,
-			cfg.HTTPAPIMaxRetryDelay,
-			cfg.HTTPAPIAuthHeader,
-		)
+		authRetryClient, err := client.CreateRetryClient(client.RetryClientConfig{
+			AuthMode:           cfg.HTTPAPIAuthMode,
+			AuthSecret:         cfg.HTTPAPIAuthSecret,
+			Timeout:            cfg.HTTPAPITimeout,
+			InsecureSkipVerify: cfg.HTTPAPIInsecureSkipVerify,
+			MaxRetries:         cfg.HTTPAPIMaxRetries,
+			RetryDelay:         cfg.HTTPAPIRetryDelay,
+			MaxRetryDelay:      cfg.HTTPAPIMaxRetryDelay,
+			AuthHeader:         cfg.HTTPAPIAuthHeader,
+		})
 		if err != nil {
 			log.Fatalf("Failed to create HTTP API auth client: %v", err)
 		}
@@ -42,16 +42,16 @@ func initializeHTTPAPIAuthProvider(cfg *config.Config) core.AuthProvider {
 func initializeTokenProvider(cfg *config.Config) core.TokenProvider {
 	switch cfg.TokenProviderMode {
 	case config.TokenProviderModeHTTPAPI:
-		tokenRetryClient, err := client.CreateRetryClient(
-			cfg.TokenAPIAuthMode,
-			cfg.TokenAPIAuthSecret,
-			cfg.TokenAPITimeout,
-			cfg.TokenAPIInsecureSkipVerify,
-			cfg.TokenAPIMaxRetries,
-			cfg.TokenAPIRetryDelay,
-			cfg.TokenAPIMaxRetryDelay,
-			cfg.TokenAPIAuthHeader,
-		)
+		tokenRetryClient, err := client.CreateRetryClient(client.RetryClientConfig{
+			AuthMode:           cfg.TokenAPIAuthMode,
+			AuthSecret:         cfg.TokenAPIAuthSecret,
+			Timeout:            cfg.TokenAPITimeout,
+			InsecureSkipVerify: cfg.TokenAPIInsecureSkipVerify,
+			MaxRetries:         cfg.TokenAPIMaxRetries,
+			RetryDelay:         cfg.TokenAPIRetryDelay,
+			MaxRetryDelay:      cfg.TokenAPIMaxRetryDelay,
+			AuthHeader:         cfg.TokenAPIAuthHeader,
+		})
 		if err != nil {
 			log.Fatalf("Failed to create token API client: %v", err)
 		}

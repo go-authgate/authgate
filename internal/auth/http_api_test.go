@@ -24,16 +24,16 @@ import (
 
 // createTestRetryClient creates a retry client for testing
 func createTestRetryClient(cfg *config.Config) (*retry.Client, error) {
-	return client.CreateRetryClient(
-		cfg.HTTPAPIAuthMode,
-		cfg.HTTPAPIAuthSecret,
-		cfg.HTTPAPITimeout,
-		cfg.HTTPAPIInsecureSkipVerify,
-		cfg.HTTPAPIMaxRetries,
-		cfg.HTTPAPIRetryDelay,
-		cfg.HTTPAPIMaxRetryDelay,
-		cfg.HTTPAPIAuthHeader,
-	)
+	return client.CreateRetryClient(client.RetryClientConfig{
+		AuthMode:           cfg.HTTPAPIAuthMode,
+		AuthSecret:         cfg.HTTPAPIAuthSecret,
+		Timeout:            cfg.HTTPAPITimeout,
+		InsecureSkipVerify: cfg.HTTPAPIInsecureSkipVerify,
+		MaxRetries:         cfg.HTTPAPIMaxRetries,
+		RetryDelay:         cfg.HTTPAPIRetryDelay,
+		MaxRetryDelay:      cfg.HTTPAPIMaxRetryDelay,
+		AuthHeader:         cfg.HTTPAPIAuthHeader,
+	})
 }
 
 // createTestProvider is a helper function for tests to create a provider

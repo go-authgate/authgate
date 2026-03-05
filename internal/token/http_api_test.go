@@ -34,16 +34,16 @@ func testConfig(url string) *config.Config {
 
 // createTestRetryClient creates a retry client for testing
 func createTestRetryClient(cfg *config.Config) (*retry.Client, error) {
-	return client.CreateRetryClient(
-		cfg.TokenAPIAuthMode,
-		cfg.TokenAPIAuthSecret,
-		cfg.TokenAPITimeout,
-		cfg.TokenAPIInsecureSkipVerify,
-		cfg.TokenAPIMaxRetries,
-		cfg.TokenAPIRetryDelay,
-		cfg.TokenAPIMaxRetryDelay,
-		cfg.TokenAPIAuthHeader,
-	)
+	return client.CreateRetryClient(client.RetryClientConfig{
+		AuthMode:           cfg.TokenAPIAuthMode,
+		AuthSecret:         cfg.TokenAPIAuthSecret,
+		Timeout:            cfg.TokenAPITimeout,
+		InsecureSkipVerify: cfg.TokenAPIInsecureSkipVerify,
+		MaxRetries:         cfg.TokenAPIMaxRetries,
+		RetryDelay:         cfg.TokenAPIRetryDelay,
+		MaxRetryDelay:      cfg.TokenAPIMaxRetryDelay,
+		AuthHeader:         cfg.TokenAPIAuthHeader,
+	})
 }
 
 // createTestProvider is a helper function for tests to create a provider
