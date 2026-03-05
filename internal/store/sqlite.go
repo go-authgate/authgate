@@ -64,7 +64,10 @@ func New(ctx context.Context, driver, dsn string, cfg *config.Config) (*Store, e
 		if err := tx.Model(&models.OAuthApplication{}).
 			Where("is_active = ? AND status = ?", false, "active").
 			Update("status", "inactive").Error; err != nil {
-			return fmt.Errorf("failed to backfill oauth_applications.status from is_active: %w", err)
+			return fmt.Errorf(
+				"failed to backfill oauth_applications.status from is_active: %w",
+				err,
+			)
 		}
 		// Drop the now-redundant column only if the update above succeeded.
 		if err := tx.Migrator().DropColumn(&models.OAuthApplication{}, "is_active"); err != nil {
