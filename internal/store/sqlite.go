@@ -55,15 +55,25 @@ func New(ctx context.Context, driver, dsn string, cfg *config.Config) (*Store, e
 	// The data-fix query runs first to correct any records where is_active=false
 	// but status='active' (the original bug). Both operations are gated on column
 	// existence so subsequent startups incur zero extra queries.
-	if db.Migrator().HasColumn(&models.OAuthApplication{}, "is_active") {
-		db.WithContext(ctx).Exec(
-			"UPDATE oauth_applications SET status='inactive' WHERE is_active=0 AND status='active'",
-		)
-		if err := db.Migrator().DropColumn(&models.OAuthApplication{}, "is_active"); err != nil {
-			log.Printf("Warning: failed to drop is_active column: %v", err)
+	if err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Only run if the legacy is_active column still exists.
+		if !tx.Migrator().HasColumn(&models.OAuthApplication{}, "is_active") {
+			return nil
 		}
+		// Portable, parameterized update: lets the dialect handle boolean values.
+		if err := tx.Model(&models.OAuthApplication{}).
+			Where("is_active = ? AND status = ?", false, "active").
+			Update("status", "inactive").Error; err != nil {
+			return fmt.Errorf("failed to backfill oauth_applications.status from is_active: %w", err)
+		}
+		// Drop the now-redundant column only if the update above succeeded.
+		if err := tx.Migrator().DropColumn(&models.OAuthApplication{}, "is_active"); err != nil {
+			return fmt.Errorf("failed to drop is_active column: %w", err)
+		}
+		return nil
+	}); err != nil {
+		log.Printf("Warning: one-time migration for oauth_applications.is_active failed: %v", err)
 	}
-
 	// Configure connection pool (after AutoMigrate)
 	// Only configure if values are provided (non-zero)
 	if cfg.DBMaxOpenConns > 0 || cfg.DBMaxIdleConns > 0 ||
