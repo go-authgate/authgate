@@ -40,8 +40,7 @@ type OAuthApplication struct {
 	ClientType                  string      `gorm:"not null;default:'public'"` // "confidential" or "public"
 	EnableDeviceFlow            bool        `gorm:"not null;default:true"`
 	EnableAuthCodeFlow          bool        `gorm:"not null;default:false"`
-	EnableClientCredentialsFlow bool        `gorm:"not null;default:false"` // Client Credentials Grant (RFC 6749 §4.4); confidential clients only
-	IsActive                    bool        `gorm:"not null;default:true"`
+	EnableClientCredentialsFlow bool        `gorm:"not null;default:false"`    // Client Credentials Grant (RFC 6749 §4.4); confidential clients only
 	Status                      string      `gorm:"not null;default:'active'"` // ClientStatusPending / ClientStatusActive / ClientStatusInactive
 	CreatedBy                   string
 	CreatedAt                   time.Time
@@ -113,4 +112,9 @@ func (s StringArray) Join(sep string) string {
 // TableName overrides the table name used by OAuthApplication to `oauth_applications`
 func (OAuthApplication) TableName() string {
 	return "oauth_applications"
+}
+
+// IsActive returns true when the client's status is active and can be used for OAuth flows.
+func (app *OAuthApplication) IsActive() bool {
+	return app.Status == ClientStatusActive
 }

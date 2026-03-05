@@ -33,7 +33,7 @@ func createConfidentialClientWithCCFlow(
 		GrantTypes:                  "client_credentials",
 		ClientType:                  ClientTypeConfidential,
 		EnableClientCredentialsFlow: enableCCFlow,
-		IsActive:                    true,
+		Status:                      models.ClientStatusActive,
 	}
 	plainSecret, err := client.GenerateClientSecret(context.Background())
 	require.NoError(t, err)
@@ -120,7 +120,7 @@ func TestIssueClientCredentialsToken_Error_PublicClient(t *testing.T) {
 		GrantTypes:                  "authorization_code",
 		ClientType:                  ClientTypePublic,
 		EnableClientCredentialsFlow: false,
-		IsActive:                    true,
+		Status:                      models.ClientStatusActive,
 	}
 	_, err := publicClient.GenerateClientSecret(context.Background())
 	require.NoError(t, err)
@@ -175,7 +175,7 @@ func TestIssueClientCredentialsToken_Error_InactiveClient(t *testing.T) {
 	client, plainSecret := createConfidentialClientWithCCFlow(t, s, true)
 
 	// Deactivate
-	client.IsActive = false
+	client.Status = models.ClientStatusInactive
 	require.NoError(t, s.UpdateClient(client))
 
 	_, err := svc.IssueClientCredentialsToken(

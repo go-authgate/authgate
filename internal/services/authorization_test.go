@@ -54,7 +54,7 @@ func createAuthCodeFlowClient(
 		RedirectURIs:       models.StringArray{"https://app.example.com/callback"},
 		ClientType:         clientType,
 		EnableAuthCodeFlow: true,
-		IsActive:           true,
+		Status:             models.ClientStatusActive,
 	}
 	err = svc.store.CreateClient(client)
 	require.NoError(t, err)
@@ -127,7 +127,7 @@ func TestValidateAuthorizationRequest_AuthCodeFlowDisabled(t *testing.T) {
 		RedirectURIs:       models.StringArray{"https://app.example.com/callback"},
 		ClientType:         "confidential",
 		EnableAuthCodeFlow: false, // disabled
-		IsActive:           true,
+		Status:             models.ClientStatusActive,
 	}
 	require.NoError(t, svc.store.CreateClient(client))
 
@@ -484,7 +484,7 @@ func TestListUserAuthorizations_MultipleClients(t *testing.T) {
 			RedirectURIs:       models.StringArray{"https://app.example.com/cb"},
 			ClientType:         "confidential",
 			EnableAuthCodeFlow: true,
-			IsActive:           true,
+			Status:             models.ClientStatusActive,
 		}
 		require.NoError(t, svc.store.CreateClient(c))
 		_, err := svc.SaveUserAuthorization(context.Background(), userID, c.ID, c.ClientID, "read")

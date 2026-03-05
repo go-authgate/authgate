@@ -115,7 +115,6 @@ type ClientDisplay struct {
 	EnableDeviceFlow            bool
 	EnableAuthCodeFlow          bool
 	EnableClientCredentialsFlow bool
-	IsActive                    bool
 	Status                      string // "pending", "active", "inactive"
 	CreatedAt                   time.Time
 	UpdatedAt                   time.Time

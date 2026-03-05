@@ -102,7 +102,7 @@ type CreateClientRequest struct {
 	EnableDeviceFlow            bool   // Enable Device Authorization Grant (RFC 8628)
 	EnableAuthCodeFlow          bool   // Enable Authorization Code Flow (RFC 6749)
 	EnableClientCredentialsFlow bool   // Enable Client Credentials Grant (RFC 6749 §4.4); confidential clients only
-	IsAdminCreated              bool   // When true: Status=active, IsActive=true; when false: Status=pending, IsActive=false
+	IsAdminCreated              bool   // When true: Status=active; when false: Status=pending
 }
 
 // UserUpdateClientRequest contains the restricted set of fields a non-admin user may update on their own client.
@@ -121,7 +121,7 @@ type UpdateClientRequest struct {
 	Description                 string
 	Scopes                      string
 	RedirectURIs                []string
-	IsActive                    bool
+	Status                      string // "active" or "inactive"
 	ClientType                  string
 	EnableDeviceFlow            bool
 	EnableAuthCodeFlow          bool
@@ -187,10 +187,8 @@ func (s *ClientService) CreateClient(
 	// Determine approval status based on creator role.
 	// Admin-created clients are immediately active; user-created clients require approval.
 	clientStatus := models.ClientStatusPending
-	isActive := false
 	if req.IsAdminCreated {
 		clientStatus = models.ClientStatusActive
-		isActive = true
 	}
 
 	client := &models.OAuthApplication{
@@ -205,7 +203,6 @@ func (s *ClientService) CreateClient(
 		EnableDeviceFlow:            enableDevice,
 		EnableAuthCodeFlow:          enableAuthCode,
 		EnableClientCredentialsFlow: enableClientCredentials,
-		IsActive:                    isActive,
 		Status:                      clientStatus,
 		CreatedBy:                   req.CreatedBy,
 	}
@@ -218,16 +215,6 @@ func (s *ClientService) CreateClient(
 
 	if err := s.store.CreateClient(client); err != nil {
 		return nil, err
-	}
-
-	// GORM treats false as the zero value for bool and ignores it during CREATE when
-	// the column has a `default:true` tag.  For pending (user-created) clients we must
-	// perform an explicit UPDATE to ensure IsActive is persisted as false.
-	if !isActive {
-		client.IsActive = false
-		if err := s.store.UpdateClient(client); err != nil {
-			return nil, err
-		}
 	}
 
 	// Log client creation
@@ -285,7 +272,7 @@ func (s *ClientService) UpdateClient(
 	client.Description = strings.TrimSpace(req.Description)
 	client.Scopes = strings.TrimSpace(req.Scopes)
 	client.RedirectURIs = models.StringArray(req.RedirectURIs)
-	client.IsActive = req.IsActive
+	client.Status = req.Status
 
 	// Client type defaults to confidential
 	if req.ClientType == ClientTypePublic {
@@ -324,7 +311,7 @@ func (s *ClientService) UpdateClient(
 			Action:       "OAuth client updated",
 			Details: models.AuditDetails{
 				"client_name": client.ClientName,
-				"is_active":   client.IsActive,
+				"status":      client.Status,
 				"grant_types": client.GrantTypes,
 				"scopes":      client.Scopes,
 			},
@@ -651,7 +638,6 @@ func (s *ClientService) ApproveClient(
 	}
 
 	client.Status = models.ClientStatusActive
-	client.IsActive = true
 
 	if err := s.store.UpdateClient(client); err != nil {
 		return err
@@ -687,7 +673,6 @@ func (s *ClientService) RejectClient(
 	}
 
 	client.Status = models.ClientStatusInactive
-	client.IsActive = false
 
 	if err := s.store.UpdateClient(client); err != nil {
 		return err

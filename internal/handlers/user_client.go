@@ -336,7 +336,6 @@ func appToDisplay(app *models.OAuthApplication) *templates.ClientDisplay {
 		EnableDeviceFlow:            app.EnableDeviceFlow,
 		EnableAuthCodeFlow:          app.EnableAuthCodeFlow,
 		EnableClientCredentialsFlow: app.EnableClientCredentialsFlow,
-		IsActive:                    app.IsActive,
 		Status:                      app.Status,
 		CreatedAt:                   app.CreatedAt,
 		UpdatedAt:                   app.UpdatedAt,

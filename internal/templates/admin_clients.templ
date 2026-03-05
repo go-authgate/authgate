@@ -190,7 +190,7 @@ templ ClientTableRow(client services.ClientWithCreator, csrfToken string) {
 			</div>
 		</td>
 		<td>
-			@AdminClientStatusBadges(client.IsActive, client.Status)
+			@AdminClientStatusBadges(client.Status)
 		</td>
 		<td class="created-date-cell">
 			<div class="date-display">
@@ -259,19 +259,16 @@ templ AdminClientsStatusTab(href, label string, isActive bool) {
 	</a>
 }
 
-// AdminClientStatusBadges renders the IsActive + Status pair for the admin list view.
-templ AdminClientStatusBadges(isActive bool, status string) {
+// AdminClientStatusBadges renders the status badge for the admin list view.
+templ AdminClientStatusBadges(status string) {
 	<div style="display:flex;flex-direction:column;gap:var(--space-1);">
-		if isActive {
-			<span class="status-badge status-active">Active</span>
-		} else {
-			<span class="status-badge status-inactive">Inactive</span>
-		}
 		switch status {
+			case models.ClientStatusActive:
+				<span class="status-badge status-active">Active</span>
 			case models.ClientStatusPending:
-				<span class="status-badge" style="background:rgba(245,158,11,0.1);color:#D97706;border:1px solid rgba(245,158,11,0.3);font-size:var(--text-xs);">Pending</span>
-			case models.ClientStatusInactive:
-				<span class="status-badge status-inactive" style="font-size:var(--text-xs);">Rejected</span>
+				<span class="status-badge" style="background:rgba(245,158,11,0.1);color:#D97706;border:1px solid rgba(245,158,11,0.3);">Pending</span>
+			default:
+				<span class="status-badge status-inactive">Inactive</span>
 		}
 	</div>
 }

@@ -43,7 +43,7 @@ func TestListClientsPaginatedWithCreator(t *testing.T) {
 		UserID:       user1.ID, // Created by alice
 		GrantTypes:   "device_code",
 		Scopes:       "read write",
-		IsActive:     true,
+		Status:       models.ClientStatusActive,
 	}
 	client2 := &models.OAuthApplication{
 		ClientID:     uuid.New().String(),
@@ -52,7 +52,7 @@ func TestListClientsPaginatedWithCreator(t *testing.T) {
 		UserID:       user2.ID, // Created by bob
 		GrantTypes:   "device_code",
 		Scopes:       "read",
-		IsActive:     true,
+		Status:       models.ClientStatusActive,
 	}
 	client3 := &models.OAuthApplication{
 		ClientID:     uuid.New().String(),
@@ -61,7 +61,7 @@ func TestListClientsPaginatedWithCreator(t *testing.T) {
 		UserID:       user1.ID, // Also created by alice
 		GrantTypes:   "device_code",
 		Scopes:       "write",
-		IsActive:     false,
+		Status:       models.ClientStatusInactive,
 	}
 	client4 := &models.OAuthApplication{
 		ClientID:     uuid.New().String(),
@@ -70,7 +70,7 @@ func TestListClientsPaginatedWithCreator(t *testing.T) {
 		UserID:       "", // No creator (edge case)
 		GrantTypes:   "device_code",
 		Scopes:       "read",
-		IsActive:     true,
+		Status:       models.ClientStatusActive,
 	}
 
 	require.NoError(t, s.CreateClient(client1))
@@ -149,7 +149,7 @@ func TestListClientsPaginatedWithCreator(t *testing.T) {
 			UserID:       deletedUser.ID,
 			GrantTypes:   "device_code",
 			Scopes:       "read",
-			IsActive:     true,
+			Status:       models.ClientStatusActive,
 		}
 		require.NoError(t, s.CreateClient(clientWithDeletedUser))
 
@@ -418,7 +418,7 @@ func TestUpdateClient_AuthCodeFlowRequiresRedirectURI(t *testing.T) {
 
 	updateReq := UpdateClientRequest{
 		ClientName:         "Update Target",
-		IsActive:           true,
+		Status:             models.ClientStatusActive,
 		EnableAuthCodeFlow: true,
 		RedirectURIs:       []string{}, // empty → must be rejected
 	}
@@ -444,7 +444,7 @@ func TestUpdateClient_AuthCodeFlowWithRedirectURISucceeds(t *testing.T) {
 
 	updateReq := UpdateClientRequest{
 		ClientName:         "Update Target",
-		IsActive:           true,
+		Status:             models.ClientStatusActive,
 		EnableAuthCodeFlow: true,
 		RedirectURIs:       []string{"https://example.com/callback"},
 	}
@@ -469,7 +469,7 @@ func TestUpdateClient_BothGrantTypesDisabledRejected(t *testing.T) {
 
 	updateReq := UpdateClientRequest{
 		ClientName:         "Grant Type Client",
-		IsActive:           true,
+		Status:             models.ClientStatusActive,
 		EnableDeviceFlow:   false, // both disabled → must be rejected
 		EnableAuthCodeFlow: false,
 	}
@@ -495,7 +495,7 @@ func TestUpdateClient_GrantTypesReflectFlags(t *testing.T) {
 	// Switch to auth code only
 	updateReq := UpdateClientRequest{
 		ClientName:         "Grant Flags Client",
-		IsActive:           true,
+		Status:             models.ClientStatusActive,
 		EnableDeviceFlow:   false,
 		EnableAuthCodeFlow: true,
 		RedirectURIs:       []string{"https://example.com/callback"},
@@ -612,7 +612,7 @@ func TestUpdateClient_InvalidRedirectURIRejected(t *testing.T) {
 
 	updateReq := UpdateClientRequest{
 		ClientName:         "URI Validation Client",
-		IsActive:           true,
+		Status:             models.ClientStatusActive,
 		EnableAuthCodeFlow: true,
 		RedirectURIs:       []string{"https://example.com/callback#fragment"},
 	}

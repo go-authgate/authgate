@@ -194,7 +194,6 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 		EnableDeviceFlow:            resp.EnableDeviceFlow,
 		EnableAuthCodeFlow:          resp.EnableAuthCodeFlow,
 		EnableClientCredentialsFlow: resp.EnableClientCredentialsFlow,
-		IsActive:                    resp.IsActive,
 		Status:                      resp.Status,
 	}
 
@@ -236,7 +235,7 @@ func (h *ClientHandler) ShowEditClientPage(c *gin.Context) {
 		EnableDeviceFlow:            client.EnableDeviceFlow,
 		EnableAuthCodeFlow:          client.EnableAuthCodeFlow,
 		EnableClientCredentialsFlow: client.EnableClientCredentialsFlow,
-		IsActive:                    client.IsActive,
+		Status:                      client.Status,
 		CreatedAt:                   client.CreatedAt,
 		UpdatedAt:                   client.UpdatedAt,
 	}
@@ -261,7 +260,7 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 		Description:                 c.PostForm("description"),
 		Scopes:                      c.PostForm("scopes"),
 		RedirectURIs:                parseRedirectURIs(c.PostForm("redirect_uris")),
-		IsActive:                    c.PostForm("is_active") == queryValueTrue,
+		Status:                      c.PostForm("status"),
 		ClientType:                  c.PostForm("client_type"),
 		EnableDeviceFlow:            c.PostForm("enable_device_flow") == queryValueTrue,
 		EnableAuthCodeFlow:          c.PostForm("enable_auth_code_flow") == queryValueTrue,
@@ -288,7 +287,7 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 			EnableDeviceFlow:            req.EnableDeviceFlow,
 			EnableAuthCodeFlow:          req.EnableAuthCodeFlow,
 			EnableClientCredentialsFlow: req.EnableClientCredentialsFlow,
-			IsActive:                    req.IsActive,
+			Status:                      req.Status,
 			CreatedAt:                   client.CreatedAt,
 			UpdatedAt:                   client.UpdatedAt,
 		}

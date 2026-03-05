@@ -33,7 +33,7 @@ func setupTestService(t *testing.T) (*DeviceService, *models.OAuthApplication) {
 		ClientName:       "Test Client",
 		RedirectURIs:     models.StringArray{},
 		EnableDeviceFlow: true,
-		IsActive:         true,
+		Status:           models.ClientStatusActive,
 	}
 	err = st.CreateClient(client)
 	require.NoError(t, err)

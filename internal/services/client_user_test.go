@@ -28,7 +28,7 @@ func TestCreateClient_AdminCreated_IsActive(t *testing.T) {
 		IsAdminCreated: true,
 	})
 	require.NoError(t, err)
-	assert.True(t, resp.IsActive)
+	assert.True(t, resp.IsActive())
 	assert.Equal(t, models.ClientStatusActive, resp.Status)
 }
 
@@ -44,7 +44,7 @@ func TestCreateClient_UserCreated_IsPendingAndInactive(t *testing.T) {
 		IsAdminCreated: false,
 	})
 	require.NoError(t, err)
-	assert.False(t, resp.IsActive)
+	assert.False(t, resp.IsActive())
 	assert.Equal(t, models.ClientStatusPending, resp.Status)
 }
 
@@ -243,14 +243,14 @@ func TestApproveClient_SetsActiveStatus(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, models.ClientStatusPending, resp.Status)
-	assert.False(t, resp.IsActive)
+	assert.False(t, resp.IsActive())
 
 	require.NoError(t, svc.ApproveClient(context.Background(), resp.ClientID, adminID))
 
 	approved, err := svc.GetClient(resp.ClientID)
 	require.NoError(t, err)
 	assert.Equal(t, models.ClientStatusActive, approved.Status)
-	assert.True(t, approved.IsActive)
+	assert.True(t, approved.IsActive())
 }
 
 func TestRejectClient_SetsInactiveStatus(t *testing.T) {
@@ -272,7 +272,7 @@ func TestRejectClient_SetsInactiveStatus(t *testing.T) {
 	rejected, err := svc.GetClient(resp.ClientID)
 	require.NoError(t, err)
 	assert.Equal(t, models.ClientStatusInactive, rejected.Status)
-	assert.False(t, rejected.IsActive)
+	assert.False(t, rejected.IsActive())
 }
 
 // ============================================================

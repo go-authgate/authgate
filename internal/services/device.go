@@ -60,7 +60,7 @@ func (s *DeviceService) GenerateDeviceCode(
 	}
 
 	// Check if client is active
-	if !client.IsActive {
+	if !client.IsActive() {
 		return nil, ErrClientInactive
 	}
 

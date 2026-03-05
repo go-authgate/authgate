@@ -96,7 +96,7 @@ func TestExchangeDeviceCode_InactiveClient(t *testing.T) {
 	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
 
 	// Now deactivate the client
-	client.IsActive = false
+	client.Status = models.ClientStatusInactive
 	err := s.UpdateClient(client)
 	require.NoError(t, err)
 

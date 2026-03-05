@@ -51,6 +51,19 @@ func New(ctx context.Context, driver, dsn string, cfg *config.Config) (*Store, e
 		return nil, err
 	}
 
+	// One-time migration: drop the now-redundant is_active column.
+	// The data-fix query runs first to correct any records where is_active=false
+	// but status='active' (the original bug). Both operations are gated on column
+	// existence so subsequent startups incur zero extra queries.
+	if db.Migrator().HasColumn(&models.OAuthApplication{}, "is_active") {
+		db.WithContext(ctx).Exec(
+			"UPDATE oauth_applications SET status='inactive' WHERE is_active=0 AND status='active'",
+		)
+		if err := db.Migrator().DropColumn(&models.OAuthApplication{}, "is_active"); err != nil {
+			log.Printf("Warning: failed to drop is_active column: %v", err)
+		}
+	}
+
 	// Configure connection pool (after AutoMigrate)
 	// Only configure if values are provided (non-zero)
 	if cfg.DBMaxOpenConns > 0 || cfg.DBMaxIdleConns > 0 ||
@@ -193,7 +206,6 @@ func (s *Store) seedData(ctx context.Context, cfg *config.Config) error {
 			RedirectURIs:       models.StringArray{"http://localhost:8888/callback"},
 			EnableAuthCodeFlow: true,
 			EnableDeviceFlow:   true,
-			IsActive:           true,
 			Status:             models.ClientStatusActive,
 		}
 		clientSecret, err := client.GenerateClientSecret(ctx)

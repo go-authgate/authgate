@@ -36,14 +36,14 @@ func createTestClient(t *testing.T, s *store.Store, isActive bool) *models.OAuth
 		GrantTypes:       "device_code",
 		RedirectURIs:     models.StringArray{},
 		EnableDeviceFlow: true,
-		IsActive:         true, // Create with default value first
+		Status:           models.ClientStatusActive,
 	}
 	err := s.CreateClient(client)
 	require.NoError(t, err)
 
 	// If we want it inactive, update it explicitly
 	if !isActive {
-		client.IsActive = false
+		client.Status = models.ClientStatusInactive
 		err = s.UpdateClient(client)
 		require.NoError(t, err)
 	}
@@ -89,7 +89,7 @@ func TestGenerateDeviceCode_InactiveClient(t *testing.T) {
 	// Verify the client is actually inactive in the database
 	storedClient, err := s.GetClient(client.ClientID)
 	require.NoError(t, err)
-	require.False(t, storedClient.IsActive, "Client should be inactive")
+	require.Equal(t, models.ClientStatusInactive, storedClient.Status, "Client should be inactive")
 
 	// Try to generate device code
 	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
@@ -140,7 +140,7 @@ func TestGenerateDeviceCode_DeviceFlowDisabled(t *testing.T) {
 		GrantTypes:         "authorization_code",
 		RedirectURIs:       models.StringArray{"https://app.example.com/callback"},
 		EnableAuthCodeFlow: true,
-		IsActive:           true,
+		Status:             models.ClientStatusActive,
 	}
 	err := s.CreateClient(client)
 	require.NoError(t, err)

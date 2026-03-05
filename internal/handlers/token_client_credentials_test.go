@@ -73,7 +73,7 @@ func createCCClient(
 		GrantTypes:                  "client_credentials",
 		ClientType:                  clientType,
 		EnableClientCredentialsFlow: enableFlow,
-		IsActive:                    true,
+		Status:                      models.ClientStatusActive,
 	}
 	plainSecret, err := client.GenerateClientSecret(context.Background())
 	require.NoError(t, err)

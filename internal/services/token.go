@@ -105,7 +105,7 @@ func (s *TokenService) ExchangeDeviceCode(
 		s.metrics.RecordOAuthDeviceCodeValidation("invalid")
 		return nil, nil, ErrAccessDenied
 	}
-	if !client.IsActive {
+	if !client.IsActive() {
 		s.metrics.RecordOAuthDeviceCodeValidation("invalid")
 		return nil, nil, ErrAccessDenied
 	}
@@ -645,7 +645,7 @@ func (s *TokenService) IssueClientCredentialsToken(
 ) (*models.AccessToken, error) {
 	// 1. Look up client and verify it is active
 	client, err := s.store.GetClient(clientID)
-	if err != nil || !client.IsActive {
+	if err != nil || !client.IsActive() {
 		return nil, ErrInvalidClientCredentials
 	}
 

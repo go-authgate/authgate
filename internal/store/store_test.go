@@ -161,7 +161,7 @@ func testBasicOperations(t *testing.T, driver string, pgContainer *postgres.Post
 			GrantTypes:       "device_code",
 			RedirectURIs:     models.StringArray{"http://localhost:3000/callback"},
 			EnableDeviceFlow: true,
-			IsActive:         true,
+			Status:           models.ClientStatusActive,
 		}
 		err := store.CreateClient(client)
 		require.NoError(t, err)

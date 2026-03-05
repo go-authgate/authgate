@@ -1,6 +1,10 @@
 package templates
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/go-authgate/authgate/internal/models"
+)
 
 templ AdminClientDetail(props ClientDetailPageProps) {
 	@Layout("Client Details", LayoutAdminNavbar, &props.NavbarProps) {
@@ -75,17 +79,14 @@ templ AdminClientDetail(props ClientDetailPageProps) {
 						</div>
 						<div class="admin-detail-row">
 							<div class="admin-detail-label">Status</div>
-							<div class="admin-detail-value" style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
-								if props.Client.IsActive {
-									<span class="status-badge status-active">Active</span>
-								} else {
-									<span class="status-badge status-inactive">Inactive</span>
-								}
+							<div class="admin-detail-value">
 								switch props.Client.Status {
-									case "pending":
+									case models.ClientStatusActive:
+										<span class="status-badge status-active">Active</span>
+									case models.ClientStatusPending:
 										<span class="status-badge" style="background:rgba(245,158,11,0.1);color:#D97706;border:1px solid rgba(245,158,11,0.3);">Pending approval</span>
-									case "inactive":
-										<span class="status-badge status-inactive">Rejected</span>
+									default:
+										<span class="status-badge status-inactive">Inactive</span>
 								}
 							</div>
 						</div>

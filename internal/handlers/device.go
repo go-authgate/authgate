@@ -233,7 +233,7 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 		return
 	}
 
-	if !client.IsActive {
+	if !client.IsActive() {
 		templates.RenderTempl(
 			c,
 			http.StatusBadRequest,

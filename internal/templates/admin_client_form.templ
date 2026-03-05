@@ -22,10 +22,10 @@ templ AdminClientForm(props ClientFormPageProps) {
 						<!-- Status (edit only) -->
 						if props.IsEdit {
 							<div class="admin-form-group">
-								<label for="is_active" class="admin-form-label">Status</label>
-								<select id="is_active" name="is_active" class="admin-form-select">
-									<option value="true" selected?={ props.Client != nil && props.Client.IsActive }>Active</option>
-									<option value="false" selected?={ props.Client != nil && !props.Client.IsActive }>Inactive</option>
+								<label for="status" class="admin-form-label">Status</label>
+								<select id="status" name="status" class="admin-form-select">
+									<option value="active" selected?={ props.Client != nil && props.Client.Status == "active" }>Active</option>
+									<option value="inactive" selected?={ props.Client != nil && props.Client.Status == "inactive" }>Inactive</option>
 								</select>
 								<small class="admin-form-hint">Inactive clients cannot be used for authorization</small>
 							</div>
