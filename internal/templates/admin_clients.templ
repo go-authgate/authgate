@@ -1,9 +1,8 @@
 package templates
 
 import (
-	"fmt"
+	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
-	"github.com/go-authgate/authgate/internal/store"
 )
 
 templ AdminClients(props ClientsPageProps) {
@@ -27,37 +26,14 @@ templ AdminClients(props ClientsPageProps) {
 						</a>
 					</div>
 					@Alert(props.Success, AlertSuccess)
-					<!-- Search and Filters -->
-					<div class="search-section">
-						<form method="GET" action="/admin/clients" class="search-grid">
-							<div class="search-group">
-								<label for="search" class="search-label">Search</label>
-								<div class="search-input-wrapper">
-									<span class="search-icon">🔍</span>
-									<input
-										type="text"
-										id="search"
-										name="search"
-										class="search-input"
-										placeholder="Search by name, client ID, or description..."
-										value={ props.Search }
-									/>
-								</div>
-							</div>
-							<div class="search-group">
-								<label for="page_size" class="search-label">Items per page</label>
-								<select name="page_size" id="page_size" class="page-size-select" onchange="this.form.submit()">
-									<option value="10" selected?={ props.PageSize == 10 }>10 items</option>
-									<option value="20" selected?={ props.PageSize == 20 }>20 items</option>
-									<option value="50" selected?={ props.PageSize == 50 }>50 items</option>
-								</select>
-							</div>
-							<div class="search-buttons">
-								<button type="submit" class="search-btn">Search</button>
-								<a href="/admin/clients" class="clear-btn">Clear</a>
-							</div>
-						</form>
+					<!-- Status Filter Tabs -->
+					<div style="display:flex;gap:var(--space-2);margin-bottom:var(--space-4);border-bottom:1px solid var(--color-border);padding-bottom:var(--space-3);">
+						@AdminClientsStatusTab("/admin/clients", "All", props.StatusFilter == "")
+						@AdminClientsStatusTab("/admin/clients?status=pending", "Pending", props.StatusFilter == models.ClientStatusPending)
+						@AdminClientsStatusTab("/admin/clients?status=active", "Active", props.StatusFilter == models.ClientStatusActive)
+						@AdminClientsStatusTab("/admin/clients?status=inactive", "Inactive", props.StatusFilter == models.ClientStatusInactive)
 					</div>
+					@ClientsSearchBar("/admin/clients", props.Search, props.PageSize)
 					if len(props.Clients) > 0 {
 						<div class="admin-clients-table-wrapper">
 							<table class="admin-clients-table">
@@ -107,8 +83,7 @@ templ AdminClients(props ClientsPageProps) {
 								</tbody>
 							</table>
 						</div>
-						<!-- Pagination Controls -->
-						@ClientsPagination(props.Pagination, props.PageSize, props.Search)
+						@ClientsListPagination(props.Pagination, props.PageSize, props.Search, "/admin/clients", "total clients")
 					} else {
 						<div class="empty-state">
 							<div class="empty-icon">
@@ -215,11 +190,7 @@ templ ClientTableRow(client services.ClientWithCreator, csrfToken string) {
 			</div>
 		</td>
 		<td>
-			if client.IsActive {
-				<span class="status-badge status-active">Active</span>
-			} else {
-				<span class="status-badge status-inactive">Inactive</span>
-			}
+			@AdminClientStatusBadges(client.IsActive, client.Status)
 		</td>
 		<td class="created-date-cell">
 			<div class="date-display">
@@ -236,6 +207,24 @@ templ ClientTableRow(client services.ClientWithCreator, csrfToken string) {
 		</td>
 		<td>
 			<div class="actions">
+				if client.Status == models.ClientStatusPending {
+					<!-- Quick approve/reject for pending clients -->
+					<form method="POST" action={ templ.URL("/admin/clients/" + client.ClientID + "/approve") } style="display:inline;">
+						<input type="hidden" name="csrf_token" value={ csrfToken }/>
+						<button type="submit" class="btn btn-success btn-small" title="Approve client">
+							Approve
+						</button>
+					</form>
+					<form method="POST" action={ templ.URL("/admin/clients/" + client.ClientID + "/reject") } style="display:inline;">
+						<input type="hidden" name="csrf_token" value={ csrfToken }/>
+						<button type="submit" class="btn btn-warning btn-small" title="Reject client">
+							Reject
+						</button>
+					</form>
+				}
+				<a href={ templ.URL("/admin/clients/" + client.ClientID) } class="btn btn-secondary btn-small" title="View client">
+					View
+				</a>
 				<a href={ templ.URL("/admin/clients/" + client.ClientID + "/edit") } class="btn btn-secondary btn-small" title="Edit client">
 					Edit
 				</a>
@@ -250,53 +239,39 @@ templ ClientTableRow(client services.ClientWithCreator, csrfToken string) {
 	</tr>
 }
 
-func buildClientsPaginationURL(page, pageSize int, search string) string {
-	searchParam := ""
-	if search != "" {
-		searchParam = "&search=" + search
-	}
-	return fmt.Sprintf("/admin/clients?page=%d&page_size=%d%s", page, pageSize, searchParam)
+// AdminClientsStatusTab renders a filter tab for the admin clients list.
+templ AdminClientsStatusTab(href, label string, isActive bool) {
+	<a
+		href={ templ.URL(href) }
+		style={
+			templ.SafeCSS(
+				"padding:var(--space-1) var(--space-3);border-radius:var(--radius-sm);font-size:var(--text-sm);font-weight:500;text-decoration:none;" +
+				func() string {
+					if isActive {
+						return "background:var(--color-primary);color:#fff;"
+					}
+					return "color:var(--color-text-secondary);"
+				}(),
+			),
+		}
+	>
+		{ label }
+	</a>
 }
 
-templ ClientsPagination(pagination store.PaginationResult, pageSize int, search string) {
-	<div class="pagination-container">
-		<div class="pagination-info">
-			<span>Showing</span>
-			<span class="pagination-info-total">{ fmt.Sprintf("%d", pagination.Total) }</span>
-			<span>total clients</span>
-		</div>
-		<div class="pagination-controls">
-			if pagination.HasPrev {
-				<a
-					href={ templ.URL(buildClientsPaginationURL(pagination.PrevPage, pageSize, search)) }
-					class="pagination-button"
-				>
-					<span class="pagination-button-icon">←</span>
-					<span>Previous</span>
-				</a>
-			} else {
-				<button class="pagination-button" disabled>
-					<span class="pagination-button-icon">←</span>
-					<span>Previous</span>
-				</button>
-			}
-			<span class="pagination-current">
-				Page { fmt.Sprintf("%d", pagination.CurrentPage) } of { fmt.Sprintf("%d", pagination.TotalPages) }
-			</span>
-			if pagination.HasNext {
-				<a
-					href={ templ.URL(buildClientsPaginationURL(pagination.NextPage, pageSize, search)) }
-					class="pagination-button"
-				>
-					<span>Next</span>
-					<span class="pagination-button-icon">→</span>
-				</a>
-			} else {
-				<button class="pagination-button" disabled>
-					<span>Next</span>
-					<span class="pagination-button-icon">→</span>
-				</button>
-			}
-		</div>
+// AdminClientStatusBadges renders the IsActive + Status pair for the admin list view.
+templ AdminClientStatusBadges(isActive bool, status string) {
+	<div style="display:flex;flex-direction:column;gap:var(--space-1);">
+		if isActive {
+			<span class="status-badge status-active">Active</span>
+		} else {
+			<span class="status-badge status-inactive">Inactive</span>
+		}
+		switch status {
+			case models.ClientStatusPending:
+				<span class="status-badge" style="background:rgba(245,158,11,0.1);color:#D97706;border:1px solid rgba(245,158,11,0.3);font-size:var(--text-xs);">Pending</span>
+			case models.ClientStatusInactive:
+				<span class="status-badge status-inactive" style="font-size:var(--text-xs);">Rejected</span>
+		}
 	</div>
 }

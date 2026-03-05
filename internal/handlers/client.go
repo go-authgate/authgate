@@ -48,9 +48,11 @@ func (h *ClientHandler) ShowClientsPage(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 	search := c.Query("search")
+	statusFilter := c.Query("status")
 
-	// Create pagination params
+	// Create pagination params (with optional status filter)
 	params := store.NewPaginationParams(page, pageSize, search)
+	params.StatusFilter = statusFilter
 
 	// Get paginated clients with creator information
 	clients, pagination, err := h.clientService.ListClientsPaginatedWithCreator(params)
@@ -58,6 +60,9 @@ func (h *ClientHandler) ShowClientsPage(c *gin.Context) {
 		renderErrorPage(c, http.StatusInternalServerError, "Failed to load clients: "+err.Error())
 		return
 	}
+
+	// Count pending clients for navbar badge
+	pendingCount, _ := h.clientService.CountPendingClients()
 
 	// Get flash messages from session
 	session := sessions.Default(c)
@@ -77,15 +82,19 @@ func (h *ClientHandler) ShowClientsPage(c *gin.Context) {
 	user, _ := c.Get("user")
 	userModel := user.(*models.User)
 
+	navbar := buildNavbarProps(userModel, "clients")
+	navbar.PendingClientsCount = int(pendingCount)
+
 	templates.RenderTempl(c, http.StatusOK, templates.AdminClients(templates.ClientsPageProps{
-		BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-		NavbarProps: buildNavbarProps(userModel, "clients"),
-		User:        userModel,
-		Clients:     clients,
-		Pagination:  pagination,
-		Search:      search,
-		PageSize:    pageSize,
-		Success:     successMsg,
+		BaseProps:    templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		NavbarProps:  navbar,
+		User:         userModel,
+		Clients:      clients,
+		Pagination:   pagination,
+		Search:       search,
+		PageSize:     pageSize,
+		Success:      successMsg,
+		StatusFilter: statusFilter,
 	}))
 }
 
@@ -119,6 +128,7 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 		EnableDeviceFlow:            c.PostForm("enable_device_flow") == queryValueTrue,
 		EnableAuthCodeFlow:          c.PostForm("enable_auth_code_flow") == queryValueTrue,
 		EnableClientCredentialsFlow: c.PostForm("enable_client_credentials_flow") == queryValueTrue,
+		IsAdminCreated:              true, // admin-created clients are immediately active
 	}
 
 	resp, err := h.clientService.CreateClient(c.Request.Context(), req)
@@ -173,6 +183,7 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 		EnableAuthCodeFlow:          resp.EnableAuthCodeFlow,
 		EnableClientCredentialsFlow: resp.EnableClientCredentialsFlow,
 		IsActive:                    resp.IsActive,
+		Status:                      resp.Status,
 	}
 
 	templates.RenderTempl(
@@ -369,6 +380,10 @@ func (h *ClientHandler) ViewClient(c *gin.Context) {
 		successMsg = "All active tokens have been revoked. Users will need to re-authenticate."
 	case "updated":
 		successMsg = "Client updated successfully."
+	case "approved":
+		successMsg = "Client approved. It is now active and can be used for OAuth flows."
+	case "rejected":
+		successMsg = "Client rejected. It has been set to inactive."
 	}
 
 	templates.RenderTempl(
@@ -382,6 +397,40 @@ func (h *ClientHandler) ViewClient(c *gin.Context) {
 			Success:          successMsg,
 		}),
 	)
+}
+
+// ApproveClient sets a pending client's status to active.
+func (h *ClientHandler) ApproveClient(c *gin.Context) {
+	clientID := c.Param("id")
+	userID, _ := c.Get("user_id")
+
+	if err := h.clientService.ApproveClient(
+		c.Request.Context(),
+		clientID,
+		userID.(string),
+	); err != nil {
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to approve client: "+err.Error())
+		return
+	}
+
+	c.Redirect(http.StatusFound, "/admin/clients/"+clientID+"?success=approved")
+}
+
+// RejectClient sets a pending client's status to inactive.
+func (h *ClientHandler) RejectClient(c *gin.Context) {
+	clientID := c.Param("id")
+	userID, _ := c.Get("user_id")
+
+	if err := h.clientService.RejectClient(
+		c.Request.Context(),
+		clientID,
+		userID.(string),
+	); err != nil {
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to reject client: "+err.Error())
+		return
+	}
+
+	c.Redirect(http.StatusFound, "/admin/clients/"+clientID+"?success=rejected")
 }
 
 // ListClientAuthorizations shows all users who have granted access to this client (admin overview).

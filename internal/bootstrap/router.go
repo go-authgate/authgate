@@ -194,6 +194,20 @@ func setupAllRoutes(
 		account.POST("/authorizations/:uuid/revoke", h.authorization.RevokeAuthorization)
 	}
 
+	// User apps area (all authenticated users, not admin-only)
+	apps := r.Group("/apps")
+	apps.Use(middleware.RequireAuth(h.userService), middleware.CSRFMiddleware())
+	{
+		apps.GET("", h.userClient.ShowMyAppsPage)
+		apps.GET("/new", h.userClient.ShowCreateAppPage)
+		apps.POST("", h.userClient.CreateApp)
+		apps.GET("/:id", h.userClient.ShowAppPage)
+		apps.GET("/:id/edit", h.userClient.ShowEditAppPage)
+		apps.POST("/:id", h.userClient.UpdateApp)
+		apps.POST("/:id/delete", h.userClient.DeleteApp)
+		apps.GET("/:id/regenerate-secret", h.userClient.RegenerateAppSecret)
+	}
+
 	// Admin routes (require admin role)
 	admin := r.Group("/admin")
 	admin.Use(
@@ -212,6 +226,8 @@ func setupAllRoutes(
 		admin.GET("/clients/:id/regenerate-secret", h.client.RegenerateSecret)
 		admin.POST("/clients/:id/revoke-all", h.client.RevokeAllTokens)
 		admin.GET("/clients/:id/authorizations", h.client.ListClientAuthorizations)
+		admin.POST("/clients/:id/approve", h.client.ApproveClient)
+		admin.POST("/clients/:id/reject", h.client.RejectClient)
 
 		// Audit log routes (HTML pages)
 		admin.GET("/audit", h.audit.ShowAuditLogsPage)

@@ -75,11 +75,17 @@ templ AdminClientDetail(props ClientDetailPageProps) {
 						</div>
 						<div class="admin-detail-row">
 							<div class="admin-detail-label">Status</div>
-							<div class="admin-detail-value">
+							<div class="admin-detail-value" style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
 								if props.Client.IsActive {
 									<span class="status-badge status-active">Active</span>
 								} else {
 									<span class="status-badge status-inactive">Inactive</span>
+								}
+								switch props.Client.Status {
+									case "pending":
+										<span class="status-badge" style="background:rgba(245,158,11,0.1);color:#D97706;border:1px solid rgba(245,158,11,0.3);">Pending approval</span>
+									case "inactive":
+										<span class="status-badge status-inactive">Rejected</span>
 								}
 							</div>
 						</div>
@@ -92,6 +98,26 @@ templ AdminClientDetail(props ClientDetailPageProps) {
 							<div class="admin-detail-value">{ props.Client.UpdatedAt.Format("2006-01-02 15:04:05") }</div>
 						</div>
 					</div>
+					<!-- Pending Approval Actions -->
+					if props.Client.Status == "pending" {
+						<div style="margin-bottom:var(--space-4);padding:var(--space-3);background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-md);">
+							<p style="margin:0 0 var(--space-3);color:#92400E;font-weight:600;">⏳ This client is pending approval.</p>
+							<div style="display:flex;gap:var(--space-3);">
+								<form method="POST" action={ templ.URL("/admin/clients/" + props.Client.ClientID + "/approve") } style="margin:0;">
+									<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+									<button type="submit" class="admin-action-btn primary" onclick="return confirm('Approve this client? It will become active and usable for OAuth flows.')">
+										✅ Approve
+									</button>
+								</form>
+								<form method="POST" action={ templ.URL("/admin/clients/" + props.Client.ClientID + "/reject") } style="margin:0;">
+									<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+									<button type="submit" class="admin-action-btn danger" onclick="return confirm('Reject this client? It will be set to inactive.')">
+										❌ Reject
+									</button>
+								</form>
+							</div>
+						</div>
+					}
 					<!-- Standard Actions -->
 					<div class="admin-action-buttons">
 						<a href={ templ.URL("/admin/clients/" + props.Client.ClientID + "/edit") } class="admin-action-btn primary">

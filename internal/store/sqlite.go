@@ -194,6 +194,7 @@ func (s *Store) seedData(ctx context.Context, cfg *config.Config) error {
 			EnableAuthCodeFlow: true,
 			EnableDeviceFlow:   true,
 			IsActive:           true,
+			Status:             models.ClientStatusActive,
 		}
 		clientSecret, err := client.GenerateClientSecret(ctx)
 		if err != nil {
@@ -332,7 +333,7 @@ func (s *Store) ListClients() ([]models.OAuthApplication, error) {
 	return clients, nil
 }
 
-// ListClientsPaginated returns paginated OAuth clients with search support
+// ListClientsPaginated returns paginated OAuth clients with search and optional status filter support
 func (s *Store) ListClientsPaginated(
 	params PaginationParams,
 ) ([]models.OAuthApplication, PaginationResult, error) {
@@ -349,6 +350,11 @@ func (s *Store) ListClientsPaginated(
 			"client_name LIKE ? OR client_id LIKE ? OR description LIKE ?",
 			searchPattern, searchPattern, searchPattern,
 		)
+	}
+
+	// Apply status filter if provided
+	if params.StatusFilter != "" {
+		query = query.Where("status = ?", params.StatusFilter)
 	}
 
 	// Count total records
@@ -369,6 +375,50 @@ func (s *Store) ListClientsPaginated(
 	}
 
 	return clients, pagination, nil
+}
+
+// ListClientsByUserID returns paginated OAuth clients owned by the given user
+func (s *Store) ListClientsByUserID(
+	userID string,
+	params PaginationParams,
+) ([]models.OAuthApplication, PaginationResult, error) {
+	var clients []models.OAuthApplication
+	var total int64
+
+	query := s.db.Model(&models.OAuthApplication{}).Where("user_id = ?", userID)
+
+	if params.Search != "" {
+		searchPattern := "%" + params.Search + "%"
+		query = query.Where(
+			"client_name LIKE ? OR client_id LIKE ? OR description LIKE ?",
+			searchPattern, searchPattern, searchPattern,
+		)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, PaginationResult{}, err
+	}
+
+	pagination := CalculatePagination(total, params.Page, params.PageSize)
+	offset := (params.Page - 1) * params.PageSize
+
+	if err := query.Order("created_at DESC").
+		Limit(params.PageSize).
+		Offset(offset).
+		Find(&clients).Error; err != nil {
+		return nil, PaginationResult{}, err
+	}
+
+	return clients, pagination, nil
+}
+
+// CountClientsByStatus returns the number of clients with the given status
+func (s *Store) CountClientsByStatus(status string) (int64, error) {
+	var count int64
+	err := s.db.Model(&models.OAuthApplication{}).
+		Where("status = ?", status).
+		Count(&count).Error
+	return count, err
 }
 
 func (s *Store) GetClientsByIDs(clientIDs []string) (map[string]*models.OAuthApplication, error) {

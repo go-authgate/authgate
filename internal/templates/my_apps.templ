@@ -1,0 +1,118 @@
+package templates
+
+import "github.com/go-authgate/authgate/internal/models"
+
+templ MyApps(props MyAppsPageProps) {
+	@Layout("My Apps", LayoutHasNavbar, &props.NavbarProps) {
+		<link rel="stylesheet" href="/static/css/pages/admin-clients.css"/>
+		<div class="main-content">
+			<div class="container">
+				<div class="card">
+					<div class="admin-clients-header">
+						<h1 class="admin-clients-title">
+							<span class="admin-clients-title-icon">🗂️</span>
+							<span>My Apps</span>
+						</h1>
+						<a href="/apps/new" class="admin-create-btn">
+							<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<line x1="12" y1="5" x2="12" y2="19"></line>
+								<line x1="5" y1="12" x2="19" y2="12"></line>
+							</svg>
+							Register New App
+						</a>
+					</div>
+					@ClientsSearchBar("/apps", props.Search, props.PageSize)
+					if len(props.Apps) > 0 {
+						<div class="admin-clients-table-wrapper">
+							<table class="admin-clients-table">
+								<thead>
+									<tr>
+										<th class="col-client-name"><span>App Name</span></th>
+										<th class="col-client-id"><span>Client ID</span></th>
+										<th class="col-grant-types"><span>Grant Types</span></th>
+										<th class="col-status"><span>Approval Status</span></th>
+										<th class="col-created"><span>Created</span></th>
+										<th class="col-actions"><span>Actions</span></th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, app := range props.Apps {
+										@MyAppTableRow(app)
+									}
+								</tbody>
+							</table>
+						</div>
+						@ClientsListPagination(props.Pagination, props.PageSize, props.Search, "/apps", "total apps")
+					} else {
+						<div class="empty-state">
+							<div class="empty-icon">
+								if props.Search != "" {
+									🔍
+								} else {
+									🗂️
+								}
+							</div>
+							<h3 class="empty-title">
+								if props.Search != "" {
+									No apps found
+								} else {
+									No apps yet
+								}
+							</h3>
+							<p class="empty-text">
+								if props.Search != "" {
+									Try adjusting your search terms or clear the filter.
+								} else {
+									Register your first OAuth application to let it use AuthGate for authentication.
+								}
+							</p>
+							if props.Search == "" {
+								<a href="/apps/new" class="admin-create-btn">
+									<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<line x1="12" y1="5" x2="12" y2="19"></line>
+										<line x1="5" y1="12" x2="19" y2="12"></line>
+									</svg>
+									Register Your First App
+								</a>
+							}
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ MyAppTableRow(app models.OAuthApplication) {
+	<tr>
+		<td>
+			<div class="client-name-cell">
+				<strong class="client-name-title">{ app.ClientName }</strong>
+				if app.Description != "" {
+					<div class="client-description" style="display:none;">{ app.Description }</div>
+				}
+			</div>
+		</td>
+		<td>
+			<div class="client-id client-id-box">{ app.ClientID }</div>
+		</td>
+		<td>
+			<code class="grant-types-code">{ app.GrantTypes }</code>
+		</td>
+		<td>
+			@ClientStatusBadge(app.Status)
+		</td>
+		<td class="created-date-cell">
+			<div class="date-display">
+				<span class="date-display-day">{ app.CreatedAt.Format("2006-01-02") }</span>
+				<span class="date-display-time">{ app.CreatedAt.Format("15:04") }</span>
+			</div>
+		</td>
+		<td>
+			<div class="actions">
+				<a href={ templ.URL("/apps/" + app.ClientID) } class="btn btn-secondary btn-small">View</a>
+				<a href={ templ.URL("/apps/" + app.ClientID + "/edit") } class="btn btn-secondary btn-small">Edit</a>
+			</div>
+		</td>
+	</tr>
+}

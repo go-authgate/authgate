@@ -1,0 +1,369 @@
+package templates
+
+import (
+	"fmt"
+
+	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/store"
+)
+
+// ClientStatusBadge renders a colored badge for a client approval status string.
+// Shared between the user /apps view and admin /admin/clients view.
+templ ClientStatusBadge(status string) {
+	switch status {
+		case models.ClientStatusPending:
+			<span class="status-badge" style="background:rgba(245,158,11,0.1);color:#D97706;border:1px solid rgba(245,158,11,0.3);">Pending</span>
+		case models.ClientStatusActive:
+			<span class="status-badge status-active">Active</span>
+		default:
+			<span class="status-badge status-inactive">Inactive</span>
+	}
+}
+
+// ClientsSearchBar renders the search/filter form shared by /apps and /admin/clients.
+// action is the form GET target (e.g. "/apps" or "/admin/clients").
+templ ClientsSearchBar(action, search string, pageSize int) {
+	<div class="search-section">
+		<form method="GET" action={ templ.URL(action) } class="search-grid">
+			<div class="search-group">
+				<label for="search" class="search-label">Search</label>
+				<div class="search-input-wrapper">
+					<span class="search-icon">🔍</span>
+					<input
+						type="text"
+						id="search"
+						name="search"
+						class="search-input"
+						placeholder="Search by name, client ID, or description..."
+						value={ search }
+					/>
+				</div>
+			</div>
+			<div class="search-group">
+				<label for="page_size" class="search-label">Items per page</label>
+				<select name="page_size" id="page_size" class="page-size-select" onchange="this.form.submit()">
+					<option value="10" selected?={ pageSize == 10 }>10 items</option>
+					<option value="20" selected?={ pageSize == 20 }>20 items</option>
+					<option value="50" selected?={ pageSize == 50 }>50 items</option>
+				</select>
+			</div>
+			<div class="search-buttons">
+				<button type="submit" class="search-btn">Search</button>
+				<a href={ templ.URL(action) } class="clear-btn">Clear</a>
+			</div>
+		</form>
+	</div>
+}
+
+// buildClientPaginationURL builds a URL for pagination links.
+// baseURL is the base path without page/page_size params (e.g. "/apps", "/admin/clients").
+func buildClientPaginationURL(baseURL string, page, pageSize int, search string) string {
+	url := fmt.Sprintf("%s?page=%d&page_size=%d", baseURL, page, pageSize)
+	if search != "" {
+		url += "&search=" + search
+	}
+	return url
+}
+
+// ClientsListPagination renders prev/next pagination shared by /apps and /admin/clients.
+// baseURL: base path for page links (e.g. "/apps", "/admin/clients").
+// countLabel: noun phrase after the count (e.g. "total apps", "total clients").
+templ ClientsListPagination(pagination store.PaginationResult, pageSize int, search, baseURL, countLabel string) {
+	<div class="pagination-container">
+		<div class="pagination-info">
+			<span>Showing</span>
+			<span class="pagination-info-total">{ fmt.Sprintf("%d", pagination.Total) }</span>
+			<span>{ countLabel }</span>
+		</div>
+		<div class="pagination-controls">
+			if pagination.HasPrev {
+				<a href={ templ.URL(buildClientPaginationURL(baseURL, pagination.PrevPage, pageSize, search)) } class="pagination-button">
+					<span class="pagination-button-icon">←</span>
+					<span>Previous</span>
+				</a>
+			} else {
+				<button class="pagination-button" disabled>
+					<span class="pagination-button-icon">←</span>
+					<span>Previous</span>
+				</button>
+			}
+			<span class="pagination-current">
+				Page { fmt.Sprintf("%d", pagination.CurrentPage) } of { fmt.Sprintf("%d", pagination.TotalPages) }
+			</span>
+			if pagination.HasNext {
+				<a href={ templ.URL(buildClientPaginationURL(baseURL, pagination.NextPage, pageSize, search)) } class="pagination-button">
+					<span>Next</span>
+					<span class="pagination-button-icon">→</span>
+				</a>
+			} else {
+				<button class="pagination-button" disabled>
+					<span>Next</span>
+					<span class="pagination-button-icon">→</span>
+				</button>
+			}
+		</div>
+	</div>
+}
+
+// ClientFormCommonFields renders the form fields shared by AdminClientForm and UserAppForm.
+// Callers wrap this in a <form> and append their own admin-only fields and submit/cancel buttons.
+templ ClientFormCommonFields(props ClientFormFieldsProps) {
+	<!-- Client Name -->
+	<div class="admin-form-group">
+		<label for="client_name" class="admin-form-label admin-form-label-required">{ props.NameLabel }</label>
+		if props.Client != nil {
+			<input type="text" id="client_name" name="client_name" class="admin-form-input" value={ props.Client.ClientName } required/>
+		} else {
+			<input type="text" id="client_name" name="client_name" class="admin-form-input" required/>
+		}
+		<small class="admin-form-hint">A human-readable name for this application</small>
+	</div>
+	<!-- Description -->
+	<div class="admin-form-group">
+		<label for="description" class="admin-form-label">Description</label>
+		if props.Client != nil {
+			<textarea id="description" name="description" class="admin-form-textarea" rows="3">{ props.Client.Description }</textarea>
+		} else {
+			<textarea id="description" name="description" class="admin-form-textarea" rows="3"></textarea>
+		}
+		<small class="admin-form-hint">Optional description of this application's purpose</small>
+	</div>
+	<!-- Client Type -->
+	<div class="admin-form-group">
+		<label for="client_type" class="admin-form-label admin-form-label-required">Client Type</label>
+		<select id="client_type" name="client_type" class="admin-form-select">
+			<option value="public" selected?={ props.Client == nil || props.Client.ClientType == "public" }>
+				Public — SPAs, CLIs, mobile apps (PKCE required)
+			</option>
+			<option value="confidential" selected?={ props.Client != nil && props.Client.ClientType == "confidential" }>
+				Confidential — server-side apps that can store a secret
+			</option>
+		</select>
+		<small class="admin-form-hint">Public clients use PKCE. Confidential clients authenticate with a secret.</small>
+	</div>
+	<!-- Grant Types -->
+	<div class="admin-form-group">
+		<label class="admin-form-label admin-form-label-required">Grant Types</label>
+		<div class="admin-form-checkboxes">
+			<label class="admin-form-checkbox-label">
+				<input
+					type="checkbox"
+					name="enable_device_flow"
+					value="true"
+					checked?={ props.Client == nil || props.Client.EnableDeviceFlow }
+				/>
+				<span>
+					<strong>Device Authorization Flow</strong> (RFC 8628)
+					— for CLI tools and devices without a browser
+				</span>
+			</label>
+			<label class="admin-form-checkbox-label">
+				<input
+					type="checkbox"
+					name="enable_auth_code_flow"
+					value="true"
+					checked?={ props.Client != nil && props.Client.EnableAuthCodeFlow }
+				/>
+				<span>
+					<strong>Authorization Code Flow</strong> (RFC 6749)
+					— for web apps with a redirect URI callback
+				</span>
+			</label>
+			if props.ShowClientCredentials {
+				<label class="admin-form-checkbox-label" id="client_credentials_label">
+					<input
+						type="checkbox"
+						id="enable_client_credentials_flow"
+						name="enable_client_credentials_flow"
+						value="true"
+						checked?={ props.Client != nil && props.Client.EnableClientCredentialsFlow }
+					/>
+					<span>
+						<strong>Client Credentials Flow</strong> (RFC 6749 §4.4)
+						— for machine-to-machine (M2M) access
+						<span class="admin-form-badge-confidential" id="cc_flow_badge">Confidential only</span>
+					</span>
+				</label>
+			}
+		</div>
+		if props.ShowClientCredentials {
+			<small class="admin-form-hint">At least one grant type must be selected. Client Credentials Flow requires a confidential client.</small>
+		} else {
+			<small class="admin-form-hint">At least one grant type must be selected.</small>
+		}
+	</div>
+	<!-- Scopes -->
+	<div class="admin-form-group">
+		<label for="scopeTextInput" class="admin-form-label">Scopes</label>
+		if props.Client != nil {
+			<input type="hidden" id="scopes" name="scopes" value={ props.Client.Scopes }/>
+		} else {
+			<input type="hidden" id="scopes" name="scopes" value="email profile"/>
+		}
+		<div class="admin-scope-picker" id="scopePicker">
+			<div class="admin-scope-tags" id="scopeTags"></div>
+			if props.ScopePresetsOnly {
+				<input type="text" class="admin-scope-text-input" id="scopeTextInput"
+					placeholder="Select a preset below..." autocomplete="off" readonly/>
+			} else {
+				<input type="text" class="admin-scope-text-input" id="scopeTextInput"
+					placeholder="Add scope..." autocomplete="off" spellcheck="false"/>
+			}
+		</div>
+		<div class="admin-scope-presets" id="scopePresets">
+			if props.ScopePresetsOnly {
+				<span class="admin-scope-presets-label">Available scopes:</span>
+			} else {
+				<span class="admin-scope-presets-label">Quick add:</span>
+			}
+			<button type="button" class="admin-scope-preset-chip" data-scope="openid">openid</button>
+			<button type="button" class="admin-scope-preset-chip" data-scope="email">email</button>
+			<button type="button" class="admin-scope-preset-chip" data-scope="profile">profile</button>
+			<button type="button" class="admin-scope-preset-chip" data-scope="offline_access">offline_access</button>
+		</div>
+		<small class="admin-form-hint">
+			if props.ScopePresetsOnly {
+				Click a preset to add it. Click <strong>&times;</strong> on a tag to remove it.
+			} else {
+				Click a preset to add it, or type a custom scope and press <kbd>Enter</kbd> or <kbd>Space</kbd>.
+				Click <strong>&times;</strong> on a tag to remove it.
+			}
+		</small>
+	</div>
+	<!-- Redirect URIs -->
+	<div class="admin-form-group">
+		<label for="redirect_uris" class="admin-form-label">Redirect URIs</label>
+		if props.Client != nil {
+			<textarea id="redirect_uris" name="redirect_uris" class="admin-form-textarea" rows="3">{ props.Client.RedirectURIs }</textarea>
+		} else {
+			<textarea id="redirect_uris" name="redirect_uris" class="admin-form-textarea" rows="3"></textarea>
+		}
+		<small class="admin-form-hint">
+			Comma-separated redirect URIs. Required when Authorization Code Flow is enabled.
+			Example: <code>https://app.example.com/callback</code>
+		</small>
+	</div>
+	if props.ShowClientCredentials {
+		@clientCredentialsScript()
+	}
+	@clientScopePickerScript()
+}
+
+// clientCredentialsScript renders the JS that syncs the Client Credentials checkbox
+// with the Client Type select. Only emitted when ShowClientCredentials is true.
+templ clientCredentialsScript() {
+	<script>
+		(function () {
+			var clientTypeSelect = document.getElementById('client_type');
+			var ccCheckbox = document.getElementById('enable_client_credentials_flow');
+			var ccLabel = document.getElementById('client_credentials_label');
+
+			function syncClientCredentials() {
+				var isConfidential = clientTypeSelect.value === 'confidential';
+				ccCheckbox.disabled = !isConfidential;
+				if (!isConfidential) {
+					ccCheckbox.checked = false;
+				}
+				ccLabel.classList.toggle('admin-form-checkbox-label--disabled', !isConfidential);
+			}
+
+			clientTypeSelect.addEventListener('change', syncClientCredentials);
+			syncClientCredentials();
+		})();
+	</script>
+}
+
+// clientScopePickerScript renders the unified scope picker JS.
+// Preset-only mode is auto-detected via the readonly attribute on the text input.
+templ clientScopePickerScript() {
+	<script>
+		(function () {
+			var hiddenInput = document.getElementById('scopes');
+			var picker      = document.getElementById('scopePicker');
+			var tagsEl      = document.getElementById('scopeTags');
+			var textInput   = document.getElementById('scopeTextInput');
+			var presetsEl   = document.getElementById('scopePresets');
+			var presetChips = presetsEl.querySelectorAll('.admin-scope-preset-chip');
+			var selected    = [];
+			var presetsOnly = textInput.hasAttribute('readonly');
+
+			function syncHidden() { hiddenInput.value = selected.join(' '); }
+
+			function renderTags() {
+				tagsEl.innerHTML = '';
+				selected.forEach(function (scope) {
+					var tag   = document.createElement('span');
+					tag.className = 'admin-scope-tag';
+					var label = document.createElement('span');
+					label.className = 'admin-scope-tag-label';
+					label.textContent = scope;
+					var btn   = document.createElement('button');
+					btn.type  = 'button';
+					btn.className = 'admin-scope-tag-remove';
+					btn.setAttribute('aria-label', 'Remove ' + scope);
+					btn.textContent = '×';
+					btn.addEventListener('click', function () { removeScope(scope); });
+					tag.appendChild(label);
+					tag.appendChild(btn);
+					tagsEl.appendChild(tag);
+				});
+			}
+
+			function renderPresets() {
+				presetChips.forEach(function (chip) {
+					chip.disabled = selected.indexOf(chip.getAttribute('data-scope')) !== -1;
+				});
+			}
+
+			function render() { renderTags(); renderPresets(); syncHidden(); }
+
+			function addScope(s) {
+				s = s.trim().toLowerCase();
+				if (s && selected.indexOf(s) === -1) { selected.push(s); render(); }
+			}
+
+			function removeScope(s) {
+				var i = selected.indexOf(s);
+				if (i !== -1) { selected.splice(i, 1); render(); }
+			}
+
+			function init() {
+				var v = hiddenInput.value.trim();
+				if (v) {
+					v.split(/\s+/).forEach(function (s) {
+						s = s.trim();
+						if (s && selected.indexOf(s) === -1) { selected.push(s); }
+					});
+				}
+				render();
+			}
+
+			if (!presetsOnly) {
+				textInput.addEventListener('keydown', function (e) {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						if (textInput.value.trim()) { addScope(textInput.value); textInput.value = ''; }
+					}
+					if (e.key === 'Backspace' && !textInput.value && selected.length) {
+						removeScope(selected[selected.length - 1]);
+					}
+				});
+				textInput.addEventListener('blur', function () {
+					if (textInput.value.trim()) { addScope(textInput.value); textInput.value = ''; }
+				});
+				picker.addEventListener('click', function (e) {
+					if (e.target !== textInput) { textInput.focus(); }
+				});
+			}
+
+			presetChips.forEach(function (chip) {
+				chip.addEventListener('click', function () {
+					addScope(chip.getAttribute('data-scope'));
+					if (!presetsOnly) { textInput.focus(); }
+				});
+			});
+
+			init();
+		})();
+	</script>
+}

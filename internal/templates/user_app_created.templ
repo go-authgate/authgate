@@ -1,0 +1,50 @@
+package templates
+
+templ UserAppCreated(props UserClientCreatedPageProps) {
+	@Layout("App Registered", LayoutHasNavbar, &props.NavbarProps) {
+		<link rel="stylesheet" href="/static/css/pages/admin-forms.css"/>
+		<div class="main-content">
+			<div class="admin-form-container">
+				<div class="card">
+					<div class="admin-form-header">
+						<h1 class="admin-form-title">App Registered! 🎉</h1>
+					</div>
+					<!-- Pending notice -->
+					<div style="margin-bottom:var(--space-4);padding:var(--space-3);background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-md);color:#92400E;">
+						<strong>⏳ Pending admin approval</strong> — Your app has been registered. An admin must approve it before it can be used for OAuth flows.
+					</div>
+					<!-- Client ID -->
+					<div class="admin-detail-section">
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">App Name</div>
+							<div class="admin-detail-value">{ props.Client.ClientName }</div>
+						</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Client ID</div>
+							<div class="admin-detail-value">
+								<code class="client-id-box">{ props.Client.ClientID }</code>
+							</div>
+						</div>
+						if props.PlainSecret != "" {
+							<div class="admin-detail-row">
+								<div class="admin-detail-label">Client Secret</div>
+								<div class="admin-detail-value">
+									<div style="padding:var(--space-3);background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.2);border-radius:var(--radius-md);">
+										<p style="margin:0 0 var(--space-2);color:var(--color-danger);font-weight:600;">
+											⚠️ This secret is shown only once. Copy it now.
+										</p>
+										<code class="client-id-box" style="word-break:break-all;">{ props.PlainSecret }</code>
+									</div>
+								</div>
+							</div>
+						}
+					</div>
+					<div class="admin-action-buttons">
+						<a href={ templ.URL("/apps/" + props.Client.ClientID) } class="admin-action-btn primary">View My App</a>
+						<a href="/apps" class="admin-action-btn secondary">← Back to My Apps</a>
+					</div>
+				</div>
+			</div>
+		</div>
+	}
+}

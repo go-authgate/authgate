@@ -4,9 +4,10 @@ import "math"
 
 // PaginationParams contains parameters for paginated queries
 type PaginationParams struct {
-	Page     int    // Current page number (1-indexed)
-	PageSize int    // Number of items per page
-	Search   string // Search keyword
+	Page         int    // Current page number (1-indexed)
+	PageSize     int    // Number of items per page
+	Search       string // Search keyword
+	StatusFilter string // Optional status filter (e.g. "pending", "active", "inactive")
 }
 
 // PaginationResult contains pagination metadata

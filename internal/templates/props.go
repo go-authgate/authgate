@@ -15,10 +15,11 @@ type BaseProps struct {
 
 // NavbarProps contains properties for the navigation bar
 type NavbarProps struct {
-	Username   string
-	FullName   string
-	IsAdmin    bool
-	ActiveLink string // "device", "sessions", "clients", "audit"
+	Username            string
+	FullName            string
+	IsAdmin             bool
+	ActiveLink          string // "device", "sessions", "clients", "audit"
+	PendingClientsCount int    // Badge count for admin → OAuth Clients link
 }
 
 // DisplayName returns FullName if set, otherwise Username.
@@ -91,12 +92,13 @@ type SessionsPageProps struct {
 type ClientsPageProps struct {
 	BaseProps
 	NavbarProps
-	User       *models.User
-	Clients    []services.ClientWithCreator
-	Pagination store.PaginationResult
-	Search     string
-	PageSize   int
-	Success    string
+	User         *models.User
+	Clients      []services.ClientWithCreator
+	Pagination   store.PaginationResult
+	Search       string
+	PageSize     int
+	Success      string
+	StatusFilter string // "pending", "active", "inactive", or "" for all
 }
 
 // ClientDisplay wraps OAuthApplication with string fields for template rendering
@@ -105,6 +107,7 @@ type ClientDisplay struct {
 	ClientID                    string
 	ClientName                  string
 	Description                 string
+	UserID                      string
 	Scopes                      string
 	GrantTypes                  string
 	RedirectURIs                string // Comma-separated string
@@ -113,6 +116,7 @@ type ClientDisplay struct {
 	EnableAuthCodeFlow          bool
 	EnableClientCredentialsFlow bool
 	IsActive                    bool
+	Status                      string // "pending", "active", "inactive"
 	CreatedAt                   time.Time
 	UpdatedAt                   time.Time
 }
@@ -224,6 +228,55 @@ type DocsPageProps struct {
 	Title       string
 	ContentHTML string
 	Entries     []DocsEntry
+}
+
+// MyAppsPageProps contains properties for the user's own app list page
+type MyAppsPageProps struct {
+	BaseProps
+	NavbarProps
+	Apps       []models.OAuthApplication
+	Pagination store.PaginationResult
+	PageSize   int
+	Search     string
+}
+
+// UserClientFormPageProps contains properties for the user app create/edit form page
+type UserClientFormPageProps struct {
+	BaseProps
+	NavbarProps
+	Title  string
+	Action string
+	Method string
+	IsEdit bool
+	Client *ClientDisplay // nil when creating
+	Error  string
+}
+
+// UserClientDetailPageProps contains properties for the user app detail page
+type UserClientDetailPageProps struct {
+	BaseProps
+	NavbarProps
+	Client       *ClientDisplay
+	ActiveTokens int64
+	Success      string
+	Error        string
+}
+
+// UserClientCreatedPageProps contains properties for the post-creation page (one-time secret reveal)
+type UserClientCreatedPageProps struct {
+	BaseProps
+	NavbarProps
+	Client      *ClientDisplay
+	PlainSecret string
+}
+
+// ClientFormFieldsProps configures the shared client form fields component.
+type ClientFormFieldsProps struct {
+	Client                *ClientDisplay
+	IsEdit                bool
+	NameLabel             string // Display label: "App Name" (user) or "Client Name" (admin)
+	ShowClientCredentials bool   // Show Client Credentials Flow checkbox (admin only)
+	ScopePresetsOnly      bool   // Restrict scopes to preset chips only (user form)
 }
 
 // AuditLogsPageProps contains properties for the audit logs page

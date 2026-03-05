@@ -19,6 +19,29 @@ const (
 	ClientTypePublic       = "public"
 )
 
+// buildGrantTypes derives the GrantTypes string from per-flow enable flags.
+func buildGrantTypes(enableDevice, enableAuthCode, enableClientCredentials bool) string {
+	var grants []string
+	if enableDevice {
+		grants = append(grants, "device_code")
+	}
+	if enableAuthCode {
+		grants = append(grants, "authorization_code")
+	}
+	if enableClientCredentials {
+		grants = append(grants, "client_credentials")
+	}
+	return strings.Join(grants, " ")
+}
+
+// allowedUserScopes are the scopes that non-admin users may request.
+var allowedUserScopes = map[string]bool{
+	"email":          true,
+	"profile":        true,
+	"openid":         true,
+	"offline_access": true,
+}
+
 var (
 	ErrClientNotFound      = errors.New("client not found")
 	ErrInvalidClientData   = errors.New("invalid client data")
@@ -26,7 +49,10 @@ var (
 	ErrRedirectURIRequired = errors.New(
 		"at least one redirect URI is required when Authorization Code Flow is enabled",
 	)
-	ErrAtLeastOneGrantRequired = errors.New("at least one grant type must be enabled")
+	ErrAtLeastOneGrantRequired  = errors.New("at least one grant type must be enabled")
+	ErrClientOwnershipRequired  = errors.New("you do not own this client")
+	ErrCannotDeleteActiveClient = errors.New("cannot delete an active client")
+	ErrInvalidScopeForUser      = errors.New("scope not allowed for user-created clients")
 )
 
 // validateRedirectURIs checks that every URI in the slice is an absolute http/https
@@ -76,6 +102,18 @@ type CreateClientRequest struct {
 	EnableDeviceFlow            bool   // Enable Device Authorization Grant (RFC 8628)
 	EnableAuthCodeFlow          bool   // Enable Authorization Code Flow (RFC 6749)
 	EnableClientCredentialsFlow bool   // Enable Client Credentials Grant (RFC 6749 §4.4); confidential clients only
+	IsAdminCreated              bool   // When true: Status=active, IsActive=true; when false: Status=pending, IsActive=false
+}
+
+// UserUpdateClientRequest contains the restricted set of fields a non-admin user may update on their own client.
+type UserUpdateClientRequest struct {
+	ClientName         string
+	Description        string
+	Scopes             string // validated against allowedUserScopes
+	RedirectURIs       []string
+	ClientType         string
+	EnableDeviceFlow   bool
+	EnableAuthCodeFlow bool
 }
 
 type UpdateClientRequest struct {
@@ -144,17 +182,16 @@ func (s *ClientService) CreateClient(
 	}
 
 	// Derive GrantTypes string from the enabled flows
-	var grants []string
-	if enableDevice {
-		grants = append(grants, "device_code")
+	grantTypes := buildGrantTypes(enableDevice, enableAuthCode, enableClientCredentials)
+
+	// Determine approval status based on creator role.
+	// Admin-created clients are immediately active; user-created clients require approval.
+	clientStatus := models.ClientStatusPending
+	isActive := false
+	if req.IsAdminCreated {
+		clientStatus = models.ClientStatusActive
+		isActive = true
 	}
-	if enableAuthCode {
-		grants = append(grants, "authorization_code")
-	}
-	if enableClientCredentials {
-		grants = append(grants, "client_credentials")
-	}
-	grantTypes := strings.Join(grants, " ")
 
 	client := &models.OAuthApplication{
 		ClientID:                    clientID,
@@ -168,7 +205,8 @@ func (s *ClientService) CreateClient(
 		EnableDeviceFlow:            enableDevice,
 		EnableAuthCodeFlow:          enableAuthCode,
 		EnableClientCredentialsFlow: enableClientCredentials,
-		IsActive:                    true,
+		IsActive:                    isActive,
+		Status:                      clientStatus,
 		CreatedBy:                   req.CreatedBy,
 	}
 
@@ -180,6 +218,16 @@ func (s *ClientService) CreateClient(
 
 	if err := s.store.CreateClient(client); err != nil {
 		return nil, err
+	}
+
+	// GORM treats false as the zero value for bool and ignores it during CREATE when
+	// the column has a `default:true` tag.  For pending (user-created) clients we must
+	// perform an explicit UPDATE to ensure IsActive is persisted as false.
+	if !isActive {
+		client.IsActive = false
+		if err := s.store.UpdateClient(client); err != nil {
+			return nil, err
+		}
 	}
 
 	// Log client creation
@@ -253,17 +301,11 @@ func (s *ClientService) UpdateClient(
 	client.EnableDeviceFlow = req.EnableDeviceFlow
 	client.EnableAuthCodeFlow = req.EnableAuthCodeFlow
 	client.EnableClientCredentialsFlow = enableClientCredentials
-	var grants []string
-	if req.EnableDeviceFlow {
-		grants = append(grants, "device_code")
-	}
-	if req.EnableAuthCodeFlow {
-		grants = append(grants, "authorization_code")
-	}
-	if enableClientCredentials {
-		grants = append(grants, "client_credentials")
-	}
-	client.GrantTypes = strings.Join(grants, " ")
+	client.GrantTypes = buildGrantTypes(
+		req.EnableDeviceFlow,
+		req.EnableAuthCodeFlow,
+		enableClientCredentials,
+	)
 
 	err = s.store.UpdateClient(client)
 	if err != nil {
@@ -453,4 +495,219 @@ func (s *ClientService) VerifyClientSecret(clientID, clientSecret string) error 
 // CountActiveTokens returns the number of active tokens for a given client.
 func (s *ClientService) CountActiveTokens(clientID string) (int64, error) {
 	return s.store.CountActiveTokensByClientID(clientID)
+}
+
+// CountPendingClients returns the number of clients awaiting admin approval.
+func (s *ClientService) CountPendingClients() (int64, error) {
+	return s.store.CountClientsByStatus(models.ClientStatusPending)
+}
+
+// ListClientsByUser returns paginated OAuth clients owned by the given user.
+func (s *ClientService) ListClientsByUser(
+	userID string,
+	params store.PaginationParams,
+) ([]models.OAuthApplication, store.PaginationResult, error) {
+	return s.store.ListClientsByUserID(userID, params)
+}
+
+// validateUserScopes checks that all requested scopes are in the allowed set for user-created clients.
+func validateUserScopes(scopes string) error {
+	for scope := range strings.FieldsSeq(scopes) {
+		if !allowedUserScopes[scope] {
+			return fmt.Errorf("%w: %q", ErrInvalidScopeForUser, scope)
+		}
+	}
+	return nil
+}
+
+// UserUpdateClient updates a client owned by actorUserID with the restricted field set.
+// Ownership is enforced; the approval Status is never changed by this method.
+func (s *ClientService) UserUpdateClient(
+	ctx context.Context,
+	clientID, actorUserID string,
+	req UserUpdateClientRequest,
+) error {
+	if strings.TrimSpace(req.ClientName) == "" {
+		return ErrClientNameRequired
+	}
+
+	if !req.EnableDeviceFlow && !req.EnableAuthCodeFlow {
+		return ErrAtLeastOneGrantRequired
+	}
+
+	if req.EnableAuthCodeFlow && len(req.RedirectURIs) == 0 {
+		return ErrRedirectURIRequired
+	}
+
+	if err := validateRedirectURIs(req.RedirectURIs); err != nil {
+		return err
+	}
+
+	if err := validateUserScopes(req.Scopes); err != nil {
+		return err
+	}
+
+	client, err := s.store.GetClient(clientID)
+	if err != nil {
+		return ErrClientNotFound
+	}
+
+	if client.UserID != actorUserID {
+		return ErrClientOwnershipRequired
+	}
+
+	client.ClientName = strings.TrimSpace(req.ClientName)
+	client.Description = strings.TrimSpace(req.Description)
+	client.Scopes = strings.TrimSpace(req.Scopes)
+	client.RedirectURIs = models.StringArray(req.RedirectURIs)
+
+	if req.ClientType == ClientTypePublic {
+		client.ClientType = ClientTypePublic
+	} else {
+		client.ClientType = ClientTypeConfidential
+	}
+
+	client.EnableDeviceFlow = req.EnableDeviceFlow
+	client.EnableAuthCodeFlow = req.EnableAuthCodeFlow
+	// User-created clients cannot enable client credentials flow.
+	client.EnableClientCredentialsFlow = false
+	client.GrantTypes = buildGrantTypes(req.EnableDeviceFlow, req.EnableAuthCodeFlow, false)
+
+	if err := s.store.UpdateClient(client); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		s.auditService.Log(ctx, AuditLogEntry{
+			EventType:    models.EventClientUpdated,
+			Severity:     models.SeverityInfo,
+			ActorUserID:  actorUserID,
+			ResourceType: models.ResourceClient,
+			ResourceID:   clientID,
+			ResourceName: client.ClientName,
+			Action:       "OAuth client updated by owner",
+			Details: models.AuditDetails{
+				"client_name": client.ClientName,
+				"grant_types": client.GrantTypes,
+				"scopes":      client.Scopes,
+			},
+			Success: true,
+		})
+	}
+
+	return nil
+}
+
+// UserDeleteClient deletes a client owned by actorUserID.
+// Deletion is blocked for clients with Status=active (must be rejected first).
+func (s *ClientService) UserDeleteClient(
+	ctx context.Context,
+	clientID, actorUserID string,
+) error {
+	client, err := s.store.GetClient(clientID)
+	if err != nil {
+		return ErrClientNotFound
+	}
+
+	if client.UserID != actorUserID {
+		return ErrClientOwnershipRequired
+	}
+
+	if client.Status == models.ClientStatusActive {
+		return ErrCannotDeleteActiveClient
+	}
+
+	if err := s.store.DeleteClient(clientID); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		s.auditService.Log(ctx, AuditLogEntry{
+			EventType:    models.EventClientDeleted,
+			Severity:     models.SeverityWarning,
+			ActorUserID:  actorUserID,
+			ResourceType: models.ResourceClient,
+			ResourceID:   clientID,
+			ResourceName: client.ClientName,
+			Action:       "OAuth client deleted by owner",
+			Details: models.AuditDetails{
+				"client_name": client.ClientName,
+			},
+			Success: true,
+		})
+	}
+
+	return nil
+}
+
+// ApproveClient sets a client's status to active and enables it for OAuth flows.
+func (s *ClientService) ApproveClient(
+	ctx context.Context,
+	clientID, adminUserID string,
+) error {
+	client, err := s.store.GetClient(clientID)
+	if err != nil {
+		return ErrClientNotFound
+	}
+
+	client.Status = models.ClientStatusActive
+	client.IsActive = true
+
+	if err := s.store.UpdateClient(client); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		s.auditService.Log(ctx, AuditLogEntry{
+			EventType:    models.EventClientApproved,
+			Severity:     models.SeverityInfo,
+			ActorUserID:  adminUserID,
+			ResourceType: models.ResourceClient,
+			ResourceID:   clientID,
+			ResourceName: client.ClientName,
+			Action:       "OAuth client approved",
+			Details: models.AuditDetails{
+				"client_name": client.ClientName,
+			},
+			Success: true,
+		})
+	}
+
+	return nil
+}
+
+// RejectClient sets a client's status to inactive and disables it for OAuth flows.
+func (s *ClientService) RejectClient(
+	ctx context.Context,
+	clientID, adminUserID string,
+) error {
+	client, err := s.store.GetClient(clientID)
+	if err != nil {
+		return ErrClientNotFound
+	}
+
+	client.Status = models.ClientStatusInactive
+	client.IsActive = false
+
+	if err := s.store.UpdateClient(client); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		s.auditService.Log(ctx, AuditLogEntry{
+			EventType:    models.EventClientRejected,
+			Severity:     models.SeverityInfo,
+			ActorUserID:  adminUserID,
+			ResourceType: models.ResourceClient,
+			ResourceID:   clientID,
+			ResourceName: client.ClientName,
+			Action:       "OAuth client rejected",
+			Details: models.AuditDetails{
+				"client_name": client.ClientName,
+			},
+			Success: true,
+		})
+	}
+
+	return nil
 }
