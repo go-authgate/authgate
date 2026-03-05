@@ -1,11 +1,11 @@
 package middleware
 
 import (
-	"crypto/rand"
 	"encoding/base64"
 	"net/http"
 
 	"github.com/go-authgate/authgate/internal/templates"
+	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -74,8 +74,8 @@ func CSRFMiddleware() gin.HandlerFunc {
 
 // generateCSRFToken generates a random CSRF token
 func generateCSRFToken() string {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
+	b, err := util.CryptoRandomBytes(32)
+	if err != nil {
 		// This should never happen in practice, but if it does,
 		// panic is acceptable as CSRF protection would be broken
 		panic("failed to generate CSRF token: " + err.Error())

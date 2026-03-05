@@ -17,11 +17,11 @@ func CryptoRandomBytes(length int64) ([]byte, error) {
 
 // CryptoRandomString generates a random hex string for salts
 func CryptoRandomString(length int) (string, error) {
-	bytes, err := CryptoRandomBytes(int64((length + 1) / 2))
+	randomBytes, err := CryptoRandomBytes(int64((length + 1) / 2))
 	if err != nil {
 		return "", err
 	}
-	return hex.EncodeToString(bytes)[:length], nil
+	return hex.EncodeToString(randomBytes)[:length], nil
 }
 
 // HashToken returns PBKDF2 hash of token with salt

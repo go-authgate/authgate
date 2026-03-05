@@ -1,14 +1,13 @@
 package middleware
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
+	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -26,9 +25,7 @@ func generateFingerprint(ip, userAgent string, includeIP bool) string {
 	if includeIP {
 		data = ip + "|" + userAgent
 	}
-
-	hash := sha256.Sum256([]byte(data))
-	return hex.EncodeToString(hash[:])
+	return util.SHA256Hex(data)
 }
 
 // loadUserFromSession reads the user_id from the session, fetches the user, and

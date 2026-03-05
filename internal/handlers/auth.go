@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"net/http"
 	"time"
@@ -24,9 +22,7 @@ func generateFingerprint(ip, userAgent string, includeIP bool) string {
 	if includeIP {
 		data = ip + "|" + userAgent
 	}
-
-	hash := sha256.Sum256([]byte(data))
-	return hex.EncodeToString(hash[:])
+	return util.SHA256Hex(data)
 }
 
 const (
