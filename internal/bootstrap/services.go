@@ -25,6 +25,7 @@ func initializeServices(
 	auditService *services.AuditService,
 	prometheusMetrics core.Recorder,
 	userCache core.Cache[models.User],
+	clientCountCache core.Cache[int64],
 ) serviceSet {
 	// Initialize authentication providers
 	localProvider := auth.NewLocalAuthProvider(db)
@@ -53,7 +54,7 @@ func initializeServices(
 		auditService,
 		prometheusMetrics,
 	)
-	clientService := services.NewClientService(db, auditService)
+	clientService := services.NewClientService(db, auditService, clientCountCache)
 	authorizationService := services.NewAuthorizationService(db, cfg, auditService)
 
 	return serviceSet{

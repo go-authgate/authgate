@@ -4,9 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
+	"time"
 
+	"github.com/go-authgate/authgate/internal/cache"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/store"
 
@@ -18,6 +22,8 @@ const (
 	ClientTypeConfidential = "confidential"
 	ClientTypePublic       = "public"
 )
+
+const pendingClientsCountCacheKey = "clients:pending_count"
 
 // buildGrantTypes derives the GrantTypes string from per-flow enable flags.
 func buildGrantTypes(enableDevice, enableAuthCode, enableClientCredentials bool) string {
@@ -83,14 +89,25 @@ func validateRedirectURIs(uris []string) error {
 }
 
 type ClientService struct {
-	store        *store.Store
-	auditService *AuditService
+	store         *store.Store
+	auditService  *AuditService
+	countCache    core.Cache[int64]
+	countCacheTTL time.Duration
 }
 
-func NewClientService(s *store.Store, auditService *AuditService) *ClientService {
+func NewClientService(
+	s *store.Store,
+	auditService *AuditService,
+	countCache core.Cache[int64],
+) *ClientService {
+	if countCache == nil {
+		countCache = cache.NewMemoryCache[int64]()
+	}
 	return &ClientService{
-		store:        s,
-		auditService: auditService,
+		store:         s,
+		auditService:  auditService,
+		countCache:    countCache,
+		countCacheTTL: time.Hour,
 	}
 }
 
@@ -220,6 +237,11 @@ func (s *ClientService) CreateClient(
 		return nil, err
 	}
 
+	// A new pending client changes the count; invalidate the cache.
+	if clientStatus == models.ClientStatusPending {
+		s.invalidatePendingCount(ctx)
+	}
+
 	// Log client creation
 	if s.auditService != nil {
 		s.auditService.Log(ctx, AuditLogEntry{
@@ -278,6 +300,10 @@ func (s *ClientService) UpdateClient(
 		return ErrInvalidClientStatus
 	}
 
+	// Record whether the pending count could change before mutating.
+	pendingCountAffected := client.Status == models.ClientStatusPending ||
+		req.Status == models.ClientStatusPending
+
 	client.ClientName = strings.TrimSpace(req.ClientName)
 	client.Description = strings.TrimSpace(req.Description)
 	client.Scopes = strings.TrimSpace(req.Scopes)
@@ -307,6 +333,10 @@ func (s *ClientService) UpdateClient(
 	err = s.store.UpdateClient(client)
 	if err != nil {
 		return err
+	}
+
+	if pendingCountAffected {
+		s.invalidatePendingCount(ctx)
 	}
 
 	// Log client update
@@ -339,9 +369,15 @@ func (s *ClientService) DeleteClient(ctx context.Context, clientID, actorUserID 
 		return ErrClientNotFound
 	}
 
+	wasPending := client.Status == models.ClientStatusPending
+
 	err = s.store.DeleteClient(clientID)
 	if err != nil {
 		return err
+	}
+
+	if wasPending {
+		s.invalidatePendingCount(ctx)
 	}
 
 	// Log client deletion
@@ -495,8 +531,12 @@ func (s *ClientService) CountActiveTokens(clientID string) (int64, error) {
 }
 
 // CountPendingClients returns the number of clients awaiting admin approval.
-func (s *ClientService) CountPendingClients() (int64, error) {
-	return s.store.CountClientsByStatus(models.ClientStatusPending)
+// Results are cached for countCacheTTL and invalidated on approve/reject/create/delete.
+func (s *ClientService) CountPendingClients(ctx context.Context) (int64, error) {
+	return s.countCache.GetWithFetch(ctx, pendingClientsCountCacheKey, s.countCacheTTL,
+		func(ctx context.Context, _ string) (int64, error) {
+			return s.store.CountClientsByStatus(models.ClientStatusPending)
+		})
 }
 
 // ListClientsByUser returns paginated OAuth clients owned by the given user.
@@ -614,8 +654,14 @@ func (s *ClientService) UserDeleteClient(
 		return ErrCannotDeleteActiveClient
 	}
 
+	wasPending := client.Status == models.ClientStatusPending
+
 	if err := s.store.DeleteClient(clientID); err != nil {
 		return err
+	}
+
+	if wasPending {
+		s.invalidatePendingCount(ctx)
 	}
 
 	if s.auditService != nil {
@@ -653,6 +699,8 @@ func (s *ClientService) ApproveClient(
 		return err
 	}
 
+	s.invalidatePendingCount(ctx)
+
 	if s.auditService != nil {
 		s.auditService.Log(ctx, AuditLogEntry{
 			EventType:    models.EventClientApproved,
@@ -672,6 +720,14 @@ func (s *ClientService) ApproveClient(
 	return nil
 }
 
+// invalidatePendingCount removes the cached pending-client count so the next
+// call to CountPendingClients fetches a fresh value from the database.
+func (s *ClientService) invalidatePendingCount(ctx context.Context) {
+	if err := s.countCache.Delete(ctx, pendingClientsCountCacheKey); err != nil {
+		log.Printf("[ClientCache] Failed to invalidate pending count cache: %v", err)
+	}
+}
+
 // RejectClient sets a client's status to inactive and disables it for OAuth flows.
 func (s *ClientService) RejectClient(
 	ctx context.Context,
@@ -687,6 +743,8 @@ func (s *ClientService) RejectClient(
 	if err := s.store.UpdateClient(client); err != nil {
 		return err
 	}
+
+	s.invalidatePendingCount(ctx)
 
 	if s.auditService != nil {
 		s.auditService.Log(ctx, AuditLogEntry{

@@ -24,13 +24,15 @@ type Application struct {
 	manager *graceful.Manager
 
 	// Core infrastructure
-	DB                   *store.Store
-	MetricsRecorder      core.Recorder
-	MetricsCache         core.Cache[int64]
-	MetricsCacheCloser   func() error
-	UserCache            core.Cache[models.User]
-	UserCacheCloser      func() error
-	RateLimitRedisClient *redis.Client
+	DB                     *store.Store
+	MetricsRecorder        core.Recorder
+	MetricsCache           core.Cache[int64]
+	MetricsCacheCloser     func() error
+	UserCache              core.Cache[models.User]
+	UserCacheCloser        func() error
+	ClientCountCache       core.Cache[int64]
+	ClientCountCacheCloser func() error
+	RateLimitRedisClient   *redis.Client
 
 	// Services
 	AuditService *services.AuditService
@@ -102,6 +104,15 @@ func (app *Application) initializeInfrastructure(ctx context.Context) error {
 		return err
 	}
 
+	// Client Count Cache (pending badge in admin navbar)
+	app.ClientCountCache, app.ClientCountCacheCloser, err = initializeClientCountCache(
+		ctx,
+		app.Config,
+	)
+	if err != nil {
+		return err
+	}
+
 	// Redis (for rate limiting)
 	app.RateLimitRedisClient, err = initializeRateLimitRedisClient(ctx, app.Config)
 	if err != nil {
@@ -127,6 +138,7 @@ func (app *Application) initializeBusinessLayer() {
 		app.AuditService,
 		app.MetricsRecorder,
 		app.UserCache,
+		app.ClientCountCache,
 	)
 }
 
@@ -175,6 +187,7 @@ func (app *Application) startWithGracefulShutdown() {
 	addRedisClientShutdownJob(m, app.RateLimitRedisClient, app.Config)
 	addCacheCleanupJob(m, app.MetricsCache, app.Config)
 	addUserCacheCleanupJob(m, app.UserCache, app.Config)
+	addClientCountCacheCleanupJob(m, app.ClientCountCache, app.Config)
 	addDatabaseShutdownJob(m, app.DB, app.Config)
 	addAuditLogCleanupJob(m, app.Config, app.AuditService)
 	addExpiredTokenCleanupJob(m, app.DB, app.Config)

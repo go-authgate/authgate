@@ -82,6 +82,59 @@ func initializeMetricsCache(
 	return metricsCache, metricsCache.Close, nil
 }
 
+// initializeClientCountCache initializes the pending-client count cache used by InjectPendingCount.
+// In single-instance deployments memory is sufficient; set CLIENT_COUNT_CACHE_TYPE=redis for
+// multi-pod deployments so every pod shares the same store and invalidation is global.
+func initializeClientCountCache(
+	ctx context.Context,
+	cfg *config.Config,
+) (core.Cache[int64], func() error, error) {
+	ctx, cancel := context.WithTimeout(ctx, cfg.CacheInitTimeout)
+	defer cancel()
+
+	switch cfg.ClientCountCacheType {
+	case config.ClientCountCacheTypeRedisAside:
+		c, err := cache.NewRueidisAsideCache[int64](
+			ctx,
+			cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB,
+			"authgate:client-count:",
+			cfg.ClientCountCacheClientTTL,
+			cfg.ClientCountCacheSizePerConn,
+		)
+		if err != nil {
+			return nil, nil, fmt.Errorf(
+				"failed to initialize redis-aside client count cache: %w",
+				err,
+			)
+		}
+		log.Printf(
+			"Client count cache: redis-aside (addr=%s, db=%d, client_ttl=%s, cache_size_per_conn=%dMB)",
+			cfg.RedisAddr,
+			cfg.RedisDB,
+			cfg.ClientCountCacheClientTTL,
+			cfg.ClientCountCacheSizePerConn,
+		)
+		return c, c.Close, nil
+
+	case config.ClientCountCacheTypeRedis:
+		c, err := cache.NewRueidisCache[int64](
+			ctx,
+			cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB,
+			"authgate:client-count:",
+		)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to initialize redis client count cache: %w", err)
+		}
+		log.Printf("Client count cache: redis (addr=%s, db=%d)", cfg.RedisAddr, cfg.RedisDB)
+		return c, c.Close, nil
+
+	default: // memory
+		c := cache.NewMemoryCache[int64]()
+		log.Println("Client count cache: memory (single instance only)")
+		return c, c.Close, nil
+	}
+}
+
 // initializeUserCache initializes the user cache (always enabled, defaults to memory)
 func initializeUserCache(
 	ctx context.Context,

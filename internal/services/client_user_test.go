@@ -18,7 +18,7 @@ import (
 
 func TestCreateClient_AdminCreated_IsActive(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil)
+	svc := NewClientService(s, nil, nil)
 	userID := uuid.New().String()
 
 	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
@@ -34,7 +34,7 @@ func TestCreateClient_AdminCreated_IsActive(t *testing.T) {
 
 func TestCreateClient_UserCreated_IsPendingAndInactive(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil)
+	svc := NewClientService(s, nil, nil)
 	userID := uuid.New().String()
 
 	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
@@ -54,7 +54,7 @@ func TestCreateClient_UserCreated_IsPendingAndInactive(t *testing.T) {
 
 func TestUserUpdateClient_OwnershipEnforced(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil)
+	svc := NewClientService(s, nil, nil)
 	ownerID := uuid.New().String()
 	otherID := uuid.New().String()
 
@@ -80,7 +80,7 @@ func TestUserUpdateClient_OwnershipEnforced(t *testing.T) {
 
 func TestUserUpdateClient_OwnerCanUpdate(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil)
+	svc := NewClientService(s, nil, nil)
 	ownerID := uuid.New().String()
 
 	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
@@ -114,7 +114,7 @@ func TestUserUpdateClient_OwnerCanUpdate(t *testing.T) {
 
 func TestUserUpdateClient_InvalidScopeRejected(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil)
+	svc := NewClientService(s, nil, nil)
 	ownerID := uuid.New().String()
 
 	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
@@ -140,7 +140,7 @@ func TestUserUpdateClient_InvalidScopeRejected(t *testing.T) {
 
 func TestUserUpdateClient_AllowedScopesAccepted(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil)
+	svc := NewClientService(s, nil, nil)
 	ownerID := uuid.New().String()
 
 	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
@@ -170,7 +170,7 @@ func TestUserUpdateClient_AllowedScopesAccepted(t *testing.T) {
 
 func TestUserDeleteClient_OwnershipEnforced(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil)
+	svc := NewClientService(s, nil, nil)
 	ownerID := uuid.New().String()
 	otherID := uuid.New().String()
 
@@ -188,7 +188,7 @@ func TestUserDeleteClient_OwnershipEnforced(t *testing.T) {
 
 func TestUserDeleteClient_ActiveClientBlocked(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil)
+	svc := NewClientService(s, nil, nil)
 	ownerID := uuid.New().String()
 	adminID := uuid.New().String()
 
@@ -209,7 +209,7 @@ func TestUserDeleteClient_ActiveClientBlocked(t *testing.T) {
 
 func TestUserDeleteClient_PendingClientAllowed(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil)
+	svc := NewClientService(s, nil, nil)
 	ownerID := uuid.New().String()
 
 	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
@@ -231,7 +231,7 @@ func TestUserDeleteClient_PendingClientAllowed(t *testing.T) {
 
 func TestApproveClient_SetsActiveStatus(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil)
+	svc := NewClientService(s, nil, nil)
 	ownerID := uuid.New().String()
 	adminID := uuid.New().String()
 
@@ -255,7 +255,7 @@ func TestApproveClient_SetsActiveStatus(t *testing.T) {
 
 func TestRejectClient_SetsInactiveStatus(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil)
+	svc := NewClientService(s, nil, nil)
 	ownerID := uuid.New().String()
 	adminID := uuid.New().String()
 
@@ -281,12 +281,12 @@ func TestRejectClient_SetsInactiveStatus(t *testing.T) {
 
 func TestCountPendingClients(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil)
+	svc := NewClientService(s, nil, nil)
 	ownerID := uuid.New().String()
 	adminID := uuid.New().String()
 
 	// Initially zero pending (seeded default is active)
-	initial, err := svc.CountPendingClients()
+	initial, err := svc.CountPendingClients(context.Background())
 	require.NoError(t, err)
 
 	// Add two pending clients
@@ -305,13 +305,13 @@ func TestCountPendingClients(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	count, err := svc.CountPendingClients()
+	count, err := svc.CountPendingClients(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, initial+2, count)
 
 	// Approve one → count goes back down
 	require.NoError(t, svc.ApproveClient(context.Background(), resp1.ClientID, adminID))
-	count, err = svc.CountPendingClients()
+	count, err = svc.CountPendingClients(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, initial+1, count)
 }
@@ -320,9 +320,46 @@ func TestCountPendingClients(t *testing.T) {
 // ListClientsByUser
 // ============================================================
 
+func TestCountPendingClients_CacheInvalidation(t *testing.T) {
+	s := setupTestStore(t)
+	ctx := context.Background()
+	svc := NewClientService(s, nil, nil)
+	ownerID := uuid.New().String()
+	adminID := uuid.New().String()
+
+	baseline, err := svc.CountPendingClients(ctx)
+	require.NoError(t, err)
+
+	// Create a pending client — should invalidate the cache.
+	resp, err := svc.CreateClient(ctx, CreateClientRequest{
+		ClientName:     "Cache Test",
+		UserID:         ownerID,
+		CreatedBy:      ownerID,
+		IsAdminCreated: false,
+	})
+	require.NoError(t, err)
+
+	// Second call must reflect the new pending client, not the stale cached value.
+	count, err := svc.CountPendingClients(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, baseline+1, count)
+
+	// A third call with no mutations must return the same value (cache hit).
+	countAgain, err := svc.CountPendingClients(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, count, countAgain)
+
+	// Approve the client — should invalidate the cache again.
+	require.NoError(t, svc.ApproveClient(ctx, resp.ClientID, adminID))
+
+	countAfterApprove, err := svc.CountPendingClients(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, baseline, countAfterApprove)
+}
+
 func TestListClientsByUser(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil)
+	svc := NewClientService(s, nil, nil)
 	user1ID := uuid.New().String()
 	user2ID := uuid.New().String()
 

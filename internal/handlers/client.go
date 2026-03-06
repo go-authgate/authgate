@@ -49,7 +49,9 @@ func (h *ClientHandler) InjectPendingCount() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if u, exists := c.Get("user"); exists {
 			if user, ok := u.(*models.User); ok && user.IsAdmin() {
-				if count, err := h.clientService.CountPendingClients(); err == nil {
+				if count, err := h.clientService.CountPendingClients(
+					c.Request.Context(),
+				); err == nil {
 					c.Set(ctxKeyPendingClientsCount, int(count))
 				}
 			}

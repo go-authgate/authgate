@@ -18,20 +18,22 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "valid memory store",
 			config: &Config{
-				RateLimitStore:   RateLimitStoreMemory,
-				MetricsCacheType: MetricsCacheTypeMemory,
-				UserCacheType:    UserCacheTypeMemory,
-				UserCacheTTL:     5 * time.Minute,
+				RateLimitStore:       RateLimitStoreMemory,
+				MetricsCacheType:     MetricsCacheTypeMemory,
+				UserCacheType:        UserCacheTypeMemory,
+				UserCacheTTL:         5 * time.Minute,
+				ClientCountCacheType: ClientCountCacheTypeMemory,
 			},
 			expectError: false,
 		},
 		{
 			name: "valid redis store",
 			config: &Config{
-				RateLimitStore:   RateLimitStoreRedis,
-				MetricsCacheType: MetricsCacheTypeMemory,
-				UserCacheType:    UserCacheTypeMemory,
-				UserCacheTTL:     5 * time.Minute,
+				RateLimitStore:       RateLimitStoreRedis,
+				MetricsCacheType:     MetricsCacheTypeMemory,
+				UserCacheType:        UserCacheTypeMemory,
+				UserCacheTTL:         5 * time.Minute,
+				ClientCountCacheType: ClientCountCacheTypeMemory,
 			},
 			expectError: false,
 		},
@@ -107,32 +109,35 @@ func TestMetricsCacheValidation(t *testing.T) {
 		{
 			name: "valid memory cache",
 			config: &Config{
-				RateLimitStore:   RateLimitStoreMemory,
-				MetricsCacheType: MetricsCacheTypeMemory,
-				UserCacheType:    UserCacheTypeMemory,
-				UserCacheTTL:     5 * time.Minute,
+				RateLimitStore:       RateLimitStoreMemory,
+				MetricsCacheType:     MetricsCacheTypeMemory,
+				UserCacheType:        UserCacheTypeMemory,
+				UserCacheTTL:         5 * time.Minute,
+				ClientCountCacheType: ClientCountCacheTypeMemory,
 			},
 			expectError: false,
 		},
 		{
 			name: "valid redis cache with redis address",
 			config: &Config{
-				RateLimitStore:   RateLimitStoreMemory,
-				MetricsCacheType: MetricsCacheTypeRedis,
-				UserCacheType:    UserCacheTypeMemory,
-				UserCacheTTL:     5 * time.Minute,
-				RedisAddr:        "localhost:6379",
+				RateLimitStore:       RateLimitStoreMemory,
+				MetricsCacheType:     MetricsCacheTypeRedis,
+				UserCacheType:        UserCacheTypeMemory,
+				UserCacheTTL:         5 * time.Minute,
+				RedisAddr:            "localhost:6379",
+				ClientCountCacheType: ClientCountCacheTypeMemory,
 			},
 			expectError: false,
 		},
 		{
 			name: "valid redis-aside cache with redis address",
 			config: &Config{
-				RateLimitStore:   RateLimitStoreMemory,
-				MetricsCacheType: MetricsCacheTypeRedisAside,
-				UserCacheType:    UserCacheTypeMemory,
-				UserCacheTTL:     5 * time.Minute,
-				RedisAddr:        "localhost:6379",
+				RateLimitStore:       RateLimitStoreMemory,
+				MetricsCacheType:     MetricsCacheTypeRedisAside,
+				UserCacheType:        UserCacheTypeMemory,
+				UserCacheTTL:         5 * time.Minute,
+				RedisAddr:            "localhost:6379",
+				ClientCountCacheType: ClientCountCacheTypeMemory,
 			},
 			expectError: false,
 		},
@@ -200,33 +205,36 @@ func TestUserCacheValidation(t *testing.T) {
 		{
 			name: "valid memory user cache",
 			config: &Config{
-				RateLimitStore:   RateLimitStoreMemory,
-				MetricsCacheType: MetricsCacheTypeMemory,
-				UserCacheType:    UserCacheTypeMemory,
-				UserCacheTTL:     5 * time.Minute,
+				RateLimitStore:       RateLimitStoreMemory,
+				MetricsCacheType:     MetricsCacheTypeMemory,
+				UserCacheType:        UserCacheTypeMemory,
+				UserCacheTTL:         5 * time.Minute,
+				ClientCountCacheType: ClientCountCacheTypeMemory,
 			},
 			expectError: false,
 		},
 		{
 			name: "valid redis user cache with redis address",
 			config: &Config{
-				RateLimitStore:   RateLimitStoreMemory,
-				MetricsCacheType: MetricsCacheTypeMemory,
-				UserCacheType:    UserCacheTypeRedis,
-				UserCacheTTL:     5 * time.Minute,
-				RedisAddr:        "localhost:6379",
+				RateLimitStore:       RateLimitStoreMemory,
+				MetricsCacheType:     MetricsCacheTypeMemory,
+				UserCacheType:        UserCacheTypeRedis,
+				UserCacheTTL:         5 * time.Minute,
+				RedisAddr:            "localhost:6379",
+				ClientCountCacheType: ClientCountCacheTypeMemory,
 			},
 			expectError: false,
 		},
 		{
 			name: "valid redis-aside user cache with redis address",
 			config: &Config{
-				RateLimitStore:     RateLimitStoreMemory,
-				MetricsCacheType:   MetricsCacheTypeMemory,
-				UserCacheType:      UserCacheTypeRedisAside,
-				UserCacheTTL:       5 * time.Minute,
-				UserCacheClientTTL: 30 * time.Second,
-				RedisAddr:          "localhost:6379",
+				RateLimitStore:       RateLimitStoreMemory,
+				MetricsCacheType:     MetricsCacheTypeMemory,
+				UserCacheType:        UserCacheTypeRedisAside,
+				UserCacheTTL:         5 * time.Minute,
+				UserCacheClientTTL:   30 * time.Second,
+				RedisAddr:            "localhost:6379",
+				ClientCountCacheType: ClientCountCacheTypeMemory,
 			},
 			expectError: false,
 		},
@@ -300,11 +308,12 @@ func TestUserCacheValidation(t *testing.T) {
 		{
 			name: "zero UserCacheClientTTL allowed for non-redis-aside",
 			config: &Config{
-				RateLimitStore:     RateLimitStoreMemory,
-				MetricsCacheType:   MetricsCacheTypeMemory,
-				UserCacheType:      UserCacheTypeMemory,
-				UserCacheTTL:       5 * time.Minute,
-				UserCacheClientTTL: 0, // irrelevant for memory backend
+				RateLimitStore:       RateLimitStoreMemory,
+				MetricsCacheType:     MetricsCacheTypeMemory,
+				UserCacheType:        UserCacheTypeMemory,
+				UserCacheTTL:         5 * time.Minute,
+				UserCacheClientTTL:   0, // irrelevant for memory backend
+				ClientCountCacheType: ClientCountCacheTypeMemory,
 			},
 			expectError: false,
 		},
@@ -327,6 +336,87 @@ func TestUserCacheConstants(t *testing.T) {
 	assert.Equal(t, "memory", UserCacheTypeMemory)
 	assert.Equal(t, "redis", UserCacheTypeRedis)
 	assert.Equal(t, "redis-aside", UserCacheTypeRedisAside)
+}
+
+func TestClientCountCacheValidation(t *testing.T) {
+	validBase := &Config{
+		RateLimitStore:   RateLimitStoreMemory,
+		MetricsCacheType: MetricsCacheTypeMemory,
+		UserCacheType:    UserCacheTypeMemory,
+		UserCacheTTL:     5 * time.Minute,
+		RedisAddr:        "localhost:6379",
+	}
+	tests := []struct {
+		name        string
+		cacheType   string
+		redisAddr   string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "valid memory",
+			cacheType:   ClientCountCacheTypeMemory,
+			expectError: false,
+		},
+		{
+			name:        "valid redis with redis address",
+			cacheType:   ClientCountCacheTypeRedis,
+			redisAddr:   "localhost:6379",
+			expectError: false,
+		},
+		{
+			name:        "valid redis-aside with redis address",
+			cacheType:   ClientCountCacheTypeRedisAside,
+			redisAddr:   "localhost:6379",
+			expectError: false,
+		},
+		{
+			name:        "invalid cache type",
+			cacheType:   "memcached",
+			expectError: true,
+			errorMsg:    `invalid CLIENT_COUNT_CACHE_TYPE value: "memcached"`,
+		},
+		{
+			name:        "redis without redis address",
+			cacheType:   ClientCountCacheTypeRedis,
+			redisAddr:   "",
+			expectError: true,
+			errorMsg:    `CLIENT_COUNT_CACHE_TYPE="redis" requires REDIS_ADDR`,
+		},
+		{
+			name:        "redis-aside without redis address",
+			cacheType:   ClientCountCacheTypeRedisAside,
+			redisAddr:   "",
+			expectError: true,
+			errorMsg:    `CLIENT_COUNT_CACHE_TYPE="redis-aside" requires REDIS_ADDR`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := *validBase
+			cfg.ClientCountCacheType = tt.cacheType
+			if tt.redisAddr != "" {
+				cfg.RedisAddr = tt.redisAddr
+			} else if tt.cacheType == ClientCountCacheTypeRedis ||
+				tt.cacheType == ClientCountCacheTypeRedisAside {
+				cfg.RedisAddr = ""
+			}
+			err := cfg.Validate()
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestClientCountCacheConstants(t *testing.T) {
+	assert.Equal(t, "memory", ClientCountCacheTypeMemory)
+	assert.Equal(t, "redis", ClientCountCacheTypeRedis)
+	assert.Equal(t, "redis-aside", ClientCountCacheTypeRedisAside)
 }
 
 func TestMetricsCacheConstants(t *testing.T) {
