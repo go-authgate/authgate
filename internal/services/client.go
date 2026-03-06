@@ -99,15 +99,19 @@ func NewClientService(
 	s *store.Store,
 	auditService *AuditService,
 	countCache core.Cache[int64],
+	countCacheTTL time.Duration,
 ) *ClientService {
 	if countCache == nil {
 		countCache = cache.NewMemoryCache[int64]()
+	}
+	if countCacheTTL <= 0 {
+		countCacheTTL = time.Hour
 	}
 	return &ClientService{
 		store:         s,
 		auditService:  auditService,
 		countCache:    countCache,
-		countCacheTTL: time.Hour,
+		countCacheTTL: countCacheTTL,
 	}
 }
 

@@ -54,7 +54,9 @@ func initializeServices(
 		auditService,
 		prometheusMetrics,
 	)
-	clientService := services.NewClientService(db, auditService, clientCountCache)
+	clientService := services.NewClientService(
+		db, auditService, clientCountCache, cfg.ClientCountCacheTTL,
+	)
 	authorizationService := services.NewAuthorizationService(db, cfg, auditService)
 
 	return serviceSet{

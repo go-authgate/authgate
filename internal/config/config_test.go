@@ -23,6 +23,7 @@ func TestConfig_Validate(t *testing.T) {
 				UserCacheType:        UserCacheTypeMemory,
 				UserCacheTTL:         5 * time.Minute,
 				ClientCountCacheType: ClientCountCacheTypeMemory,
+				ClientCountCacheTTL:  time.Minute,
 			},
 			expectError: false,
 		},
@@ -34,6 +35,7 @@ func TestConfig_Validate(t *testing.T) {
 				UserCacheType:        UserCacheTypeMemory,
 				UserCacheTTL:         5 * time.Minute,
 				ClientCountCacheType: ClientCountCacheTypeMemory,
+				ClientCountCacheTTL:  time.Minute,
 			},
 			expectError: false,
 		},
@@ -114,6 +116,7 @@ func TestMetricsCacheValidation(t *testing.T) {
 				UserCacheType:        UserCacheTypeMemory,
 				UserCacheTTL:         5 * time.Minute,
 				ClientCountCacheType: ClientCountCacheTypeMemory,
+				ClientCountCacheTTL:  time.Minute,
 			},
 			expectError: false,
 		},
@@ -126,6 +129,7 @@ func TestMetricsCacheValidation(t *testing.T) {
 				UserCacheTTL:         5 * time.Minute,
 				RedisAddr:            "localhost:6379",
 				ClientCountCacheType: ClientCountCacheTypeMemory,
+				ClientCountCacheTTL:  time.Minute,
 			},
 			expectError: false,
 		},
@@ -138,6 +142,7 @@ func TestMetricsCacheValidation(t *testing.T) {
 				UserCacheTTL:         5 * time.Minute,
 				RedisAddr:            "localhost:6379",
 				ClientCountCacheType: ClientCountCacheTypeMemory,
+				ClientCountCacheTTL:  time.Minute,
 			},
 			expectError: false,
 		},
@@ -210,6 +215,7 @@ func TestUserCacheValidation(t *testing.T) {
 				UserCacheType:        UserCacheTypeMemory,
 				UserCacheTTL:         5 * time.Minute,
 				ClientCountCacheType: ClientCountCacheTypeMemory,
+				ClientCountCacheTTL:  time.Minute,
 			},
 			expectError: false,
 		},
@@ -222,6 +228,7 @@ func TestUserCacheValidation(t *testing.T) {
 				UserCacheTTL:         5 * time.Minute,
 				RedisAddr:            "localhost:6379",
 				ClientCountCacheType: ClientCountCacheTypeMemory,
+				ClientCountCacheTTL:  time.Minute,
 			},
 			expectError: false,
 		},
@@ -235,6 +242,7 @@ func TestUserCacheValidation(t *testing.T) {
 				UserCacheClientTTL:   30 * time.Second,
 				RedisAddr:            "localhost:6379",
 				ClientCountCacheType: ClientCountCacheTypeMemory,
+				ClientCountCacheTTL:  time.Minute,
 			},
 			expectError: false,
 		},
@@ -314,6 +322,7 @@ func TestUserCacheValidation(t *testing.T) {
 				UserCacheTTL:         5 * time.Minute,
 				UserCacheClientTTL:   0, // irrelevant for memory backend
 				ClientCountCacheType: ClientCountCacheTypeMemory,
+				ClientCountCacheTTL:  time.Minute,
 			},
 			expectError: false,
 		},
@@ -340,16 +349,18 @@ func TestUserCacheConstants(t *testing.T) {
 
 func TestClientCountCacheValidation(t *testing.T) {
 	validBase := &Config{
-		RateLimitStore:   RateLimitStoreMemory,
-		MetricsCacheType: MetricsCacheTypeMemory,
-		UserCacheType:    UserCacheTypeMemory,
-		UserCacheTTL:     5 * time.Minute,
-		RedisAddr:        "localhost:6379",
+		RateLimitStore:      RateLimitStoreMemory,
+		MetricsCacheType:    MetricsCacheTypeMemory,
+		UserCacheType:       UserCacheTypeMemory,
+		UserCacheTTL:        5 * time.Minute,
+		ClientCountCacheTTL: time.Minute,
+		RedisAddr:           "localhost:6379",
 	}
 	tests := []struct {
 		name        string
 		cacheType   string
 		redisAddr   string
+		cacheTTL    time.Duration // 0 means use validBase default (time.Minute)
 		expectError bool
 		errorMsg    string
 	}{
@@ -390,12 +401,22 @@ func TestClientCountCacheValidation(t *testing.T) {
 			expectError: true,
 			errorMsg:    `CLIENT_COUNT_CACHE_TYPE="redis-aside" requires REDIS_ADDR`,
 		},
+		{
+			name:        "zero TTL",
+			cacheType:   ClientCountCacheTypeMemory,
+			cacheTTL:    -1,
+			expectError: true,
+			errorMsg:    "CLIENT_COUNT_CACHE_TTL must be a positive duration",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := *validBase
 			cfg.ClientCountCacheType = tt.cacheType
+			if tt.cacheTTL != 0 {
+				cfg.ClientCountCacheTTL = tt.cacheTTL
+			}
 			if tt.redisAddr != "" {
 				cfg.RedisAddr = tt.redisAddr
 			} else if tt.cacheType == ClientCountCacheTypeRedis ||

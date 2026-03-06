@@ -200,7 +200,8 @@ type Config struct {
 
 	// Client Count Cache settings (pending badge in admin navbar)
 	ClientCountCacheType        string        // CLIENT_COUNT_CACHE_TYPE: memory|redis|redis-aside (default: memory)
-	ClientCountCacheClientTTL   time.Duration // CLIENT_COUNT_CACHE_CLIENT_TTL for redis-aside (default: 1h)
+	ClientCountCacheTTL         time.Duration // CLIENT_COUNT_CACHE_TTL: server-side cache lifetime (default: 1h)
+	ClientCountCacheClientTTL   time.Duration // CLIENT_COUNT_CACHE_CLIENT_TTL for redis-aside (default: 10m)
 	ClientCountCacheSizePerConn int           // CLIENT_COUNT_CACHE_SIZE_PER_CONN for redis-aside in MB (default: 32MB)
 
 	// Authorization Code Flow settings (RFC 6749)
@@ -384,7 +385,8 @@ func Load() *Config {
 
 		// Client Count Cache settings
 		ClientCountCacheType:      getEnv("CLIENT_COUNT_CACHE_TYPE", ClientCountCacheTypeMemory),
-		ClientCountCacheClientTTL: getEnvDuration("CLIENT_COUNT_CACHE_CLIENT_TTL", time.Hour),
+		ClientCountCacheTTL:       getEnvDuration("CLIENT_COUNT_CACHE_TTL", time.Hour),
+		ClientCountCacheClientTTL: getEnvDuration("CLIENT_COUNT_CACHE_CLIENT_TTL", 10*time.Minute),
 		ClientCountCacheSizePerConn: getEnvInt(
 			"CLIENT_COUNT_CACHE_SIZE_PER_CONN",
 			32,
@@ -554,6 +556,14 @@ func (c *Config) Validate() error {
 		return fmt.Errorf(
 			"CLIENT_COUNT_CACHE_TYPE=%q requires REDIS_ADDR to be configured",
 			c.ClientCountCacheType,
+		)
+	}
+
+	// CLIENT_COUNT_CACHE_TTL must be positive
+	if c.ClientCountCacheTTL <= 0 {
+		return fmt.Errorf(
+			"CLIENT_COUNT_CACHE_TTL must be a positive duration (got %s)",
+			c.ClientCountCacheTTL,
 		)
 	}
 
