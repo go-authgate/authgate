@@ -257,6 +257,7 @@ The Authorization Code Flow CLI starts a local callback server, opens your brows
 
 ### Advanced Topics
 
+- **[Device Code Flow Guide](docs/DEVICE_CODE_FLOW.md)** - CLI and IoT authentication, polling, token lifecycle, Go implementation
 - **[Authorization Code Flow Guide](docs/AUTHORIZATION_CODE_FLOW.md)** - Auth Code Flow, PKCE, user consent, admin controls
 - **[Client Credentials Flow Guide](docs/CLIENT_CREDENTIALS_FLOW.md)** - Machine-to-machine authentication, M2M token management
 - **[OAuth Setup Guide](docs/OAUTH_SETUP.md)** - GitHub, Gitea, Microsoft Entra ID integration
@@ -289,6 +290,8 @@ sequenceDiagram
     CLI->>AuthGate: 3. Poll for token
     AuthGate-->>CLI: access_token + refresh_token
 ```
+
+**[Device Code Flow Guide →](docs/DEVICE_CODE_FLOW.md)**
 
 ### Authorization Code Flow ([RFC 6749][rfc6749]) — for Web / Mobile
 
