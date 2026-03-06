@@ -90,7 +90,7 @@ func (s *TokenService) ExchangeDeviceCode(
 		if errors.Is(err, ErrDeviceCodeExpired) {
 			return nil, nil, ErrExpiredToken
 		}
-		return nil, nil, ErrExpiredToken
+		return nil, nil, ErrAccessDenied
 	}
 
 	// Check if client matches
@@ -167,8 +167,8 @@ func (s *TokenService) ExchangeDeviceCode(
 		TokenHash:     util.SHA256Hex(accessTokenResult.TokenString),
 		RawToken:      accessTokenResult.TokenString,
 		TokenType:     accessTokenResult.TokenType,
-		TokenCategory: "access", // Explicitly set token category
-		Status:        "active", // Set initial status
+		TokenCategory: models.TokenCategoryAccess,
+		Status:        models.TokenStatusActive,
 		UserID:        dc.UserID,
 		ClientID:      dc.ClientID,
 		Scopes:        dc.Scopes,
@@ -181,8 +181,8 @@ func (s *TokenService) ExchangeDeviceCode(
 		TokenHash:     util.SHA256Hex(refreshTokenResult.TokenString),
 		RawToken:      refreshTokenResult.TokenString,
 		TokenType:     refreshTokenResult.TokenType,
-		TokenCategory: "refresh", // Mark as refresh token
-		Status:        "active",  // Set initial status
+		TokenCategory: models.TokenCategoryRefresh,
+		Status:        models.TokenStatusActive,
 		UserID:        dc.UserID,
 		ClientID:      dc.ClientID,
 		Scopes:        dc.Scopes,
@@ -367,49 +367,41 @@ func (s *TokenService) IsTokenOwnedByUser(tokenID, userID string) (bool, error) 
 	return tok.UserID == userID, nil
 }
 
-// GetUserTokensWithClient returns all active tokens for a user with client information
-func (s *TokenService) GetUserTokensWithClient(userID string) ([]TokenWithClient, error) {
-	tokens, err := s.store.GetTokensByUserID(userID)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(tokens) == 0 {
-		return []TokenWithClient{}, nil
-	}
-
-	// Collect unique client IDs
-	clientIDSet := make(map[string]bool)
+// enrichTokensWithClients batch-fetches client names and joins them onto a token slice.
+func (s *TokenService) enrichTokensWithClients(tokens []models.AccessToken) ([]TokenWithClient, error) {
+	clientIDSet := make(map[string]bool, len(tokens))
 	for _, tok := range tokens {
 		clientIDSet[tok.ClientID] = true
 	}
-
 	clientIDs := make([]string, 0, len(clientIDSet))
 	for clientID := range clientIDSet {
 		clientIDs = append(clientIDs, clientID)
 	}
-
-	// Batch query all clients using WHERE IN
 	clientMap, err := s.store.GetClientsByIDs(clientIDs)
 	if err != nil {
 		return nil, err
 	}
-
-	// Combine tokens with client information
 	result := make([]TokenWithClient, 0, len(tokens))
 	for _, tok := range tokens {
 		clientName := tok.ClientID // Default to ClientID if not found
 		if client, ok := clientMap[tok.ClientID]; ok && client != nil {
 			clientName = client.ClientName
 		}
-
-		result = append(result, TokenWithClient{
-			AccessToken: tok,
-			ClientName:  clientName,
-		})
+		result = append(result, TokenWithClient{AccessToken: tok, ClientName: clientName})
 	}
-
 	return result, nil
+}
+
+// GetUserTokensWithClient returns all active tokens for a user with client information
+func (s *TokenService) GetUserTokensWithClient(userID string) ([]TokenWithClient, error) {
+	tokens, err := s.store.GetTokensByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
+	if len(tokens) == 0 {
+		return []TokenWithClient{}, nil
+	}
+	return s.enrichTokensWithClients(tokens)
 }
 
 // GetUserTokensWithClientPaginated returns paginated tokens for a user with client information
@@ -421,42 +413,13 @@ func (s *TokenService) GetUserTokensWithClientPaginated(
 	if err != nil {
 		return nil, store.PaginationResult{}, err
 	}
-
 	if len(tokens) == 0 {
 		return []TokenWithClient{}, pagination, nil
 	}
-
-	// Collect unique client IDs
-	clientIDSet := make(map[string]bool)
-	for _, tok := range tokens {
-		clientIDSet[tok.ClientID] = true
-	}
-
-	clientIDs := make([]string, 0, len(clientIDSet))
-	for clientID := range clientIDSet {
-		clientIDs = append(clientIDs, clientID)
-	}
-
-	// Batch query all clients using WHERE IN
-	clientMap, err := s.store.GetClientsByIDs(clientIDs)
+	result, err := s.enrichTokensWithClients(tokens)
 	if err != nil {
 		return nil, store.PaginationResult{}, err
 	}
-
-	// Combine tokens with client information
-	result := make([]TokenWithClient, 0, len(tokens))
-	for _, tok := range tokens {
-		clientName := tok.ClientID // Default to ClientID if not found
-		if client, ok := clientMap[tok.ClientID]; ok && client != nil {
-			clientName = client.ClientName
-		}
-
-		result = append(result, TokenWithClient{
-			AccessToken: tok,
-			ClientName:  clientName,
-		})
-	}
-
 	return result, pagination, nil
 }
 
@@ -537,8 +500,8 @@ func (s *TokenService) RefreshAccessToken(
 		ID:            uuid.New().String(),
 		TokenHash:     util.SHA256Hex(refreshResult.AccessToken.TokenString),
 		RawToken:      refreshResult.AccessToken.TokenString,
-		TokenCategory: "access",
-		Status:        "active",
+		TokenCategory: models.TokenCategoryAccess,
+		Status:        models.TokenStatusActive,
 		TokenType:     refreshResult.AccessToken.TokenType,
 		UserID:        refreshToken.UserID,
 		ClientID:      refreshToken.ClientID,
@@ -561,8 +524,8 @@ func (s *TokenService) RefreshAccessToken(
 			ID:            uuid.New().String(),
 			TokenHash:     util.SHA256Hex(refreshResult.RefreshToken.TokenString),
 			RawToken:      refreshResult.RefreshToken.TokenString,
-			TokenCategory: "refresh",
-			Status:        "active",
+			TokenCategory: models.TokenCategoryRefresh,
+			Status:        models.TokenStatusActive,
 			TokenType:     refreshResult.RefreshToken.TokenType,
 			UserID:        refreshToken.UserID,
 			ClientID:      refreshToken.ClientID,
@@ -577,7 +540,7 @@ func (s *TokenService) RefreshAccessToken(
 		}
 
 		// Revoke old refresh token (soft delete)
-		if err := tx.Model(refreshToken).Update("status", "revoked").Error; err != nil {
+		if err := tx.Model(refreshToken).Update("status", models.TokenStatusRevoked).Error; err != nil {
 			tx.Rollback()
 			return nil, nil, fmt.Errorf("failed to revoke old refresh token: %w", err)
 		}
@@ -710,8 +673,8 @@ func (s *TokenService) IssueClientCredentialsToken(
 		TokenHash:     util.SHA256Hex(accessTokenResult.TokenString),
 		RawToken:      accessTokenResult.TokenString,
 		TokenType:     accessTokenResult.TokenType,
-		TokenCategory: "access",
-		Status:        "active",
+		TokenCategory: models.TokenCategoryAccess,
+		Status:        models.TokenStatusActive,
 		UserID:        machineUserID,
 		ClientID:      clientID,
 		Scopes:        effectiveScopes,
@@ -792,12 +755,12 @@ func (s *TokenService) updateTokenStatusWithAudit(
 
 	// Validate state transition
 	switch newStatus {
-	case "disabled":
+	case models.TokenStatusDisabled:
 		// Only active tokens can be disabled
 		if !tok.IsActive() {
 			return ErrTokenCannotDisable
 		}
-	case "active":
+	case models.TokenStatusActive:
 		// Re-enabling is only allowed from disabled state; revoked tokens must not be re-activated
 		if !tok.IsDisabled() {
 			return ErrTokenCannotEnable
@@ -850,7 +813,7 @@ func (s *TokenService) DisableToken(ctx context.Context, tokenID, actorUserID st
 		ctx,
 		tokenID,
 		actorUserID,
-		"disabled",
+		models.TokenStatusDisabled,
 		models.EventTokenDisabled,
 		"Token disabled",
 		"Token disable failed",
@@ -863,7 +826,7 @@ func (s *TokenService) EnableToken(ctx context.Context, tokenID, actorUserID str
 		ctx,
 		tokenID,
 		actorUserID,
-		"active",
+		models.TokenStatusActive,
 		models.EventTokenEnabled,
 		"Token enabled",
 		"Token enable failed",
@@ -872,12 +835,12 @@ func (s *TokenService) EnableToken(ctx context.Context, tokenID, actorUserID str
 
 // RevokeTokenByStatus permanently revokes a token (uses status update, not deletion)
 func (s *TokenService) RevokeTokenByStatus(tokenID string) error {
-	return s.store.UpdateTokenStatus(tokenID, "revoked")
+	return s.store.UpdateTokenStatus(tokenID, models.TokenStatusRevoked)
 }
 
 // GetActiveRefreshTokens gets all active refresh tokens for a user
 func (s *TokenService) GetActiveRefreshTokens(userID string) ([]models.AccessToken, error) {
-	return s.store.GetTokensByCategoryAndStatus(userID, "refresh", "active")
+	return s.store.GetTokensByCategoryAndStatus(userID, models.TokenCategoryRefresh, models.TokenStatusActive)
 }
 
 // ExchangeAuthorizationCode issues an access token, a refresh token, and (when the openid scope
@@ -937,8 +900,8 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		TokenHash:       util.SHA256Hex(accessTokenResult.TokenString),
 		RawToken:        accessTokenResult.TokenString,
 		TokenType:       accessTokenResult.TokenType,
-		TokenCategory:   "access",
-		Status:          "active",
+		TokenCategory:   models.TokenCategoryAccess,
+		Status:          models.TokenStatusActive,
 		UserID:          authCode.UserID,
 		ClientID:        authCode.ClientID,
 		Scopes:          authCode.Scopes,
@@ -951,8 +914,8 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		TokenHash:       util.SHA256Hex(refreshTokenResult.TokenString),
 		RawToken:        refreshTokenResult.TokenString,
 		TokenType:       refreshTokenResult.TokenType,
-		TokenCategory:   "refresh",
-		Status:          "active",
+		TokenCategory:   models.TokenCategoryRefresh,
+		Status:          models.TokenStatusActive,
 		UserID:          authCode.UserID,
 		ClientID:        authCode.ClientID,
 		Scopes:          authCode.Scopes,

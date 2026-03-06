@@ -224,9 +224,9 @@ func TestExchangeDeviceCode_InvalidDeviceCode(t *testing.T) {
 		client.ClientID,
 	)
 
-	// Assert
+	// Assert: a non-existent device code should return ErrAccessDenied, not ErrExpiredToken
 	require.Error(t, err)
-	assert.Equal(t, ErrExpiredToken, err)
+	assert.Equal(t, ErrAccessDenied, err)
 	assert.Nil(t, token)
 }
 

@@ -139,35 +139,24 @@ func (s *AuditService) flushBatchUnsafe() {
 	}
 }
 
-// Log records an audit log entry asynchronously
-func (s *AuditService) Log(ctx context.Context, entry AuditLogEntry) {
-	if !s.enabled {
-		return
-	}
-
-	// Extract IP from context if not provided
+// buildAuditLog enriches an AuditLogEntry from context and builds the database record.
+func (s *AuditService) buildAuditLog(ctx context.Context, entry AuditLogEntry) *models.AuditLog {
 	if entry.ActorIP == "" {
 		entry.ActorIP = util.GetIPFromContext(ctx)
 	}
-
-	// Extract username from context if not provided
 	if entry.ActorUsername == "" {
 		entry.ActorUsername = models.GetUsernameFromContext(ctx)
 	}
-
-	// Extract user ID from context if not provided
 	if entry.ActorUserID == "" {
 		entry.ActorUserID = models.GetUserIDFromContext(ctx)
 	}
-
-	// Mask sensitive data
 	entry.Details = maskSensitiveDetails(entry.Details)
 
-	// Create audit log
-	auditLog := &models.AuditLog{
+	now := time.Now()
+	return &models.AuditLog{
 		ID:            uuid.New().String(),
 		EventType:     entry.EventType,
-		EventTime:     time.Now(),
+		EventTime:     now,
 		Severity:      entry.Severity,
 		ActorUserID:   entry.ActorUserID,
 		ActorUsername: entry.ActorUsername,
@@ -182,15 +171,19 @@ func (s *AuditService) Log(ctx context.Context, entry AuditLogEntry) {
 		UserAgent:     entry.UserAgent,
 		RequestPath:   entry.RequestPath,
 		RequestMethod: entry.RequestMethod,
-		CreatedAt:     time.Now(),
+		CreatedAt:     now,
 	}
+}
 
-	// Try to send to channel (non-blocking)
+// Log records an audit log entry asynchronously
+func (s *AuditService) Log(ctx context.Context, entry AuditLogEntry) {
+	if !s.enabled {
+		return
+	}
+	auditLog := s.buildAuditLog(ctx, entry)
 	select {
 	case s.logChan <- auditLog:
-		// Successfully sent
 	default:
-		// Channel is full, drop the event and log warning
 		log.Printf("WARNING: Audit log buffer full, dropping event: %s", entry.Action)
 	}
 }
@@ -200,49 +193,7 @@ func (s *AuditService) LogSync(ctx context.Context, entry AuditLogEntry) error {
 	if !s.enabled {
 		return nil
 	}
-
-	// Extract IP from context if not provided
-	if entry.ActorIP == "" {
-		entry.ActorIP = util.GetIPFromContext(ctx)
-	}
-
-	// Extract username from context if not provided
-	if entry.ActorUsername == "" {
-		entry.ActorUsername = models.GetUsernameFromContext(ctx)
-	}
-
-	// Extract user ID from context if not provided
-	if entry.ActorUserID == "" {
-		entry.ActorUserID = models.GetUserIDFromContext(ctx)
-	}
-
-	// Mask sensitive data
-	entry.Details = maskSensitiveDetails(entry.Details)
-
-	// Create audit log
-	auditLog := &models.AuditLog{
-		ID:            uuid.New().String(),
-		EventType:     entry.EventType,
-		EventTime:     time.Now(),
-		Severity:      entry.Severity,
-		ActorUserID:   entry.ActorUserID,
-		ActorUsername: entry.ActorUsername,
-		ActorIP:       entry.ActorIP,
-		ResourceType:  entry.ResourceType,
-		ResourceID:    entry.ResourceID,
-		ResourceName:  entry.ResourceName,
-		Action:        entry.Action,
-		Details:       entry.Details,
-		Success:       entry.Success,
-		ErrorMessage:  entry.ErrorMessage,
-		UserAgent:     entry.UserAgent,
-		RequestPath:   entry.RequestPath,
-		RequestMethod: entry.RequestMethod,
-		CreatedAt:     time.Now(),
-	}
-
-	// Write directly to database
-	return s.store.CreateAuditLog(auditLog)
+	return s.store.CreateAuditLog(s.buildAuditLog(ctx, entry))
 }
 
 // GetAuditLogs retrieves audit logs with pagination and filtering

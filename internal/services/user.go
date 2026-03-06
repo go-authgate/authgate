@@ -88,6 +88,28 @@ func (s *UserService) Authenticate(
 	return nil, ErrInvalidCredentials
 }
 
+// logAuthFailure logs a failed authentication audit event.
+func (s *UserService) logAuthFailure(ctx context.Context, user *models.User, providerName string) {
+	if s.auditService == nil {
+		return
+	}
+	s.auditService.Log(ctx, AuditLogEntry{
+		EventType:     models.EventAuthenticationFailure,
+		Severity:      models.SeverityWarning,
+		ActorUserID:   user.ID,
+		ActorUsername: user.Username,
+		ResourceType:  models.ResourceUser,
+		ResourceID:    user.ID,
+		Action:        "User login attempt failed",
+		Details: models.AuditDetails{
+			"auth_source": user.AuthSource,
+			"provider":    providerName,
+		},
+		Success:      false,
+		ErrorMessage: "Invalid credentials",
+	})
+}
+
 // authenticateExistingUser authenticates based on user's auth_source
 func (s *UserService) authenticateExistingUser(
 	ctx context.Context,
@@ -130,49 +152,12 @@ func (s *UserService) authenticateExistingUser(
 	// Handle authentication failure
 	if err != nil {
 		log.Printf("[Auth] Failed for user=%s provider=%s: %v", user.Username, providerName, err)
-
-		// Log failed authentication
-		if s.auditService != nil {
-			s.auditService.Log(ctx, AuditLogEntry{
-				EventType:     models.EventAuthenticationFailure,
-				Severity:      models.SeverityWarning,
-				ActorUserID:   user.ID,
-				ActorUsername: user.Username,
-				ResourceType:  models.ResourceUser,
-				ResourceID:    user.ID,
-				Action:        "User login attempt failed",
-				Details: models.AuditDetails{
-					"auth_source": user.AuthSource,
-					"provider":    providerName,
-				},
-				Success:      false,
-				ErrorMessage: "Invalid credentials",
-			})
-		}
-
+		s.logAuthFailure(ctx, user, providerName)
 		return nil, ErrInvalidCredentials
 	}
 
 	if !authResult.Success {
-		// Log failed authentication
-		if s.auditService != nil {
-			s.auditService.Log(ctx, AuditLogEntry{
-				EventType:     models.EventAuthenticationFailure,
-				Severity:      models.SeverityWarning,
-				ActorUserID:   user.ID,
-				ActorUsername: user.Username,
-				ResourceType:  models.ResourceUser,
-				ResourceID:    user.ID,
-				Action:        "User login attempt failed",
-				Details: models.AuditDetails{
-					"auth_source": user.AuthSource,
-					"provider":    providerName,
-				},
-				Success:      false,
-				ErrorMessage: "Invalid credentials",
-			})
-		}
-
+		s.logAuthFailure(ctx, user, providerName)
 		return nil, ErrInvalidCredentials
 	}
 
