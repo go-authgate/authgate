@@ -65,11 +65,12 @@ func NewRueidisAsideCache[T any](
 	}, nil
 }
 
-// Get retrieves a value from Redis with client-side caching.
-// Uses DoCache to leverage RESP3 client-side caching with automatic invalidation.
+// Get retrieves a value from Redis.
+// Uses standard Do (not DoCache) to ensure immediate consistency after Set/Delete.
+// Client-side caching is provided through GetWithFetch and MGet instead.
 func (r *RueidisAsideCache[T]) Get(ctx context.Context, key string) (T, error) {
-	cmd := r.client.Client().B().Get().Key(prefixedKey(r.keyPrefix, key)).Cache()
-	resp := r.client.Client().DoCache(ctx, cmd, r.clientTTL)
+	cmd := r.client.Client().B().Get().Key(prefixedKey(r.keyPrefix, key)).Build()
+	resp := r.client.Client().Do(ctx, cmd)
 
 	if err := resp.Error(); err != nil {
 		var zero T

@@ -298,9 +298,9 @@ func cacheTestSuite(t *testing.T, name string, newCache func(t *testing.T, prefi
 		c := newCache(t, "gwf:")
 		ctx := context.Background()
 
-		fetchCount := 0
+		var fetchCount atomic.Int32
 		fetchFunc := func(ctx context.Context, key string) (int64, error) {
-			fetchCount++
+			fetchCount.Add(1)
 			return 42, nil
 		}
 
@@ -311,9 +311,12 @@ func cacheTestSuite(t *testing.T, name string, newCache func(t *testing.T, prefi
 		if value != 42 {
 			t.Errorf("expected 42, got %d", value)
 		}
-		if fetchCount != 1 {
-			t.Errorf("expected fetchFunc called once, got %d", fetchCount)
+		if fetchCount.Load() != 1 {
+			t.Errorf("expected fetchFunc called once, got %d", fetchCount.Load())
 		}
+
+		// Allow client-side cache invalidation to propagate (for RESP3 caches)
+		time.Sleep(50 * time.Millisecond)
 
 		// Second call should use cache
 		value, err = c.GetWithFetch(ctx, "key", time.Minute, fetchFunc)
@@ -323,8 +326,8 @@ func cacheTestSuite(t *testing.T, name string, newCache func(t *testing.T, prefi
 		if value != 42 {
 			t.Errorf("expected 42 on cache hit, got %d", value)
 		}
-		if fetchCount != 1 {
-			t.Errorf("expected fetchFunc not called on cache hit, got %d calls", fetchCount)
+		if fetchCount.Load() != 1 {
+			t.Errorf("expected fetchFunc not called on cache hit, got %d calls", fetchCount.Load())
 		}
 	})
 
