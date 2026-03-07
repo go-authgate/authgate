@@ -251,18 +251,19 @@ func maskSensitiveDetails(details models.AuditDetails) models.AuditDetails {
 
 	masked := make(models.AuditDetails)
 	for key, value := range details {
-		// Complete masking for these fields
-		if isSensitiveField(key) {
-			masked[key] = "***REDACTED***"
-			continue
-		}
-
-		// Partial masking for tokens and codes
+		// Partial masking takes priority: token_id, device_code, etc. should
+		// show truncated values rather than being fully redacted.
 		if isPartialMaskField(key) {
 			if str, ok := value.(string); ok && len(str) > 12 {
 				masked[key] = str[:8] + "..." + str[len(str)-4:]
 				continue
 			}
+		}
+
+		// Complete masking for sensitive fields (passwords, secrets, raw tokens)
+		if isSensitiveField(key) {
+			masked[key] = "***REDACTED***"
+			continue
 		}
 
 		// Keep other fields as-is

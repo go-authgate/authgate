@@ -31,7 +31,8 @@ func New(ctx context.Context, driver, dsn string, cfg *config.Config) (*Store, e
 	}
 
 	db, err := gorm.Open(dialector, &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Warn),
+		Logger:         logger.Default.LogMode(logger.Warn),
+		TranslateError: true,
 	})
 	if err != nil {
 		return nil, err
