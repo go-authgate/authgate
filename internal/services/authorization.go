@@ -100,7 +100,7 @@ func (s *AuthorizationService) ValidateAuthorizationRequest(
 	}
 
 	// 6. PKCE: public clients must use S256
-	if client.ClientType == "public" {
+	if client.ClientType == ClientTypePublic {
 		if codeChallengeMethod == "" {
 			return nil, ErrPKCERequired
 		}
@@ -215,7 +215,7 @@ func (s *AuthorizationService) ExchangeCode(
 		return nil, ErrUnauthorizedClient
 	}
 
-	if client.ClientType == "confidential" {
+	if client.ClientType == ClientTypeConfidential {
 		// Confidential clients must present their secret
 		if clientSecret == "" {
 			return nil, ErrUnauthorizedClient

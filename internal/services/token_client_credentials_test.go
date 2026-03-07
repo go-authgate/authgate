@@ -80,8 +80,8 @@ func TestIssueClientCredentialsToken_Success_DefaultScopes(t *testing.T) {
 	require.NotNil(t, tok)
 	assert.NotEmpty(t, tok.RawToken)
 	assert.Equal(t, "Bearer", tok.TokenType)
-	assert.Equal(t, "access", tok.TokenCategory)
-	assert.Equal(t, "active", tok.Status)
+	assert.Equal(t, models.TokenCategoryAccess, tok.TokenCategory)
+	assert.Equal(t, models.TokenStatusActive, tok.Status)
 	assert.Equal(t, client.ClientID, tok.ClientID)
 	// When no scope is requested, all client scopes are granted
 	assert.Equal(t, "read write", tok.Scopes)

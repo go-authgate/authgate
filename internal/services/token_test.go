@@ -224,9 +224,9 @@ func TestExchangeDeviceCode_InvalidDeviceCode(t *testing.T) {
 		client.ClientID,
 	)
 
-	// Assert
+	// Assert: a non-existent device code should return ErrAccessDenied, not ErrExpiredToken
 	require.Error(t, err)
-	assert.Equal(t, ErrExpiredToken, err)
+	assert.Equal(t, ErrAccessDenied, err)
 	assert.Nil(t, token)
 }
 
@@ -1187,8 +1187,8 @@ func TestIsTokenOwnedByUser_OwnedToken(t *testing.T) {
 		ID:            uuid.New().String(),
 		TokenHash:     util.SHA256Hex("raw-owned-token"),
 		TokenType:     "Bearer",
-		TokenCategory: "access",
-		Status:        "active",
+		TokenCategory: models.TokenCategoryAccess,
+		Status:        models.TokenStatusActive,
 		UserID:        userID,
 		ClientID:      uuid.New().String(),
 		Scopes:        "read",
@@ -1211,8 +1211,8 @@ func TestIsTokenOwnedByUser_NotOwnedToken(t *testing.T) {
 		ID:            uuid.New().String(),
 		TokenHash:     util.SHA256Hex("raw-other-token"),
 		TokenType:     "Bearer",
-		TokenCategory: "access",
-		Status:        "active",
+		TokenCategory: models.TokenCategoryAccess,
+		Status:        models.TokenStatusActive,
 		UserID:        ownerID,
 		ClientID:      uuid.New().String(),
 		Scopes:        "read",

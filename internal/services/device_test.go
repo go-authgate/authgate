@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -252,9 +253,9 @@ func TestUserCodeNormalization(t *testing.T) {
 	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
 	require.NoError(t, err)
 
-	// Test normalization: lowercase with dashes should work
+	// Test normalization: dash-separated and lowercase-with-dash should both work
 	userCodeWithDash := dc.UserCode[:4] + "-" + dc.UserCode[4:]
-	userCodeLowercase := dc.UserCode[:4] + "-" + dc.UserCode[4:]
+	userCodeLowercase := strings.ToLower(dc.UserCode[:4] + "-" + dc.UserCode[4:])
 
 	// Both formats should find the same device code
 	dc1, err1 := deviceService.GetDeviceCodeByUserCode(userCodeWithDash)

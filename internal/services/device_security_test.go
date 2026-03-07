@@ -75,8 +75,9 @@ func TestDeviceCodeHashing(t *testing.T) {
 		dc, err := service.GenerateDeviceCode(context.Background(), client.ClientID, "read")
 		require.NoError(t, err)
 
-		// Try with wrong code (same suffix, different prefix)
-		wrongCode := "0000000000000000000000000000000" + dc.DeviceCodeID
+		// Try with wrong code (same 8-char suffix, different 32-char prefix).
+		// Total is 40 chars so the length check passes; only the hash check should reject it.
+		wrongCode := "00000000000000000000000000000000" + dc.DeviceCodeID
 		_, err = service.GetDeviceCode(wrongCode)
 		assert.Equal(t, ErrDeviceCodeNotFound, err)
 	})
