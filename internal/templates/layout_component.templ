@@ -26,21 +26,8 @@ templ Layout(title string, layoutType LayoutType, navbar *NavbarProps) {
 			<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 			<!-- IBM Plex Sans for UI, JetBrains Mono for code -->
 			<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
-			<!-- Base styles -->
-			<link rel="stylesheet" href="/static/css/base.css"/>
-			<!-- Component styles -->
-			<link rel="stylesheet" href="/static/css/components/navbar.css"/>
-			<link rel="stylesheet" href="/static/css/components/forms.css"/>
-			<link rel="stylesheet" href="/static/css/components/alerts.css"/>
-			<link rel="stylesheet" href="/static/css/components/tables.css"/>
-			<link rel="stylesheet" href="/static/css/components/pagination.css"/>
-			<link rel="stylesheet" href="/static/css/components/sessions.css"/>
-			<link rel="stylesheet" href="/static/css/components/search.css"/>
-			<!-- Page-specific styles -->
-			if layoutType == LayoutAdminNavbar {
-				<link rel="stylesheet" href="/static/css/pages/admin.css"/>
-				<link rel="stylesheet" href="/static/css/pages/admin-tables.css"/>
-			}
+			<!-- Bundled styles (content-hashed for cache busting) -->
+			<link rel="stylesheet" href={ CSSBundle }/>
 		</head>
 		<body class={ string(layoutType) }>
 			if navbar != nil {
@@ -79,12 +66,8 @@ templ Layout(title string, layoutType LayoutType, navbar *NavbarProps) {
 					</div>
 				</div>
 			</footer>
-			<!-- JavaScript -->
-			<script src="/static/js/utils.js"></script>
-			<script src="/static/js/navbar.js"></script>
-			if layoutType == LayoutAdminNavbar {
-				<script src="/static/js/admin.js"></script>
-			}
+			<!-- Bundled JavaScript (content-hashed for cache busting) -->
+			<script src={ JSBundle }></script>
 		</body>
 	</html>
 }
