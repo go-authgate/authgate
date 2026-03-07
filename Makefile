@@ -1,4 +1,5 @@
 GO ?= go
+TOOLS_MOD := -modfile=go.tools.mod
 EXECUTABLE := authgate
 GOFILES := $(shell find . -type f -name "*.go")
 TAGS ?=
@@ -56,17 +57,13 @@ test: generate
 coverage: test
 	$(GO) tool cover -html=coverage.txt
 
-## install-golangci-lint: install golangci-lint if not present
-install-golangci-lint:
-	@command -v golangci-lint >/dev/null 2>&1 || $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(shell $(GO) list -m -f '{{.Version}}' github.com/golangci/golangci-lint/v2)
-
 ## fmt: format go files using golangci-lint
-fmt: install-golangci-lint
-	golangci-lint fmt
+fmt:
+	$(GO) tool $(TOOLS_MOD) golangci-lint fmt
 
 ## lint: run golangci-lint to check for issues
-lint: install-golangci-lint
-	golangci-lint run
+lint:
+	$(GO) tool $(TOOLS_MOD) golangci-lint run
 
 ## build_linux_amd64: build the authgate binary for linux amd64
 build_linux_amd64: generate
@@ -84,11 +81,11 @@ build_all_linux_arm64: build_linux_arm64
 
 ## assets: build and minify static assets (production)
 assets:
-	$(GO) run scripts/build_assets.go --minify
+	$(GO) run $(TOOLS_MOD) scripts/build_assets.go --minify
 
 ## assets-dev: build static assets without minification (development)
 assets-dev:
-	$(GO) run scripts/build_assets.go
+	$(GO) run $(TOOLS_MOD) scripts/build_assets.go
 
 ## clean: remove build artifacts and test coverage
 clean:
@@ -101,33 +98,26 @@ rebuild: clean build
 
 .PHONY: help build build-all install test coverage fmt lint clean rebuild
 .PHONY: build_linux_amd64 build_linux_arm64
-.PHONY: build_all_linux_amd64 build_all_linux_arm64 install-templ generate watch air dev mocks
-.PHONY: install-golangci-lint install-mockgen install-tools mod-download mod-tidy mod-verify check-tools version
-.PHONY: docker-build docker-run install-swag swagger swagger-init swagger-fmt swagger-validate
+.PHONY: build_all_linux_amd64 build_all_linux_arm64 generate watch air dev mocks
+.PHONY: install-tools mod-download mod-tidy mod-verify check-tools version
+.PHONY: docker-build docker-run swagger swagger-init swagger-fmt swagger-validate
 .PHONY: assets assets-dev
 
-## install-templ: install templ CLI if not installed
-install-templ:
-	@command -v templ >/dev/null 2>&1 || $(GO) install github.com/a-h/templ/cmd/templ@$(shell $(GO) list -m -f '{{.Version}}' github.com/a-h/templ)
-
-## install-mockgen: install mockgen if not installed
-install-mockgen:
-	@command -v mockgen >/dev/null 2>&1 || $(GO) install go.uber.org/mock/mockgen@$(shell $(GO) list -m -f '{{.Version}}' go.uber.org/mock)
-
-## install-tools: install all required development tools
-install-tools: install-templ install-swag install-golangci-lint install-mockgen
+## install-tools: download tool dependencies
+install-tools:
+	$(GO) mod download $(TOOLS_MOD)
 
 ## generate: run go generate (templ compilation + mocks via go:generate directives)
 generate: install-tools assets swagger
 	$(GO) generate ./...
 
 ## mocks: generate mock files only (all directives in internal/mocks/)
-mocks: install-mockgen
+mocks:
 	$(GO) generate ./internal/mocks/
 
 ## watch: watch mode for automatic regeneration
-watch: install-templ
-	templ generate --watch
+watch:
+	$(GO) tool $(TOOLS_MOD) templ generate --watch
 
 ## help: print this help message
 help:
@@ -146,13 +136,9 @@ mod-tidy:
 mod-verify:
 	$(GO) mod verify
 
-## check-tools: verify required tools are installed
+## check-tools: verify Go is installed (tools are managed via modfile)
 check-tools:
 	@command -v $(GO) >/dev/null 2>&1 || (echo "Go not found" && exit 1)
-	@command -v templ >/dev/null 2>&1 || echo "templ not installed (run: make install-tools)"
-	@command -v swag >/dev/null 2>&1 || echo "swag not installed (run: make install-tools)"
-	@command -v golangci-lint >/dev/null 2>&1 || echo "golangci-lint not installed (run: make install-tools)"
-	@command -v mockgen >/dev/null 2>&1 || echo "mockgen not installed (run: make install-tools)"
 
 ## version: display version information
 version:
@@ -168,23 +154,19 @@ docker-build:
 docker-run:
 	docker run -p 8080:8080 --env-file .env authgate:$(VERSION)
 
-## install-swag: install swag CLI if not installed
-install-swag:
-	@command -v swag >/dev/null 2>&1 || $(GO) install github.com/swaggo/swag/cmd/swag@$(shell $(GO) list -m -f '{{.Version}}' github.com/swaggo/swag)
-
 ## swagger-init: generate swagger documentation
-swagger-init: install-swag
-	swag init -g main.go --output api --parseDependency --parseInternal
+swagger-init:
+	$(GO) tool $(TOOLS_MOD) swag init -g main.go --output api --parseDependency --parseInternal
 
 ## swagger: alias for swagger-init
 swagger: swagger-init
 
 ## swagger-fmt: format swagger comments
-swagger-fmt: install-swag
-	swag fmt
+swagger-fmt:
+	$(GO) tool $(TOOLS_MOD) swag fmt
 
 ## swagger-validate: validate swagger documentation
-swagger-validate: install-swag swagger-init
+swagger-validate: swagger-init
 	@echo "Swagger documentation generated successfully in api/"
 	@test -f api/swagger.json && echo "swagger.json: OK" || (echo "swagger.json: MISSING" && exit 1)
 	@test -f api/swagger.yaml && echo "swagger.yaml: OK" || (echo "swagger.yaml: MISSING" && exit 1)
