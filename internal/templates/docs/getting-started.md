@@ -4,10 +4,11 @@ AuthGate is an OAuth 2.0 authorization server that enables secure, passwordless 
 
 ## What is AuthGate?
 
-AuthGate implements two core OAuth 2.0 flows:
+AuthGate implements three core OAuth 2.0 flows:
 
 - **Device Authorization Grant (RFC 8628)** — ideal for CLI tools, scripts, and headless environments where opening a browser programmatically is inconvenient or impossible.
 - **Authorization Code Flow + PKCE (RFC 7636)** — the recommended flow for web and mobile applications.
+- **Client Credentials Grant (RFC 6749 §4.4)** — for machine-to-machine (M2M) authentication where no user is involved.
 
 ## Quick Setup
 
@@ -47,7 +48,7 @@ Every application that wants to authenticate via AuthGate needs a registered **O
 - A unique `client_id`
 - An optional `client_secret` (for confidential clients only)
 - Configured allowed redirect URIs
-- Enabled grant types (device flow, auth code flow, or both)
+- Enabled grant types (device flow, auth code flow, client credentials, or a combination)
 
 ### Tokens
 
@@ -81,3 +82,4 @@ See the full configuration reference in `.env.example`.
 
 - [Device Authorization Flow](./device-flow) — Learn how CLI and headless clients authenticate
 - [Authorization Code Flow](./auth-code-flow) — Learn how web and mobile apps authenticate
+- [Client Credentials Flow](./client-credentials) — Learn how services authenticate without a user

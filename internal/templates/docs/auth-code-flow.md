@@ -194,3 +194,4 @@ For a hybrid CLI that auto-detects the environment and uses Device Flow over SSH
 
 - [Getting Started](./getting-started)
 - [Device Authorization Flow](./device-flow)
+- [Client Credentials Flow](./client-credentials)

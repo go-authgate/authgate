@@ -130,3 +130,4 @@ See [github.com/go-authgate/device-cli](https://github.com/go-authgate/device-cl
 
 - [Getting Started](./getting-started)
 - [Authorization Code Flow](./auth-code-flow)
+- [Client Credentials Flow](./client-credentials)

@@ -24,10 +24,11 @@ templ Navbar(props *NavbarProps) {
 							@NavDropdownItem("/account/authorizations", "Authorized Apps", props.ActiveLink == "authorizations", false, false)
 							@NavDropdownItem("/apps", "My Apps", props.ActiveLink == "my-apps", false, false)
 						}
-						@NavDropdown("Docs", props.ActiveLink == "docs-getting-started" || props.ActiveLink == "docs-device-flow" || props.ActiveLink == "docs-auth-code-flow") {
+						@NavDropdown("Docs", props.ActiveLink == "docs-getting-started" || props.ActiveLink == "docs-device-flow" || props.ActiveLink == "docs-auth-code-flow" || props.ActiveLink == "docs-client-credentials") {
 							@NavDropdownItem("/docs/getting-started", "Getting Started", props.ActiveLink == "docs-getting-started", false, false)
 							@NavDropdownItem("/docs/device-flow", "Device Flow", props.ActiveLink == "docs-device-flow", false, false)
 							@NavDropdownItem("/docs/auth-code-flow", "Auth Code Flow", props.ActiveLink == "docs-auth-code-flow", false, false)
+							@NavDropdownItem("/docs/client-credentials", "Client Credentials", props.ActiveLink == "docs-client-credentials", false, false)
 						}
 						@NavDropdown("API", props.ActiveLink == "apidocs") {
 							@NavDropdownItem("/swagger/index.html", "Swagger UI", props.ActiveLink == "apidocs", false, true)
@@ -46,10 +47,11 @@ templ Navbar(props *NavbarProps) {
 					</div>
 				} else {
 					<div class="navbar-links">
-						@NavDropdown("Docs", props.ActiveLink == "docs-getting-started" || props.ActiveLink == "docs-device-flow" || props.ActiveLink == "docs-auth-code-flow") {
+						@NavDropdown("Docs", props.ActiveLink == "docs-getting-started" || props.ActiveLink == "docs-device-flow" || props.ActiveLink == "docs-auth-code-flow" || props.ActiveLink == "docs-client-credentials") {
 							@NavDropdownItem("/docs/getting-started", "Getting Started", props.ActiveLink == "docs-getting-started", false, false)
 							@NavDropdownItem("/docs/device-flow", "Device Flow", props.ActiveLink == "docs-device-flow", false, false)
 							@NavDropdownItem("/docs/auth-code-flow", "Auth Code Flow", props.ActiveLink == "docs-auth-code-flow", false, false)
+							@NavDropdownItem("/docs/client-credentials", "Client Credentials", props.ActiveLink == "docs-client-credentials", false, false)
 						}
 						@NavDropdown("API", props.ActiveLink == "apidocs") {
 							@NavDropdownItem("/swagger/index.html", "Swagger UI", props.ActiveLink == "apidocs", false, true)
