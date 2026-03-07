@@ -40,3 +40,10 @@ coverage.txt
 api/*
 !api/.gitkeep
 .worktrees
+
+# esbuild generated files
+internal/templates/static/dist/*.css
+internal/templates/static/dist/*.css.map
+internal/templates/static/dist/*.js
+internal/templates/static/dist/*.js.map
+internal/templates/asset_paths.go

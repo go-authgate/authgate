@@ -25,6 +25,8 @@ function toggleDropdown(trigger) {
   trigger.setAttribute('aria-expanded', isExpanded ? 'false' : 'true');
 }
 
+export { toggleMenu, toggleDropdown };
+
 // Close mobile menu when clicking outside
 document.addEventListener('DOMContentLoaded', function() {
   const navbar = document.querySelector('.navbar');

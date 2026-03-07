@@ -2,7 +2,6 @@ package templates
 
 templ DocsPage(props DocsPageProps) {
 	@Layout("Docs - "+props.Title, LayoutHasNavbar, &props.NavbarProps) {
-		<link rel="stylesheet" href="/static/css/pages/docs.css"/>
 		<div class="docs-layout">
 			<aside class="docs-sidebar" aria-label="Documentation navigation">
 				<div class="docs-sidebar-header">

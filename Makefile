@@ -82,10 +82,19 @@ build_all_linux_amd64: build_linux_amd64
 ## build_all_linux_arm64: build authgate binary for linux arm64
 build_all_linux_arm64: build_linux_arm64
 
+## assets: build and minify static assets (production)
+assets:
+	$(GO) run scripts/build_assets.go --minify
+
+## assets-dev: build static assets without minification (development)
+assets-dev:
+	$(GO) run scripts/build_assets.go
+
 ## clean: remove build artifacts and test coverage
 clean:
-	rm -rf bin/ release/ coverage.txt
+	rm -rf bin/ release/ coverage.txt internal/templates/static/dist/
 	find internal/templates -name "*_templ.go" -delete
+	rm -f internal/templates/asset_paths.go
 
 ## rebuild: clean and build
 rebuild: clean build
@@ -95,6 +104,7 @@ rebuild: clean build
 .PHONY: build_all_linux_amd64 build_all_linux_arm64 install-templ generate watch air dev mocks
 .PHONY: install-golangci-lint install-mockgen install-tools mod-download mod-tidy mod-verify check-tools version
 .PHONY: docker-build docker-run install-swag swagger swagger-init swagger-fmt swagger-validate
+.PHONY: assets assets-dev
 
 ## install-templ: install templ CLI if not installed
 install-templ:
@@ -108,7 +118,7 @@ install-mockgen:
 install-tools: install-templ install-swag install-golangci-lint install-mockgen
 
 ## generate: run go generate (templ compilation + mocks via go:generate directives)
-generate: install-tools swagger
+generate: install-tools assets swagger
 	$(GO) generate ./...
 
 ## mocks: generate mock files only (all directives in internal/mocks/)

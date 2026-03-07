@@ -129,6 +129,8 @@ function confirmRegenerateSecret() {
   );
 }
 
+export { copySecret, toggleDescription, confirmDelete, confirmRegenerateSecret };
+
 /**
  * Initialize admin page interactions
  */

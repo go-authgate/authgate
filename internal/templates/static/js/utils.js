@@ -95,6 +95,8 @@ function toggleDetails(buttonElement) {
   }
 }
 
+export { formatRelativeTime, copyToClipboard, showNotification, confirmAction, toggleDetails };
+
 /**
  * Initialize tooltips (if needed)
  */
