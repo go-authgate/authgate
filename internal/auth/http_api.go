@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/core"
+	"github.com/go-authgate/authgate/internal/util"
 )
 
 var _ core.AuthProvider = (*HTTPAPIAuthProvider)(nil)
@@ -76,38 +77,29 @@ func (p *HTTPAPIAuthProvider) Authenticate(
 		return nil, fmt.Errorf("%w: failed to read response", ErrHTTPAPIInvalidResp)
 	}
 
-	// Check HTTP status code before attempting to parse JSON
+	// Unmarshal once, then branch on status code
+	var authResp APIAuthResponse
+	unmarshalErr := json.Unmarshal(body, &authResp)
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// Try to parse as JSON to get error message
-		var authResp APIAuthResponse
-		if err := json.Unmarshal(body, &authResp); err == nil {
-			// Valid JSON response with error
-			if authResp.Message != "" {
-				return nil, fmt.Errorf(
-					"%w: HTTP %d - %s",
-					ErrHTTPAPIAuthFailed,
-					resp.StatusCode,
-					authResp.Message,
-				)
-			}
-		}
-		// Non-JSON or missing message, return generic error with status code
-		// Limit body preview to 200 characters to avoid overwhelming logs
-		bodyPreview := string(body)
-		if len(bodyPreview) > 200 {
-			bodyPreview = bodyPreview[:200] + "..."
+		if unmarshalErr == nil && authResp.Message != "" {
+			return nil, fmt.Errorf(
+				"%w: HTTP %d - %s",
+				ErrHTTPAPIAuthFailed,
+				resp.StatusCode,
+				authResp.Message,
+			)
 		}
 		return nil, fmt.Errorf(
 			"%w: HTTP %d - %s",
 			ErrHTTPAPIInvalidResp,
 			resp.StatusCode,
-			bodyPreview,
+			util.TruncateString(string(body), 200),
 		)
 	}
 
-	var authResp APIAuthResponse
-	if err := json.Unmarshal(body, &authResp); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrHTTPAPIInvalidResp, err)
+	if unmarshalErr != nil {
+		return nil, fmt.Errorf("%w: %v", ErrHTTPAPIInvalidResp, unmarshalErr)
 	}
 
 	if !authResp.Success {

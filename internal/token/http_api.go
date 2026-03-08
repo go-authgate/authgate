@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/core"
+	"github.com/go-authgate/authgate/internal/util"
 )
 
 var _ core.TokenProvider = (*HTTPTokenProvider)(nil)
@@ -70,11 +71,12 @@ func handleGenerateError(body []byte, statusCode string) error {
 	if err := json.Unmarshal(body, &apiResp); err == nil && apiResp.Message != "" {
 		return fmt.Errorf("%w: %s - %s", ErrHTTPTokenAuthFailed, statusCode, apiResp.Message)
 	}
-	bodyPreview := string(body)
-	if len(bodyPreview) > 200 {
-		bodyPreview = bodyPreview[:200] + "..."
-	}
-	return fmt.Errorf("%w: %s - %s", ErrHTTPTokenInvalidResp, statusCode, bodyPreview)
+	return fmt.Errorf(
+		"%w: %s - %s",
+		ErrHTTPTokenInvalidResp,
+		statusCode,
+		util.TruncateString(string(body), 200),
+	)
 }
 
 // parseGenerateResponse parses and validates token generation response

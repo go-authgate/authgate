@@ -32,7 +32,7 @@ func (p *OAuthProvider) getGitHubUserInfo(
 	client := p.config.Client(ctx, token)
 
 	var user githubUser
-	if err := fetchJSON(ctx, client, "https://api.github.com/user", &user); err != nil {
+	if err := fetchJSON(ctx, client, p.apiURL, &user); err != nil {
 		return nil, fmt.Errorf("failed to get GitHub user info: %w", err)
 	}
 
@@ -63,7 +63,7 @@ func (p *OAuthProvider) getGitHubPrimaryEmail(
 	client *http.Client,
 ) (string, error) {
 	var emails []githubEmail
-	if err := fetchJSON(ctx, client, "https://api.github.com/user/emails", &emails); err != nil {
+	if err := fetchJSON(ctx, client, p.apiURL+"/emails", &emails); err != nil {
 		return "", fmt.Errorf("failed to get GitHub emails: %w", err)
 	}
 

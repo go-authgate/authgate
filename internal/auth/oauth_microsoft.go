@@ -26,7 +26,7 @@ func (p *OAuthProvider) getMicrosoftUserInfo(
 	client := p.config.Client(ctx, token)
 
 	var user microsoftUser
-	if err := fetchJSON(ctx, client, "https://graph.microsoft.com/v1.0/me", &user); err != nil {
+	if err := fetchJSON(ctx, client, p.apiURL, &user); err != nil {
 		return nil, fmt.Errorf("failed to get Microsoft user info: %w", err)
 	}
 

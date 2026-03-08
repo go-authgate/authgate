@@ -13,6 +13,14 @@ import (
 	"golang.org/x/oauth2/microsoft"
 )
 
+// Provider name constants
+const (
+	ProviderGitHub    = "github"
+	ProviderGitea     = "gitea"
+	ProviderGitLab    = "gitlab"
+	ProviderMicrosoft = "microsoft"
+)
+
 // OAuthProviderConfig contains configuration for an OAuth provider
 type OAuthProviderConfig struct {
 	ClientID     string
@@ -40,7 +48,8 @@ type OAuthProvider struct {
 // NewGitHubProvider creates a new GitHub OAuth provider
 func NewGitHubProvider(cfg OAuthProviderConfig) *OAuthProvider {
 	return &OAuthProvider{
-		provider: "github",
+		provider: ProviderGitHub,
+		apiURL:   "https://api.github.com/user",
 		config: &oauth2.Config{
 			ClientID:     cfg.ClientID,
 			ClientSecret: cfg.ClientSecret,
@@ -55,7 +64,7 @@ func NewGitHubProvider(cfg OAuthProviderConfig) *OAuthProvider {
 func NewGiteaProvider(cfg OAuthProviderConfig, giteaURL string) *OAuthProvider {
 	giteaURL = strings.TrimSuffix(giteaURL, "/")
 	return &OAuthProvider{
-		provider: "gitea",
+		provider: ProviderGitea,
 		apiURL:   giteaURL + "/api/v1/user",
 		config: &oauth2.Config{
 			ClientID:     cfg.ClientID,
@@ -73,7 +82,8 @@ func NewGiteaProvider(cfg OAuthProviderConfig, giteaURL string) *OAuthProvider {
 // NewMicrosoftProvider creates a new Microsoft Entra ID OAuth provider
 func NewMicrosoftProvider(cfg OAuthProviderConfig, tenantID string) *OAuthProvider {
 	return &OAuthProvider{
-		provider: "microsoft",
+		provider: ProviderMicrosoft,
+		apiURL:   "https://graph.microsoft.com/v1.0/me",
 		config: &oauth2.Config{
 			ClientID:     cfg.ClientID,
 			ClientSecret: cfg.ClientSecret,
@@ -94,7 +104,7 @@ func NewGitLabProvider(cfg OAuthProviderConfig, gitlabURL string) *OAuthProvider
 	}
 	gitlabURL = strings.TrimSuffix(gitlabURL, "/")
 	return &OAuthProvider{
-		provider: "gitlab",
+		provider: ProviderGitLab,
 		apiURL:   gitlabURL + "/api/v4/user",
 		config: &oauth2.Config{
 			ClientID:     cfg.ClientID,
@@ -125,13 +135,13 @@ func (p *OAuthProvider) GetUserInfo(
 	token *oauth2.Token,
 ) (*OAuthUserInfo, error) {
 	switch p.provider {
-	case "github":
+	case ProviderGitHub:
 		return p.getGitHubUserInfo(ctx, token)
-	case "gitea":
+	case ProviderGitea:
 		return p.getGiteaUserInfo(ctx, token)
-	case "gitlab":
+	case ProviderGitLab:
 		return p.getGitLabUserInfo(ctx, token)
-	case "microsoft":
+	case ProviderMicrosoft:
 		return p.getMicrosoftUserInfo(ctx, token)
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", p.provider)
@@ -146,13 +156,13 @@ func (p *OAuthProvider) GetProvider() string {
 // GetDisplayName returns the human-readable provider name
 func (p *OAuthProvider) GetDisplayName() string {
 	switch p.provider {
-	case "github":
+	case ProviderGitHub:
 		return "GitHub"
-	case "gitea":
+	case ProviderGitea:
 		return "Gitea"
-	case "gitlab":
+	case ProviderGitLab:
 		return "GitLab"
-	case "microsoft":
+	case ProviderMicrosoft:
 		return "Microsoft"
 	default:
 		if len(p.provider) == 0 {
@@ -174,7 +184,10 @@ func fetchJSON(ctx context.Context, client *http.Client, url string, dest any) e
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("unexpected status %s (failed to read body: %w)", resp.Status, err)
+		}
 		return fmt.Errorf("unexpected status %s: %s", resp.Status, body)
 	}
 	if err := json.NewDecoder(resp.Body).Decode(dest); err != nil {
