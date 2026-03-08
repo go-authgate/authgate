@@ -530,6 +530,56 @@ func TestHTTPTokenProvider_HMACAuth_MissingHeaders(t *testing.T) {
 	assert.True(t, result.Valid)
 }
 
+// TestHTTPTokenProvider_GenerateClientCredentialsToken_UsesCorrectExpiration tests that
+// GenerateClientCredentialsToken sends expires_in derived from ClientCredentialsTokenExpiration,
+// not the default JWTExpiration.
+func TestHTTPTokenProvider_GenerateClientCredentialsToken_UsesCorrectExpiration(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/generate", r.URL.Path)
+
+		var req APITokenGenerateRequest
+		err := json.NewDecoder(r.Body).Decode(&req)
+		assert.NoError(t, err)
+
+		// ClientCredentialsTokenExpiration = 2h = 7200s, not JWTExpiration = 1h = 3600s
+		assert.Equal(
+			t,
+			7200,
+			req.ExpiresIn,
+			"should use ClientCredentialsTokenExpiration, not JWTExpiration",
+		)
+		assert.Equal(t, "client:svc-client", req.UserID)
+		assert.Equal(t, "svc-client", req.ClientID)
+		assert.Equal(t, "api:read", req.Scopes)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(APITokenGenerateResponse{
+			Success:     true,
+			AccessToken: "cc-token-12345",
+			TokenType:   "Bearer",
+			ExpiresIn:   7200,
+		})
+	}))
+	defer server.Close()
+
+	cfg := testConfig(server.URL)
+	cfg.ClientCredentialsTokenExpiration = 2 * time.Hour // Different from JWTExpiration (1h)
+
+	provider := createTestProvider(cfg)
+	result, err := provider.GenerateClientCredentialsToken(
+		context.Background(),
+		"client:svc-client",
+		"svc-client",
+		"api:read",
+	)
+
+	require.NoError(t, err)
+	assert.True(t, result.Success)
+	assert.Equal(t, "cc-token-12345", result.TokenString)
+	assert.WithinDuration(t, time.Now().Add(7200*time.Second), result.ExpiresAt, 1*time.Second)
+}
+
 // TestHTTPTokenProvider_NoAuth_NoHeaders tests that no auth headers are added when auth mode is "none"
 func TestHTTPTokenProvider_NoAuth_NoHeaders(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
