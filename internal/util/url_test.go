@@ -2,6 +2,8 @@ package util
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestIsRedirectSafe(t *testing.T) {
@@ -147,6 +149,36 @@ func TestIsRedirectSafe(t *testing.T) {
 			want:        false,
 		},
 
+		// Attack vectors - non-http schemes
+		{
+			name:        "ftp URL",
+			redirectURL: "ftp://evil.com/file",
+			baseURL:     baseURL,
+			want:        false,
+		},
+		{
+			name:        "file URL",
+			redirectURL: "file:///etc/passwd",
+			baseURL:     baseURL,
+			want:        false,
+		},
+
+		// Edge cases - invalid baseURL
+		{
+			name:        "invalid baseURL with absolute redirect",
+			redirectURL: "http://localhost:8080/device",
+			baseURL:     "://invalid-url",
+			want:        false,
+		},
+
+		// Edge cases - invalid redirect URL
+		{
+			name:        "unparseable redirect URL",
+			redirectURL: "http://[::1:bad",
+			baseURL:     baseURL,
+			want:        false,
+		},
+
 		// Valid edge cases
 		{
 			name:        "path with fragments",
@@ -160,15 +192,18 @@ func TestIsRedirectSafe(t *testing.T) {
 			baseURL:     baseURL,
 			want:        true,
 		},
+		{
+			name:        "scheme-only URL without host is unsafe",
+			redirectURL: "http:",
+			baseURL:     baseURL,
+			want:        false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := IsRedirectSafe(tt.redirectURL, tt.baseURL)
-			if got != tt.want {
-				t.Errorf("IsRedirectSafe(%q, %q) = %v, want %v",
-					tt.redirectURL, tt.baseURL, got, tt.want)
-			}
+			assert.Equalf(t, tt.want, got, "IsRedirectSafe(%q, %q)", tt.redirectURL, tt.baseURL)
 		})
 	}
 }

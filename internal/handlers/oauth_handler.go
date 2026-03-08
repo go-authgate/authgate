@@ -249,7 +249,7 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 
 // generateRandomState returns a URL-safe base64-encoded string of nBytes random bytes.
 func generateRandomState(nBytes int) (string, error) {
-	b, err := util.CryptoRandomBytes(int64(nBytes))
+	b, err := util.CryptoRandomBytes(nBytes)
 	if err != nil {
 		return "", err
 	}

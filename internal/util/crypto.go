@@ -9,7 +9,7 @@ import (
 )
 
 // CryptoRandomBytes generates cryptographically secure random bytes
-func CryptoRandomBytes(length int64) ([]byte, error) {
+func CryptoRandomBytes(length int) ([]byte, error) {
 	buf := make([]byte, length)
 	_, err := rand.Read(buf)
 	return buf, err
@@ -17,7 +17,7 @@ func CryptoRandomBytes(length int64) ([]byte, error) {
 
 // CryptoRandomString generates a random hex string for salts
 func CryptoRandomString(length int) (string, error) {
-	randomBytes, err := CryptoRandomBytes(int64((length + 1) / 2))
+	randomBytes, err := CryptoRandomBytes((length + 1) / 2)
 	if err != nil {
 		return "", err
 	}

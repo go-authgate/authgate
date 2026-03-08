@@ -129,7 +129,7 @@ func (s *Store) Close(ctx context.Context) error {
 // generateRandomPassword generates a random password of specified length.
 // Uses base64url encoding and truncates to length printable characters.
 func generateRandomPassword(length int) (string, error) {
-	b, err := util.CryptoRandomBytes(int64(length))
+	b, err := util.CryptoRandomBytes(length)
 	if err != nil {
 		return "", err
 	}

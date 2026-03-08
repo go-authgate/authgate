@@ -23,6 +23,12 @@ func TestCryptoRandomBytes(t *testing.T) {
 
 		assert.NotEqual(t, bytes1, bytes2, "Random bytes should not be identical")
 	})
+
+	t.Run("Zero length returns empty slice", func(t *testing.T) {
+		bytes, err := CryptoRandomBytes(0)
+		require.NoError(t, err)
+		assert.Empty(t, bytes)
+	})
 }
 
 func TestCryptoRandomString(t *testing.T) {
@@ -40,6 +46,28 @@ func TestCryptoRandomString(t *testing.T) {
 			assert.True(t, (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'),
 				"Character '%c' is not a valid hex digit", c)
 		}
+	})
+
+	t.Run("Odd length produces correct length", func(t *testing.T) {
+		str, err := CryptoRandomString(7)
+		require.NoError(t, err)
+		assert.Len(t, str, 7)
+	})
+
+	t.Run("Length of 1", func(t *testing.T) {
+		str, err := CryptoRandomString(1)
+		require.NoError(t, err)
+		assert.Len(t, str, 1)
+	})
+
+	t.Run("Generate unique values", func(t *testing.T) {
+		str1, err := CryptoRandomString(32)
+		require.NoError(t, err)
+
+		str2, err := CryptoRandomString(32)
+		require.NoError(t, err)
+
+		assert.NotEqual(t, str1, str2)
 	})
 }
 
@@ -108,5 +136,25 @@ func TestHashToken(t *testing.T) {
 		hash2 := HashToken(token2, salt)
 
 		assert.NotEqual(t, hash1, hash2)
+	})
+
+	t.Run("Empty token produces valid hash", func(t *testing.T) {
+		hash := HashToken("", "some-salt")
+		assert.Len(t, hash, 100)
+		assert.NotEmpty(t, hash)
+	})
+
+	t.Run("Empty salt produces valid hash", func(t *testing.T) {
+		hash := HashToken("some-token", "")
+		assert.Len(t, hash, 100)
+		assert.NotEmpty(t, hash)
+	})
+
+	t.Run("Output contains only hex characters", func(t *testing.T) {
+		hash := HashToken("test-token", "test-salt")
+		for _, c := range hash {
+			assert.Truef(t, (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'),
+				"Character '%c' is not a valid hex digit", c)
+		}
 	})
 }

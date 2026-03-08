@@ -3,6 +3,9 @@ package util
 import (
 	"context"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSetIPContext(t *testing.T) {
@@ -28,20 +31,13 @@ func TestSetIPContext(t *testing.T) {
 			ctx := context.Background()
 			newCtx := SetIPContext(ctx, tt.ip)
 
-			if newCtx == nil {
-				t.Fatal("SetIPContext returned nil context")
-			}
+			require.NotNil(t, newCtx, "SetIPContext returned nil context")
 
-			// Try to retrieve the IP
 			retrievedIP := GetIPFromContext(newCtx)
 			if tt.expected {
-				if retrievedIP != tt.ip {
-					t.Errorf("Expected IP %s, got %s", tt.ip, retrievedIP)
-				}
+				assert.Equal(t, tt.ip, retrievedIP)
 			} else {
-				if retrievedIP != "" {
-					t.Errorf("Expected empty IP, but got %s", retrievedIP)
-				}
+				assert.Empty(t, retrievedIP)
 			}
 		})
 	}
@@ -80,15 +76,12 @@ func TestGetIPFromContext(t *testing.T) {
 			}
 
 			ip := GetIPFromContext(ctx)
-			if ip != tt.expected {
-				t.Errorf("Expected IP %q, got %q", tt.expected, ip)
-			}
+			assert.Equal(t, tt.expected, ip)
 		})
 	}
 }
 
 func TestIPContextChaining(t *testing.T) {
-	// Test that context values are preserved when chaining
 	type testKey int
 	const testKeyOther testKey = 0
 
@@ -96,13 +89,6 @@ func TestIPContextChaining(t *testing.T) {
 	ctx = context.WithValue(ctx, testKeyOther, "other_value")
 	ctx = SetIPContext(ctx, "192.168.1.1")
 
-	// Check IP is accessible
-	if GetIPFromContext(ctx) != "192.168.1.1" {
-		t.Error("IP context was not preserved")
-	}
-
-	// Check other values are accessible
-	if val := ctx.Value(testKeyOther); val != "other_value" {
-		t.Error("Other context values were not preserved")
-	}
+	assert.Equal(t, "192.168.1.1", GetIPFromContext(ctx))
+	assert.Equal(t, "other_value", ctx.Value(testKeyOther))
 }
