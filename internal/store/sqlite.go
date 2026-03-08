@@ -139,7 +139,9 @@ func generateRandomPassword(length int) (string, error) {
 func (s *Store) seedData(ctx context.Context, cfg *config.Config) error {
 	// Create default user if not exists
 	var userCount int64
-	s.db.WithContext(ctx).Model(&models.User{}).Count(&userCount)
+	if err := s.db.WithContext(ctx).Model(&models.User{}).Count(&userCount).Error; err != nil {
+		return fmt.Errorf("failed to count users: %w", err)
+	}
 	var userID string
 	if userCount == 0 {
 		userID = uuid.New().String()
@@ -182,7 +184,12 @@ func (s *Store) seedData(ctx context.Context, cfg *config.Config) error {
 
 	// Create default OAuth client if not exists
 	var clientCount int64
-	s.db.WithContext(ctx).Model(&models.OAuthApplication{}).Count(&clientCount)
+	if err := s.db.WithContext(ctx).
+		Model(&models.OAuthApplication{}).
+		Count(&clientCount).
+		Error; err != nil {
+		return fmt.Errorf("failed to count OAuth clients: %w", err)
+	}
 	if clientCount == 0 {
 		// If admin user was not just created, look up the existing admin user ID
 		if userID == "" {
