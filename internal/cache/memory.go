@@ -123,14 +123,5 @@ func (m *MemoryCache[T]) GetWithFetch(
 	ttl time.Duration,
 	fetchFunc func(ctx context.Context, key string) (T, error),
 ) (T, error) {
-	if value, err := m.Get(ctx, key); err == nil {
-		return value, nil
-	}
-	value, err := fetchFunc(ctx, key)
-	if err != nil {
-		var zero T
-		return zero, err
-	}
-	_ = m.Set(ctx, key, value, ttl)
-	return value, nil
+	return fetchThrough(ctx, key, ttl, m.Get, m.Set, fetchFunc)
 }
