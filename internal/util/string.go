@@ -1,9 +1,13 @@
 package util
 
-// TruncateString truncates s to maxLen characters and appends "..." if truncated.
+// TruncateString truncates s to maxLen runes and appends "..." if truncated.
 func TruncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
+	if maxLen <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= maxLen {
 		return s
 	}
-	return s[:maxLen] + "..."
+	return string(runes[:maxLen]) + "..."
 }

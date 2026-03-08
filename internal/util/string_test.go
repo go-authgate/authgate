@@ -18,7 +18,11 @@ func TestTruncateString(t *testing.T) {
 		{"exact length unchanged", "hello", 5, "hello"},
 		{"truncated with ellipsis", "hello world", 5, "hello..."},
 		{"empty string", "", 5, ""},
-		{"zero max length", "hello", 0, "..."},
+		{"zero max length", "hello", 0, ""},
+		{"negative max length", "hello", -1, ""},
+		{"multibyte runes", "こんにちは世界", 3, "こんに..."},
+		{"multibyte within limit", "こんにちは", 5, "こんにちは"},
+		{"mixed ascii and multibyte", "hello世界", 6, "hello世..."},
 		{"long string", strings.Repeat("a", 300), 200, strings.Repeat("a", 200) + "..."},
 	}
 	for _, tt := range tests {

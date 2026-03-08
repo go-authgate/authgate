@@ -42,7 +42,7 @@ type OAuthUserInfo struct {
 type OAuthProvider struct {
 	config   *oauth2.Config
 	provider string // "github", "gitea", "gitlab", "microsoft", etc.
-	apiURL   string // Pre-computed user info endpoint (set for instance-based providers)
+	apiURL   string // User info endpoint for the provider
 }
 
 // NewGitHubProvider creates a new GitHub OAuth provider
