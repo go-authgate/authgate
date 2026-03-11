@@ -15,12 +15,13 @@ import (
 
 const (
 	SessionUserID       = "user_id"
+	SessionUsername     = "username"
 	SessionLastActivity = "last_activity"
 	SessionFingerprint  = "session_fingerprint"
 )
 
-// generateFingerprint creates a SHA256 hash from IP (optional) and User-Agent
-func generateFingerprint(ip, userAgent string, includeIP bool) string {
+// GenerateFingerprint creates a SHA256 hash from IP (optional) and User-Agent.
+func GenerateFingerprint(ip, userAgent string, includeIP bool) string {
 	data := userAgent
 	if includeIP {
 		data = ip + "|" + userAgent
@@ -93,7 +94,7 @@ func SessionFingerprintMiddleware(enabled, includeIP bool) gin.HandlerFunc {
 				// Get current fingerprint
 				clientIP := c.GetString("client_ip") // Set by IPMiddleware
 				userAgent := c.Request.UserAgent()
-				currentFingerprint := generateFingerprint(clientIP, userAgent, includeIP)
+				currentFingerprint := GenerateFingerprint(clientIP, userAgent, includeIP)
 
 				// Compare fingerprints
 				if storedFingerprint.(string) != currentFingerprint {

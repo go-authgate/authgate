@@ -22,7 +22,7 @@ func initializeOAuthProviders(cfg *config.Config) map[string]*auth.OAuthProvider
 	case cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "":
 		log.Printf("Warning: GitHub OAuth enabled but CLIENT_ID or CLIENT_SECRET missing")
 	default:
-		providers["github"] = auth.NewGitHubProvider(auth.OAuthProviderConfig{
+		providers[auth.ProviderGitHub] = auth.NewGitHubProvider(auth.OAuthProviderConfig{
 			ClientID:     cfg.GitHubClientID,
 			ClientSecret: cfg.GitHubClientSecret,
 			RedirectURL:  cfg.GitHubOAuthRedirectURL,
@@ -38,7 +38,7 @@ func initializeOAuthProviders(cfg *config.Config) map[string]*auth.OAuthProvider
 	case cfg.GiteaURL == "" || cfg.GiteaClientID == "" || cfg.GiteaClientSecret == "":
 		log.Printf("Warning: Gitea OAuth enabled but URL, CLIENT_ID or CLIENT_SECRET missing")
 	default:
-		providers["gitea"] = auth.NewGiteaProvider(auth.OAuthProviderConfig{
+		providers[auth.ProviderGitea] = auth.NewGiteaProvider(auth.OAuthProviderConfig{
 			ClientID:     cfg.GiteaClientID,
 			ClientSecret: cfg.GiteaClientSecret,
 			RedirectURL:  cfg.GiteaOAuthRedirectURL,
@@ -58,7 +58,7 @@ func initializeOAuthProviders(cfg *config.Config) map[string]*auth.OAuthProvider
 	case cfg.MicrosoftClientID == "" || cfg.MicrosoftClientSecret == "":
 		log.Printf("Warning: Microsoft OAuth enabled but CLIENT_ID or CLIENT_SECRET missing")
 	default:
-		providers["microsoft"] = auth.NewMicrosoftProvider(auth.OAuthProviderConfig{
+		providers[auth.ProviderMicrosoft] = auth.NewMicrosoftProvider(auth.OAuthProviderConfig{
 			ClientID:     cfg.MicrosoftClientID,
 			ClientSecret: cfg.MicrosoftClientSecret,
 			RedirectURL:  cfg.MicrosoftOAuthRedirectURL,
@@ -78,7 +78,7 @@ func initializeOAuthProviders(cfg *config.Config) map[string]*auth.OAuthProvider
 	case cfg.GitLabClientID == "" || cfg.GitLabClientSecret == "":
 		log.Printf("Warning: GitLab OAuth enabled but CLIENT_ID or CLIENT_SECRET missing")
 	default:
-		providers["gitlab"] = auth.NewGitLabProvider(auth.OAuthProviderConfig{
+		providers[auth.ProviderGitLab] = auth.NewGitLabProvider(auth.OAuthProviderConfig{
 			ClientID:     cfg.GitLabClientID,
 			ClientSecret: cfg.GitLabClientSecret,
 			RedirectURL:  cfg.GitLabOAuthRedirectURL,

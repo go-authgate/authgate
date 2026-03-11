@@ -34,10 +34,24 @@ func NewMemoryCache[T any]() *MemoryCache[T] {
 // Get retrieves a value from cache.
 func (m *MemoryCache[T]) Get(ctx context.Context, key string) (T, error) {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-
 	item, exists := m.items[key]
-	if !exists || time.Now().After(item.expiresAt) {
+	m.mu.RUnlock()
+
+	if !exists {
+		var zero T
+		return zero, ErrCacheMiss
+	}
+
+	if time.Now().After(item.expiresAt) {
+		// Lazily remove expired entry
+		m.mu.Lock()
+		// Re-check under write lock to avoid deleting a freshly-updated entry.
+		if current, ok := m.items[key]; ok {
+			if time.Now().After(current.expiresAt) {
+				delete(m.items, key)
+			}
+		}
+		m.mu.Unlock()
 		var zero T
 		return zero, ErrCacheMiss
 	}
