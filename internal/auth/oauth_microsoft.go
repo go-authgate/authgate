@@ -49,6 +49,7 @@ func (p *OAuthProvider) getMicrosoftUserInfo(
 		Username:       strings.Split(email, "@")[0],
 		Email:          email,
 		FullName:       fullName,
-		AvatarURL:      "", // Microsoft Graph /me doesn't include photo by default
+		AvatarURL:      "",   // Microsoft Graph /me doesn't include photo by default
+		EmailVerified:  true, // Microsoft Entra ID email is tenant-controlled and admin-managed
 	}, nil
 }

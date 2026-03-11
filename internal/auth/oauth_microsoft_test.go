@@ -46,6 +46,7 @@ func TestGetMicrosoftUserInfo_Success_WithMail(t *testing.T) {
 	assert.Equal(t, "jane.doe", info.Username) // split on @
 	assert.Equal(t, "Jane Doe", info.FullName)
 	assert.Equal(t, "jane.doe@corp.com", info.Email) // mail preferred over UPN
+	assert.True(t, info.EmailVerified, "Microsoft Entra ID email is tenant-controlled")
 }
 
 func TestGetMicrosoftUserInfo_Success_FallsBackToUPN(t *testing.T) {

@@ -38,5 +38,6 @@ func (p *OAuthProvider) getGiteaUserInfo(
 		Email:          user.Email,
 		FullName:       user.FullName,
 		AvatarURL:      user.AvatarURL,
+		EmailVerified:  false, // Gitea API does not expose email verification status
 	}, nil
 }

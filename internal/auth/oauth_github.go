@@ -55,6 +55,7 @@ func (p *OAuthProvider) getGitHubUserInfo(
 		Email:          user.Email,
 		FullName:       user.Name,
 		AvatarURL:      user.AvatarURL,
+		EmailVerified:  true, // GitHub enforces email verification; fallback path filters for Verified: true
 	}, nil
 }
 

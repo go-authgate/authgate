@@ -36,6 +36,7 @@ type OAuthUserInfo struct {
 	Email          string // User email (required)
 	FullName       string // User full name
 	AvatarURL      string // Avatar URL
+	EmailVerified  bool   // Whether the provider has verified the email address
 }
 
 // OAuthProvider handles OAuth authentication

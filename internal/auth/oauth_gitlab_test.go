@@ -72,6 +72,7 @@ func TestGetGitLabUserInfo_Success(t *testing.T) {
 	assert.Equal(t, "Jane Doe", info.FullName)
 	assert.Equal(t, "jane@example.com", info.Email)
 	assert.Equal(t, "https://gitlab.com/uploads/avatar.png", info.AvatarURL)
+	assert.False(t, info.EmailVerified, "GitLab API does not expose email verification status")
 }
 
 func TestGetGitLabUserInfo_NoEmail(t *testing.T) {

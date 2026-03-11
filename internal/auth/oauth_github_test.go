@@ -50,6 +50,7 @@ func TestGetGitHubUserInfo_Success(t *testing.T) {
 	assert.Equal(t, "The Octocat", info.FullName)
 	assert.Equal(t, "octocat@github.com", info.Email)
 	assert.Equal(t, "https://github.com/avatars/octocat", info.AvatarURL)
+	assert.True(t, info.EmailVerified, "GitHub emails are always verified")
 }
 
 func TestGetGitHubUserInfo_FetchesPrimaryEmail(t *testing.T) {
@@ -75,6 +76,7 @@ func TestGetGitHubUserInfo_FetchesPrimaryEmail(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "primary@example.com", info.Email)
+	assert.True(t, info.EmailVerified)
 }
 
 func TestGetGitHubUserInfo_FallsBackToFirstVerifiedEmail(t *testing.T) {
