@@ -64,6 +64,7 @@ func TestGetGiteaUserInfo_Success(t *testing.T) {
 	assert.Equal(t, "Gitea Tester", info.FullName)
 	assert.Equal(t, "gitea@example.com", info.Email)
 	assert.Equal(t, "https://gitea.example.com/avatars/99", info.AvatarURL)
+	assert.False(t, info.EmailVerified, "Gitea API does not expose email verification status")
 }
 
 func TestGetGiteaUserInfo_NoEmail(t *testing.T) {

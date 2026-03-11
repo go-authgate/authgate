@@ -126,3 +126,119 @@ func TestAuthenticateWithOAuth_AutoRegisterDisabled(t *testing.T) {
 	_, err := svc.AuthenticateWithOAuth(context.Background(), "github", info, newOAuthToken())
 	assert.ErrorIs(t, err, ErrOAuthAutoRegisterDisabled)
 }
+
+// TestAuthenticateWithOAuth_LinkExistingUser_VerifiedEmail verifies that when
+// EmailVerified is true and a local user with the same email exists, the OAuth
+// identity is auto-linked to the existing account.
+func TestAuthenticateWithOAuth_LinkExistingUser_VerifiedEmail(t *testing.T) {
+	svc := newOAuthUserService(t)
+
+	// Create an existing user first via a different provider.
+	existingInfo := &auth.OAuthUserInfo{
+		ProviderUserID: uuid.New().String(),
+		Username:       "existing",
+		Email:          "shared@example.com",
+		EmailVerified:  true,
+	}
+	user1, err := svc.AuthenticateWithOAuth(
+		context.Background(),
+		"github",
+		existingInfo,
+		newOAuthToken(),
+	)
+	require.NoError(t, err)
+
+	// Now authenticate via a different provider with a verified email matching
+	// the existing user — should auto-link rather than create a new account.
+	linkInfo := &auth.OAuthUserInfo{
+		ProviderUserID: uuid.New().String(),
+		Username:       "attacker",
+		Email:          "shared@example.com",
+		EmailVerified:  true,
+	}
+	user2, err := svc.AuthenticateWithOAuth(
+		context.Background(),
+		"microsoft",
+		linkInfo,
+		newOAuthToken(),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, user1.ID, user2.ID, "should link to existing user, not create a new one")
+}
+
+// TestAuthenticateWithOAuth_SkipLinkUnverifiedEmail verifies that when
+// EmailVerified is false and a local user with the same email exists, the
+// OAuth identity is NOT linked to the existing account. The attempt to create
+// a new account also fails because of the UNIQUE email constraint, which is
+// the correct security behaviour — the attacker cannot hijack the victim's
+// account.
+func TestAuthenticateWithOAuth_SkipLinkUnverifiedEmail(t *testing.T) {
+	svc := newOAuthUserService(t)
+
+	// Create an existing user.
+	existingInfo := &auth.OAuthUserInfo{
+		ProviderUserID: uuid.New().String(),
+		Username:       "victim",
+		Email:          "victim@example.com",
+		EmailVerified:  true,
+	}
+	_, err := svc.AuthenticateWithOAuth(
+		context.Background(),
+		"github",
+		existingInfo,
+		newOAuthToken(),
+	)
+	require.NoError(t, err)
+
+	// Attacker authenticates via a provider that does NOT verify email.
+	attackerInfo := &auth.OAuthUserInfo{
+		ProviderUserID: uuid.New().String(),
+		Username:       "attacker",
+		Email:          "victim@example.com",
+		EmailVerified:  false,
+	}
+	_, err = svc.AuthenticateWithOAuth(context.Background(), "gitea", attackerInfo, newOAuthToken())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "email already in use",
+		"unverified email must NOT auto-link; duplicate email prevents new account")
+}
+
+// TestAuthenticateWithOAuth_UnverifiedEmail_AutoRegisterDisabled verifies that
+// when EmailVerified is false, a matching local user exists, and auto-register
+// is disabled, the authentication returns ErrOAuthEmailNotVerified.
+func TestAuthenticateWithOAuth_UnverifiedEmail_AutoRegisterDisabled(t *testing.T) {
+	db := setupTestStore(t)
+	c := cache.NewMemoryCache[models.User]()
+
+	// First create a user with auto-register enabled.
+	svcEnabled := NewUserService(db, nil, nil, AuthModeLocal, true, nil, c, 5*time.Minute)
+	existingInfo := &auth.OAuthUserInfo{
+		ProviderUserID: uuid.New().String(),
+		Username:       "localuser",
+		Email:          "local@example.com",
+		EmailVerified:  true,
+	}
+	_, err := svcEnabled.AuthenticateWithOAuth(
+		context.Background(),
+		"github",
+		existingInfo,
+		newOAuthToken(),
+	)
+	require.NoError(t, err)
+
+	// Now use a service with auto-register disabled.
+	svcDisabled := NewUserService(db, nil, nil, AuthModeLocal, false, nil, c, 5*time.Minute)
+	attackerInfo := &auth.OAuthUserInfo{
+		ProviderUserID: uuid.New().String(),
+		Username:       "attacker",
+		Email:          "local@example.com",
+		EmailVerified:  false,
+	}
+	_, err = svcDisabled.AuthenticateWithOAuth(
+		context.Background(),
+		"gitea",
+		attackerInfo,
+		newOAuthToken(),
+	)
+	assert.ErrorIs(t, err, ErrOAuthEmailNotVerified)
+}

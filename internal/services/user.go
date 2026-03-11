@@ -32,6 +32,9 @@ var (
 	ErrUserSyncFailed            = errors.New("failed to sync user from external provider")
 	ErrUsernameConflict          = errors.New("username already exists")
 	ErrOAuthAutoRegisterDisabled = errors.New("OAuth auto-registration is disabled")
+	ErrOAuthEmailNotVerified     = errors.New(
+		"OAuth email not verified and auto-registration is disabled",
+	)
 )
 
 type UserService struct {
@@ -330,8 +333,22 @@ func (s *UserService) AuthenticateWithOAuth(
 	// 2. Check if user exists with same email
 	user, err := s.store.GetUserByEmail(oauthUserInfo.Email)
 	if err == nil {
-		// User exists: link OAuth to existing user
-		return s.linkOAuthToExistingUser(ctx, user, provider, oauthUserInfo, token)
+		// Only auto-link when the provider has verified the email address.
+		// Without this check, an attacker who controls an OAuth account with
+		// a victim's email could take over the victim's AuthGate account.
+		if oauthUserInfo.EmailVerified {
+			return s.linkOAuthToExistingUser(ctx, user, provider, oauthUserInfo, token)
+		}
+		log.Printf(
+			"[OAuth] Skipping auto-link for user=%s provider=%s: email not verified by provider",
+			user.Username,
+			provider,
+		)
+		// Fall through to auto-register check — treat as new user
+		if !s.oauthAutoRegister {
+			return nil, ErrOAuthEmailNotVerified
+		}
+		return s.createUserWithOAuth(ctx, provider, oauthUserInfo, token)
 	}
 
 	// 3. Check if auto-registration is enabled

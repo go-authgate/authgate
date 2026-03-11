@@ -38,5 +38,6 @@ func (p *OAuthProvider) getGitLabUserInfo(
 		Email:          user.Email,
 		FullName:       user.Name,
 		AvatarURL:      user.AvatarURL,
+		EmailVerified:  false, // GitLab API does not expose email verification status
 	}, nil
 }
