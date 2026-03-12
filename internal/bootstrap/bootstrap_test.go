@@ -93,7 +93,7 @@ func TestInitializeMetricsCacheMemory(t *testing.T) {
 	cfg := &config.Config{
 		MetricsEnabled:            true,
 		MetricsGaugeUpdateEnabled: true,
-		MetricsCacheType:          config.MetricsCacheTypeMemory,
+		MetricsCacheType:          config.CacheTypeMemory,
 	}
 	c, closer, err := initializeMetricsCache(ctx, cfg)
 	require.NoError(t, err)

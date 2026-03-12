@@ -167,11 +167,12 @@ func SessionIdleTimeout(idleTimeoutSeconds int) gin.HandlerFunc {
 	}
 }
 
-// RequireAdmin is a middleware that requires the user to have admin role
-// This middleware should be used after RequireAuth
-func RequireAdmin(userService *services.UserService) gin.HandlerFunc {
+// RequireAdmin is a middleware that requires the user to have admin role.
+// This middleware should be used after RequireAuth, which already fetches
+// and caches the user in the gin context via loadUserFromSession.
+func RequireAdmin(_ *services.UserService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID, exists := c.Get("user_id")
+		u, exists := c.Get("user")
 		if !exists {
 			c.HTML(http.StatusForbidden, "error.html", gin.H{
 				"error": "Unauthorized access",
@@ -180,27 +181,14 @@ func RequireAdmin(userService *services.UserService) gin.HandlerFunc {
 			return
 		}
 
-		user, err := userService.GetUserByID(userID.(string))
-		if err != nil {
-			c.HTML(http.StatusForbidden, "error.html", gin.H{
-				"error": "User not found",
-			})
-			c.Abort()
-			return
-		}
-
-		if !user.IsAdmin() {
+		user, ok := u.(*models.User)
+		if !ok || !user.IsAdmin() {
 			c.HTML(http.StatusForbidden, "error.html", gin.H{
 				"error": "Admin access required",
 			})
 			c.Abort()
 			return
 		}
-
-		c.Set("user", user)
-
-		// Store user in request context for services layer
-		c.Request = c.Request.WithContext(models.SetUserContext(c.Request.Context(), user))
 
 		c.Next()
 	}

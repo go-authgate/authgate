@@ -2,13 +2,11 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/go-authgate/authgate/internal/middleware"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
-	"github.com/go-authgate/authgate/internal/store"
 	"github.com/go-authgate/authgate/internal/templates"
 
 	"github.com/gin-contrib/sessions"
@@ -62,15 +60,8 @@ func (h *ClientHandler) InjectPendingCount() gin.HandlerFunc {
 
 // ShowClientsPage displays the list of all OAuth clients
 func (h *ClientHandler) ShowClientsPage(c *gin.Context) {
-	// Parse pagination parameters
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
-	search := c.Query("search")
-	statusFilter := c.Query("status")
-
-	// Create pagination params (with optional status filter)
-	params := store.NewPaginationParams(page, pageSize, search)
-	params.StatusFilter = statusFilter
+	params := parsePaginationParams(c)
+	params.StatusFilter = c.Query("status")
 
 	// Get paginated clients with creator information
 	clients, pagination, err := h.clientService.ListClientsPaginatedWithCreator(params)
@@ -94,8 +85,7 @@ func (h *ClientHandler) ShowClientsPage(c *gin.Context) {
 		}
 	}
 
-	user, _ := c.Get("user")
-	userModel := user.(*models.User)
+	userModel := getUserFromContext(c)
 
 	navbar := buildNavbarProps(c, userModel, "clients")
 
@@ -105,17 +95,16 @@ func (h *ClientHandler) ShowClientsPage(c *gin.Context) {
 		User:         userModel,
 		Clients:      clients,
 		Pagination:   pagination,
-		Search:       search,
-		PageSize:     pageSize,
+		Search:       params.Search,
+		PageSize:     params.PageSize,
 		Success:      successMsg,
-		StatusFilter: statusFilter,
+		StatusFilter: params.StatusFilter,
 	}))
 }
 
 // ShowCreateClientPage displays the form to create a new client
 func (h *ClientHandler) ShowCreateClientPage(c *gin.Context) {
-	user, _ := c.Get("user")
-	userModel := user.(*models.User)
+	userModel := getUserFromContext(c)
 
 	templates.RenderTempl(c, http.StatusOK, templates.AdminClientForm(templates.ClientFormPageProps{
 		BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
@@ -147,8 +136,7 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 
 	resp, err := h.clientService.CreateClient(c.Request.Context(), req)
 	if err != nil {
-		user, _ := c.Get("user")
-		userModel := user.(*models.User)
+		userModel := getUserFromContext(c)
 
 		// Convert request data to ClientDisplay struct for template
 		clientData := &templates.ClientDisplay{
@@ -180,8 +168,7 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 	}
 
 	// Show the newly created client with the plain secret (only shown once)
-	user, _ := c.Get("user")
-	userModel := user.(*models.User)
+	userModel := getUserFromContext(c)
 
 	// Convert OAuthApplication to ClientDisplay for template
 	clientDisplay := clientToDisplay(resp.OAuthApplication)
@@ -208,8 +195,7 @@ func (h *ClientHandler) ShowEditClientPage(c *gin.Context) {
 		return
 	}
 
-	user, _ := c.Get("user")
-	userModel := user.(*models.User)
+	userModel := getUserFromContext(c)
 
 	clientDisplay := clientToDisplay(client)
 
@@ -245,8 +231,7 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 	if err != nil {
 		client, _ := h.clientService.GetClient(clientID)
 
-		user, _ := c.Get("user")
-		userModel := user.(*models.User)
+		userModel := getUserFromContext(c)
 
 		// Convert form data to ClientDisplay for template
 		clientDisplay := &templates.ClientDisplay{
@@ -327,8 +312,7 @@ func (h *ClientHandler) RegenerateSecret(c *gin.Context) {
 	}
 
 	client, _ := h.clientService.GetClient(clientID)
-	user, _ := c.Get("user")
-	userModel := user.(*models.User)
+	userModel := getUserFromContext(c)
 
 	templates.RenderTempl(
 		c,
@@ -354,8 +338,7 @@ func (h *ClientHandler) ViewClient(c *gin.Context) {
 
 	activeTokenCount, _ := h.clientService.CountActiveTokens(clientID)
 
-	user, _ := c.Get("user")
-	userModel := user.(*models.User)
+	userModel := getUserFromContext(c)
 
 	// Map query-param success codes to human-readable messages
 	successMsg := ""
@@ -449,8 +432,7 @@ func (h *ClientHandler) ListClientAuthorizations(c *gin.Context) {
 		})
 	}
 
-	user, _ := c.Get("user")
-	userModel := user.(*models.User)
+	userModel := getUserFromContext(c)
 
 	templates.RenderTempl(
 		c,
@@ -475,8 +457,7 @@ func (h *ClientHandler) RevokeAllTokens(c *gin.Context) {
 		userID.(string),
 	)
 	if err != nil {
-		user, _ := c.Get("user")
-		userModel := user.(*models.User)
+		userModel := getUserFromContext(c)
 		client, _ := h.clientService.GetClient(clientID)
 		activeTokenCount, _ := h.clientService.CountActiveTokens(clientID)
 

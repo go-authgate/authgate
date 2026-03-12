@@ -90,8 +90,7 @@ func (h *AuditHandler) ShowAuditLogsPage(c *gin.Context) {
 		return
 	}
 
-	user, _ := c.Get("user")
-	userModel := user.(*models.User)
+	userModel := getUserFromContext(c)
 
 	templates.RenderTempl(c, http.StatusOK, templates.AdminAuditLogs(templates.AuditLogsPageProps{
 		BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},

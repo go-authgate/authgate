@@ -1,11 +1,42 @@
 package handlers
 
 import (
+	"strconv"
+
 	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/store"
 	"github.com/go-authgate/authgate/internal/templates"
 
 	"github.com/gin-gonic/gin"
 )
+
+// parsePaginationParams extracts page, page_size, and search query params.
+func parsePaginationParams(c *gin.Context) store.PaginationParams {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+	search := c.Query("search")
+	return store.NewPaginationParams(page, pageSize, search)
+}
+
+// respondOAuthError writes an RFC-compliant OAuth error JSON response.
+func respondOAuthError(c *gin.Context, status int, errorCode, description string) {
+	resp := gin.H{"error": errorCode}
+	if description != "" {
+		resp["error_description"] = description
+	}
+	c.JSON(status, resp)
+}
+
+// getUserFromContext returns the *models.User stored by RequireAuth middleware,
+// or nil if no user is present.
+func getUserFromContext(c *gin.Context) *models.User {
+	if u, exists := c.Get("user"); exists {
+		if user, ok := u.(*models.User); ok {
+			return user
+		}
+	}
+	return nil
+}
 
 // clientToDisplay converts an OAuthApplication model to a ClientDisplay template struct.
 func clientToDisplay(app *models.OAuthApplication) *templates.ClientDisplay {

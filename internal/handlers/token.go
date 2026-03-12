@@ -75,10 +75,12 @@ func (h *TokenHandler) Token(c *gin.Context) {
 	case GrantTypeClientCredentials:
 		h.handleClientCredentialsGrant(c)
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "unsupported_grant_type",
-			"error_description": "Supported grant types: device_code, refresh_token, authorization_code, client_credentials",
-		})
+		respondOAuthError(
+			c,
+			http.StatusBadRequest,
+			"unsupported_grant_type",
+			"Supported grant types: device_code, refresh_token, authorization_code, client_credentials",
+		)
 	}
 }
 
@@ -88,10 +90,12 @@ func (h *TokenHandler) handleDeviceCodeGrant(c *gin.Context) {
 	clientID := c.PostForm("client_id")
 
 	if deviceCode == "" || clientID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": "device_code and client_id are required",
-		})
+		respondOAuthError(
+			c,
+			http.StatusBadRequest,
+			"invalid_request",
+			"device_code and client_id are required",
+		)
 		return
 	}
 
@@ -103,27 +107,21 @@ func (h *TokenHandler) handleDeviceCodeGrant(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrAuthorizationPending):
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "authorization_pending",
-			})
+			respondOAuthError(c, http.StatusBadRequest, "authorization_pending", "")
 		case errors.Is(err, services.ErrSlowDown):
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "slow_down",
-			})
+			respondOAuthError(c, http.StatusBadRequest, "slow_down", "")
 		case errors.Is(err, services.ErrExpiredToken):
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "expired_token",
-			})
+			respondOAuthError(c, http.StatusBadRequest, "expired_token", "")
 		case errors.Is(err, services.ErrAccessDenied):
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "access_denied",
-			})
+			respondOAuthError(c, http.StatusBadRequest, "access_denied", "")
 		default:
 			log.Printf("[token] device code exchange error: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":             "server_error",
-				"error_description": "An internal error occurred",
-			})
+			respondOAuthError(
+				c,
+				http.StatusInternalServerError,
+				"server_error",
+				"An internal error occurred",
+			)
 		}
 		return
 	}
@@ -146,10 +144,12 @@ func (h *TokenHandler) handleRefreshTokenGrant(c *gin.Context) {
 
 	// 2. Validate required parameters
 	if refreshTokenString == "" || clientID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": "refresh_token and client_id are required",
-		})
+		respondOAuthError(
+			c,
+			http.StatusBadRequest,
+			"invalid_request",
+			"refresh_token and client_id are required",
+		)
 		return
 	}
 
@@ -165,25 +165,33 @@ func (h *TokenHandler) handleRefreshTokenGrant(c *gin.Context) {
 		switch {
 		case errors.Is(err, token.ErrInvalidRefreshToken),
 			errors.Is(err, token.ErrExpiredRefreshToken):
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_grant",
-				"error_description": "Refresh token is invalid or expired",
-			})
+			respondOAuthError(
+				c,
+				http.StatusBadRequest,
+				"invalid_grant",
+				"Refresh token is invalid or expired",
+			)
 		case errors.Is(err, services.ErrAccessDenied):
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_client",
-				"error_description": "Client authentication failed",
-			})
+			respondOAuthError(
+				c,
+				http.StatusBadRequest,
+				"invalid_client",
+				"Client authentication failed",
+			)
 		case errors.Is(err, token.ErrInvalidScope):
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_scope",
-				"error_description": "Requested scope exceeds original grant",
-			})
+			respondOAuthError(
+				c,
+				http.StatusBadRequest,
+				"invalid_scope",
+				"Requested scope exceeds original grant",
+			)
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":             "server_error",
-				"error_description": "Token refresh failed",
-			})
+			respondOAuthError(
+				c,
+				http.StatusInternalServerError,
+				"server_error",
+				"Token refresh failed",
+			)
 		}
 		return
 	}
@@ -213,9 +221,7 @@ func (h *TokenHandler) handleRefreshTokenGrant(c *gin.Context) {
 func (h *TokenHandler) TokenInfo(c *gin.Context) {
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "missing_token",
-		})
+		respondOAuthError(c, http.StatusUnauthorized, "missing_token", "")
 		return
 	}
 
@@ -223,10 +229,12 @@ func (h *TokenHandler) TokenInfo(c *gin.Context) {
 	result, err := h.tokenService.ValidateToken(c.Request.Context(), tokenString)
 	if err != nil {
 		log.Printf("[token] token validation error: %v", err)
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "invalid_token",
-			"error_description": "Token is invalid or expired",
-		})
+		respondOAuthError(
+			c,
+			http.StatusUnauthorized,
+			"invalid_token",
+			"Token is invalid or expired",
+		)
 		return
 	}
 
@@ -265,10 +273,12 @@ func (h *TokenHandler) Revoke(c *gin.Context) {
 	// RFC 7009 specifies that the token parameter is REQUIRED
 	token := c.PostForm("token")
 	if token == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": "token parameter is required",
-		})
+		respondOAuthError(
+			c,
+			http.StatusBadRequest,
+			"invalid_request",
+			"token parameter is required",
+		)
 		return
 	}
 
@@ -305,10 +315,12 @@ func (h *TokenHandler) handleClientCredentialsGrant(c *gin.Context) {
 
 	if clientID == "" || clientSecret == "" {
 		c.Header("WWW-Authenticate", `Basic realm="authgate"`)
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "invalid_client",
-			"error_description": "Client authentication required: use HTTP Basic Auth or provide client_id and client_secret in the request body",
-		})
+		respondOAuthError(
+			c,
+			http.StatusUnauthorized,
+			"invalid_client",
+			"Client authentication required: use HTTP Basic Auth or provide client_id and client_secret in the request body",
+		)
 		return
 	}
 
@@ -326,25 +338,29 @@ func (h *TokenHandler) handleClientCredentialsGrant(c *gin.Context) {
 			errors.Is(err, services.ErrClientNotConfidential):
 			// RFC 6749 §5.2: use 401 + WWW-Authenticate for invalid_client
 			c.Header("WWW-Authenticate", `Basic realm="authgate"`)
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error":             "invalid_client",
-				"error_description": "Client authentication failed",
-			})
+			respondOAuthError(
+				c,
+				http.StatusUnauthorized,
+				"invalid_client",
+				"Client authentication failed",
+			)
 		case errors.Is(err, services.ErrClientCredentialsFlowDisabled):
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "unauthorized_client",
-				"error_description": "Client credentials flow is not enabled for this client",
-			})
+			respondOAuthError(c, http.StatusBadRequest, "unauthorized_client",
+				"Client credentials flow is not enabled for this client")
 		case errors.Is(err, token.ErrInvalidScope):
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_scope",
-				"error_description": "Requested scope exceeds client permissions or contains restricted scopes (openid, offline_access are not permitted)",
-			})
+			respondOAuthError(
+				c,
+				http.StatusBadRequest,
+				"invalid_scope",
+				"Requested scope exceeds client permissions or contains restricted scopes (openid, offline_access are not permitted)",
+			)
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":             "server_error",
-				"error_description": "Token issuance failed",
-			})
+			respondOAuthError(
+				c,
+				http.StatusInternalServerError,
+				"server_error",
+				"Token issuance failed",
+			)
 		}
 		return
 	}
@@ -367,10 +383,12 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 	codeVerifier := c.PostForm("code_verifier") // PKCE; empty for confidential clients
 
 	if code == "" || redirectURI == "" || clientID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": "code, redirect_uri, and client_id are required",
-		})
+		respondOAuthError(
+			c,
+			http.StatusBadRequest,
+			"invalid_request",
+			"code, redirect_uri, and client_id are required",
+		)
 		return
 	}
 
@@ -384,10 +402,7 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 		if errors.Is(err, services.ErrUnauthorizedClient) {
 			errCode = "unauthorized_client"
 		}
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             errCode,
-			"error_description": err.Error(),
-		})
+		respondOAuthError(c, http.StatusBadRequest, errCode, err.Error())
 		return
 	}
 
@@ -407,10 +422,12 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 		authorizationID,
 	)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":             "server_error",
-			"error_description": "Failed to issue tokens",
-		})
+		respondOAuthError(
+			c,
+			http.StatusInternalServerError,
+			"server_error",
+			"Failed to issue tokens",
+		)
 		return
 	}
 

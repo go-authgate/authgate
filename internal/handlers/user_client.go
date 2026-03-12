@@ -3,13 +3,11 @@ package handlers
 import (
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/go-authgate/authgate/internal/middleware"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
-	"github.com/go-authgate/authgate/internal/store"
 	"github.com/go-authgate/authgate/internal/templates"
 
 	"github.com/gin-gonic/gin"
@@ -28,14 +26,9 @@ func NewUserClientHandler(cs *services.ClientService) *UserClientHandler {
 // ShowMyAppsPage lists all OAuth applications owned by the logged-in user.
 func (h *UserClientHandler) ShowMyAppsPage(c *gin.Context) {
 	userID, _ := c.Get("user_id")
-	user, _ := c.Get("user")
-	userModel := user.(*models.User)
+	userModel := getUserFromContext(c)
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
-	search := c.Query("search")
-
-	params := store.NewPaginationParams(page, pageSize, search)
+	params := parsePaginationParams(c)
 	apps, pagination, err := h.clientService.ListClientsByUser(userID.(string), params)
 	if err != nil {
 		renderErrorPage(c, http.StatusInternalServerError, "Failed to load apps: "+err.Error())
@@ -47,15 +40,14 @@ func (h *UserClientHandler) ShowMyAppsPage(c *gin.Context) {
 		NavbarProps: buildNavbarProps(c, userModel, "my-apps"),
 		Apps:        apps,
 		Pagination:  pagination,
-		PageSize:    pageSize,
-		Search:      search,
+		PageSize:    params.PageSize,
+		Search:      params.Search,
 	}))
 }
 
 // ShowCreateAppPage displays the form to register a new application.
 func (h *UserClientHandler) ShowCreateAppPage(c *gin.Context) {
-	user, _ := c.Get("user")
-	userModel := user.(*models.User)
+	userModel := getUserFromContext(c)
 
 	templates.RenderTempl(c, http.StatusOK, templates.UserAppForm(templates.UserClientFormPageProps{
 		BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
@@ -70,8 +62,7 @@ func (h *UserClientHandler) ShowCreateAppPage(c *gin.Context) {
 // CreateApp handles POST /apps to register a new OAuth client.
 func (h *UserClientHandler) CreateApp(c *gin.Context) {
 	userID, _ := c.Get("user_id")
-	user, _ := c.Get("user")
-	userModel := user.(*models.User)
+	userModel := getUserFromContext(c)
 
 	req := services.CreateClientRequest{
 		ClientName:         c.PostForm("client_name"),
@@ -139,8 +130,7 @@ func (h *UserClientHandler) CreateApp(c *gin.Context) {
 func (h *UserClientHandler) ShowAppPage(c *gin.Context) {
 	clientID := c.Param("id")
 	userID, _ := c.Get("user_id")
-	user, _ := c.Get("user")
-	userModel := user.(*models.User)
+	userModel := getUserFromContext(c)
 
 	client, err := h.clientService.GetClient(clientID)
 	if err != nil {
@@ -177,8 +167,7 @@ func (h *UserClientHandler) ShowAppPage(c *gin.Context) {
 func (h *UserClientHandler) ShowEditAppPage(c *gin.Context) {
 	clientID := c.Param("id")
 	userID, _ := c.Get("user_id")
-	user, _ := c.Get("user")
-	userModel := user.(*models.User)
+	userModel := getUserFromContext(c)
 
 	client, err := h.clientService.GetClient(clientID)
 	if err != nil {
@@ -207,8 +196,7 @@ func (h *UserClientHandler) ShowEditAppPage(c *gin.Context) {
 func (h *UserClientHandler) UpdateApp(c *gin.Context) {
 	clientID := c.Param("id")
 	userID, _ := c.Get("user_id")
-	user, _ := c.Get("user")
-	userModel := user.(*models.User)
+	userModel := getUserFromContext(c)
 
 	req := services.UserUpdateClientRequest{
 		ClientName:         c.PostForm("client_name"),
@@ -275,8 +263,7 @@ func (h *UserClientHandler) DeleteApp(c *gin.Context) {
 func (h *UserClientHandler) RegenerateAppSecret(c *gin.Context) {
 	clientID := c.Param("id")
 	userID, _ := c.Get("user_id")
-	user, _ := c.Get("user")
-	userModel := user.(*models.User)
+	userModel := getUserFromContext(c)
 
 	// Ownership check
 	client, err := h.clientService.GetClient(clientID)

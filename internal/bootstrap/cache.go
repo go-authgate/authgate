@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/config"
@@ -23,6 +24,64 @@ func initializeMetrics(cfg *config.Config) core.Recorder {
 	return prometheusMetrics
 }
 
+// cacheOpts holds the parameters needed to initialise any typed cache.
+type cacheOpts struct {
+	cacheType   string
+	keyPrefix   string
+	clientTTL   time.Duration
+	sizePerConn int
+	label       string // human-readable name for log messages (e.g. "Metrics")
+}
+
+// initializeCache is a generic helper that creates a typed cache according to
+// the supplied cacheOpts. All three cache-init call-sites delegate to this.
+func initializeCache[T any](
+	ctx context.Context,
+	cfg *config.Config,
+	opts cacheOpts,
+) (core.Cache[T], func() error, error) {
+	ctx, cancel := context.WithTimeout(ctx, cfg.CacheInitTimeout)
+	defer cancel()
+
+	switch opts.cacheType {
+	case config.CacheTypeRedisAside:
+		c, err := cache.NewRueidisAsideCache[T](
+			ctx,
+			cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB,
+			opts.keyPrefix, opts.clientTTL, opts.sizePerConn,
+		)
+		if err != nil {
+			return nil, nil, fmt.Errorf(
+				"failed to initialize redis-aside %s cache: %w",
+				opts.label,
+				err,
+			)
+		}
+		log.Printf(
+			"%s cache: redis-aside (addr=%s, db=%d, client_ttl=%s, cache_size_per_conn=%dMB)",
+			opts.label, cfg.RedisAddr, cfg.RedisDB, opts.clientTTL, opts.sizePerConn,
+		)
+		return c, c.Close, nil
+
+	case config.CacheTypeRedis:
+		c, err := cache.NewRueidisCache[T](
+			ctx,
+			cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB,
+			opts.keyPrefix,
+		)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to initialize redis %s cache: %w", opts.label, err)
+		}
+		log.Printf("%s cache: redis (addr=%s, db=%d)", opts.label, cfg.RedisAddr, cfg.RedisDB)
+		return c, c.Close, nil
+
+	default: // memory
+		c := cache.NewMemoryCache[T]()
+		log.Printf("%s cache: memory (single instance only)", opts.label)
+		return c, c.Close, nil
+	}
+}
+
 // initializeMetricsCache initializes the metrics cache based on configuration
 func initializeMetricsCache(
 	ctx context.Context,
@@ -31,108 +90,27 @@ func initializeMetricsCache(
 	if !cfg.MetricsEnabled || !cfg.MetricsGaugeUpdateEnabled {
 		return nil, nil, nil
 	}
-
-	// Create timeout context for cache initialization
-	ctx, cancel := context.WithTimeout(ctx, cfg.CacheInitTimeout)
-	defer cancel()
-
-	var metricsCache core.Cache[int64]
-	var err error
-
-	switch cfg.MetricsCacheType {
-	case config.MetricsCacheTypeRedisAside:
-		metricsCache, err = cache.NewRueidisAsideCache[int64](
-			ctx,
-			cfg.RedisAddr,
-			cfg.RedisPassword,
-			cfg.RedisDB,
-			"authgate:metrics:",
-			cfg.MetricsCacheClientTTL,
-			cfg.MetricsCacheSizePerConn,
-		)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to initialize redis-aside metrics cache: %w", err)
-		}
-		log.Printf(
-			"Metrics cache: redis-aside (addr=%s, db=%d, client_ttl=%s, cache_size_per_conn=%dMB)",
-			cfg.RedisAddr,
-			cfg.RedisDB,
-			cfg.MetricsCacheClientTTL,
-			cfg.MetricsCacheSizePerConn,
-		)
-
-	case config.MetricsCacheTypeRedis:
-		metricsCache, err = cache.NewRueidisCache[int64](
-			ctx,
-			cfg.RedisAddr,
-			cfg.RedisPassword,
-			cfg.RedisDB,
-			"authgate:metrics:",
-		)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to initialize redis metrics cache: %w", err)
-		}
-		log.Printf("Metrics cache: redis (addr=%s, db=%d)", cfg.RedisAddr, cfg.RedisDB)
-
-	default: // memory
-		metricsCache = cache.NewMemoryCache[int64]()
-		log.Println("Metrics cache: memory (single instance only)")
-	}
-
-	return metricsCache, metricsCache.Close, nil
+	return initializeCache[int64](ctx, cfg, cacheOpts{
+		cacheType:   cfg.MetricsCacheType,
+		keyPrefix:   "authgate:metrics:",
+		clientTTL:   cfg.MetricsCacheClientTTL,
+		sizePerConn: cfg.MetricsCacheSizePerConn,
+		label:       "Metrics",
+	})
 }
 
 // initializeClientCountCache initializes the pending-client count cache used by InjectPendingCount.
-// In single-instance deployments memory is sufficient; set CLIENT_COUNT_CACHE_TYPE=redis for
-// multi-pod deployments so every pod shares the same store and invalidation is global.
 func initializeClientCountCache(
 	ctx context.Context,
 	cfg *config.Config,
 ) (core.Cache[int64], func() error, error) {
-	ctx, cancel := context.WithTimeout(ctx, cfg.CacheInitTimeout)
-	defer cancel()
-
-	switch cfg.ClientCountCacheType {
-	case config.ClientCountCacheTypeRedisAside:
-		c, err := cache.NewRueidisAsideCache[int64](
-			ctx,
-			cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB,
-			"authgate:client-count:",
-			cfg.ClientCountCacheClientTTL,
-			cfg.ClientCountCacheSizePerConn,
-		)
-		if err != nil {
-			return nil, nil, fmt.Errorf(
-				"failed to initialize redis-aside client count cache: %w",
-				err,
-			)
-		}
-		log.Printf(
-			"Client count cache: redis-aside (addr=%s, db=%d, client_ttl=%s, cache_size_per_conn=%dMB)",
-			cfg.RedisAddr,
-			cfg.RedisDB,
-			cfg.ClientCountCacheClientTTL,
-			cfg.ClientCountCacheSizePerConn,
-		)
-		return c, c.Close, nil
-
-	case config.ClientCountCacheTypeRedis:
-		c, err := cache.NewRueidisCache[int64](
-			ctx,
-			cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB,
-			"authgate:client-count:",
-		)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to initialize redis client count cache: %w", err)
-		}
-		log.Printf("Client count cache: redis (addr=%s, db=%d)", cfg.RedisAddr, cfg.RedisDB)
-		return c, c.Close, nil
-
-	default: // memory
-		c := cache.NewMemoryCache[int64]()
-		log.Println("Client count cache: memory (single instance only)")
-		return c, c.Close, nil
-	}
+	return initializeCache[int64](ctx, cfg, cacheOpts{
+		cacheType:   cfg.ClientCountCacheType,
+		keyPrefix:   "authgate:client-count:",
+		clientTTL:   cfg.ClientCountCacheClientTTL,
+		sizePerConn: cfg.ClientCountCacheSizePerConn,
+		label:       "Client count",
+	})
 }
 
 // initializeUserCache initializes the user cache (always enabled, defaults to memory)
@@ -140,45 +118,11 @@ func initializeUserCache(
 	ctx context.Context,
 	cfg *config.Config,
 ) (core.Cache[models.User], func() error, error) {
-	ctx, cancel := context.WithTimeout(ctx, cfg.CacheInitTimeout)
-	defer cancel()
-
-	switch cfg.UserCacheType {
-	case config.UserCacheTypeRedisAside:
-		c, err := cache.NewRueidisAsideCache[models.User](
-			ctx,
-			cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB,
-			"authgate:users:",
-			cfg.UserCacheClientTTL,
-			cfg.UserCacheSizePerConn,
-		)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to initialize redis-aside user cache: %w", err)
-		}
-		log.Printf(
-			"User cache: redis-aside (addr=%s, db=%d, client_ttl=%s, cache_size_per_conn=%dMB)",
-			cfg.RedisAddr,
-			cfg.RedisDB,
-			cfg.UserCacheClientTTL,
-			cfg.UserCacheSizePerConn,
-		)
-		return c, c.Close, nil
-
-	case config.UserCacheTypeRedis:
-		c, err := cache.NewRueidisCache[models.User](
-			ctx,
-			cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB,
-			"authgate:users:",
-		)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to initialize redis user cache: %w", err)
-		}
-		log.Printf("User cache: redis (addr=%s, db=%d)", cfg.RedisAddr, cfg.RedisDB)
-		return c, c.Close, nil
-
-	default: // memory
-		c := cache.NewMemoryCache[models.User]()
-		log.Println("User cache: memory (single instance only)")
-		return c, c.Close, nil
-	}
+	return initializeCache[models.User](ctx, cfg, cacheOpts{
+		cacheType:   cfg.UserCacheType,
+		keyPrefix:   "authgate:users:",
+		clientTTL:   cfg.UserCacheClientTTL,
+		sizePerConn: cfg.UserCacheSizePerConn,
+		label:       "User",
+	})
 }

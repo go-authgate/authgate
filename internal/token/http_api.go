@@ -79,6 +79,14 @@ func handleGenerateError(body []byte, statusCode string) error {
 	)
 }
 
+// defaultTokenType returns TokenTypeBearer when t is empty.
+func defaultTokenType(t string) string {
+	if t == "" {
+		return TokenTypeBearer
+	}
+	return t
+}
+
 // parseGenerateResponse parses and validates token generation response
 func parseGenerateResponse(body []byte) (*Result, error) {
 	var apiResp APITokenGenerateResponse
@@ -97,16 +105,11 @@ func parseGenerateResponse(body []byte) (*Result, error) {
 		)
 	}
 
-	tokenType := apiResp.TokenType
-	if tokenType == "" {
-		tokenType = TokenTypeBearer
-	}
-
 	expiresAt := time.Now().Add(time.Duration(apiResp.ExpiresIn) * time.Second)
 
 	return &Result{
 		TokenString: apiResp.AccessToken,
-		TokenType:   tokenType,
+		TokenType:   defaultTokenType(apiResp.TokenType),
 		ExpiresAt:   expiresAt,
 		Claims:      apiResp.Claims,
 	}, nil
@@ -354,11 +357,7 @@ func (p *HTTPTokenProvider) RefreshAccessToken(
 		)
 	}
 
-	tokenType := apiResp.TokenType
-	if tokenType == "" {
-		tokenType = TokenTypeBearer
-	}
-
+	tokenType := defaultTokenType(apiResp.TokenType)
 	accessExpiresAt := time.Now().Add(time.Duration(apiResp.AccessExpiresIn) * time.Second)
 
 	result := &RefreshResult{

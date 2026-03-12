@@ -9,7 +9,6 @@ import (
 	bf "github.com/russross/blackfriday/v2"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/templates"
 )
 
@@ -110,12 +109,10 @@ func (h *DocsHandler) ShowDocsPage(c *gin.Context) {
 		ActiveLink: "docs-" + slug,
 	}
 
-	if u, exists := c.Get("user"); exists {
-		if user, ok := u.(*models.User); ok {
-			navbarProps.Username = user.Username
-			navbarProps.FullName = user.FullName
-			navbarProps.IsAdmin = user.IsAdmin()
-		}
+	if user := getUserFromContext(c); user != nil {
+		navbarProps.Username = user.Username
+		navbarProps.FullName = user.FullName
+		navbarProps.IsAdmin = user.IsAdmin()
 	}
 
 	templates.RenderTempl(c, http.StatusOK, templates.DocsPage(templates.DocsPageProps{

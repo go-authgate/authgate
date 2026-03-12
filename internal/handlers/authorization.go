@@ -8,7 +8,6 @@ import (
 
 	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/middleware"
-	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/templates"
 	"github.com/go-authgate/authgate/internal/util"
@@ -281,7 +280,6 @@ func (h *AuthorizationHandler) redirectWithError(
 // ListAuthorizations renders the user's authorized applications page (GET /account/authorizations).
 func (h *AuthorizationHandler) ListAuthorizations(c *gin.Context) {
 	userID, _ := c.Get("user_id")
-	user, _ := c.Get("user")
 	userIDStr := userID.(string)
 
 	auths, err := h.authorizationService.ListUserAuthorizations(c.Request.Context(), userIDStr)
@@ -303,10 +301,8 @@ func (h *AuthorizationHandler) ListAuthorizations(c *gin.Context) {
 		})
 	}
 
-	var userModel *models.User
-	if um, ok := user.(*models.User); ok {
-		userModel = um
-	} else {
+	userModel := getUserFromContext(c)
+	if userModel == nil {
 		userModel, _ = h.userService.GetUserByID(userIDStr)
 	}
 	if userModel == nil {

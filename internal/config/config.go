@@ -27,25 +27,11 @@ const (
 	RateLimitStoreRedis  = "redis"
 )
 
-// Metrics cache type constants
+// CacheType constants shared by metrics, user, and client count caches.
 const (
-	MetricsCacheTypeMemory     = "memory"
-	MetricsCacheTypeRedis      = "redis"
-	MetricsCacheTypeRedisAside = "redis-aside"
-)
-
-// User cache type constants
-const (
-	UserCacheTypeMemory     = "memory"
-	UserCacheTypeRedis      = "redis"
-	UserCacheTypeRedisAside = "redis-aside"
-)
-
-// Client count cache type constants
-const (
-	ClientCountCacheTypeMemory     = "memory"
-	ClientCountCacheTypeRedis      = "redis"
-	ClientCountCacheTypeRedisAside = "redis-aside"
+	CacheTypeMemory     = "memory"
+	CacheTypeRedis      = "redis"
+	CacheTypeRedisAside = "redis-aside"
 )
 
 type Config struct {
@@ -373,18 +359,18 @@ func Load() *Config {
 		MetricsToken:               getEnv("METRICS_TOKEN", ""),
 		MetricsGaugeUpdateEnabled:  getEnvBool("METRICS_GAUGE_UPDATE_ENABLED", true),
 		MetricsGaugeUpdateInterval: getEnvDuration("METRICS_GAUGE_UPDATE_INTERVAL", 5*time.Minute),
-		MetricsCacheType:           getEnv("METRICS_CACHE_TYPE", MetricsCacheTypeMemory),
+		MetricsCacheType:           getEnv("METRICS_CACHE_TYPE", CacheTypeMemory),
 		MetricsCacheClientTTL:      getEnvDuration("METRICS_CACHE_CLIENT_TTL", 30*time.Second),
 		MetricsCacheSizePerConn:    getEnvInt("METRICS_CACHE_SIZE_PER_CONN", 32), // 32MB default
 
 		// User Cache settings
-		UserCacheType:        getEnv("USER_CACHE_TYPE", UserCacheTypeMemory),
+		UserCacheType:        getEnv("USER_CACHE_TYPE", CacheTypeMemory),
 		UserCacheTTL:         getEnvDuration("USER_CACHE_TTL", 5*time.Minute),
 		UserCacheClientTTL:   getEnvDuration("USER_CACHE_CLIENT_TTL", 30*time.Second),
 		UserCacheSizePerConn: getEnvInt("USER_CACHE_SIZE_PER_CONN", 32), // 32MB default
 
 		// Client Count Cache settings
-		ClientCountCacheType:      getEnv("CLIENT_COUNT_CACHE_TYPE", ClientCountCacheTypeMemory),
+		ClientCountCacheType:      getEnv("CLIENT_COUNT_CACHE_TYPE", CacheTypeMemory),
 		ClientCountCacheTTL:       getEnvDuration("CLIENT_COUNT_CACHE_TTL", time.Hour),
 		ClientCountCacheClientTTL: getEnvDuration("CLIENT_COUNT_CACHE_CLIENT_TTL", 10*time.Minute),
 		ClientCountCacheSizePerConn: getEnvInt(
@@ -468,6 +454,21 @@ func splitAndTrim(s, sep string) []string {
 	return out
 }
 
+// validateCacheType checks that value is a recognised cache type and, when
+// redis-based, that a Redis address has been configured.
+func validateCacheType(name, value, redisAddr string) error {
+	if value != CacheTypeMemory && value != CacheTypeRedis && value != CacheTypeRedisAside {
+		return fmt.Errorf(
+			"invalid %s value: %q (must be %q, %q, or %q)",
+			name, value, CacheTypeMemory, CacheTypeRedis, CacheTypeRedisAside,
+		)
+	}
+	if (value == CacheTypeRedis || value == CacheTypeRedisAside) && redisAddr == "" {
+		return fmt.Errorf("%s=%q requires REDIS_ADDR to be configured", name, value)
+	}
+	return nil
+}
+
 // Validate checks the configuration for invalid values
 func (c *Config) Validate() error {
 	// Validate rate limit store type
@@ -480,45 +481,12 @@ func (c *Config) Validate() error {
 		)
 	}
 
-	// Validate metrics cache type
-	if c.MetricsCacheType != MetricsCacheTypeMemory &&
-		c.MetricsCacheType != MetricsCacheTypeRedis &&
-		c.MetricsCacheType != MetricsCacheTypeRedisAside {
-		return fmt.Errorf(
-			"invalid METRICS_CACHE_TYPE value: %q (must be %q, %q, or %q)",
-			c.MetricsCacheType,
-			MetricsCacheTypeMemory,
-			MetricsCacheTypeRedis,
-			MetricsCacheTypeRedisAside,
-		)
+	if err := validateCacheType("METRICS_CACHE_TYPE", c.MetricsCacheType, c.RedisAddr); err != nil {
+		return err
 	}
 
-	// Validate redis-based metrics cache types require Redis configuration
-	if (c.MetricsCacheType == MetricsCacheTypeRedis || c.MetricsCacheType == MetricsCacheTypeRedisAside) &&
-		c.RedisAddr == "" {
-		return fmt.Errorf(
-			"METRICS_CACHE_TYPE=%q requires REDIS_ADDR to be configured",
-			c.MetricsCacheType,
-		)
-	}
-
-	// Validate user cache type
-	if c.UserCacheType != UserCacheTypeMemory &&
-		c.UserCacheType != UserCacheTypeRedis &&
-		c.UserCacheType != UserCacheTypeRedisAside {
-		return fmt.Errorf(
-			"invalid USER_CACHE_TYPE value: %q (must be %q, %q, or %q)",
-			c.UserCacheType, UserCacheTypeMemory, UserCacheTypeRedis, UserCacheTypeRedisAside,
-		)
-	}
-
-	// Redis-based user cache requires Redis configuration
-	if (c.UserCacheType == UserCacheTypeRedis || c.UserCacheType == UserCacheTypeRedisAside) &&
-		c.RedisAddr == "" {
-		return fmt.Errorf(
-			"USER_CACHE_TYPE=%q requires REDIS_ADDR to be configured",
-			c.UserCacheType,
-		)
+	if err := validateCacheType("USER_CACHE_TYPE", c.UserCacheType, c.RedisAddr); err != nil {
+		return err
 	}
 
 	// USER_CACHE_TTL must be positive
@@ -530,33 +498,19 @@ func (c *Config) Validate() error {
 	}
 
 	// USER_CACHE_CLIENT_TTL must be positive when using redis-aside
-	if c.UserCacheType == UserCacheTypeRedisAside && c.UserCacheClientTTL <= 0 {
+	if c.UserCacheType == CacheTypeRedisAside && c.UserCacheClientTTL <= 0 {
 		return fmt.Errorf(
 			"USER_CACHE_CLIENT_TTL must be a positive duration when USER_CACHE_TYPE=%q (got %s)",
-			UserCacheTypeRedisAside, c.UserCacheClientTTL,
+			CacheTypeRedisAside, c.UserCacheClientTTL,
 		)
 	}
 
-	// Validate client count cache type
-	if c.ClientCountCacheType != ClientCountCacheTypeMemory &&
-		c.ClientCountCacheType != ClientCountCacheTypeRedis &&
-		c.ClientCountCacheType != ClientCountCacheTypeRedisAside {
-		return fmt.Errorf(
-			"invalid CLIENT_COUNT_CACHE_TYPE value: %q (must be %q, %q, or %q)",
-			c.ClientCountCacheType,
-			ClientCountCacheTypeMemory,
-			ClientCountCacheTypeRedis,
-			ClientCountCacheTypeRedisAside,
-		)
-	}
-
-	// Redis-based client count cache requires Redis configuration
-	if (c.ClientCountCacheType == ClientCountCacheTypeRedis ||
-		c.ClientCountCacheType == ClientCountCacheTypeRedisAside) && c.RedisAddr == "" {
-		return fmt.Errorf(
-			"CLIENT_COUNT_CACHE_TYPE=%q requires REDIS_ADDR to be configured",
-			c.ClientCountCacheType,
-		)
+	if err := validateCacheType(
+		"CLIENT_COUNT_CACHE_TYPE",
+		c.ClientCountCacheType,
+		c.RedisAddr,
+	); err != nil {
+		return err
 	}
 
 	// CLIENT_COUNT_CACHE_TTL must be positive
