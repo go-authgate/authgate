@@ -184,20 +184,7 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 	userModel := user.(*models.User)
 
 	// Convert OAuthApplication to ClientDisplay for template
-	clientDisplay := &templates.ClientDisplay{
-		ID:                          resp.ID,
-		ClientID:                    resp.ClientID,
-		ClientName:                  resp.ClientName,
-		Description:                 resp.Description,
-		Scopes:                      resp.Scopes,
-		GrantTypes:                  resp.GrantTypes,
-		RedirectURIs:                resp.RedirectURIs.Join(", "),
-		ClientType:                  resp.ClientType,
-		EnableDeviceFlow:            resp.EnableDeviceFlow,
-		EnableAuthCodeFlow:          resp.EnableAuthCodeFlow,
-		EnableClientCredentialsFlow: resp.EnableClientCredentialsFlow,
-		Status:                      resp.Status,
-	}
+	clientDisplay := clientToDisplay(resp.OAuthApplication)
 
 	templates.RenderTempl(
 		c,
@@ -224,23 +211,7 @@ func (h *ClientHandler) ShowEditClientPage(c *gin.Context) {
 	user, _ := c.Get("user")
 	userModel := user.(*models.User)
 
-	// Convert OAuthApplication to ClientDisplay for template
-	clientDisplay := &templates.ClientDisplay{
-		ID:                          client.ID,
-		ClientID:                    client.ClientID,
-		ClientName:                  client.ClientName,
-		Description:                 client.Description,
-		Scopes:                      client.Scopes,
-		GrantTypes:                  client.GrantTypes,
-		RedirectURIs:                client.RedirectURIs.Join(", "),
-		ClientType:                  client.ClientType,
-		EnableDeviceFlow:            client.EnableDeviceFlow,
-		EnableAuthCodeFlow:          client.EnableAuthCodeFlow,
-		EnableClientCredentialsFlow: client.EnableClientCredentialsFlow,
-		Status:                      client.Status,
-		CreatedAt:                   client.CreatedAt,
-		UpdatedAt:                   client.UpdatedAt,
-	}
+	clientDisplay := clientToDisplay(client)
 
 	templates.RenderTempl(c, http.StatusOK, templates.AdminClientForm(templates.ClientFormPageProps{
 		BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},

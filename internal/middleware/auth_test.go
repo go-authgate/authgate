@@ -243,7 +243,7 @@ func TestSessionFingerprintMiddleware_ValidFingerprint(t *testing.T) {
 
 	// Set up session with fingerprint
 	r.Use(func(c *gin.Context) {
-		c.Set("client_ip", "192.168.1.1")
+		c.Set(ContextKeyClientIP, "192.168.1.1")
 		session := sessions.Default(c)
 		session.Set(SessionUserID, "user123")
 		// Generate fingerprint (User-Agent only, IP not included)
@@ -277,7 +277,7 @@ func TestSessionFingerprintMiddleware_MismatchFingerprint(t *testing.T) {
 
 	// Set up session with fingerprint from original browser
 	r.Use(func(c *gin.Context) {
-		c.Set("client_ip", "192.168.1.1")
+		c.Set(ContextKeyClientIP, "192.168.1.1")
 		session := sessions.Default(c)
 		session.Set(SessionUserID, "user123")
 
@@ -426,7 +426,7 @@ func TestSessionFingerprintMiddleware_RedirectURLEncoded(t *testing.T) {
 
 	// Set up session with fingerprint
 	r.Use(func(c *gin.Context) {
-		c.Set("client_ip", "192.168.1.1")
+		c.Set(ContextKeyClientIP, "192.168.1.1")
 		session := sessions.Default(c)
 		session.Set(SessionUserID, "user123")
 

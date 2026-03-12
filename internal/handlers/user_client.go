@@ -121,7 +121,7 @@ func (h *UserClientHandler) CreateApp(c *gin.Context) {
 		return
 	}
 
-	clientDisplay := appToDisplay(resp.OAuthApplication)
+	clientDisplay := clientToDisplay(resp.OAuthApplication)
 
 	templates.RenderTempl(
 		c,
@@ -166,7 +166,7 @@ func (h *UserClientHandler) ShowAppPage(c *gin.Context) {
 		templates.UserAppDetail(templates.UserClientDetailPageProps{
 			BaseProps:    templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
 			NavbarProps:  buildNavbarProps(c, userModel, "my-apps"),
-			Client:       appToDisplay(client),
+			Client:       clientToDisplay(client),
 			ActiveTokens: activeTokens,
 			Success:      successMsg,
 		}),
@@ -199,7 +199,7 @@ func (h *UserClientHandler) ShowEditAppPage(c *gin.Context) {
 		Method:      http.MethodPost,
 		Action:      action,
 		IsEdit:      true,
-		Client:      appToDisplay(client),
+		Client:      clientToDisplay(client),
 	}))
 }
 
@@ -304,7 +304,7 @@ func (h *UserClientHandler) RegenerateAppSecret(c *gin.Context) {
 	}
 
 	refreshed, _ := h.clientService.GetClient(clientID)
-	display := appToDisplay(refreshed)
+	display := clientToDisplay(refreshed)
 
 	templates.RenderTempl(
 		c,
@@ -316,30 +316,6 @@ func (h *UserClientHandler) RegenerateAppSecret(c *gin.Context) {
 			PlainSecret: newSecret,
 		}),
 	)
-}
-
-// appToDisplay converts an OAuthApplication to a ClientDisplay for user templates.
-func appToDisplay(app *models.OAuthApplication) *templates.ClientDisplay {
-	if app == nil {
-		return nil
-	}
-	return &templates.ClientDisplay{
-		ID:                          app.ID,
-		ClientID:                    app.ClientID,
-		ClientName:                  app.ClientName,
-		Description:                 app.Description,
-		UserID:                      app.UserID,
-		Scopes:                      app.Scopes,
-		GrantTypes:                  app.GrantTypes,
-		RedirectURIs:                app.RedirectURIs.Join(", "),
-		ClientType:                  app.ClientType,
-		EnableDeviceFlow:            app.EnableDeviceFlow,
-		EnableAuthCodeFlow:          app.EnableAuthCodeFlow,
-		EnableClientCredentialsFlow: app.EnableClientCredentialsFlow,
-		Status:                      app.Status,
-		CreatedAt:                   app.CreatedAt,
-		UpdatedAt:                   app.UpdatedAt,
-	}
 }
 
 func renderUserAppForm(

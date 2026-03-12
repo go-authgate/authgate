@@ -252,19 +252,8 @@ func (h *AuthorizationHandler) redirectWithError(
 	c *gin.Context,
 	redirectURI, state, errorCode, description string,
 ) {
-	if redirectURI == "" {
-		templates.RenderTempl(
-			c,
-			http.StatusBadRequest,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error:   errorCode,
-				Message: description,
-			}),
-		)
-		return
-	}
 	u, err := url.Parse(redirectURI)
-	if err != nil {
+	if redirectURI == "" || err != nil {
 		templates.RenderTempl(
 			c,
 			http.StatusBadRequest,

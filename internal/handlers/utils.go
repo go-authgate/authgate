@@ -7,6 +7,30 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// clientToDisplay converts an OAuthApplication model to a ClientDisplay template struct.
+func clientToDisplay(app *models.OAuthApplication) *templates.ClientDisplay {
+	if app == nil {
+		return nil
+	}
+	return &templates.ClientDisplay{
+		ID:                          app.ID,
+		ClientID:                    app.ClientID,
+		ClientName:                  app.ClientName,
+		Description:                 app.Description,
+		UserID:                      app.UserID,
+		Scopes:                      app.Scopes,
+		GrantTypes:                  app.GrantTypes,
+		RedirectURIs:                app.RedirectURIs.Join(", "),
+		ClientType:                  app.ClientType,
+		EnableDeviceFlow:            app.EnableDeviceFlow,
+		EnableAuthCodeFlow:          app.EnableAuthCodeFlow,
+		EnableClientCredentialsFlow: app.EnableClientCredentialsFlow,
+		Status:                      app.Status,
+		CreatedAt:                   app.CreatedAt,
+		UpdatedAt:                   app.UpdatedAt,
+	}
+}
+
 const ctxKeyPendingClientsCount = "pending_clients_count"
 
 // buildNavbarProps creates NavbarProps from a user model and active link identifier.
