@@ -20,7 +20,17 @@ import (
 
 // ─── Test infrastructure ─────────────────────────────────────────────────────
 
+type registrationTestOpts struct {
+	enabled bool
+	token   string // initial access token (empty = open registration)
+}
+
 func setupRegistrationTestEnv(t *testing.T, enableRegistration bool) *gin.Engine {
+	t.Helper()
+	return setupRegistrationTestEnvWithOpts(t, registrationTestOpts{enabled: enableRegistration})
+}
+
+func setupRegistrationTestEnvWithOpts(t *testing.T, opts registrationTestOpts) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
@@ -28,7 +38,8 @@ func setupRegistrationTestEnv(t *testing.T, enableRegistration bool) *gin.Engine
 		JWTExpiration:                   1 * time.Hour,
 		JWTSecret:                       "test-secret-32-chars-long!!!!!!!",
 		BaseURL:                         "http://localhost:8080",
-		EnableDynamicClientRegistration: enableRegistration,
+		EnableDynamicClientRegistration: opts.enabled,
+		DynamicClientRegistrationToken:  opts.token,
 	}
 
 	s, err := store.New(context.Background(), "sqlite", ":memory:", &config.Config{})
@@ -51,11 +62,25 @@ func postRegister(
 	body any,
 ) *httptest.ResponseRecorder {
 	t.Helper()
+	return postRegisterWithAuth(t, r, body, "")
+}
+
+// postRegisterWithAuth sends a POST /oauth/register with optional Authorization header.
+func postRegisterWithAuth(
+	t *testing.T,
+	r *gin.Engine,
+	body any,
+	authHeader string,
+) *httptest.ResponseRecorder {
+	t.Helper()
 	jsonBody, err := json.Marshal(body)
 	require.NoError(t, err)
 	req, err := http.NewRequest(http.MethodPost, "/oauth/register", bytes.NewReader(jsonBody))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	if authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+	}
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	return w
@@ -358,4 +383,77 @@ func TestRegister_MultipleGrantTypes(t *testing.T) {
 	assert.Len(t, grantTypes, 2)
 	assert.Contains(t, grantTypes, "authorization_code")
 	assert.Contains(t, grantTypes, "urn:ietf:params:oauth:grant-type:device_code")
+}
+
+// ─── Protected Registration: valid token ─────────────────────────────────────
+
+func TestRegister_ProtectedRegistration_ValidToken(t *testing.T) {
+	r := setupRegistrationTestEnvWithOpts(t, registrationTestOpts{
+		enabled: true,
+		token:   "my-secret-token",
+	})
+
+	w := postRegisterWithAuth(t, r, map[string]any{
+		"client_name":   "Protected App",
+		"redirect_uris": []string{"https://example.com/callback"},
+	}, "Bearer my-secret-token")
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.NotEmpty(t, resp["client_id"])
+}
+
+// ─── Protected Registration: missing token ───────────────────────────────────
+
+func TestRegister_ProtectedRegistration_MissingToken(t *testing.T) {
+	r := setupRegistrationTestEnvWithOpts(t, registrationTestOpts{
+		enabled: true,
+		token:   "my-secret-token",
+	})
+
+	w := postRegister(t, r, map[string]any{
+		"client_name":   "No Auth App",
+		"redirect_uris": []string{"https://example.com/callback"},
+	})
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Equal(t, "invalid_token", resp["error"])
+}
+
+// ─── Protected Registration: wrong token ─────────────────────────────────────
+
+func TestRegister_ProtectedRegistration_WrongToken(t *testing.T) {
+	r := setupRegistrationTestEnvWithOpts(t, registrationTestOpts{
+		enabled: true,
+		token:   "my-secret-token",
+	})
+
+	w := postRegisterWithAuth(t, r, map[string]any{
+		"client_name":   "Wrong Token App",
+		"redirect_uris": []string{"https://example.com/callback"},
+	}, "Bearer wrong-token")
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Equal(t, "invalid_token", resp["error"])
+}
+
+// ─── Open Registration: no token configured, no header needed ────────────────
+
+func TestRegister_OpenRegistration_NoTokenRequired(t *testing.T) {
+	r := setupRegistrationTestEnvWithOpts(t, registrationTestOpts{
+		enabled: true,
+		token:   "", // open registration
+	})
+
+	w := postRegister(t, r, map[string]any{
+		"client_name":   "Open App",
+		"redirect_uris": []string{"https://example.com/callback"},
+	})
+
+	assert.Equal(t, http.StatusCreated, w.Code)
 }

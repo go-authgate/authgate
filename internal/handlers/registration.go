@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/subtle"
 	"errors"
 	"net/http"
 	"strings"
@@ -52,6 +53,7 @@ type clientRegistrationRequest struct {
 //	@Param			request	body		clientRegistrationRequest															true	"Client registration request"
 //	@Success		201		{object}	object{client_id=string,client_secret=string,client_name=string,redirect_uris=[]string,grant_types=[]string,token_endpoint_auth_method=string,scope=string,client_id_issued_at=int,client_secret_expires_at=int}	"Client registered successfully"
 //	@Failure		400		{object}	object{error=string,error_description=string}											"Invalid client metadata"
+//	@Failure		401		{object}	object{error=string,error_description=string}											"Invalid or missing initial access token"
 //	@Failure		403		{object}	object{error=string,error_description=string}											"Dynamic registration is disabled"
 //	@Failure		429		{object}	object{error=string,error_description=string}											"Rate limit exceeded"
 //	@Failure		500		{object}	object{error=string,error_description=string}											"Internal server error"
@@ -66,7 +68,14 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// 2. Parse request body (RFC 7591 §2)
+	// 2. Validate initial access token (RFC 7591 §1.1 Protected Registration)
+	if h.config.DynamicClientRegistrationToken != "" {
+		if !validateRegistrationToken(c, h.config.DynamicClientRegistrationToken) {
+			return
+		}
+	}
+
+	// 3. Parse request body (RFC 7591 §2)
 	var req clientRegistrationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -76,7 +85,7 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// 3. Validate client_name (required)
+	// 4. Validate client_name (required)
 	if strings.TrimSpace(req.ClientName) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "invalid_client_metadata",
@@ -85,7 +94,7 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// 4. Determine grant types from request
+	// 5. Determine grant types from request
 	enableDeviceFlow := false
 	enableAuthCodeFlow := false
 
@@ -109,7 +118,7 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 		}
 	}
 
-	// 5. Determine auth method → client type (RFC 7591 §2: default is "client_secret_basic")
+	// 6. Determine auth method → client type (RFC 7591 §2: default is "client_secret_basic")
 	authMethod := req.TokenEPAuth
 	if authMethod == "" {
 		authMethod = "client_secret_basic"
@@ -129,7 +138,7 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// 6. Validate scopes (only user-safe scopes allowed)
+	// 7. Validate scopes (only user-safe scopes allowed)
 	scope := strings.TrimSpace(req.Scope)
 	if scope != "" {
 		for s := range strings.FieldsSeq(scope) {
@@ -146,7 +155,7 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 		}
 	}
 
-	// 7. Create the client via service (pending status, requires admin approval)
+	// 8. Create the client via service (pending status, requires admin approval)
 	createReq := services.CreateClientRequest{
 		ClientName:         req.ClientName,
 		Description:        req.ClientURI,
@@ -174,7 +183,7 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// 8. Log dynamic registration audit event
+	// 9. Log dynamic registration audit event
 	app := resp.OAuthApplication
 	if h.auditService != nil {
 		h.auditService.Log(c.Request.Context(), services.AuditLogEntry{
@@ -197,7 +206,7 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 		})
 	}
 
-	// 9. Build RFC 7591 §3.2.1 response
+	// 10. Build RFC 7591 §3.2.1 response
 	grantTypes := buildResponseGrantTypes(app)
 
 	c.JSON(http.StatusCreated, gin.H{
@@ -227,6 +236,31 @@ func buildResponseGrantTypes(app *models.OAuthApplication) []string {
 		grantTypes = append(grantTypes, "client_credentials")
 	}
 	return grantTypes
+}
+
+// validateRegistrationToken checks the Authorization: Bearer <token> header
+// against the configured initial access token (RFC 7591 §1.1 Protected Registration).
+// Returns true if valid, false if rejected (response already written).
+func validateRegistrationToken(c *gin.Context, expected string) bool {
+	header := c.GetHeader("Authorization")
+	if header == "" || !strings.HasPrefix(header, "Bearer ") {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":             "invalid_token",
+			"error_description": "An initial access token is required for client registration",
+		})
+		return false
+	}
+
+	token := strings.TrimPrefix(header, "Bearer ")
+	if subtle.ConstantTimeCompare([]byte(token), []byte(expected)) != 1 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":             "invalid_token",
+			"error_description": "The initial access token is invalid",
+		})
+		return false
+	}
+
+	return true
 }
 
 // isClientValidationError returns true if the error is a known client
