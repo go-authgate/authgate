@@ -85,6 +85,9 @@ func TestRegister_Success_Minimal(t *testing.T) {
 	grantTypes, ok := resp["grant_types"].([]any)
 	require.True(t, ok)
 	assert.Contains(t, grantTypes, "authorization_code")
+
+	// RFC 7591 §2: default token_endpoint_auth_method is "client_secret_basic"
+	assert.Equal(t, "client_secret_basic", resp["token_endpoint_auth_method"])
 }
 
 // ─── Success: device code grant type ─────────────────────────────────────────
@@ -124,6 +127,46 @@ func TestRegister_Success_ConfidentialClient(t *testing.T) {
 
 	assert.Equal(t, "client_secret_basic", resp["token_endpoint_auth_method"])
 	assert.NotEmpty(t, resp["client_secret"])
+}
+
+// ─── Success: client_secret_post echoed back ─────────────────────────────────
+
+func TestRegister_Success_ClientSecretPost(t *testing.T) {
+	r := setupRegistrationTestEnv(t, true)
+
+	w := postRegister(t, r, map[string]any{
+		"client_name":                "Post Auth App",
+		"redirect_uris":              []string{"https://example.com/callback"},
+		"grant_types":                []string{"authorization_code"},
+		"token_endpoint_auth_method": "client_secret_post",
+	})
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+
+	// Should echo back the requested method, not hardcode client_secret_basic
+	assert.Equal(t, "client_secret_post", resp["token_endpoint_auth_method"])
+	assert.NotEmpty(t, resp["client_secret"])
+}
+
+// ─── Success: explicit public client (none) ─────────────────────────────────
+
+func TestRegister_Success_PublicClient(t *testing.T) {
+	r := setupRegistrationTestEnv(t, true)
+
+	w := postRegister(t, r, map[string]any{
+		"client_name":                "SPA App",
+		"redirect_uris":              []string{"https://example.com/callback"},
+		"grant_types":                []string{"authorization_code"},
+		"token_endpoint_auth_method": "none",
+	})
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+
+	assert.Equal(t, "none", resp["token_endpoint_auth_method"])
 }
 
 // ─── Success: with scopes ────────────────────────────────────────────────────

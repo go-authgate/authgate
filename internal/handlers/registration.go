@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -53,6 +54,7 @@ type clientRegistrationRequest struct {
 //	@Failure		400		{object}	object{error=string,error_description=string}											"Invalid client metadata"
 //	@Failure		403		{object}	object{error=string,error_description=string}											"Dynamic registration is disabled"
 //	@Failure		429		{object}	object{error=string,error_description=string}											"Rate limit exceeded"
+//	@Failure		500		{object}	object{error=string,error_description=string}											"Internal server error"
 //	@Router			/oauth/register [post]
 func (h *RegistrationHandler) Register(c *gin.Context) {
 	// 1. Check if dynamic registration is enabled
@@ -107,10 +109,15 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 		}
 	}
 
-	// 5. Determine auth method → client type
+	// 5. Determine auth method → client type (RFC 7591 §2: default is "client_secret_basic")
+	authMethod := req.TokenEPAuth
+	if authMethod == "" {
+		authMethod = "client_secret_basic"
+	}
+
 	var clientType string
-	switch req.TokenEPAuth {
-	case "", "none":
+	switch authMethod {
+	case "none":
 		clientType = services.ClientTypePublic
 	case "client_secret_basic", "client_secret_post":
 		clientType = services.ClientTypeConfidential
@@ -153,10 +160,17 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 
 	resp, err := h.clientService.CreateClient(c.Request.Context(), createReq)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_client_metadata",
-			"error_description": err.Error(),
-		})
+		if isClientValidationError(err) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "invalid_client_metadata",
+				"error_description": err.Error(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":             "server_error",
+				"error_description": "Failed to register client",
+			})
+		}
 		return
 	}
 
@@ -185,10 +199,6 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 
 	// 9. Build RFC 7591 §3.2.1 response
 	grantTypes := buildResponseGrantTypes(app)
-	authMethod := "none"
-	if app.ClientType == services.ClientTypeConfidential {
-		authMethod = "client_secret_basic"
-	}
 
 	c.JSON(http.StatusCreated, gin.H{
 		"client_id":                  app.ClientID,
@@ -217,4 +227,14 @@ func buildResponseGrantTypes(app *models.OAuthApplication) []string {
 		grantTypes = append(grantTypes, "client_credentials")
 	}
 	return grantTypes
+}
+
+// isClientValidationError returns true if the error is a known client
+// validation error (should be 400), false for internal errors (should be 500).
+func isClientValidationError(err error) bool {
+	return errors.Is(err, services.ErrClientNameRequired) ||
+		errors.Is(err, services.ErrRedirectURIRequired) ||
+		errors.Is(err, services.ErrInvalidRedirectURI) ||
+		errors.Is(err, services.ErrInvalidClientData) ||
+		errors.Is(err, services.ErrAtLeastOneGrantRequired)
 }
