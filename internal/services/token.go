@@ -277,6 +277,22 @@ func (s *TokenService) ValidateToken(
 	return result, nil
 }
 
+// IntrospectToken looks up a token by its raw string and returns the database record
+// along with its active status. Unlike ValidateToken, this method does NOT require
+// JWT signature validation — it is designed for RFC 7662 introspection where the
+// authorization server is the token issuer and can rely on its own database state.
+// Returns (token, true) for active tokens, (token, false) for inactive/expired tokens,
+// and (nil, false) if the token does not exist.
+func (s *TokenService) IntrospectToken(tokenString string) (*models.AccessToken, bool) {
+	tok, err := s.store.GetAccessTokenByHash(util.SHA256Hex(tokenString))
+	if err != nil {
+		return nil, false
+	}
+
+	active := tok.IsActive() && !tok.IsExpired()
+	return tok, active
+}
+
 // RevokeToken revokes a token by its JWT string
 func (s *TokenService) RevokeToken(tokenString string) error {
 	// Get the token from database
@@ -693,6 +709,24 @@ func (s *TokenService) IssueClientCredentialsToken(
 	}
 
 	return accessToken, nil
+}
+
+// GetUserByID returns a user by their ID.
+func (s *TokenService) GetUserByID(userID string) (*models.User, error) {
+	return s.store.GetUserByID(userID)
+}
+
+// AuthenticateClient verifies client credentials (client_id + client_secret).
+// Returns nil on success, or an error if the client is not found or the secret is invalid.
+func (s *TokenService) AuthenticateClient(clientID, clientSecret string) error {
+	client, err := s.store.GetClient(clientID)
+	if err != nil {
+		return ErrInvalidClientCredentials
+	}
+	if !client.ValidateClientSecret([]byte(clientSecret)) {
+		return ErrInvalidClientCredentials
+	}
+	return nil
 }
 
 // validateScopes checks if requested scopes are subset of original scopes

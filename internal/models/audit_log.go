@@ -58,6 +58,9 @@ const (
 	// Client Credentials Flow events (RFC 6749 §4.4)
 	EventClientCredentialsTokenIssued EventType = "CLIENT_CREDENTIALS_TOKEN_ISSUED" //nolint:gosec // G101: false positive
 
+	// Token Introspection events (RFC 7662)
+	EventTokenIntrospected EventType = "TOKEN_INTROSPECTED"
+
 	// Audit events
 	EventTypeAuditLogView     EventType = "AUDIT_LOG_VIEWED"
 	EventTypeAuditLogExported EventType = "AUDIT_LOG_EXPORTED"

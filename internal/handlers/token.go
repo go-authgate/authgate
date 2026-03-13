@@ -257,6 +257,95 @@ func (h *TokenHandler) TokenInfo(c *gin.Context) {
 	})
 }
 
+// Introspect godoc
+//
+//	@Summary		Introspect token (RFC 7662)
+//	@Description	Determine the active state and metadata of an OAuth 2.0 token. Requires client authentication via HTTP Basic Auth or form-body client credentials.
+//	@Tags			OAuth
+//	@Accept			x-www-form-urlencoded
+//	@Produce		json
+//	@Param			token			formData	string																																		true	"The token to introspect"
+//	@Param			token_type_hint	formData	string																																		false	"Hint about the type of token: 'access_token' or 'refresh_token'"
+//	@Param			client_id		formData	string																																		false	"Client ID (alternative to HTTP Basic Auth)"
+//	@Param			client_secret	formData	string																																		false	"Client secret (alternative to HTTP Basic Auth)"
+//	@Success		200				{object}	object{active=bool,scope=string,client_id=string,username=string,token_type=string,exp=int,iat=int,sub=string,iss=string,jti=string}	"Token introspection response"
+//	@Failure		401				{object}	object{error=string,error_description=string}																							"Client authentication failed"
+//	@Router			/oauth/introspect [post]
+func (h *TokenHandler) Introspect(c *gin.Context) {
+	// 1. Authenticate the calling client (RFC 7662 §2.1)
+	// Prefer HTTP Basic Auth; fall back to form-body parameters
+	clientID, clientSecret, ok := c.Request.BasicAuth()
+	if !ok {
+		clientID = c.PostForm("client_id")
+		clientSecret = c.PostForm("client_secret")
+	}
+
+	if clientID == "" || clientSecret == "" {
+		c.Header("WWW-Authenticate", `Basic realm="authgate"`)
+		respondOAuthError(
+			c,
+			http.StatusUnauthorized,
+			"invalid_client",
+			"Client authentication required",
+		)
+		return
+	}
+
+	// Verify client credentials
+	if err := h.tokenService.AuthenticateClient(clientID, clientSecret); err != nil {
+		c.Header("WWW-Authenticate", `Basic realm="authgate"`)
+		respondOAuthError(
+			c,
+			http.StatusUnauthorized,
+			"invalid_client",
+			"Client authentication failed",
+		)
+		return
+	}
+
+	// 2. Get the token parameter (RFC 7662 §2.1: REQUIRED)
+	tokenString := c.PostForm("token")
+	if tokenString == "" {
+		respondOAuthError(
+			c,
+			http.StatusBadRequest,
+			"invalid_request",
+			"token parameter is required",
+		)
+		return
+	}
+
+	// 3. Introspect the token
+	// RFC 7662 §2.2: If the token is not active, return {"active": false}
+	tok, active := h.tokenService.IntrospectToken(tokenString)
+	if !active || tok == nil {
+		c.JSON(http.StatusOK, gin.H{"active": false})
+		return
+	}
+
+	// 4. Build RFC 7662 §2.2 response
+	resp := gin.H{
+		"active":     true,
+		"scope":      tok.Scopes,
+		"client_id":  tok.ClientID,
+		"token_type": tok.TokenType,
+		"exp":        tok.ExpiresAt.Unix(),
+		"iat":        tok.CreatedAt.Unix(),
+		"sub":        tok.UserID,
+		"iss":        h.config.BaseURL,
+		"jti":        tok.ID,
+	}
+
+	// Add username for user-delegated tokens (not M2M / client credentials tokens)
+	if !strings.HasPrefix(tok.UserID, "client:") {
+		if user, err := h.tokenService.GetUserByID(tok.UserID); err == nil {
+			resp["username"] = user.Username
+		}
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
 // Revoke godoc
 //
 //	@Summary		Revoke token
