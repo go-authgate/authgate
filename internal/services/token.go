@@ -167,8 +167,9 @@ func (s *TokenService) ExchangeDeviceCode(
 	}
 
 	// Create refresh token record
+	refreshTokenID := uuid.New().String()
 	refreshToken := &models.AccessToken{
-		ID:            uuid.New().String(),
+		ID:            refreshTokenID,
 		TokenHash:     util.SHA256Hex(refreshTokenResult.TokenString),
 		RawToken:      refreshTokenResult.TokenString,
 		TokenType:     refreshTokenResult.TokenType,
@@ -178,6 +179,12 @@ func (s *TokenService) ExchangeDeviceCode(
 		ClientID:      dc.ClientID,
 		Scopes:        dc.Scopes,
 		ExpiresAt:     refreshTokenResult.ExpiresAt,
+	}
+
+	// In rotation mode, set TokenFamilyID to the refresh token's own ID (family root)
+	if s.config.EnableTokenRotation {
+		refreshToken.TokenFamilyID = refreshTokenID
+		accessToken.TokenFamilyID = refreshTokenID
 	}
 
 	// Save both tokens in transaction
@@ -461,6 +468,52 @@ func (s *TokenService) RevokeAllUserTokens(userID string) error {
 	return s.store.RevokeTokensByUserID(userID)
 }
 
+// revokeTokenFamilyWithAudit revokes all tokens in a token family when refresh token
+// reuse is detected during rotation mode. This prevents stolen token abuse by invalidating
+// all tokens derived from the same parent (RFC 6819 §4.14.2).
+func (s *TokenService) revokeTokenFamilyWithAudit(
+	ctx context.Context, reusedToken *models.AccessToken,
+) {
+	familyID := reusedToken.TokenFamilyID
+	if familyID == "" {
+		// Fallback for tokens created before TokenFamilyID was introduced
+		familyID = reusedToken.ParentTokenID
+		if familyID == "" {
+			familyID = reusedToken.ID
+		}
+	}
+
+	revokedCount, err := s.store.RevokeTokenFamily(familyID)
+	if err != nil {
+		log.Printf("[Token] Failed to revoke token family %s: %v", familyID, err)
+		return
+	}
+
+	// Record family revocation event
+	if revokedCount > 0 {
+		s.metrics.RecordTokenRevoked("family", "replay_detection")
+	}
+
+	// Audit log — CRITICAL severity because this indicates potential token theft
+	if s.auditService != nil {
+		_ = s.auditService.LogSync(ctx, AuditLogEntry{
+			EventType:    models.EventSuspiciousActivity,
+			Severity:     models.SeverityCritical,
+			ActorUserID:  reusedToken.UserID,
+			ResourceType: models.ResourceToken,
+			ResourceID:   reusedToken.ID,
+			Action:       "Refresh token reuse detected — token family revoked",
+			Details: models.AuditDetails{
+				"family_id":       familyID,
+				"reused_token_id": reusedToken.ID,
+				"client_id":       reusedToken.ClientID,
+				"tokens_revoked":  revokedCount,
+			},
+			Success: true,
+		})
+	}
+}
+
 // RefreshAccessToken generates new access token (and optionally new refresh token in rotation mode)
 func (s *TokenService) RefreshAccessToken(
 	ctx context.Context,
@@ -479,8 +532,13 @@ func (s *TokenService) RefreshAccessToken(
 		return nil, nil, token.ErrInvalidRefreshToken
 	}
 	if !refreshToken.IsActive() {
+		// In rotation mode, a non-active refresh token being reused indicates
+		// potential token theft (RFC 6819 §4.14.2). Revoke the entire token family.
+		if s.config.EnableTokenRotation && (refreshToken.IsRevoked() || refreshToken.IsDisabled()) {
+			s.revokeTokenFamilyWithAudit(ctx, refreshToken)
+		}
 		s.metrics.RecordTokenRefresh(false)
-		return nil, nil, token.ErrInvalidRefreshToken // Token disabled or revoked
+		return nil, nil, token.ErrInvalidRefreshToken
 	}
 
 	// 3. Verify expiration
@@ -532,7 +590,8 @@ func (s *TokenService) RefreshAccessToken(
 		ClientID:      refreshToken.ClientID,
 		Scopes:        refreshToken.Scopes,
 		ExpiresAt:     refreshResult.AccessToken.ExpiresAt,
-		ParentTokenID: refreshToken.ID, // Token family tracking
+		ParentTokenID: refreshToken.ID,
+		TokenFamilyID: refreshToken.TokenFamilyID, // Inherit family ID
 	}
 
 	if err := tx.Create(newAccessToken).Error; err != nil {
@@ -556,7 +615,8 @@ func (s *TokenService) RefreshAccessToken(
 			ClientID:      refreshToken.ClientID,
 			Scopes:        refreshToken.Scopes,
 			ExpiresAt:     refreshResult.RefreshToken.ExpiresAt,
-			ParentTokenID: refreshToken.ID, // Token family tracking
+			ParentTokenID: refreshToken.ID,
+			TokenFamilyID: refreshToken.TokenFamilyID, // Inherit family ID
 		}
 
 		if err := tx.Create(newRefreshToken).Error; err != nil {
@@ -947,8 +1007,9 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		AuthorizationID: authorizationID,
 	}
 
+	refreshTokenID := uuid.New().String()
 	refreshToken := &models.AccessToken{
-		ID:              uuid.New().String(),
+		ID:              refreshTokenID,
 		TokenHash:       util.SHA256Hex(refreshTokenResult.TokenString),
 		RawToken:        refreshTokenResult.TokenString,
 		TokenType:       refreshTokenResult.TokenType,
@@ -959,6 +1020,12 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		Scopes:          authCode.Scopes,
 		ExpiresAt:       refreshTokenResult.ExpiresAt,
 		AuthorizationID: authorizationID,
+	}
+
+	// In rotation mode, set TokenFamilyID to the refresh token's own ID (family root)
+	if s.config.EnableTokenRotation {
+		refreshToken.TokenFamilyID = refreshTokenID
+		accessToken.TokenFamilyID = refreshTokenID
 	}
 
 	// Persist both tokens in a single transaction

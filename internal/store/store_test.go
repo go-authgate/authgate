@@ -274,6 +274,107 @@ func testBasicOperations(t *testing.T, driver string, pgContainer *postgres.Post
 		assert.Empty(t, retrieved, "Expired device code should be deleted")
 	})
 
+	t.Run("RevokeTokenFamily", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+
+		familyID := uuid.New().String()
+		clientID := uuid.New().String()
+		userID := uuid.New().String()
+
+		// Create the root refresh token (the family root, already revoked after first rotation)
+		parentToken := &models.AccessToken{
+			ID:            familyID,
+			TokenHash:     util.SHA256Hex(uuid.New().String()),
+			TokenCategory: models.TokenCategoryRefresh,
+			Status:        models.TokenStatusRevoked,
+			UserID:        userID,
+			ClientID:      clientID,
+			Scopes:        "read write",
+			ExpiresAt:     time.Now().Add(24 * time.Hour),
+			TokenFamilyID: familyID,
+		}
+		require.NoError(t, store.CreateAccessToken(parentToken))
+
+		// Create child tokens in the same family (all share TokenFamilyID)
+		childActive1 := &models.AccessToken{
+			ID:            uuid.New().String(),
+			TokenHash:     util.SHA256Hex(uuid.New().String()),
+			TokenCategory: models.TokenCategoryAccess,
+			Status:        models.TokenStatusActive,
+			UserID:        userID,
+			ClientID:      clientID,
+			Scopes:        "read write",
+			ExpiresAt:     time.Now().Add(1 * time.Hour),
+			ParentTokenID: familyID,
+			TokenFamilyID: familyID,
+		}
+		require.NoError(t, store.CreateAccessToken(childActive1))
+
+		// Grandchild — different ParentTokenID but same TokenFamilyID
+		grandchildID := uuid.New().String()
+		childActive2 := &models.AccessToken{
+			ID:            grandchildID,
+			TokenHash:     util.SHA256Hex(uuid.New().String()),
+			TokenCategory: models.TokenCategoryRefresh,
+			Status:        models.TokenStatusActive,
+			UserID:        userID,
+			ClientID:      clientID,
+			Scopes:        "read write",
+			ExpiresAt:     time.Now().Add(24 * time.Hour),
+			ParentTokenID: childActive1.ID,
+			TokenFamilyID: familyID,
+		}
+		require.NoError(t, store.CreateAccessToken(childActive2))
+
+		// Create an already-revoked child (should not be counted again)
+		childRevoked := &models.AccessToken{
+			ID:            uuid.New().String(),
+			TokenHash:     util.SHA256Hex(uuid.New().String()),
+			TokenCategory: models.TokenCategoryRefresh,
+			Status:        models.TokenStatusRevoked,
+			UserID:        userID,
+			ClientID:      clientID,
+			Scopes:        "read write",
+			ExpiresAt:     time.Now().Add(24 * time.Hour),
+			TokenFamilyID: familyID,
+		}
+		require.NoError(t, store.CreateAccessToken(childRevoked))
+
+		// Create an unrelated token (different family)
+		unrelatedToken := &models.AccessToken{
+			ID:            uuid.New().String(),
+			TokenHash:     util.SHA256Hex(uuid.New().String()),
+			TokenCategory: models.TokenCategoryAccess,
+			Status:        models.TokenStatusActive,
+			UserID:        userID,
+			ClientID:      clientID,
+			Scopes:        "read",
+			ExpiresAt:     time.Now().Add(1 * time.Hour),
+			TokenFamilyID: uuid.New().String(), // different family
+		}
+		require.NoError(t, store.CreateAccessToken(unrelatedToken))
+
+		// Revoke the token family
+		revokedCount, err := store.RevokeTokenFamily(familyID)
+		require.NoError(t, err)
+		// Should revoke the 2 active children (parent already revoked, childRevoked already revoked)
+		assert.Equal(t, int64(2), revokedCount)
+
+		// Verify family tokens are revoked (including grandchild)
+		retrieved1, err := store.GetAccessTokenByHash(childActive1.TokenHash)
+		require.NoError(t, err)
+		assert.Equal(t, models.TokenStatusRevoked, retrieved1.Status)
+
+		retrieved2, err := store.GetAccessTokenByHash(childActive2.TokenHash)
+		require.NoError(t, err)
+		assert.Equal(t, models.TokenStatusRevoked, retrieved2.Status)
+
+		// Verify unrelated token is still active
+		unrelated, err := store.GetAccessTokenByHash(unrelatedToken.TokenHash)
+		require.NoError(t, err)
+		assert.Equal(t, models.TokenStatusActive, unrelated.Status)
+	})
+
 	t.Run("HealthCheck", func(t *testing.T) {
 		store := createFreshStore(t, driver, pgContainer)
 

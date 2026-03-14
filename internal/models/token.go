@@ -29,9 +29,10 @@ type AccessToken struct {
 	Scopes          string `gorm:"not null"` // space-separated scopes
 	ExpiresAt       time.Time
 	CreatedAt       time.Time
-	LastUsedAt      *time.Time `gorm:"index"` // Last time token was used (for refresh tokens)
-	ParentTokenID   string     `gorm:"index"` // Links access tokens to their refresh token
-	AuthorizationID *uint      `gorm:"index"` // FK → UserAuthorization.ID (nil for device_code grants)
+	LastUsedAt      *time.Time `gorm:"index"`                     // Last time token was used (for refresh tokens)
+	ParentTokenID   string     `gorm:"index"`                     // Links access tokens to their refresh token
+	TokenFamilyID   string     `gorm:"index;default:'';not null"` // Stable root ID for rotation replay detection
+	AuthorizationID *uint      `gorm:"index"`                     // FK → UserAuthorization.ID (nil for device_code grants)
 }
 
 func (t *AccessToken) IsExpired() bool {
