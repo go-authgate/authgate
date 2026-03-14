@@ -461,6 +461,49 @@ func (s *TokenService) RevokeAllUserTokens(userID string) error {
 	return s.store.RevokeTokensByUserID(userID)
 }
 
+// revokeTokenFamilyWithAudit revokes all tokens in a token family when refresh token
+// reuse is detected during rotation mode. This prevents stolen token abuse by invalidating
+// all tokens derived from the same parent (RFC 6819 §4.14.2).
+func (s *TokenService) revokeTokenFamilyWithAudit(
+	ctx context.Context, reusedToken *models.AccessToken,
+) {
+	// Determine the family root: use ParentTokenID if set, otherwise the token itself is the root
+	familyID := reusedToken.ParentTokenID
+	if familyID == "" {
+		familyID = reusedToken.ID
+	}
+
+	revokedCount, err := s.store.RevokeTokenFamily(familyID)
+	if err != nil {
+		log.Printf("[Token] Failed to revoke token family %s: %v", familyID, err)
+		return
+	}
+
+	// Record metrics for each revoked token
+	if revokedCount > 0 {
+		s.metrics.RecordTokenRevoked("family", "replay_detection")
+	}
+
+	// Audit log — CRITICAL severity because this indicates potential token theft
+	if s.auditService != nil {
+		_ = s.auditService.LogSync(ctx, AuditLogEntry{
+			EventType:    models.EventSuspiciousActivity,
+			Severity:     models.SeverityCritical,
+			ActorUserID:  reusedToken.UserID,
+			ResourceType: models.ResourceToken,
+			ResourceID:   reusedToken.ID,
+			Action:       "Refresh token reuse detected — token family revoked",
+			Details: models.AuditDetails{
+				"family_id":       familyID,
+				"reused_token_id": reusedToken.ID,
+				"client_id":       reusedToken.ClientID,
+				"tokens_revoked":  revokedCount,
+			},
+			Success: true,
+		})
+	}
+}
+
 // RefreshAccessToken generates new access token (and optionally new refresh token in rotation mode)
 func (s *TokenService) RefreshAccessToken(
 	ctx context.Context,
@@ -479,8 +522,13 @@ func (s *TokenService) RefreshAccessToken(
 		return nil, nil, token.ErrInvalidRefreshToken
 	}
 	if !refreshToken.IsActive() {
+		// In rotation mode, a non-active refresh token being reused indicates
+		// potential token theft (RFC 6819 §4.14.2). Revoke the entire token family.
+		if s.config.EnableTokenRotation && (refreshToken.IsRevoked() || refreshToken.IsDisabled()) {
+			s.revokeTokenFamilyWithAudit(ctx, refreshToken)
+		}
 		s.metrics.RecordTokenRefresh(false)
-		return nil, nil, token.ErrInvalidRefreshToken // Token disabled or revoked
+		return nil, nil, token.ErrInvalidRefreshToken
 	}
 
 	// 3. Verify expiration

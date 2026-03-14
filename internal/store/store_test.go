@@ -274,6 +274,102 @@ func testBasicOperations(t *testing.T, driver string, pgContainer *postgres.Post
 		assert.Empty(t, retrieved, "Expired device code should be deleted")
 	})
 
+	t.Run("RevokeTokenFamily", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+
+		parentID := uuid.New().String()
+		clientID := uuid.New().String()
+		userID := uuid.New().String()
+
+		// Create the parent refresh token (the family root)
+		parentToken := &models.AccessToken{
+			ID:            parentID,
+			TokenHash:     util.SHA256Hex(uuid.New().String()),
+			TokenCategory: models.TokenCategoryRefresh,
+			Status:        models.TokenStatusRevoked, // already used/revoked
+			UserID:        userID,
+			ClientID:      clientID,
+			Scopes:        "read write",
+			ExpiresAt:     time.Now().Add(24 * time.Hour),
+		}
+		require.NoError(t, store.CreateAccessToken(parentToken))
+
+		// Create child tokens in the same family (ParentTokenID = parentID)
+		childActive1 := &models.AccessToken{
+			ID:            uuid.New().String(),
+			TokenHash:     util.SHA256Hex(uuid.New().String()),
+			TokenCategory: models.TokenCategoryAccess,
+			Status:        models.TokenStatusActive,
+			UserID:        userID,
+			ClientID:      clientID,
+			Scopes:        "read write",
+			ExpiresAt:     time.Now().Add(1 * time.Hour),
+			ParentTokenID: parentID,
+		}
+		require.NoError(t, store.CreateAccessToken(childActive1))
+
+		childActive2 := &models.AccessToken{
+			ID:            uuid.New().String(),
+			TokenHash:     util.SHA256Hex(uuid.New().String()),
+			TokenCategory: models.TokenCategoryRefresh,
+			Status:        models.TokenStatusActive,
+			UserID:        userID,
+			ClientID:      clientID,
+			Scopes:        "read write",
+			ExpiresAt:     time.Now().Add(24 * time.Hour),
+			ParentTokenID: parentID,
+		}
+		require.NoError(t, store.CreateAccessToken(childActive2))
+
+		// Create an already-revoked child (should not be counted again)
+		childRevoked := &models.AccessToken{
+			ID:            uuid.New().String(),
+			TokenHash:     util.SHA256Hex(uuid.New().String()),
+			TokenCategory: models.TokenCategoryRefresh,
+			Status:        models.TokenStatusRevoked,
+			UserID:        userID,
+			ClientID:      clientID,
+			Scopes:        "read write",
+			ExpiresAt:     time.Now().Add(24 * time.Hour),
+			ParentTokenID: parentID,
+		}
+		require.NoError(t, store.CreateAccessToken(childRevoked))
+
+		// Create an unrelated token (different family)
+		unrelatedToken := &models.AccessToken{
+			ID:            uuid.New().String(),
+			TokenHash:     util.SHA256Hex(uuid.New().String()),
+			TokenCategory: models.TokenCategoryAccess,
+			Status:        models.TokenStatusActive,
+			UserID:        userID,
+			ClientID:      clientID,
+			Scopes:        "read",
+			ExpiresAt:     time.Now().Add(1 * time.Hour),
+			ParentTokenID: uuid.New().String(), // different family
+		}
+		require.NoError(t, store.CreateAccessToken(unrelatedToken))
+
+		// Revoke the token family
+		revokedCount, err := store.RevokeTokenFamily(parentID)
+		require.NoError(t, err)
+		// Should revoke the 2 active children (parent is already revoked, childRevoked already revoked)
+		assert.Equal(t, int64(2), revokedCount)
+
+		// Verify family tokens are revoked
+		retrieved1, err := store.GetAccessTokenByHash(childActive1.TokenHash)
+		require.NoError(t, err)
+		assert.Equal(t, models.TokenStatusRevoked, retrieved1.Status)
+
+		retrieved2, err := store.GetAccessTokenByHash(childActive2.TokenHash)
+		require.NoError(t, err)
+		assert.Equal(t, models.TokenStatusRevoked, retrieved2.Status)
+
+		// Verify unrelated token is still active
+		unrelated, err := store.GetAccessTokenByHash(unrelatedToken.TokenHash)
+		require.NoError(t, err)
+		assert.Equal(t, models.TokenStatusActive, unrelated.Status)
+	})
+
 	t.Run("HealthCheck", func(t *testing.T) {
 		store := createFreshStore(t, driver, pgContainer)
 
