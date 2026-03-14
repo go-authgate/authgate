@@ -63,6 +63,8 @@ REDIS_DB=0
 | `/oauth/device/code` | 10              | Prevent device code spam             |
 | `/oauth/token`       | 20              | Allow polling while preventing abuse |
 | `/device/verify`     | 10              | Prevent user code guessing           |
+| `/oauth/register`   | 5               | Prevent registration spam            |
+| `/oauth/introspect` | 20              | Prevent client secret brute force    |
 
 ### Customizing Limits
 
@@ -76,6 +78,10 @@ TOKEN_RATE_LIMIT=60
 # More restrictive (e.g., security-critical)
 LOGIN_RATE_LIMIT=3
 DEVICE_VERIFY_RATE_LIMIT=5
+
+# Dynamic client registration and introspection
+DYNAMIC_CLIENT_REGISTRATION_RATE_LIMIT=10
+INTROSPECT_RATE_LIMIT=50
 ```
 
 ### Disabling Rate Limiting

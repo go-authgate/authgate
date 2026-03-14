@@ -53,6 +53,8 @@ Before deploying AuthGate to production, complete this security checklist:
 - [ ] Adjust limits based on traffic patterns
 - [ ] Monitor rate limit events in audit logs
 - [ ] Set up alerts for excessive rate limiting
+- [ ] If enabling dynamic client registration, set `DYNAMIC_CLIENT_REGISTRATION_TOKEN`
+- [ ] Review and approve pending client registrations promptly
 
 ### Audit Logging
 
@@ -131,6 +133,17 @@ Before deploying AuthGate to production, complete this security checklist:
 - Rate limiting enabled by default (configurable per endpoint)
 - IP-based tracking prevents single attacker from overwhelming service
 - Failed login attempts logged in audit trail
+
+✅ **Unauthorized Client Registration**
+
+- Optional initial access token required for dynamic registration
+- Registered clients default to "pending" status (admin approval required)
+- All registration attempts are audit logged
+
+✅ **Token Information Leakage**
+
+- Introspection endpoint requires client authentication (Basic Auth or form credentials)
+- Rate limited to prevent client secret brute force
 
 ✅ **API Abuse and DoS Attempts**
 

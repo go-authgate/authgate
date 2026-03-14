@@ -245,10 +245,12 @@ Access audit logs through the admin panel:
 - `TOKEN_REVOKED` - Token permanently revoked
 - `TOKEN_DISABLED` - Token temporarily disabled
 - `TOKEN_ENABLED` - Disabled token re-enabled
+- `TOKEN_INTROSPECTED` - Token introspection request
 
 **Admin Operations:**
 
 - `CLIENT_CREATED` - OAuth client created
+- `CLIENT_REGISTERED` - OAuth client registered via dynamic registration (RFC 7591)
 - `CLIENT_UPDATED` - OAuth client modified
 - `CLIENT_DELETED` - OAuth client removed
 - `CLIENT_SECRET_REGENERATED` - Client secret rotated

@@ -119,6 +119,11 @@ AUTH_CODE_EXPIRATION=10m            # Authorization code lifetime (default: 10 m
 PKCE_REQUIRED=false                 # Require PKCE for all clients, including confidential (default: false)
 CONSENT_REMEMBER=true               # Skip consent page if user already approved same scopes (default: true)
 
+# Dynamic Client Registration (RFC 7591)
+ENABLE_DYNAMIC_CLIENT_REGISTRATION=false  # Enable POST /oauth/register (default: false)
+DYNAMIC_CLIENT_REGISTRATION_TOKEN=        # Optional Bearer token for protected registration
+DYNAMIC_CLIENT_REGISTRATION_RATE_LIMIT=5  # Rate limit (default: 5 req/min)
+
 # User Cache
 # Caches GetUserByID results — called on every protected request (RequireAuth + RequireAdmin)
 # USER_CACHE_TYPE=memory              # Options: memory, redis, redis-aside (default: memory)
@@ -843,6 +848,8 @@ REDIS_PASSWORD=your-password
 | `POST /oauth/device/code` | 10 req/min | Prevent device code spam             |
 | `POST /oauth/token`       | 20 req/min | Allow polling while preventing abuse |
 | `POST /device/verify`     | 10 req/min | Prevent user code guessing           |
+| `POST /oauth/register`   | 5 req/min  | Prevent registration spam            |
+| `POST /oauth/introspect` | 20 req/min | Prevent client secret brute force    |
 
 ### Configuration Guide
 
@@ -865,6 +872,8 @@ LOGIN_RATE_LIMIT=5
 DEVICE_CODE_RATE_LIMIT=10
 TOKEN_RATE_LIMIT=20
 DEVICE_VERIFY_RATE_LIMIT=10
+DYNAMIC_CLIENT_REGISTRATION_RATE_LIMIT=5
+INTROSPECT_RATE_LIMIT=20
 ```
 
 **📖 For complete documentation, deployment scenarios, and troubleshooting, see [RATE_LIMITING.md](RATE_LIMITING.md)**

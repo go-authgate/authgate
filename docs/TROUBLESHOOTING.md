@@ -632,6 +632,14 @@ DATABASE_DSN="host=localhost user=authgate password=secret dbname=authgate port=
 sudo systemctl restart authgate
 ```
 
+### Q: Can I register OAuth clients programmatically?
+
+**A:** Yes, via `POST /oauth/register` (RFC 7591). Enable with `ENABLE_DYNAMIC_CLIENT_REGISTRATION=true`. Optionally protect the endpoint with a Bearer token via `DYNAMIC_CLIENT_REGISTRATION_TOKEN`. Registered clients default to "pending" status and require admin approval before they can be used.
+
+### Q: How do I check if a token is still valid?
+
+**A:** Use `POST /oauth/introspect` (RFC 7662) with client credentials (HTTP Basic Auth or form-body `client_id`/`client_secret`). The endpoint returns `{"active": true, ...}` with token metadata for valid tokens, or `{"active": false}` for invalid/expired tokens.
+
 ### Q: Can I customize the web UI?
 
 **A:** Yes, but it requires rebuilding the application:

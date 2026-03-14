@@ -157,6 +157,8 @@ sequenceDiagram
 | `/oauth/tokeninfo`                  | GET      | No (Bearer)   | Verify token validity from Authorization: Bearer access token                                     |
 | `/oauth/userinfo`                   | GET/POST | No (Bearer)   | OIDC UserInfo — returns profile claims for authenticated user (OIDC Core §5.3)                    |
 | `/oauth/revoke`                     | POST     | No            | Revoke access token (RFC 7009)                                                                    |
+| `/oauth/register`                   | POST     | No            | Dynamic client registration (RFC 7591); optional Bearer token                                     |
+| `/oauth/introspect`                 | POST     | No            | Token introspection (RFC 7662); client auth via Basic or form                                     |
 | `/device`                           | GET      | Yes (Session) | User authorization page (browser)                                                                 |
 | `/device/verify`                    | POST     | Yes (Session) | Complete authorization (submit user_code)                                                         |
 | `/account/sessions`                 | GET      | Yes (Session) | View all active sessions                                                                          |
@@ -259,6 +261,25 @@ Example request for `openid profile email` scopes:
   - Returns: Redirect to sessions page
 
 **Security Note:** Session management endpoints use CSRF protection and verify token ownership before revocation.
+
+#### Dynamic Client Registration (RFC 7591)
+
+- `POST /oauth/register` - Register a new OAuth client programmatically
+  - Request body (JSON): `client_name` (required), `redirect_uris`, `grant_types`, `token_endpoint_auth_method`, `scope`
+  - Gated by `ENABLE_DYNAMIC_CLIENT_REGISTRATION=true` (disabled by default)
+  - Optional Bearer token protection via `DYNAMIC_CLIENT_REGISTRATION_TOKEN`
+  - Registered clients default to "pending" status (admin approval required before use)
+  - Rate limited (default: 5 req/min)
+  - Returns: `client_id`, `client_secret` (for confidential clients), `registration_access_token`, and echoed metadata
+
+#### Token Introspection (RFC 7662)
+
+- `POST /oauth/introspect` - Determine the active state and metadata of a token
+  - Client authentication via HTTP Basic Auth or form-body `client_id`/`client_secret`
+  - Parameters: `token` (required), `token_type_hint` (optional: `access_token` or `refresh_token`)
+  - Active response includes: `active`, `scope`, `client_id`, `username`, `token_type`, `exp`, `iat`, `sub`, `iss`, `jti`
+  - Inactive/invalid tokens return: `{"active": false}`
+  - Rate limited (default: 20 req/min)
 
 ---
 

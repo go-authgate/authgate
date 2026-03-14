@@ -148,6 +148,8 @@ AuthGate also serves as a lightweight **centralised identity gateway** for inter
 - **Multi-Auth Support**: Local authentication, external HTTP API, OAuth providers (GitHub, Gitea, Microsoft)
 - **Flexible Deployment**: Docker-ready, cloud-friendly, runs anywhere with context-aware lifecycle management
 - **Token Management**: Fixed and rotation refresh token modes, web UI for session management
+- **Dynamic Client Registration ([RFC 7591][rfc7591])**: Programmatic client registration with admin approval workflow, protected by optional initial access token
+- **Token Introspection ([RFC 7662][rfc7662])**: RFC-compliant token metadata inspection with client credential authentication
 
 ---
 
@@ -344,6 +346,8 @@ sequenceDiagram
 | `/oauth/tokeninfo`                  | GET      | Verify token validity                                                                      |
 | `/oauth/userinfo`                   | GET/POST | OIDC UserInfo — profile claims for token owner                                             |
 | `/oauth/revoke`                     | POST     | Revoke tokens ([RFC 7009][rfc7009])                                                        |
+| `/oauth/register`                   | POST     | Dynamic client registration ([RFC 7591][rfc7591])                                          |
+| `/oauth/introspect`                 | POST     | Token introspection ([RFC 7662][rfc7662])                                                  |
 | `/device`                           | GET      | Device code entry page (browser)                                                           |
 | `/account/sessions`                 | GET      | Manage active token sessions                                                               |
 | `/account/authorizations`           | GET      | Manage per-app consent grants                                                              |
@@ -427,6 +431,7 @@ ENABLE_AUDIT_LOGGING=true       # Comprehensive audit trails
 - **Service-to-Service Auth**: HMAC or simple header authentication
 - **HTTP Retry with Backoff**: Resilient external API calls
 - **Rate Limiting**: Memory or Redis store for distributed deployments
+- **Dynamic Client Registration**: RFC 7591 with admin approval workflow
 - **Configurable Timeouts**: Fine-tune initialization and shutdown timeouts for production environments
 
 **[Advanced Configuration →](docs/CONFIGURATION.md)**
@@ -649,6 +654,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [RFC 7636 - PKCE for OAuth Public Clients][rfc7636]
 - [RFC 7009 - OAuth 2.0 Token Revocation][rfc7009]
 - [RFC 8725 - JWT Best Practices][rfc8725]
+- [RFC 7591 - OAuth 2.0 Dynamic Client Registration Protocol][rfc7591]
+- [RFC 7662 - OAuth 2.0 Token Introspection][rfc7662]
 - [RFC 8414 - OAuth 2.0 Authorization Server Metadata][rfc8414]
 - [RFC 9700 - Best Current Practice for OAuth 2.0 Security][rfc9700]
 - [OpenID Connect Core 1.0][oidccore]
@@ -677,6 +684,8 @@ Built with:
 [rfc7636]: https://datatracker.ietf.org/doc/html/rfc7636
 [rfc7009]: https://datatracker.ietf.org/doc/html/rfc7009
 [rfc8725]: https://datatracker.ietf.org/doc/html/rfc8725
+[rfc7591]: https://datatracker.ietf.org/doc/html/rfc7591
+[rfc7662]: https://datatracker.ietf.org/doc/html/rfc7662
 [rfc8414]: https://datatracker.ietf.org/doc/html/rfc8414
 [rfc9700]: https://datatracker.ietf.org/doc/html/rfc9700
 [oidccore]: https://openid.net/specs/openid-connect-core-1_0.html
