@@ -489,9 +489,9 @@ func (s *TokenService) revokeTokenFamilyWithAudit(
 		return
 	}
 
-	// Record metrics for revoked tokens
-	for range revokedCount {
-		s.metrics.RecordTokenRevoked("refresh", "replay_detection")
+	// Record family revocation event
+	if revokedCount > 0 {
+		s.metrics.RecordTokenRevoked("family", "replay_detection")
 	}
 
 	// Audit log — CRITICAL severity because this indicates potential token theft
