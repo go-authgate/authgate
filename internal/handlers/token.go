@@ -317,7 +317,7 @@ func (h *TokenHandler) Introspect(c *gin.Context) {
 
 	// 3. Introspect the token
 	// RFC 7662 §2.2: If the token is not active, return {"active": false}
-	tok, active := h.tokenService.IntrospectToken(tokenString)
+	tok, active := h.tokenService.IntrospectToken(c.Request.Context(), tokenString, clientID)
 	if !active || tok == nil {
 		c.JSON(http.StatusOK, gin.H{"active": false})
 		return

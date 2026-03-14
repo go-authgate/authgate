@@ -153,6 +153,7 @@ type Config struct {
 	DeviceCodeRateLimit      int // Requests per minute for /oauth/device/code (default: 10)
 	TokenRateLimit           int // Requests per minute for /oauth/token (default: 20)
 	DeviceVerifyRateLimit    int // Requests per minute for /device/verify (default: 10)
+	IntrospectRateLimit      int // Requests per minute for /oauth/introspect (default: 20)
 
 	// Redis settings (only used when RateLimitStore = "redis")
 	RedisAddr     string // Redis address for rate limiting (e.g., "localhost:6379")
@@ -343,6 +344,7 @@ func Load() *Config {
 		DeviceCodeRateLimit:      getEnvInt("DEVICE_CODE_RATE_LIMIT", 10),
 		TokenRateLimit:           getEnvInt("TOKEN_RATE_LIMIT", 20),
 		DeviceVerifyRateLimit:    getEnvInt("DEVICE_VERIFY_RATE_LIMIT", 10),
+		IntrospectRateLimit:      getEnvInt("INTROSPECT_RATE_LIMIT", 20),
 
 		// Redis settings
 		RedisAddr:     getEnv("REDIS_ADDR", "localhost:6379"),

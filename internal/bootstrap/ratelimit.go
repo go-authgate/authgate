@@ -17,6 +17,7 @@ type rateLimitMiddlewares struct {
 	token        gin.HandlerFunc
 	deviceVerify gin.HandlerFunc
 	register     gin.HandlerFunc
+	introspect   gin.HandlerFunc
 }
 
 // setupRateLimiting configures rate limiting middlewares based on configuration
@@ -34,6 +35,7 @@ func setupRateLimiting(
 		token:        noOpMiddleware,
 		deviceVerify: noOpMiddleware,
 		register:     noOpMiddleware,
+		introspect:   noOpMiddleware,
 	}
 
 	switch {
@@ -82,5 +84,6 @@ func createRateLimiters(
 		token:        createLimiter(cfg.TokenRateLimit, "/oauth/token"),
 		deviceVerify: createLimiter(cfg.DeviceVerifyRateLimit, "/device/verify"),
 		register:     createLimiter(cfg.DynamicClientRegistrationRateLimit, "/oauth/register"),
+		introspect:   createLimiter(cfg.IntrospectRateLimit, "/oauth/introspect"),
 	}
 }

@@ -60,7 +60,7 @@ func TestIntrospectToken_ActiveToken(t *testing.T) {
 	createTestAccessToken(t, s, rawToken, "user-1", "client-1",
 		models.TokenStatusActive, time.Now().Add(1*time.Hour))
 
-	tok, active := svc.IntrospectToken(rawToken)
+	tok, active := svc.IntrospectToken(context.Background(), rawToken, "test-client")
 	assert.True(t, active)
 	require.NotNil(t, tok)
 	assert.Equal(t, "user-1", tok.UserID)
@@ -75,7 +75,7 @@ func TestIntrospectToken_ExpiredToken(t *testing.T) {
 	createTestAccessToken(t, s, rawToken, "user-1", "client-1",
 		models.TokenStatusActive, time.Now().Add(-1*time.Hour))
 
-	tok, active := svc.IntrospectToken(rawToken)
+	tok, active := svc.IntrospectToken(context.Background(), rawToken, "test-client")
 	assert.False(t, active)
 	require.NotNil(t, tok, "expired token should still be returned for metadata")
 }
@@ -87,7 +87,7 @@ func TestIntrospectToken_RevokedToken(t *testing.T) {
 	createTestAccessToken(t, s, rawToken, "user-1", "client-1",
 		models.TokenStatusRevoked, time.Now().Add(1*time.Hour))
 
-	tok, active := svc.IntrospectToken(rawToken)
+	tok, active := svc.IntrospectToken(context.Background(), rawToken, "test-client")
 	assert.False(t, active)
 	require.NotNil(t, tok)
 }
@@ -99,7 +99,7 @@ func TestIntrospectToken_DisabledToken(t *testing.T) {
 	createTestAccessToken(t, s, rawToken, "user-1", "client-1",
 		models.TokenStatusDisabled, time.Now().Add(1*time.Hour))
 
-	tok, active := svc.IntrospectToken(rawToken)
+	tok, active := svc.IntrospectToken(context.Background(), rawToken, "test-client")
 	assert.False(t, active)
 	require.NotNil(t, tok)
 }
@@ -107,7 +107,7 @@ func TestIntrospectToken_DisabledToken(t *testing.T) {
 func TestIntrospectToken_NonexistentToken(t *testing.T) {
 	svc, _ := newIntrospectTokenService(t)
 
-	tok, active := svc.IntrospectToken("does-not-exist")
+	tok, active := svc.IntrospectToken(context.Background(), "does-not-exist", "test-client")
 	assert.False(t, active)
 	assert.Nil(t, tok)
 }
@@ -173,7 +173,7 @@ func TestIntrospectToken_WithClientCredentialsFlow(t *testing.T) {
 	require.NoError(t, err)
 
 	// Introspect it
-	introspected, active := svc.IntrospectToken(tok.RawToken)
+	introspected, active := svc.IntrospectToken(context.Background(), tok.RawToken, client.ClientID)
 	assert.True(t, active)
 	require.NotNil(t, introspected)
 	assert.Equal(t, "client:"+client.ClientID, introspected.UserID)

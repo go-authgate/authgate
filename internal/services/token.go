@@ -283,13 +283,37 @@ func (s *TokenService) ValidateToken(
 // authorization server is the token issuer and can rely on its own database state.
 // Returns (token, true) for active tokens, (token, false) for inactive/expired tokens,
 // and (nil, false) if the token does not exist.
-func (s *TokenService) IntrospectToken(tokenString string) (*models.AccessToken, bool) {
+func (s *TokenService) IntrospectToken(
+	ctx context.Context,
+	tokenString, callerClientID string,
+) (*models.AccessToken, bool) {
 	tok, err := s.store.GetAccessTokenByHash(util.SHA256Hex(tokenString))
 	if err != nil {
 		return nil, false
 	}
 
 	active := tok.IsActive() && !tok.IsExpired()
+
+	// Audit log the introspection event
+	if s.auditService != nil {
+		s.auditService.Log(ctx, AuditLogEntry{
+			EventType:    models.EventTokenIntrospected,
+			Severity:     models.SeverityInfo,
+			ActorUserID:  "client:" + callerClientID,
+			ResourceType: models.ResourceToken,
+			ResourceID:   tok.ID,
+			Action:       "Token introspected",
+			Details: models.AuditDetails{
+				"caller_client_id": callerClientID,
+				"token_client_id":  tok.ClientID,
+				"token_user_id":    tok.UserID,
+				"token_category":   tok.TokenCategory,
+				"active":           active,
+			},
+			Success: true,
+		})
+	}
+
 	return tok, active
 }
 
