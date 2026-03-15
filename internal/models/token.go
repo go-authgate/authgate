@@ -4,17 +4,21 @@ import (
 	"time"
 )
 
-// TokenStatus constants define the lifecycle state of an access or refresh token.
+// TokenStatus represents the lifecycle state of an access or refresh token.
+type TokenStatus = string
+
 const (
-	TokenStatusActive   = "active"
-	TokenStatusDisabled = "disabled"
-	TokenStatusRevoked  = "revoked"
+	TokenStatusActive   TokenStatus = "active"
+	TokenStatusDisabled TokenStatus = "disabled"
+	TokenStatusRevoked  TokenStatus = "revoked"
 )
 
-// TokenCategory constants distinguish access tokens from refresh tokens.
+// TokenCategory distinguishes access tokens from refresh tokens.
+type TokenCategory = string
+
 const (
-	TokenCategoryAccess  = "access"
-	TokenCategoryRefresh = "refresh"
+	TokenCategoryAccess  TokenCategory = "access"
+	TokenCategoryRefresh TokenCategory = "refresh"
 )
 
 type AccessToken struct {

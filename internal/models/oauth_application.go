@@ -14,11 +14,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// ClientStatus constants define the approval lifecycle of an OAuth client.
+// ClientStatus represents the approval lifecycle of an OAuth client.
+type ClientStatus = string
+
 const (
-	ClientStatusPending  = "pending"  // Awaiting admin approval
-	ClientStatusActive   = "active"   // Admin approved / admin-created
-	ClientStatusInactive = "inactive" // Admin rejected or disabled
+	ClientStatusPending  ClientStatus = "pending"  // Awaiting admin approval
+	ClientStatusActive   ClientStatus = "active"   // Admin approved / admin-created
+	ClientStatusInactive ClientStatus = "inactive" // Admin rejected or disabled
 )
 
 // Base32 characters, but lowercased.
