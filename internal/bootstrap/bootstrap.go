@@ -24,6 +24,7 @@ type Application struct {
 	manager *graceful.Manager
 
 	// Core infrastructure
+	TokenProvider          core.TokenProvider
 	DB                     *store.Store
 	MetricsRecorder        core.Recorder
 	MetricsCache           core.Cache[int64]
@@ -131,6 +132,9 @@ func (app *Application) initializeBusinessLayer() {
 		app.Config.AuditLogBufferSize,
 	)
 
+	// Initialize token provider (stored for JWKS handler)
+	app.TokenProvider = initializeTokenProvider(app.Config)
+
 	// Initialize all business services
 	app.services = initializeServices(
 		app.Config,
@@ -139,6 +143,7 @@ func (app *Application) initializeBusinessLayer() {
 		app.MetricsRecorder,
 		app.UserCache,
 		app.ClientCountCache,
+		app.TokenProvider,
 	)
 }
 
@@ -158,6 +163,7 @@ func (app *Application) initializeHTTPLayer() {
 		oauthClient:    oauthHTTPClient,
 		metrics:        app.MetricsRecorder,
 		templatesFS:    app.TemplatesFS,
+		tokenProvider:  app.TokenProvider,
 	})
 
 	// Router

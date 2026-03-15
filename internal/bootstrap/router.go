@@ -151,8 +151,9 @@ func setupAllRoutes(
 	// OAuth routes (public)
 	setupOAuthRoutes(r, oauthProviders, h.oauth)
 
-	// OIDC Discovery (public, no auth required)
+	// OIDC Discovery and JWKS (public, no auth required)
 	r.GET("/.well-known/openid-configuration", h.oidc.Discovery)
+	r.GET("/.well-known/jwks.json", h.jwks.JWKS)
 
 	// OAuth API routes (public, called by CLI)
 	oauth := r.Group("/oauth")

@@ -26,13 +26,11 @@ func initializeServices(
 	prometheusMetrics core.Recorder,
 	userCache core.Cache[models.User],
 	clientCountCache core.Cache[int64],
+	tokenProvider core.TokenProvider,
 ) serviceSet {
 	// Initialize authentication providers
 	localProvider := auth.NewLocalAuthProvider(db)
 	httpAPIProvider := initializeHTTPAPIAuthProvider(cfg)
-
-	// Initialize token provider (single interface, mode selected at bootstrap time)
-	tokenProvider := initializeTokenProvider(cfg)
 
 	// Initialize services
 	userService := services.NewUserService(
