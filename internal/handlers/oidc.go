@@ -41,6 +41,7 @@ type discoveryMetadata struct {
 	TokenEndpoint                    string   `json:"token_endpoint"`
 	UserinfoEndpoint                 string   `json:"userinfo_endpoint"`
 	RevocationEndpoint               string   `json:"revocation_endpoint"`
+	JwksURI                          string   `json:"jwks_uri,omitempty"`
 	ResponseTypesSupported           []string `json:"response_types_supported"`
 	SubjectTypesSupported            []string `json:"subject_types_supported"`
 	IDTokenSigningAlgValuesSupported []string `json:"id_token_signing_alg_values_supported"`
@@ -60,6 +61,11 @@ type discoveryMetadata struct {
 //	@Success		200	{object}	discoveryMetadata	"Provider metadata"
 //	@Router			/.well-known/openid-configuration [get]
 func (h *OIDCHandler) Discovery(c *gin.Context) {
+	alg := h.config.JWTSigningAlgorithm
+	if alg == "" {
+		alg = "HS256"
+	}
+
 	meta := discoveryMetadata{
 		Issuer:                           h.issuerURL,
 		AuthorizationEndpoint:            h.issuerURL + "/oauth/authorize",
@@ -68,7 +74,7 @@ func (h *OIDCHandler) Discovery(c *gin.Context) {
 		RevocationEndpoint:               h.issuerURL + "/oauth/revoke",
 		ResponseTypesSupported:           []string{"code"},
 		SubjectTypesSupported:            []string{"public"},
-		IDTokenSigningAlgValuesSupported: []string{"HS256"},
+		IDTokenSigningAlgValuesSupported: []string{alg},
 		ScopesSupported:                  []string{"openid", "profile", "email", "read", "write"},
 		TokenEndpointAuthMethods: []string{
 			"client_secret_basic",
@@ -99,6 +105,12 @@ func (h *OIDCHandler) Discovery(c *gin.Context) {
 		},
 		CodeChallengeMethodsSupported: []string{"S256"},
 	}
+
+	// Include jwks_uri only for asymmetric algorithms
+	if alg != "HS256" {
+		meta.JwksURI = h.issuerURL + "/.well-known/jwks.json"
+	}
+
 	c.JSON(http.StatusOK, meta)
 }
 
