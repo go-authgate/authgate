@@ -2,12 +2,14 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/util"
 
@@ -437,6 +439,468 @@ func testBasicOperations(t *testing.T, driver string, pgContainer *postgres.Post
 		// Verify events by severity counts ALL events (not just successful)
 		assert.Equal(t, int64(2), stats.EventsBySeverity[models.SeverityInfo])
 		assert.Equal(t, int64(1), stats.EventsBySeverity[models.SeverityWarning])
+	})
+
+	t.Run("TokenStatusLifecycle", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+
+		tok := &models.AccessToken{
+			ID:            uuid.New().String(),
+			TokenHash:     util.SHA256Hex(uuid.New().String()),
+			TokenCategory: models.TokenCategoryAccess,
+			Status:        models.TokenStatusActive,
+			UserID:        uuid.New().String(),
+			ClientID:      uuid.New().String(),
+			Scopes:        "read",
+			ExpiresAt:     time.Now().Add(1 * time.Hour),
+		}
+		require.NoError(t, store.CreateAccessToken(tok))
+
+		// Active → Disabled
+		require.NoError(t, store.UpdateTokenStatus(tok.ID, models.TokenStatusDisabled))
+		updated, err := store.GetAccessTokenByID(tok.ID)
+		require.NoError(t, err)
+		assert.Equal(t, models.TokenStatusDisabled, updated.Status)
+
+		// Disabled → Revoked
+		require.NoError(t, store.UpdateTokenStatus(tok.ID, models.TokenStatusRevoked))
+		updated, err = store.GetAccessTokenByID(tok.ID)
+		require.NoError(t, err)
+		assert.Equal(t, models.TokenStatusRevoked, updated.Status)
+	})
+
+	t.Run("UpdateTokenLastUsedAt", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+
+		tok := &models.AccessToken{
+			ID:            uuid.New().String(),
+			TokenHash:     util.SHA256Hex(uuid.New().String()),
+			TokenCategory: models.TokenCategoryRefresh,
+			Status:        models.TokenStatusActive,
+			UserID:        uuid.New().String(),
+			ClientID:      uuid.New().String(),
+			Scopes:        "read",
+			ExpiresAt:     time.Now().Add(24 * time.Hour),
+		}
+		require.NoError(t, store.CreateAccessToken(tok))
+
+		now := time.Now()
+		require.NoError(t, store.UpdateTokenLastUsedAt(tok.ID, now))
+
+		updated, err := store.GetAccessTokenByID(tok.ID)
+		require.NoError(t, err)
+		require.NotNil(t, updated.LastUsedAt)
+		assert.WithinDuration(t, now, *updated.LastUsedAt, 2*time.Second)
+	})
+
+	t.Run("RevokeTokensByUserID", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+		userID := uuid.New().String()
+
+		for range 3 {
+			tok := &models.AccessToken{
+				ID:            uuid.New().String(),
+				TokenHash:     util.SHA256Hex(uuid.New().String()),
+				TokenCategory: models.TokenCategoryAccess,
+				Status:        models.TokenStatusActive,
+				UserID:        userID,
+				ClientID:      uuid.New().String(),
+				Scopes:        "read",
+				ExpiresAt:     time.Now().Add(1 * time.Hour),
+			}
+			require.NoError(t, store.CreateAccessToken(tok))
+		}
+
+		require.NoError(t, store.RevokeTokensByUserID(userID))
+
+		tokens, err := store.GetTokensByUserID(userID)
+		require.NoError(t, err)
+		assert.Empty(t, tokens)
+	})
+
+	t.Run("RevokeTokensByClientID", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+		clientID := uuid.New().String()
+		userID := uuid.New().String()
+
+		for range 2 {
+			tok := &models.AccessToken{
+				ID:            uuid.New().String(),
+				TokenHash:     util.SHA256Hex(uuid.New().String()),
+				TokenCategory: models.TokenCategoryAccess,
+				Status:        models.TokenStatusActive,
+				UserID:        userID,
+				ClientID:      clientID,
+				Scopes:        "read",
+				ExpiresAt:     time.Now().Add(1 * time.Hour),
+			}
+			require.NoError(t, store.CreateAccessToken(tok))
+		}
+
+		require.NoError(t, store.RevokeTokensByClientID(clientID))
+
+		// Tokens should be deleted (hard delete) — verify via the user who owned them
+		tokens, err := store.GetTokensByUserID(userID)
+		require.NoError(t, err)
+		assert.Empty(t, tokens)
+	})
+
+	t.Run("GetTokensByCategoryAndStatus", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+		userID := uuid.New().String()
+		clientID := uuid.New().String()
+
+		// Active access token
+		require.NoError(t, store.CreateAccessToken(&models.AccessToken{
+			ID:            uuid.New().String(),
+			TokenHash:     util.SHA256Hex(uuid.New().String()),
+			TokenCategory: models.TokenCategoryAccess,
+			Status:        models.TokenStatusActive,
+			UserID:        userID,
+			ClientID:      clientID,
+			Scopes:        "read",
+			ExpiresAt:     time.Now().Add(time.Hour),
+		}))
+		// Active refresh token
+		require.NoError(t, store.CreateAccessToken(&models.AccessToken{
+			ID:            uuid.New().String(),
+			TokenHash:     util.SHA256Hex(uuid.New().String()),
+			TokenCategory: models.TokenCategoryRefresh,
+			Status:        models.TokenStatusActive,
+			UserID:        userID,
+			ClientID:      clientID,
+			Scopes:        "read",
+			ExpiresAt:     time.Now().Add(time.Hour),
+		}))
+		// Revoked access token
+		require.NoError(t, store.CreateAccessToken(&models.AccessToken{
+			ID:            uuid.New().String(),
+			TokenHash:     util.SHA256Hex(uuid.New().String()),
+			TokenCategory: models.TokenCategoryAccess,
+			Status:        models.TokenStatusRevoked,
+			UserID:        userID,
+			ClientID:      clientID,
+			Scopes:        "read",
+			ExpiresAt:     time.Now().Add(time.Hour),
+		}))
+
+		tokens, err := store.GetTokensByCategoryAndStatus(
+			userID,
+			models.TokenCategoryAccess,
+			models.TokenStatusActive,
+		)
+		require.NoError(t, err)
+		assert.Len(t, tokens, 1)
+	})
+
+	t.Run("UserCRUD", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+		userID := uuid.New().String()
+
+		user := &models.User{
+			ID:           userID,
+			Username:     "cruduser",
+			PasswordHash: "hash",
+			Email:        "crud@test.com",
+			Role:         "user",
+		}
+		require.NoError(t, store.CreateUser(user))
+
+		// GetByID
+		got, err := store.GetUserByID(userID)
+		require.NoError(t, err)
+		assert.Equal(t, "cruduser", got.Username)
+
+		// GetByEmail
+		got, err = store.GetUserByEmail("crud@test.com")
+		require.NoError(t, err)
+		assert.Equal(t, userID, got.ID)
+
+		// Update
+		user.FullName = "Updated Name"
+		require.NoError(t, store.UpdateUser(user))
+		got, err = store.GetUserByID(userID)
+		require.NoError(t, err)
+		assert.Equal(t, "Updated Name", got.FullName)
+
+		// Delete
+		require.NoError(t, store.DeleteUser(userID))
+		_, err = store.GetUserByID(userID)
+		assert.Error(t, err)
+	})
+
+	t.Run("GetUsersByIDs", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+		id1, id2 := uuid.New().String(), uuid.New().String()
+		u1 := uuid.New().String()[:8]
+		u2 := uuid.New().String()[:8]
+
+		require.NoError(t, store.CreateUser(&models.User{
+			ID:           id1,
+			Username:     "batch_" + u1,
+			Email:        u1 + "@test.com",
+			PasswordHash: "h",
+			Role:         "user",
+		}))
+		require.NoError(t, store.CreateUser(&models.User{
+			ID:           id2,
+			Username:     "batch_" + u2,
+			Email:        u2 + "@test.com",
+			PasswordHash: "h",
+			Role:         "user",
+		}))
+
+		userMap, err := store.GetUsersByIDs([]string{id1, id2})
+		require.NoError(t, err)
+		assert.Len(t, userMap, 2)
+		assert.Equal(t, "batch_"+u1, userMap[id1].Username)
+
+		// Empty input
+		empty, err := store.GetUsersByIDs(nil)
+		require.NoError(t, err)
+		assert.Empty(t, empty)
+	})
+
+	t.Run("ClientUpdateAndDelete", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+
+		client := &models.OAuthApplication{
+			ClientID:   uuid.New().String(),
+			ClientName: "Original",
+			UserID:     uuid.New().String(),
+			Status:     models.ClientStatusActive,
+		}
+		require.NoError(t, store.CreateClient(client))
+
+		// Update
+		client.ClientName = "Updated"
+		require.NoError(t, store.UpdateClient(client))
+		got, err := store.GetClient(client.ClientID)
+		require.NoError(t, err)
+		assert.Equal(t, "Updated", got.ClientName)
+
+		// Delete
+		require.NoError(t, store.DeleteClient(client.ClientID))
+		_, err = store.GetClient(client.ClientID)
+		assert.Error(t, err)
+	})
+
+	t.Run("ListClientsPaginated", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+
+		// Count seed clients first
+		seedClients, _, err := store.ListClientsPaginated(PaginationParams{Page: 1, PageSize: 100})
+		require.NoError(t, err)
+		seedCount := len(seedClients)
+
+		for range 5 {
+			require.NoError(t, store.CreateClient(&models.OAuthApplication{
+				ClientID:   uuid.New().String(),
+				ClientName: "Client",
+				UserID:     uuid.New().String(),
+				Status:     models.ClientStatusActive,
+			}))
+		}
+
+		clients, pagination, err := store.ListClientsPaginated(
+			PaginationParams{Page: 1, PageSize: 3},
+		)
+		require.NoError(t, err)
+		assert.Len(t, clients, 3)
+		assert.Equal(t, int64(5+seedCount), pagination.Total)
+		assert.True(t, pagination.HasNext)
+	})
+
+	t.Run("CountClientsByStatus", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+
+		// Count seed active clients first
+		seedActive, _ := store.CountClientsByStatus(models.ClientStatusActive)
+
+		require.NoError(t, store.CreateClient(&models.OAuthApplication{
+			ClientID: uuid.New().String(), ClientName: "A", UserID: uuid.New().String(),
+			Status: models.ClientStatusActive,
+		}))
+		require.NoError(t, store.CreateClient(&models.OAuthApplication{
+			ClientID: uuid.New().String(), ClientName: "P", UserID: uuid.New().String(),
+			Status: models.ClientStatusPending,
+		}))
+
+		active, err := store.CountClientsByStatus(models.ClientStatusActive)
+		require.NoError(t, err)
+		assert.Equal(t, seedActive+1, active)
+
+		pending, err := store.CountClientsByStatus(models.ClientStatusPending)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), pending)
+	})
+
+	t.Run("OAuthConnectionCRUD", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+		userID := uuid.New().String()
+		connID := uuid.New().String()
+
+		conn := &models.OAuthConnection{
+			ID:               connID,
+			UserID:           userID,
+			Provider:         "github",
+			ProviderUserID:   "12345",
+			ProviderUsername: "ghuser",
+			ProviderEmail:    "gh@test.com",
+		}
+		require.NoError(t, store.CreateOAuthConnection(conn))
+
+		// Get by provider + provider user ID
+		got, err := store.GetOAuthConnection("github", "12345")
+		require.NoError(t, err)
+		assert.Equal(t, connID, got.ID)
+
+		// Get by user + provider
+		got, err = store.GetOAuthConnectionByUserAndProvider(userID, "github")
+		require.NoError(t, err)
+		assert.Equal(t, "ghuser", got.ProviderUsername)
+
+		// List by user
+		conns, err := store.GetOAuthConnectionsByUserID(userID)
+		require.NoError(t, err)
+		assert.Len(t, conns, 1)
+
+		// Update
+		conn.ProviderUsername = "updated"
+		require.NoError(t, store.UpdateOAuthConnection(conn))
+		got, err = store.GetOAuthConnection("github", "12345")
+		require.NoError(t, err)
+		assert.Equal(t, "updated", got.ProviderUsername)
+
+		// Delete
+		require.NoError(t, store.DeleteOAuthConnection(connID))
+		_, err = store.GetOAuthConnection("github", "12345")
+		assert.Error(t, err)
+	})
+
+	t.Run("AuditLogBatchAndFilters", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+		now := time.Now()
+
+		logs := []*models.AuditLog{
+			{
+				ID:        uuid.New().String(),
+				EventType: models.EventAuthenticationSuccess,
+				EventTime: now,
+				Severity:  models.SeverityInfo,
+				Action:    "login",
+				Success:   true,
+				CreatedAt: now,
+			},
+			{
+				ID:        uuid.New().String(),
+				EventType: models.EventAuthenticationFailure,
+				EventTime: now,
+				Severity:  models.SeverityWarning,
+				Action:    "login_fail",
+				Success:   false,
+				CreatedAt: now,
+			},
+		}
+		require.NoError(t, store.CreateAuditLogBatch(logs))
+
+		// Paginated query
+		result, pagination, err := store.GetAuditLogsPaginated(
+			PaginationParams{Page: 1, PageSize: 10},
+			AuditLogFilters{},
+		)
+		require.NoError(t, err)
+		assert.Len(t, result, 2)
+		assert.Equal(t, int64(2), pagination.Total)
+
+		// Filter by event type
+		result, _, err = store.GetAuditLogsPaginated(
+			PaginationParams{Page: 1, PageSize: 10},
+			AuditLogFilters{EventType: models.EventAuthenticationFailure},
+		)
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+
+		// Delete old logs
+		deleted, err := store.DeleteOldAuditLogs(time.Now().Add(time.Hour))
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), deleted)
+	})
+
+	t.Run("MetricsCounts", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+		userID := uuid.New().String()
+		clientID := uuid.New().String()
+
+		// Create active access token
+		require.NoError(t, store.CreateAccessToken(&models.AccessToken{
+			ID: uuid.New().String(), TokenHash: util.SHA256Hex(uuid.New().String()),
+			TokenCategory: models.TokenCategoryAccess, Status: models.TokenStatusActive,
+			UserID: userID, ClientID: clientID, Scopes: "read",
+			ExpiresAt: time.Now().Add(time.Hour),
+		}))
+		// Create active refresh token
+		require.NoError(t, store.CreateAccessToken(&models.AccessToken{
+			ID: uuid.New().String(), TokenHash: util.SHA256Hex(uuid.New().String()),
+			TokenCategory: models.TokenCategoryRefresh, Status: models.TokenStatusActive,
+			UserID: userID, ClientID: clientID, Scopes: "read",
+			ExpiresAt: time.Now().Add(24 * time.Hour),
+		}))
+
+		accessCount, err := store.CountActiveTokensByCategory(models.TokenCategoryAccess)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), accessCount)
+
+		refreshCount, err := store.CountActiveTokensByCategory(models.TokenCategoryRefresh)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), refreshCount)
+
+		// Device codes
+		require.NoError(t, store.CreateDeviceCode(&models.DeviceCode{
+			DeviceCodeHash: "h1", DeviceCodeSalt: "s1", DeviceCodeID: "id000001",
+			UserCode: "CODE0001", ClientID: clientID, Scopes: "read",
+			ExpiresAt: time.Now().Add(30 * time.Minute), Interval: 5,
+		}))
+
+		total, err := store.CountTotalDeviceCodes()
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), total)
+
+		pending, err := store.CountPendingDeviceCodes()
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), pending)
+	})
+
+	t.Run("RunInTransaction_Success", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+		userID := uuid.New().String()
+
+		err := store.RunInTransaction(func(tx core.Store) error {
+			return tx.CreateUser(&models.User{
+				ID: userID, Username: "txuser", PasswordHash: "h", Role: "user",
+			})
+		})
+		require.NoError(t, err)
+
+		got, err := store.GetUserByID(userID)
+		require.NoError(t, err)
+		assert.Equal(t, "txuser", got.Username)
+	})
+
+	t.Run("RunInTransaction_Rollback", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+		userID := uuid.New().String()
+
+		err := store.RunInTransaction(func(tx core.Store) error {
+			_ = tx.CreateUser(&models.User{
+				ID: userID, Username: "rollbackuser", PasswordHash: "h", Role: "user",
+			})
+			return errors.New("forced rollback")
+		})
+		require.Error(t, err)
+
+		_, err = store.GetUserByID(userID)
+		assert.Error(t, err) // User should not exist due to rollback
 	})
 }
 
