@@ -201,6 +201,13 @@ type Config struct {
 	PKCERequired       bool          // Force PKCE for all public clients (default: false)
 	ConsentRemember    bool          // Skip consent page if user already authorized same scope (default: true)
 
+	// CORS settings
+	CORSEnabled        bool          // Enable CORS for API endpoints (default: false)
+	CORSAllowedOrigins []string      // Allowed origins (comma-separated via env, e.g. "http://localhost:3000")
+	CORSAllowedMethods []string      // Allowed HTTP methods (default: GET,POST,PUT,DELETE,OPTIONS)
+	CORSAllowedHeaders []string      // Allowed request headers (default: Origin,Content-Type,Authorization)
+	CORSMaxAge         time.Duration // Preflight cache duration (default: 12 hours)
+
 	// Bootstrap and shutdown timeout settings
 	DBInitTimeout         time.Duration // Database initialization timeout (default: 30s)
 	RedisConnTimeout      time.Duration // Redis connection timeout (default: 5s)
@@ -404,6 +411,19 @@ func Load() *Config {
 		RedisCloseTimeout:     getEnvDuration("REDIS_CLOSE_TIMEOUT", 5*time.Second),
 		CacheCloseTimeout:     getEnvDuration("CACHE_CLOSE_TIMEOUT", 5*time.Second),
 		DBCloseTimeout:        getEnvDuration("DB_CLOSE_TIMEOUT", 5*time.Second),
+
+		// CORS
+		CORSEnabled:        getEnvBool("CORS_ENABLED", false),
+		CORSAllowedOrigins: getEnvSlice("CORS_ALLOWED_ORIGINS", nil),
+		CORSAllowedMethods: getEnvSlice(
+			"CORS_ALLOWED_METHODS",
+			[]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		),
+		CORSAllowedHeaders: getEnvSlice(
+			"CORS_ALLOWED_HEADERS",
+			[]string{"Origin", "Content-Type", "Authorization"},
+		),
+		CORSMaxAge: getEnvDuration("CORS_MAX_AGE", 12*time.Hour),
 	}
 }
 

@@ -156,6 +156,9 @@ func setupAllRoutes(
 
 	// OAuth API routes (public, called by CLI)
 	oauth := r.Group("/oauth")
+	if cfg.CORSEnabled {
+		oauth.Use(middleware.CORSMiddleware(cfg))
+	}
 	{
 		oauth.POST("/device/code", rateLimiters.deviceCode, h.device.DeviceCodeRequest)
 		oauth.POST("/token", rateLimiters.token, h.token.Token)
