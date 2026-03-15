@@ -746,8 +746,10 @@ func TestLocalTokenProvider_HS256_NoKidHeader(t *testing.T) {
 }
 
 func TestLocalTokenProvider_RS256_CrossValidationFails(t *testing.T) {
-	key1, _ := rsa.GenerateKey(rand.Reader, 2048)
-	key2, _ := rsa.GenerateKey(rand.Reader, 2048)
+	key1, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	key2, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
 
 	cfg := &config.Config{
 		JWTSigningAlgorithm: "RS256",
@@ -771,7 +773,8 @@ func TestLocalTokenProvider_RS256_CrossValidationFails(t *testing.T) {
 }
 
 func TestLocalTokenProvider_RS256_RefreshToken(t *testing.T) {
-	rsaKey, _ := rsa.GenerateKey(rand.Reader, 2048)
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
 	cfg := &config.Config{
 		JWTSigningAlgorithm:    "RS256",
 		JWTExpiration:          1 * time.Hour,
@@ -799,7 +802,8 @@ func TestLocalTokenProvider_RS256_RefreshToken(t *testing.T) {
 }
 
 func TestLocalTokenProvider_PublicKey(t *testing.T) {
-	rsaKey, _ := rsa.GenerateKey(rand.Reader, 2048)
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
 	cfg := &config.Config{
 		JWTSigningAlgorithm: "RS256",
 		JWTExpiration:       1 * time.Hour,

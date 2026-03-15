@@ -65,6 +65,15 @@ func NewLocalTokenProvider(cfg *config.Config, opts ...Option) *LocalTokenProvid
 		p.verifyKey = []byte(cfg.JWTSecret)
 	}
 
+	// Defensive check: asymmetric algorithms require a signing key.
+	// Bootstrap already validates this, but panic here to catch programming errors.
+	if p.method != jwt.SigningMethodHS256 && p.signKey == nil {
+		panic(fmt.Sprintf(
+			"NewLocalTokenProvider: %s requires WithSigningKey option",
+			cfg.JWTSigningAlgorithm,
+		))
+	}
+
 	return p
 }
 

@@ -50,6 +50,11 @@ func NewJWKSHandler(algorithm, kid string, publicKey any) *JWKSHandler {
 	return h
 }
 
+// Keys returns the list of JSON Web Keys in the JWKS response.
+func (h *JWKSHandler) Keys() []JSONWebKey {
+	return h.response.Keys
+}
+
 // JWKS godoc
 //
 //	@Summary		JSON Web Key Set

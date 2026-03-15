@@ -49,15 +49,15 @@ func LoadSigningKey(path string) (crypto.Signer, error) {
 	return nil, fmt.Errorf("unsupported key format in %s", path)
 }
 
-// DeriveKeyID computes a kid from the public key's SHA-256 thumbprint (RFC 7638 style).
-// Returns a base64url-encoded string of the first 8 bytes of the hash.
+// DeriveKeyID computes a kid from the SHA-256 thumbprint of the DER-encoded public key.
+// Returns a base64url-encoded string of the first 16 bytes of the hash.
 func DeriveKeyID(pub crypto.PublicKey) string {
 	der, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
 		return ""
 	}
 	sum := sha256.Sum256(der)
-	return base64.RawURLEncoding.EncodeToString(sum[:8])
+	return base64.RawURLEncoding.EncodeToString(sum[:16])
 }
 
 // ValidateKeyAlgorithm checks that the loaded key matches the configured algorithm.

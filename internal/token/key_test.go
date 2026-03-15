@@ -121,8 +121,10 @@ func TestDeriveKeyID_ECDSA(t *testing.T) {
 }
 
 func TestDeriveKeyID_DifferentKeys(t *testing.T) {
-	key1, _ := rsa.GenerateKey(rand.Reader, 2048)
-	key2, _ := rsa.GenerateKey(rand.Reader, 2048)
+	key1, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	key2, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
 
 	kid1 := DeriveKeyID(key1.Public())
 	kid2 := DeriveKeyID(key2.Public())

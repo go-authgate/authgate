@@ -84,7 +84,10 @@ func initializeHandlers(deps handlerDeps) handlerSet {
 			deps.services.user,
 			deps.cfg,
 		),
-		oidc: handlers.NewOIDCHandler(deps.services.token, deps.services.user, deps.cfg),
+		oidc: handlers.NewOIDCHandler(
+			deps.services.token, deps.services.user,
+			deps.cfg, len(jwksHandler.Keys()) > 0,
+		),
 		registration: handlers.NewRegistrationHandler(
 			deps.services.client,
 			deps.auditService,

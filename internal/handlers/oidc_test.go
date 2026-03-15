@@ -136,7 +136,7 @@ func TestDiscovery_ReturnsCorrectMetadata(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{BaseURL: "https://auth.example.com"}
-	handler := NewOIDCHandler(nil, nil, cfg)
+	handler := NewOIDCHandler(nil, nil, cfg, false)
 
 	r := gin.New()
 	r.GET("/.well-known/openid-configuration", handler.Discovery)
@@ -198,7 +198,7 @@ func TestDiscovery_StripsTrailingSlashFromBaseURL(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{BaseURL: "https://auth.example.com/"}
-	handler := NewOIDCHandler(nil, nil, cfg)
+	handler := NewOIDCHandler(nil, nil, cfg, false)
 
 	r := gin.New()
 	r.GET("/.well-known/openid-configuration", handler.Discovery)
@@ -224,7 +224,7 @@ func TestUserInfo_NoAuthorizationHeader_Returns401(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{BaseURL: "https://auth.example.com"}
-	handler := NewOIDCHandler(nil, nil, cfg)
+	handler := NewOIDCHandler(nil, nil, cfg, false)
 
 	r := gin.New()
 	r.GET("/oauth/userinfo", handler.UserInfo)
@@ -247,7 +247,7 @@ func TestUserInfo_NonBearerToken_Returns401(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{BaseURL: "https://auth.example.com"}
-	handler := NewOIDCHandler(nil, nil, cfg)
+	handler := NewOIDCHandler(nil, nil, cfg, false)
 
 	r := gin.New()
 	r.GET("/oauth/userinfo", handler.UserInfo)
@@ -275,7 +275,7 @@ func TestDiscovery_RS256_IncludesJwksURI(t *testing.T) {
 		BaseURL:             "https://auth.example.com",
 		JWTSigningAlgorithm: "RS256",
 	}
-	handler := NewOIDCHandler(nil, nil, cfg)
+	handler := NewOIDCHandler(nil, nil, cfg, true)
 
 	r := gin.New()
 	r.GET("/.well-known/openid-configuration", handler.Discovery)
@@ -305,7 +305,7 @@ func TestDiscovery_ES256_IncludesJwksURI(t *testing.T) {
 		BaseURL:             "https://auth.example.com",
 		JWTSigningAlgorithm: "ES256",
 	}
-	handler := NewOIDCHandler(nil, nil, cfg)
+	handler := NewOIDCHandler(nil, nil, cfg, true)
 
 	r := gin.New()
 	r.GET("/.well-known/openid-configuration", handler.Discovery)
@@ -333,7 +333,7 @@ func TestDiscovery_HS256_NoJwksURI(t *testing.T) {
 		BaseURL:             "https://auth.example.com",
 		JWTSigningAlgorithm: "HS256",
 	}
-	handler := NewOIDCHandler(nil, nil, cfg)
+	handler := NewOIDCHandler(nil, nil, cfg, false)
 
 	r := gin.New()
 	r.GET("/.well-known/openid-configuration", handler.Discovery)
@@ -363,7 +363,7 @@ func TestDiscovery_EmptyAlgorithm_DefaultsToHS256(t *testing.T) {
 		BaseURL:             "https://auth.example.com",
 		JWTSigningAlgorithm: "", // empty = default HS256
 	}
-	handler := NewOIDCHandler(nil, nil, cfg)
+	handler := NewOIDCHandler(nil, nil, cfg, false)
 
 	r := gin.New()
 	r.GET("/.well-known/openid-configuration", handler.Discovery)

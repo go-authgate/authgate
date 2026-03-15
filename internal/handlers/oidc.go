@@ -14,10 +14,11 @@ import (
 
 // OIDCHandler handles OIDC Discovery and UserInfo endpoints.
 type OIDCHandler struct {
-	tokenService *services.TokenService
-	userService  *services.UserService
-	config       *config.Config
-	issuerURL    string // BaseURL with trailing slash stripped, computed once
+	tokenService  *services.TokenService
+	userService   *services.UserService
+	config        *config.Config
+	issuerURL     string // BaseURL with trailing slash stripped, computed once
+	jwksAvailable bool   // true when JWKS endpoint has at least one public key
 }
 
 // NewOIDCHandler creates a new OIDCHandler.
@@ -25,12 +26,14 @@ func NewOIDCHandler(
 	ts *services.TokenService,
 	us *services.UserService,
 	cfg *config.Config,
+	jwksAvailable bool,
 ) *OIDCHandler {
 	return &OIDCHandler{
-		tokenService: ts,
-		userService:  us,
-		config:       cfg,
-		issuerURL:    strings.TrimRight(cfg.BaseURL, "/"),
+		tokenService:  ts,
+		userService:   us,
+		config:        cfg,
+		issuerURL:     strings.TrimRight(cfg.BaseURL, "/"),
+		jwksAvailable: jwksAvailable,
 	}
 }
 
@@ -106,8 +109,8 @@ func (h *OIDCHandler) Discovery(c *gin.Context) {
 		CodeChallengeMethodsSupported: []string{"S256"},
 	}
 
-	// Include jwks_uri only for asymmetric algorithms
-	if alg != "HS256" {
+	// Include jwks_uri only when the JWKS endpoint has public keys
+	if h.jwksAvailable {
 		meta.JwksURI = h.issuerURL + "/.well-known/jwks.json"
 	}
 
