@@ -156,6 +156,14 @@ func setupAllRoutes(
 
 	// OAuth API routes (public, called by CLI)
 	oauth := r.Group("/oauth")
+	if cfg.CORSEnabled {
+		if len(cfg.CORSAllowedOrigins) == 0 {
+			log.Println(
+				"WARNING: CORS is enabled but CORS_ALLOWED_ORIGINS is empty — all cross-origin requests will be rejected",
+			)
+		}
+		oauth.Use(middleware.CORSMiddleware(cfg))
+	}
 	{
 		oauth.POST("/device/code", rateLimiters.deviceCode, h.device.DeviceCodeRequest)
 		oauth.POST("/token", rateLimiters.token, h.token.Token)
