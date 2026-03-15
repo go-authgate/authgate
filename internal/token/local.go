@@ -68,12 +68,15 @@ func NewLocalTokenProvider(cfg *config.Config, opts ...Option) *LocalTokenProvid
 	return p
 }
 
-// PublicKey returns the public verification key. Returns nil for HS256 (symmetric).
+// PublicKey returns the asymmetric public verification key.
+// Returns nil for HS256 (symmetric key).
 func (p *LocalTokenProvider) PublicKey() crypto.PublicKey {
-	if pub, ok := p.verifyKey.(crypto.PublicKey); ok {
-		return pub
+	switch p.verifyKey.(type) {
+	case []byte:
+		return nil // HS256 symmetric secret
+	default:
+		return p.verifyKey
 	}
-	return nil
 }
 
 // KeyID returns the "kid" value used in JWT headers.

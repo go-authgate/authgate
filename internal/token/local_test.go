@@ -2,12 +2,17 @@ package token
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/rsa"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/go-authgate/authgate/internal/config"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -572,4 +577,250 @@ func TestComputeAtHash_Length(t *testing.T) {
 	// base64url of 16 bytes = 22 chars (no padding)
 	hash := ComputeAtHash("any-access-token")
 	assert.Len(t, hash, 22)
+}
+
+// ============================================================
+// RS256 / ES256 tests
+// ============================================================
+
+func TestLocalTokenProvider_RS256_GenerateAndValidate(t *testing.T) {
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	cfg := &config.Config{
+		JWTSigningAlgorithm:    "RS256",
+		JWTExpiration:          1 * time.Hour,
+		RefreshTokenExpiration: 30 * 24 * time.Hour,
+		BaseURL:                "http://localhost:8080",
+	}
+	provider := NewLocalTokenProvider(cfg,
+		WithSigningKey(rsaKey, &rsaKey.PublicKey),
+		WithKeyID("test-rsa-kid"),
+	)
+
+	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read write")
+	require.NoError(t, err)
+	assert.NotEmpty(t, result.TokenString)
+
+	valResult, err := provider.ValidateToken(context.Background(), result.TokenString)
+	require.NoError(t, err)
+	assert.True(t, valResult.Valid)
+	assert.Equal(t, "user1", valResult.UserID)
+	assert.Equal(t, "client1", valResult.ClientID)
+	assert.Equal(t, "read write", valResult.Scopes)
+}
+
+func TestLocalTokenProvider_ES256_GenerateAndValidate(t *testing.T) {
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	cfg := &config.Config{
+		JWTSigningAlgorithm:    "ES256",
+		JWTExpiration:          1 * time.Hour,
+		RefreshTokenExpiration: 30 * 24 * time.Hour,
+		BaseURL:                "http://localhost:8080",
+	}
+	provider := NewLocalTokenProvider(cfg,
+		WithSigningKey(ecKey, &ecKey.PublicKey),
+		WithKeyID("test-ec-kid"),
+	)
+
+	result, err := provider.GenerateToken(context.Background(), "user2", "client2", "email")
+	require.NoError(t, err)
+	assert.NotEmpty(t, result.TokenString)
+
+	valResult, err := provider.ValidateToken(context.Background(), result.TokenString)
+	require.NoError(t, err)
+	assert.True(t, valResult.Valid)
+	assert.Equal(t, "user2", valResult.UserID)
+}
+
+func TestLocalTokenProvider_RS256_IDToken(t *testing.T) {
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	cfg := &config.Config{
+		JWTSigningAlgorithm: "RS256",
+		JWTExpiration:       1 * time.Hour,
+		BaseURL:             "http://localhost:8080",
+	}
+	provider := NewLocalTokenProvider(cfg,
+		WithSigningKey(rsaKey, &rsaKey.PublicKey),
+		WithKeyID("rsa-kid"),
+	)
+
+	idTokenStr, err := provider.GenerateIDToken(IDTokenParams{
+		Issuer:   "http://localhost:8080",
+		Subject:  "user-abc",
+		Audience: "client-xyz",
+		AuthTime: time.Now(),
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, idTokenStr)
+
+	// Parse and verify
+	claims := parseIDTokenClaims(t, provider, idTokenStr)
+	assert.Equal(t, "http://localhost:8080", claims["iss"])
+	assert.Equal(t, "user-abc", claims["sub"])
+}
+
+func TestLocalTokenProvider_HS256_BackwardCompatible(t *testing.T) {
+	cfg := &config.Config{
+		JWTSecret:              "test-secret-key-for-jwt-signing",
+		JWTExpiration:          1 * time.Hour,
+		RefreshTokenExpiration: 30 * 24 * time.Hour,
+		BaseURL:                "http://localhost:8080",
+	}
+	// No options — pure HS256 backward compatibility
+	provider := NewLocalTokenProvider(cfg)
+
+	// Access token
+	result, err := provider.GenerateToken(context.Background(), "u1", "c1", "r")
+	require.NoError(t, err)
+	valResult, err := provider.ValidateToken(context.Background(), result.TokenString)
+	require.NoError(t, err)
+	assert.True(t, valResult.Valid)
+
+	// Refresh token
+	refreshResult, err := provider.GenerateRefreshToken(context.Background(), "u1", "c1", "r")
+	require.NoError(t, err)
+	refreshVal, err := provider.ValidateRefreshToken(context.Background(), refreshResult.TokenString)
+	require.NoError(t, err)
+	assert.True(t, refreshVal.Valid)
+
+	// ID token
+	idToken, err := provider.GenerateIDToken(IDTokenParams{
+		Issuer:   "http://localhost:8080",
+		Subject:  "u1",
+		Audience: "c1",
+		AuthTime: time.Now(),
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, idToken)
+}
+
+func TestLocalTokenProvider_KidHeader(t *testing.T) {
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	cfg := &config.Config{
+		JWTSigningAlgorithm: "RS256",
+		JWTExpiration:       1 * time.Hour,
+		BaseURL:             "http://localhost:8080",
+	}
+	provider := NewLocalTokenProvider(cfg,
+		WithSigningKey(rsaKey, &rsaKey.PublicKey),
+		WithKeyID("my-kid-123"),
+	)
+
+	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read")
+	require.NoError(t, err)
+
+	// Parse the raw JWT to inspect header
+	parser := jwt.NewParser()
+	tok, _, err := parser.ParseUnverified(result.TokenString, jwt.MapClaims{})
+	require.NoError(t, err)
+	assert.Equal(t, "my-kid-123", tok.Header["kid"])
+	assert.Equal(t, "RS256", tok.Header["alg"])
+}
+
+func TestLocalTokenProvider_HS256_NoKidHeader(t *testing.T) {
+	cfg := &config.Config{
+		JWTSecret:     "test-secret",
+		JWTExpiration: 1 * time.Hour,
+		BaseURL:       "http://localhost:8080",
+	}
+	provider := NewLocalTokenProvider(cfg)
+
+	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read")
+	require.NoError(t, err)
+
+	parser := jwt.NewParser()
+	tok, _, err := parser.ParseUnverified(result.TokenString, jwt.MapClaims{})
+	require.NoError(t, err)
+	_, hasKid := tok.Header["kid"]
+	assert.False(t, hasKid, "HS256 tokens should not have a kid header")
+}
+
+func TestLocalTokenProvider_RS256_CrossValidationFails(t *testing.T) {
+	key1, _ := rsa.GenerateKey(rand.Reader, 2048)
+	key2, _ := rsa.GenerateKey(rand.Reader, 2048)
+
+	cfg := &config.Config{
+		JWTSigningAlgorithm: "RS256",
+		JWTExpiration:       1 * time.Hour,
+		BaseURL:             "http://localhost:8080",
+	}
+
+	provider1 := NewLocalTokenProvider(cfg,
+		WithSigningKey(key1, &key1.PublicKey),
+	)
+	provider2 := NewLocalTokenProvider(cfg,
+		WithSigningKey(key2, &key2.PublicKey),
+	)
+
+	result, err := provider1.GenerateToken(context.Background(), "u", "c", "r")
+	require.NoError(t, err)
+
+	_, err = provider2.ValidateToken(context.Background(), result.TokenString)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrInvalidToken)
+}
+
+func TestLocalTokenProvider_RS256_RefreshToken(t *testing.T) {
+	rsaKey, _ := rsa.GenerateKey(rand.Reader, 2048)
+	cfg := &config.Config{
+		JWTSigningAlgorithm:    "RS256",
+		JWTExpiration:          1 * time.Hour,
+		RefreshTokenExpiration: 30 * 24 * time.Hour,
+		EnableTokenRotation:    true,
+		BaseURL:                "http://localhost:8080",
+	}
+	provider := NewLocalTokenProvider(cfg,
+		WithSigningKey(rsaKey, &rsaKey.PublicKey),
+	)
+
+	refreshResult, err := provider.GenerateRefreshToken(context.Background(), "u1", "c1", "r")
+	require.NoError(t, err)
+
+	valResult, err := provider.ValidateRefreshToken(context.Background(), refreshResult.TokenString)
+	require.NoError(t, err)
+	assert.True(t, valResult.Valid)
+	assert.Equal(t, "u1", valResult.UserID)
+
+	// RefreshAccessToken
+	refreshed, err := provider.RefreshAccessToken(context.Background(), refreshResult.TokenString)
+	require.NoError(t, err)
+	assert.NotNil(t, refreshed.AccessToken)
+	assert.NotNil(t, refreshed.RefreshToken, "rotation mode should produce new refresh token")
+}
+
+func TestLocalTokenProvider_PublicKey(t *testing.T) {
+	rsaKey, _ := rsa.GenerateKey(rand.Reader, 2048)
+	cfg := &config.Config{
+		JWTSigningAlgorithm: "RS256",
+		JWTExpiration:       1 * time.Hour,
+		BaseURL:             "http://localhost:8080",
+	}
+	provider := NewLocalTokenProvider(cfg,
+		WithSigningKey(rsaKey, &rsaKey.PublicKey),
+		WithKeyID("kid1"),
+	)
+
+	assert.Equal(t, &rsaKey.PublicKey, provider.PublicKey())
+	assert.Equal(t, "kid1", provider.KeyID())
+	assert.Equal(t, "RS256", provider.Algorithm())
+}
+
+func TestLocalTokenProvider_HS256_PublicKey_Nil(t *testing.T) {
+	cfg := &config.Config{
+		JWTSecret:     "test-secret",
+		JWTExpiration: 1 * time.Hour,
+		BaseURL:       "http://localhost:8080",
+	}
+	provider := NewLocalTokenProvider(cfg)
+
+	assert.Nil(t, provider.PublicKey())
+	assert.Equal(t, "", provider.KeyID())
+	assert.Equal(t, "HS256", provider.Algorithm())
 }
