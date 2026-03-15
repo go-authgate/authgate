@@ -97,7 +97,7 @@ In addition to Device Code Flow, AuthGate supports Authorization Code Flow with 
 - `internal/services/` - Business logic layer (user, device, authorization, token, client, audit services)
 - `internal/handlers/` - HTTP request handlers for all endpoints
 - `internal/models/` - GORM database models (User, OAuthApplication, UserAuthorization, DeviceCode, AuthorizationCode, AccessToken, OAuthConnection, AuditLog)
-- `internal/middleware/` - Gin middleware (auth, CSRF, rate limiting, metrics auth)
+- `internal/middleware/` - Gin middleware (auth, CSRF, rate limiting, metrics auth, CORS)
 - `internal/metrics/` - Prometheus metrics collection and caching (supports memory, Redis, Redis-aside)
 - `internal/cache/` - Cache implementations (memory, Redis, Redis-aside)
 - `internal/client/` - HTTP client with exponential backoff retry
@@ -261,6 +261,7 @@ Key configuration categories (see `.env.example` and `docs/CONFIGURATION.md` for
 - `ENABLE_RATE_LIMIT`, `RATE_LIMIT_STORE` (memory/redis) - Rate limiting
 - `ENABLE_AUDIT_LOGGING` - Comprehensive audit trails
 - `SESSION_FINGERPRINT` - Session security (User-Agent validation)
+- `CORS_ENABLED`, `CORS_ALLOWED_ORIGINS` - CORS for SPA frontends (applied to `/oauth/*` only)
 
 **OAuth Providers**
 

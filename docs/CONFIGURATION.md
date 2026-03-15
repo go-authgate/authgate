@@ -14,6 +14,7 @@ This guide covers all configuration options for AuthGate, including environment 
 - [HTTP Retry with Exponential Backoff](#http-retry-with-exponential-backoff)
 - [User Cache](#user-cache)
 - [Rate Limiting](#rate-limiting)
+- [CORS (Cross-Origin Resource Sharing)](#cors-cross-origin-resource-sharing)
 
 ---
 
@@ -877,6 +878,43 @@ INTROSPECT_RATE_LIMIT=20
 ```
 
 **📖 For complete documentation, deployment scenarios, and troubleshooting, see [RATE_LIMITING.md](RATE_LIMITING.md)**
+
+---
+
+## CORS (Cross-Origin Resource Sharing)
+
+When building a Single-Page Application (SPA) or mobile app that calls AuthGate's OAuth API endpoints from a different origin, you need to enable CORS. By default, CORS is **disabled** — enabling it only affects `/oauth/*` API endpoints (token, device code, introspect, revoke, userinfo). HTML page endpoints are never affected.
+
+### Quick Start
+
+```bash
+# .env
+CORS_ENABLED=true
+CORS_ALLOWED_ORIGINS=http://localhost:3000,https://app.example.com
+```
+
+### Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CORS_ENABLED` | `false` | Enable CORS for API endpoints |
+| `CORS_ALLOWED_ORIGINS` | _(none)_ | Comma-separated list of allowed origins |
+| `CORS_ALLOWED_METHODS` | `GET,POST,PUT,DELETE,OPTIONS` | Allowed HTTP methods |
+| `CORS_ALLOWED_HEADERS` | `Origin,Content-Type,Authorization` | Allowed request headers |
+| `CORS_MAX_AGE` | `12h` | How long browsers cache preflight responses |
+
+### How It Works
+
+- **Preflight requests** (`OPTIONS`) are handled automatically by the CORS middleware and return the appropriate `Access-Control-Allow-*` headers.
+- **Credentials** (`cookies`, `Authorization` header) are allowed — `Access-Control-Allow-Credentials: true` is set so token introspection and authenticated requests work from browser JS.
+- **Disallowed origins** receive a `403 Forbidden` response with no CORS headers.
+- **Same-origin requests** (no `Origin` header) are unaffected.
+
+### Production Notes
+
+- Only list origins you trust — avoid using `*` (wildcard) with credentials.
+- The CORS middleware is applied **only** to the `/oauth/*` route group, not to login pages, admin UI, or static assets.
+- For maximum security, set `CORS_ALLOWED_ORIGINS` to the exact origins of your frontend applications.
 
 ---
 
