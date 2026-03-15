@@ -245,10 +245,10 @@ func Load() *Config {
 		JWTSigningAlgorithm: getEnv("JWT_SIGNING_ALGORITHM", "HS256"),
 		JWTPrivateKeyPath:   getEnv("JWT_PRIVATE_KEY_PATH", ""),
 		JWTKeyID:            getEnv("JWT_KEY_ID", ""),
-		SessionSecret:      getEnv("SESSION_SECRET", "session-secret-change-in-production"),
-		SessionMaxAge:      getEnvInt("SESSION_MAX_AGE", 3600),      // 1 hour default
-		SessionIdleTimeout: getEnvInt("SESSION_IDLE_TIMEOUT", 1800), // 30 minutes default
-		SessionFingerprint: getEnvBool("SESSION_FINGERPRINT", true), // Enabled by default
+		SessionSecret:       getEnv("SESSION_SECRET", "session-secret-change-in-production"),
+		SessionMaxAge:       getEnvInt("SESSION_MAX_AGE", 3600),      // 1 hour default
+		SessionIdleTimeout:  getEnvInt("SESSION_IDLE_TIMEOUT", 1800), // 30 minutes default
+		SessionFingerprint:  getEnvBool("SESSION_FINGERPRINT", true), // Enabled by default
 		SessionFingerprintIP: getEnvBool(
 			"SESSION_FINGERPRINT_IP",
 			false,

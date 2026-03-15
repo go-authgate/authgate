@@ -35,7 +35,7 @@ type JWKSHandler struct {
 
 // NewJWKSHandler builds a JWKSHandler from the token provider's public key.
 // For HS256 (no public key), the keys array is empty.
-func NewJWKSHandler(algorithm string, kid string, publicKey any) *JWKSHandler {
+func NewJWKSHandler(algorithm, kid string, publicKey any) *JWKSHandler {
 	h := &JWKSHandler{
 		response: JWKSResponse{Keys: []JSONWebKey{}},
 	}

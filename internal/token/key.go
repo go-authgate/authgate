@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
 )
@@ -30,7 +31,7 @@ func LoadSigningKey(path string) (crypto.Signer, error) {
 	if key, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
 		signer, ok := key.(crypto.Signer)
 		if !ok {
-			return nil, fmt.Errorf("PKCS#8 key is not a crypto.Signer")
+			return nil, errors.New("PKCS#8 key is not a crypto.Signer")
 		}
 		return signer, nil
 	}
@@ -64,15 +65,24 @@ func ValidateKeyAlgorithm(key crypto.Signer, algorithm string) error {
 	switch algorithm {
 	case "RS256":
 		if _, ok := key.(*rsa.PrivateKey); !ok {
-			return fmt.Errorf("JWT_SIGNING_ALGORITHM=RS256 requires an RSA private key, got %T", key)
+			return fmt.Errorf(
+				"JWT_SIGNING_ALGORITHM=RS256 requires an RSA private key, got %T",
+				key,
+			)
 		}
 	case "ES256":
 		ecKey, ok := key.(*ecdsa.PrivateKey)
 		if !ok {
-			return fmt.Errorf("JWT_SIGNING_ALGORITHM=ES256 requires an ECDSA private key, got %T", key)
+			return fmt.Errorf(
+				"JWT_SIGNING_ALGORITHM=ES256 requires an ECDSA private key, got %T",
+				key,
+			)
 		}
 		if ecKey.Curve != elliptic.P256() {
-			return fmt.Errorf("JWT_SIGNING_ALGORITHM=ES256 requires P-256 curve, got %s", ecKey.Curve.Params().Name)
+			return fmt.Errorf(
+				"JWT_SIGNING_ALGORITHM=ES256 requires P-256 curve, got %s",
+				ecKey.Curve.Params().Name,
+			)
 		}
 	default:
 		return fmt.Errorf("unsupported algorithm: %s", algorithm)

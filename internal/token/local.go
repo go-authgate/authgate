@@ -19,9 +19,9 @@ var _ core.TokenProvider = (*LocalTokenProvider)(nil)
 type LocalTokenProvider struct {
 	config    *config.Config
 	method    jwt.SigningMethod // HS256 / RS256 / ES256
-	signKey   any              // []byte (HS256) / *rsa.PrivateKey / *ecdsa.PrivateKey
-	verifyKey any              // []byte (HS256) / *rsa.PublicKey / *ecdsa.PublicKey
-	keyID     string           // "kid" header value (empty for HS256)
+	signKey   any               // []byte (HS256) / *rsa.PrivateKey / *ecdsa.PrivateKey
+	verifyKey any               // []byte (HS256) / *rsa.PublicKey / *ecdsa.PublicKey
+	keyID     string            // "kid" header value (empty for HS256)
 }
 
 // Option configures a LocalTokenProvider.

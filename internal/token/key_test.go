@@ -138,7 +138,7 @@ func TestValidateKeyAlgorithm_RS256_RSAKey(t *testing.T) {
 func TestValidateKeyAlgorithm_RS256_ECKey(t *testing.T) {
 	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	err := ValidateKeyAlgorithm(key, "RS256")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "requires an RSA private key")
 }
 
@@ -151,20 +151,20 @@ func TestValidateKeyAlgorithm_ES256_ECKey(t *testing.T) {
 func TestValidateKeyAlgorithm_ES256_WrongCurve(t *testing.T) {
 	key, _ := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	err := ValidateKeyAlgorithm(key, "ES256")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "requires P-256 curve")
 }
 
 func TestValidateKeyAlgorithm_ES256_RSAKey(t *testing.T) {
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)
 	err := ValidateKeyAlgorithm(key, "ES256")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "requires an ECDSA private key")
 }
 
 func TestValidateKeyAlgorithm_Unsupported(t *testing.T) {
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)
 	err := ValidateKeyAlgorithm(key, "PS256")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported algorithm")
 }

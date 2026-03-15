@@ -234,6 +234,68 @@ echo "SESSION_SECRET=$(openssl rand -hex 32)" >> .env
 
 ---
 
+## JWT Signing Algorithm
+
+AuthGate supports three JWT signing algorithms:
+
+| Algorithm | Type | Key | Use Case |
+|-----------|------|-----|----------|
+| `HS256` | Symmetric | `JWT_SECRET` (shared secret) | Default, simple deployments |
+| `RS256` | Asymmetric | RSA private key (2048+ bits) | Resource servers verify with public key |
+| `ES256` | Asymmetric | ECDSA P-256 private key | Compact tokens, modern deployments |
+
+### Configuration
+
+```bash
+# HS256 (default — no additional config needed)
+JWT_SIGNING_ALGORITHM=HS256
+
+# RS256
+JWT_SIGNING_ALGORITHM=RS256
+JWT_PRIVATE_KEY_PATH=/path/to/rsa-private.pem
+JWT_KEY_ID=                   # Optional: auto-generated from key fingerprint
+
+# ES256
+JWT_SIGNING_ALGORITHM=ES256
+JWT_PRIVATE_KEY_PATH=/path/to/ec-private.pem
+JWT_KEY_ID=                   # Optional: auto-generated from key fingerprint
+```
+
+### Generate Keys
+
+```bash
+# RSA 2048-bit key for RS256
+openssl genrsa -out rsa-private.pem 2048
+
+# ECDSA P-256 key for ES256
+openssl ecparam -genkey -name prime256v1 -noout -out ec-private.pem
+```
+
+### JWKS Endpoint
+
+When using RS256 or ES256, AuthGate exposes the public key at:
+
+```
+GET /.well-known/jwks.json
+```
+
+Resource servers can fetch this endpoint to verify JWT signatures without sharing secrets. The OIDC Discovery endpoint (`/.well-known/openid-configuration`) includes the `jwks_uri` field automatically.
+
+For HS256, the JWKS endpoint returns an empty key set (`{"keys":[]}`) since symmetric secrets are never exposed.
+
+### Key Rotation
+
+Use `JWT_KEY_ID` to set an explicit `kid` (Key ID) header in JWTs. This enables key rotation:
+
+1. Generate a new key pair
+2. Add the new key to JWKS while keeping the old one
+3. Update `JWT_PRIVATE_KEY_PATH` and `JWT_KEY_ID`
+4. Resource servers match `kid` to select the correct verification key
+
+If `JWT_KEY_ID` is not set, it is automatically derived from the key's SHA-256 thumbprint.
+
+---
+
 ## Default Test Data
 
 The server initializes with default test accounts:

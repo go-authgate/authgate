@@ -684,7 +684,10 @@ func TestLocalTokenProvider_HS256_BackwardCompatible(t *testing.T) {
 	// Refresh token
 	refreshResult, err := provider.GenerateRefreshToken(context.Background(), "u1", "c1", "r")
 	require.NoError(t, err)
-	refreshVal, err := provider.ValidateRefreshToken(context.Background(), refreshResult.TokenString)
+	refreshVal, err := provider.ValidateRefreshToken(
+		context.Background(),
+		refreshResult.TokenString,
+	)
 	require.NoError(t, err)
 	assert.True(t, refreshVal.Valid)
 
@@ -821,6 +824,6 @@ func TestLocalTokenProvider_HS256_PublicKey_Nil(t *testing.T) {
 	provider := NewLocalTokenProvider(cfg)
 
 	assert.Nil(t, provider.PublicKey())
-	assert.Equal(t, "", provider.KeyID())
+	assert.Empty(t, provider.KeyID())
 	assert.Equal(t, "HS256", provider.Algorithm())
 }

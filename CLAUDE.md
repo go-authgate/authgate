@@ -123,11 +123,15 @@ In addition to Device Code Flow, AuthGate supports Authorization Code Flow with 
 
 **Pluggable Token Providers**
 
-- Supports local JWT (HMAC-SHA256) and external HTTP API token services
+- Supports local JWT and external HTTP API token services
 - Configured via `TOKEN_PROVIDER_MODE` env var (`local` or `http_api`)
 - Token records always stored in local database for management
-- LocalTokenProvider: Uses golang-jwt/jwt library
-- HTTPTokenProvider: Delegates to external API, supports custom signing algorithms (RS256, ES256)
+- LocalTokenProvider: Uses golang-jwt/jwt library with configurable signing algorithm
+  - `HS256` (default): Symmetric HMAC-SHA256 using `JWT_SECRET`
+  - `RS256`: Asymmetric RSA signing with PEM private key (`JWT_PRIVATE_KEY_PATH`)
+  - `ES256`: Asymmetric ECDSA P-256 signing with PEM private key (`JWT_PRIVATE_KEY_PATH`)
+- JWKS endpoint at `/.well-known/jwks.json` exposes public keys for RS256/ES256
+- HTTPTokenProvider: Delegates to external API, supports custom signing algorithms
 
 **Refresh Tokens (RFC 6749)**
 
@@ -186,7 +190,7 @@ In addition to Device Code Flow, AuthGate supports Authorization Code Flow with 
 
 - Device codes expire after 30min (configurable via `DeviceCodeExpiration`)
 - User codes: 8-char uppercase alphanumeric, normalized (uppercase + dashes removed)
-- JWTs signed with HMAC-SHA256, expire after 1 hour
+- JWTs signed with configurable algorithm (HS256/RS256/ES256), expire after 1 hour
 - Sessions: encrypted cookies (gin-contrib/sessions), configurable expiry (default: 1 hour), with idle timeout (default: 30 minutes) and fingerprinting (User-Agent validation)
 - Polling interval: 5 seconds
 - Templates and static files embedded via `//go:embed`
@@ -236,6 +240,8 @@ In addition to Device Code Flow, AuthGate supports Authorization Code Flow with 
 
 **System**
 
+- `GET /.well-known/openid-configuration` - OIDC Discovery metadata
+- `GET /.well-known/jwks.json` - JWKS public keys (for RS256/ES256)
 - `GET /health` - Health check with database connection test
 - `GET /metrics` - Prometheus metrics (optional Bearer token auth)
 - `GET /api/swagger/*` - Swagger/OpenAPI documentation
@@ -248,6 +254,7 @@ Key configuration categories (see `.env.example` and `docs/CONFIGURATION.md` for
 
 - `SERVER_ADDR`, `BASE_URL` - Server address and public URL
 - `JWT_SECRET`, `SESSION_SECRET` - Must be changed in production (use `openssl rand -hex 32`)
+- `JWT_SIGNING_ALGORITHM` - HS256 (default), RS256, or ES256; asymmetric keys require `JWT_PRIVATE_KEY_PATH`
 - `DATABASE_DRIVER` (sqlite/postgres), `DATABASE_DSN` - Database configuration
 
 **Authentication & Authorization**
