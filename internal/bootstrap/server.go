@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/config"
+	authconnect "github.com/go-authgate/authgate/internal/connectrpc"
 	"github.com/go-authgate/authgate/internal/core"
+	"github.com/go-authgate/authgate/internal/gen/health/v1/healthv1connect"
 	"github.com/go-authgate/authgate/internal/metrics"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
@@ -27,6 +29,22 @@ func createHTTPServer(cfg *config.Config, handler http.Handler) *http.Server {
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
+}
+
+// createCompositeHandler creates an http.Handler that routes connect-go services
+// by path prefix, falling back to the Gin router for everything else.
+func createCompositeHandler(db *store.Store, ginRouter http.Handler) http.Handler {
+	mux := http.NewServeMux()
+
+	// Register connect-go HealthService
+	healthServer := authconnect.NewHealthServer(db)
+	path, handler := healthv1connect.NewHealthServiceHandler(healthServer)
+	mux.Handle(path, handler)
+
+	// Fall back to Gin for all other routes
+	mux.Handle("/", ginRouter)
+
+	return mux
 }
 
 // addServerRunningJob adds the HTTP server running job

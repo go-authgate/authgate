@@ -172,8 +172,9 @@ func (app *Application) initializeHTTPLayer() {
 		oauthProviders,
 	)
 
-	// HTTP Server
-	app.Server = createHTTPServer(app.Config, app.Router)
+	// HTTP Server (composite handler routes connect-go services + Gin)
+	compositeHandler := createCompositeHandler(app.DB, app.Router)
+	app.Server = createHTTPServer(app.Config, compositeHandler)
 }
 
 // startWithGracefulShutdown starts the server and handles graceful shutdown
