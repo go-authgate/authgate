@@ -89,7 +89,7 @@ assets-dev:
 
 ## clean: remove build artifacts and test coverage
 clean:
-	rm -rf bin/ release/ coverage.txt internal/templates/static/dist/
+	rm -rf bin/ release/ coverage.txt internal/templates/static/dist/ internal/gen/
 	find internal/templates -name "*_templ.go" -delete
 	rm -f internal/templates/asset_paths.go
 
@@ -101,14 +101,22 @@ rebuild: clean build
 .PHONY: build_all_linux_amd64 build_all_linux_arm64 generate watch air dev mocks
 .PHONY: install-tools mod-download mod-tidy mod-verify check-tools version
 .PHONY: docker-build docker-run swagger swagger-init swagger-fmt swagger-validate
-.PHONY: assets assets-dev
+.PHONY: assets assets-dev proto proto-lint
 
 ## install-tools: download tool dependencies
 install-tools:
 	$(GO) mod download $(TOOLS_MOD)
 
+## proto: generate protobuf and connect-go code
+proto:
+	buf generate
+
+## proto-lint: lint protobuf definitions
+proto-lint:
+	buf lint
+
 ## generate: run go generate (templ compilation + mocks via go:generate directives)
-generate: install-tools assets swagger
+generate: install-tools assets swagger proto
 	$(GO) generate ./...
 
 ## mocks: generate mock files only (all directives in internal/mocks/)
