@@ -2,10 +2,12 @@ package bootstrap
 
 import (
 	"embed"
+	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-authgate/authgate/internal/auth"
 	"github.com/go-authgate/authgate/internal/config"
@@ -50,10 +52,10 @@ func setupRouter(
 	setupSessionMiddleware(r, cfg)
 
 	// Serve embedded static files
-	serveStaticFiles(r, templatesFS)
+	serveStaticFiles(r, templatesFS, cfg.StaticCacheMaxAge)
 
 	// Favicon endpoint
-	r.GET("/favicon.ico", createFaviconHandler(templatesFS))
+	r.GET("/favicon.ico", createFaviconHandler(templatesFS, cfg.StaticCacheMaxAge))
 
 	// Health check endpoint
 	r.GET("/health", createHealthCheckHandler(db))
@@ -88,13 +90,29 @@ func setupSessionMiddleware(r *gin.Engine, cfg *config.Config) {
 	r.Use(middleware.SessionFingerprintMiddleware(cfg.SessionFingerprint, cfg.SessionFingerprintIP))
 }
 
-// serveStaticFiles configures static file serving
-func serveStaticFiles(r *gin.Engine, templatesFS embed.FS) {
+// serveStaticFiles configures static file serving with Cache-Control headers.
+func serveStaticFiles(r *gin.Engine, templatesFS embed.FS, cacheMaxAge time.Duration) {
 	staticSubFS, err := fs.Sub(templatesFS, "internal/templates/static")
 	if err != nil {
 		log.Fatalf("Failed to create static sub filesystem: %v", err)
 	}
-	r.StaticFS("/static", http.FS(staticSubFS))
+	serveStaticFilesFromFS(r, staticSubFS, cacheMaxAge)
+}
+
+// serveStaticFilesFromFS registers a static file handler on the router.
+// Content-hashed files under /static/dist/ get immutable caching (1 year).
+// Other static files use the configured cacheMaxAge duration.
+func serveStaticFilesFromFS(r *gin.Engine, staticFS fs.FS, cacheMaxAge time.Duration) {
+	fileServer := http.StripPrefix("/static", http.FileServer(http.FS(staticFS)))
+	r.GET("/static/*filepath", func(c *gin.Context) {
+		path := c.Param("filepath")
+		if strings.HasPrefix(path, "/dist/") {
+			c.Header("Cache-Control", "public, max-age=31536000, immutable")
+		} else if cacheMaxAge > 0 {
+			c.Header("Cache-Control", fmt.Sprintf("public, max-age=%d", int(cacheMaxAge.Seconds())))
+		}
+		fileServer.ServeHTTP(c.Writer, c.Request)
+	})
 }
 
 // setupMetricsEndpoint configures the Prometheus metrics endpoint
@@ -281,7 +299,7 @@ func setupOAuthRoutes(
 //	@Produce		image/x-icon
 //	@Success		200	{file}	binary	"Favicon file"
 //	@Router			/favicon.ico [get]
-func createFaviconHandler(templatesFS embed.FS) gin.HandlerFunc {
+func createFaviconHandler(templatesFS embed.FS, cacheMaxAge time.Duration) gin.HandlerFunc {
 	// Read favicon once at startup
 	faviconData, err := templatesFS.ReadFile("internal/templates/static/images/favicon.ico")
 	if err != nil {
@@ -293,6 +311,9 @@ func createFaviconHandler(templatesFS embed.FS) gin.HandlerFunc {
 	}
 
 	return func(c *gin.Context) {
+		if cacheMaxAge > 0 {
+			c.Header("Cache-Control", fmt.Sprintf("public, max-age=%d", int(cacheMaxAge.Seconds())))
+		}
 		c.Data(http.StatusOK, "image/x-icon", faviconData)
 	}
 }

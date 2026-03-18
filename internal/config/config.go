@@ -208,6 +208,9 @@ type Config struct {
 	CORSAllowedHeaders []string      // Allowed request headers (default: Origin,Content-Type,Authorization)
 	CORSMaxAge         time.Duration // Preflight cache duration (default: 12 hours)
 
+	// Static file caching
+	StaticCacheMaxAge time.Duration // Cache-Control max-age for non-hashed static files (default: 24h, 0 disables)
+
 	// Bootstrap and shutdown timeout settings
 	DBInitTimeout         time.Duration // Database initialization timeout (default: 30s)
 	RedisConnTimeout      time.Duration // Redis connection timeout (default: 5s)
@@ -424,6 +427,9 @@ func Load() *Config {
 			[]string{"Origin", "Content-Type", "Authorization"},
 		),
 		CORSMaxAge: getEnvDuration("CORS_MAX_AGE", 12*time.Hour),
+
+		// Static file caching
+		StaticCacheMaxAge: getEnvDuration("STATIC_CACHE_MAX_AGE", 24*time.Hour),
 	}
 }
 
