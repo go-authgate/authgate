@@ -1,0 +1,25 @@
+package templates
+
+// BreadcrumbItem represents a single breadcrumb link.
+type BreadcrumbItem struct {
+	Label string
+	Href  string // Empty string means current page (no link)
+}
+
+templ Breadcrumb(items []BreadcrumbItem) {
+	if len(items) > 0 {
+		<nav class="breadcrumb-nav" aria-label="Breadcrumb">
+			<ol class="breadcrumb-list">
+				for i, item := range items {
+					<li class="breadcrumb-item">
+						if i < len(items)-1 && item.Href != "" {
+							<a href={ templ.URL(item.Href) } class="breadcrumb-link">{ item.Label }</a>
+						} else {
+							<span class="breadcrumb-current" aria-current="page">{ item.Label }</span>
+						}
+					</li>
+				}
+			</ol>
+		</nav>
+	}
+}

@@ -7,6 +7,12 @@ templ AdminClientAuthorizations(props ClientAuthorizationsPageProps) {
 		<div class="main-content">
 			<div class="admin-form-container" style="max-width:1000px;">
 				<div class="card">
+					@Breadcrumb([]BreadcrumbItem{
+						{Label: "Admin", Href: "/admin/clients"},
+						{Label: "OAuth Clients", Href: "/admin/clients"},
+						{Label: props.Client.ClientName, Href: "/admin/clients/" + props.Client.ClientID},
+						{Label: "Authorized Users", Href: ""},
+					})
 					<div class="admin-form-header">
 						<h1 class="admin-form-title">Authorized Users</h1>
 						<p style="font-size:var(--text-sm);color:var(--color-text-secondary);margin-top:var(--space-2);">
@@ -58,7 +64,7 @@ templ AdminClientAuthorizations(props ClientAuthorizationsPageProps) {
 						</div>
 					} else {
 						<div class="empty-state">
-							<div class="empty-icon">🔓</div>
+							@EmptyStateAuth()
 							<h3 class="empty-title">No Authorized Users</h3>
 							<p class="empty-text">No users have granted access to this application yet.</p>
 						</div>

@@ -9,7 +9,9 @@ templ MyApps(props MyAppsPageProps) {
 				<div class="card">
 					<div class="admin-clients-header">
 						<h1 class="admin-clients-title">
-							<span class="admin-clients-title-icon">🗂️</span>
+							<span class="admin-clients-title-icon">
+								<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="8" height="8" rx="2"></rect><rect x="14" y="2" width="8" height="8" rx="2"></rect><rect x="2" y="14" width="8" height="8" rx="2"></rect><rect x="14" y="14" width="8" height="8" rx="2"></rect></svg>
+							</span>
 							<span>My Apps</span>
 						</h1>
 						<a href="/apps/new" class="admin-create-btn">
@@ -44,13 +46,11 @@ templ MyApps(props MyAppsPageProps) {
 						@ClientsListPagination(props.Pagination, props.PageSize, props.Search, "/apps", "total apps")
 					} else {
 						<div class="empty-state">
-							<div class="empty-icon">
-								if props.Search != "" {
-									🔍
-								} else {
-									🗂️
-								}
-							</div>
+							if props.Search != "" {
+								@EmptyStateSearch()
+							} else {
+								@EmptyStateApps()
+							}
 							<h3 class="empty-title">
 								if props.Search != "" {
 									No apps found
@@ -84,7 +84,7 @@ templ MyApps(props MyAppsPageProps) {
 
 templ MyAppTableRow(app models.OAuthApplication) {
 	<tr>
-		<td>
+		<td data-label="App Name">
 			<div class="client-name-cell">
 				<strong class="client-name-title">{ app.ClientName }</strong>
 				if app.Description != "" {
@@ -92,22 +92,22 @@ templ MyAppTableRow(app models.OAuthApplication) {
 				}
 			</div>
 		</td>
-		<td>
+		<td data-label="Client ID">
 			<div class="client-id client-id-box">{ app.ClientID }</div>
 		</td>
-		<td>
+		<td data-label="Grant Types">
 			<code class="grant-types-code">{ app.GrantTypes }</code>
 		</td>
-		<td>
+		<td data-label="Status">
 			@ClientStatusBadge(app.Status)
 		</td>
-		<td class="created-date-cell">
+		<td class="created-date-cell" data-label="Created">
 			<div class="date-display">
 				<span class="date-display-day">{ app.CreatedAt.Format("2006-01-02") }</span>
 				<span class="date-display-time">{ app.CreatedAt.Format("15:04") }</span>
 			</div>
 		</td>
-		<td>
+		<td data-label="Actions">
 			<div class="actions">
 				<a href={ templ.URL("/apps/" + app.ClientID) } class="btn btn-secondary btn-small">View</a>
 				<a href={ templ.URL("/apps/" + app.ClientID + "/edit") } class="btn btn-secondary btn-small">Edit</a>

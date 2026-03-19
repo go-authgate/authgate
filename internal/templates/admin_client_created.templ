@@ -7,6 +7,11 @@ templ AdminClientCreated(props ClientCreatedPageProps) {
 		<div class="main-content">
 			<div class="admin-form-container">
 				<div class="card">
+					@Breadcrumb([]BreadcrumbItem{
+						{Label: "Admin", Href: "/admin/clients"},
+						{Label: "OAuth Clients", Href: "/admin/clients"},
+						{Label: "Client Created", Href: ""},
+					})
 					<div class="admin-form-header">
 						<h1 class="admin-form-title">Client Created Successfully</h1>
 					</div>

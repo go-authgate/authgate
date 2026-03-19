@@ -352,7 +352,64 @@
   }
 
   .admin-clients-table-wrapper {
-    overflow-x: scroll;
+    overflow-x: visible;
+    border: none;
+    background: transparent;
+  }
+
+  .admin-clients-table thead {
+    display: none;
+  }
+
+  .admin-clients-table tbody tr {
+    display: block;
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .admin-clients-table tbody tr:last-child {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .admin-clients-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-bg-tertiary);
+  }
+
+  .admin-clients-table td:last-child {
+    border-bottom: none;
+    padding-top: var(--space-3);
+  }
+
+  .admin-clients-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+    margin-right: var(--space-4);
+  }
+
+  .client-name-cell {
+    min-width: auto;
+  }
+
+  .client-id-box {
+    max-width: none;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 }
 

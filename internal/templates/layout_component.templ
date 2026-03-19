@@ -21,6 +21,10 @@ templ Layout(title string, layoutType LayoutType, navbar *NavbarProps) {
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			<title>{ title } - AuthGate</title>
+			<!-- Prevent FOUC: apply saved theme before paint -->
+			<script>
+				(function(){var t=localStorage.getItem('authgate-theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t)}})();
+			</script>
 			<!-- Preconnect to font CDN -->
 			<link rel="preconnect" href="https://fonts.googleapis.com"/>
 			<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
@@ -30,12 +34,15 @@ templ Layout(title string, layoutType LayoutType, navbar *NavbarProps) {
 			<link rel="stylesheet" href={ CSSBundle }/>
 		</head>
 		<body class={ string(layoutType) }>
+			<a href="#main-content" class="skip-link">Skip to main content</a>
 			if navbar != nil {
 				@Navbar(navbar)
 			}
-			<main class="main-content" role="main">
+			<main class="main-content" role="main" id="main-content">
 				{ children... }
 			</main>
+			<!-- Toast notification container -->
+			<div id="toast-container" class="toast-container" aria-live="polite"></div>
 			<!-- Footer -->
 			<footer class="site-footer">
 				<div class="footer-inner">
@@ -51,7 +58,7 @@ templ Layout(title string, layoutType LayoutType, navbar *NavbarProps) {
 				</div>
 				<div class="footer-bottom">
 					<div class="footer-bottom-left">
-						<span class="footer-copy">© { time.Now().Format("2006") } AuthGate</span>
+						<span class="footer-copy">&copy; { time.Now().Format("2006") } AuthGate</span>
 						if version.Version != "" {
 							<span class="footer-rfc">{ version.Version }</span>
 						} else {

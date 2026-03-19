@@ -11,6 +11,10 @@ templ UserAppDetail(props UserClientDetailPageProps) {
 		<div class="main-content">
 			<div class="admin-form-container">
 				<div class="card">
+					@Breadcrumb([]BreadcrumbItem{
+						{Label: "My Apps", Href: "/apps"},
+						{Label: props.Client.ClientName, Href: ""},
+					})
 					<div class="admin-form-header">
 						<h1 class="admin-form-title">{ props.Client.ClientName }</h1>
 					</div>
@@ -20,15 +24,15 @@ templ UserAppDetail(props UserClientDetailPageProps) {
 					switch props.Client.Status {
 						case models.ClientStatusPending:
 							<div style="margin-bottom:var(--space-4);padding:var(--space-3);background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-md);color:#92400E;">
-								<strong>⏳ Awaiting admin approval</strong> — Your app has been registered and is pending review. It cannot be used for OAuth flows until an admin approves it.
+								<strong>Awaiting admin approval</strong> — Your app has been registered and is pending review. It cannot be used for OAuth flows until an admin approves it.
 							</div>
 						case models.ClientStatusInactive:
 							<div style="margin-bottom:var(--space-4);padding:var(--space-3);background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:var(--radius-md);color:#991B1B;">
-								<strong>❌ App rejected / inactive</strong> — This app has been rejected or deactivated by an admin. Contact your administrator for more information.
+								<strong>App rejected / inactive</strong> — This app has been rejected or deactivated by an admin. Contact your administrator for more information.
 							</div>
 						default:
 							<div style="margin-bottom:var(--space-4);padding:var(--space-3);background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:var(--radius-md);color:#166534;">
-								<strong>✅ Active</strong> — Your app is approved and can be used for OAuth flows.
+								<strong>Active</strong> — Your app is approved and can be used for OAuth flows.
 							</div>
 					}
 					<div class="admin-detail-section">
@@ -86,23 +90,30 @@ templ UserAppDetail(props UserClientDetailPageProps) {
 					<!-- Actions -->
 					<div class="admin-action-buttons">
 						<a href={ templ.URL("/apps/" + props.Client.ClientID + "/edit") } class="admin-action-btn primary">
-							✏️ Edit App
+							Edit App
 						</a>
 						if props.Client.ClientType == "confidential" {
 							<form method="POST" action={ templ.URL("/apps/" + props.Client.ClientID + "/regenerate-secret") } style="display:inline; margin:0;">
 								<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
-								<button type="submit" class="admin-action-btn secondary" onclick="return confirm('Are you sure? This will invalidate the current secret.');">
-									🔄 Regenerate Secret
+								<button
+									type="submit"
+									class="admin-action-btn secondary"
+									data-confirm-title="Regenerate Secret?"
+									data-confirm-message="This will invalidate the current secret. Any applications using it will stop working."
+									data-confirm-style="warning"
+									data-confirm-label="Regenerate"
+								>
+									Regenerate Secret
 								</button>
 							</form>
 						}
-						<a href="/apps" class="admin-action-btn secondary">← Back to My Apps</a>
+						<a href="/apps" class="admin-action-btn secondary">&larr; Back to My Apps</a>
 					</div>
 					<!-- Danger Zone: Delete -->
 					if props.Client.Status != models.ClientStatusActive {
 						<div class="admin-danger-zone">
 							<div class="admin-danger-zone-header">
-								<h3 class="admin-danger-zone-title">⚠️ Danger Zone</h3>
+								<h3 class="admin-danger-zone-title">Danger Zone</h3>
 								<p class="admin-danger-zone-desc">
 									Deleting this app is irreversible. Active apps must be deactivated by an admin before they can be deleted.
 								</p>
@@ -118,7 +129,10 @@ templ UserAppDetail(props UserClientDetailPageProps) {
 										<button
 											type="submit"
 											class="admin-action-btn danger"
-											onclick="return confirm('Delete this app permanently? This cannot be undone.')"
+											data-confirm-title="Delete App?"
+											data-confirm-message="This will permanently delete the app and all associated data. This cannot be undone."
+											data-confirm-style="danger"
+											data-confirm-label="Delete"
 										>
 											Delete App
 										</button>

@@ -28,7 +28,7 @@ templ AccountAuthorizations(props AuthorizationsPageProps) {
 						</div>
 					} else {
 						<div class="empty-state">
-							<div class="empty-icon">🔓</div>
+							@EmptyStateAuth()
 							<h3 class="empty-title">No Authorized Applications</h3>
 							<p class="empty-text">
 								You haven't authorized any applications yet.
@@ -45,7 +45,9 @@ templ AccountAuthorizations(props AuthorizationsPageProps) {
 templ AuthorizationItem(auth AuthorizationDisplay, csrfToken string) {
 	<div class="authorization-item">
 		<!-- Icon -->
-		<div class="authorization-app-icon">🔗</div>
+		<div class="authorization-app-icon">
+			<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+		</div>
 		<!-- Info -->
 		<div class="authorization-info">
 			<div class="authorization-app-name">{ auth.ClientName }</div>
@@ -62,7 +64,10 @@ templ AuthorizationItem(auth AuthorizationDisplay, csrfToken string) {
 				<button
 					type="submit"
 					class="authorization-revoke-btn"
-					onclick="return confirm('Revoke access for this application? All its tokens will be invalidated.')"
+					data-confirm-title="Revoke Application Access?"
+					data-confirm-message="All tokens for this application will be invalidated."
+					data-confirm-style="danger"
+					data-confirm-label="Revoke Access"
 				>
 					Revoke Access
 				</button>

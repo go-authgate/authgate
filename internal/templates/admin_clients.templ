@@ -10,10 +10,16 @@ templ AdminClients(props ClientsPageProps) {
 		<div class="main-content">
 			<div class="container">
 				<div class="card">
+					@Breadcrumb([]BreadcrumbItem{
+						{Label: "Admin", Href: "/admin/clients"},
+						{Label: "OAuth Clients", Href: ""},
+					})
 					<!-- Page Header -->
 					<div class="admin-clients-header">
 						<h1 class="admin-clients-title">
-							<span class="admin-clients-title-icon">🔑</span>
+							<span class="admin-clients-title-icon">
+								<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+							</span>
 							<span>OAuth Clients</span>
 						</h1>
 						<a href="/admin/clients/new" class="admin-create-btn">
@@ -85,13 +91,11 @@ templ AdminClients(props ClientsPageProps) {
 						@ClientsListPagination(props.Pagination, props.PageSize, props.Search, "/admin/clients", "total clients")
 					} else {
 						<div class="empty-state">
-							<div class="empty-icon">
-								if props.Search != "" {
-									🔍
-								} else {
-									🔑
-								}
-							</div>
+							if props.Search != "" {
+								@EmptyStateSearch()
+							} else {
+								@EmptyStateClients()
+							}
 							<h3 class="empty-title">
 								if props.Search != "" {
 									No clients found
@@ -152,7 +156,7 @@ templ AdminClients(props ClientsPageProps) {
 
 templ ClientTableRow(client services.ClientWithCreator, csrfToken string) {
 	<tr>
-		<td>
+		<td data-label="Client Name">
 			<div class="client-name-cell">
 				<div class="client-name-row">
 					<strong class="client-name-title">{ client.ClientName }</strong>
@@ -171,12 +175,12 @@ templ ClientTableRow(client services.ClientWithCreator, csrfToken string) {
 				}
 			</div>
 		</td>
-		<td>
+		<td data-label="Client ID">
 			<div class="client-id client-id-box">
 				{ client.ClientID }
 			</div>
 		</td>
-		<td>
+		<td data-label="Grant Types">
 			<code class="grant-types-code">
 				{ client.GrantTypes }
 			</code>
@@ -188,23 +192,23 @@ templ ClientTableRow(client services.ClientWithCreator, csrfToken string) {
 				}
 			</div>
 		</td>
-		<td>
+		<td data-label="Status">
 			@ClientStatusBadge(client.Status)
 		</td>
-		<td class="created-date-cell">
+		<td class="created-date-cell" data-label="Created">
 			<div class="date-display">
 				<span class="date-display-day">{ client.CreatedAt.Format("2006-01-02") }</span>
 				<span class="date-display-time">{ client.CreatedAt.Format("15:04") }</span>
 			</div>
 		</td>
-		<td>
+		<td data-label="Creator">
 			if client.CreatorUsername != "" {
 				<span class="creator-username">{ client.CreatorUsername }</span>
 			} else {
 				<span class="creator-username-unknown">Unknown</span>
 			}
 		</td>
-		<td>
+		<td data-label="Actions">
 			<div class="actions">
 				if client.Status == models.ClientStatusPending {
 					<!-- Quick approve/reject for pending clients -->
@@ -227,7 +231,14 @@ templ ClientTableRow(client services.ClientWithCreator, csrfToken string) {
 				<a href={ templ.URL("/admin/clients/" + client.ClientID + "/edit") } class="btn btn-secondary btn-small" title="Edit client">
 					Edit
 				</a>
-				<form method="POST" action={ templ.URL("/admin/clients/" + client.ClientID + "/delete") } onsubmit="return confirm('Are you sure you want to delete this client?\n\nThis action cannot be undone and will revoke all access tokens.');">
+				<form
+					method="POST"
+					action={ templ.URL("/admin/clients/" + client.ClientID + "/delete") }
+					data-confirm-title="Delete Client?"
+					data-confirm-message="This action cannot be undone and will revoke all access tokens."
+					data-confirm-style="danger"
+					data-confirm-label="Delete"
+				>
 					<input type="hidden" name="csrf_token" value={ csrfToken }/>
 					<button type="submit" class="btn btn-danger btn-small" title="Delete client">
 						Delete

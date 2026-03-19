@@ -168,6 +168,14 @@
   opacity: 0.5;
 }
 
+.empty-icon-svg {
+  width: 80px;
+  height: 80px;
+  margin-bottom: var(--space-6);
+  color: var(--color-text-tertiary);
+  opacity: 0.6;
+}
+
 .empty-title {
   font-size: var(--text-2xl);
   font-weight: 700;

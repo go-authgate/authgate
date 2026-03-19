@@ -9,10 +9,16 @@ templ AdminAuditLogs(props AuditLogsPageProps) {
 	@Layout("Audit Logs", LayoutAdminNavbar, &props.NavbarProps) {
 		<div class="main-content">
 			<div class="card">
+				@Breadcrumb([]BreadcrumbItem{
+					{Label: "Admin", Href: "/admin/clients"},
+					{Label: "Audit Logs", Href: ""},
+				})
 				<!-- Page Header -->
 				<div class="audit-logs-header">
 					<h1 class="audit-logs-title">
-						<span class="audit-logs-title-icon">🔒</span>
+						<span class="audit-logs-title-icon">
+							<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+						</span>
 						<span>Audit Logs</span>
 					</h1>
 					if props.TotalItems > 0 {
@@ -30,13 +36,16 @@ templ AdminAuditLogs(props AuditLogsPageProps) {
 							<div class="search-group">
 								<label class="search-label">Search</label>
 								<div class="search-input-wrapper">
-									<span class="search-icon">🔍</span>
+									<span class="search-icon">
+										<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+									</span>
 									<input
 										type="text"
 										name="search"
 										class="search-input search-input-sm"
 										placeholder="Search action, resource, username..."
 										value={ props.Search }
+										data-debounce-search
 									/>
 								</div>
 							</div>
@@ -56,13 +65,29 @@ templ AdminAuditLogs(props AuditLogsPageProps) {
 									Clear
 								</a>
 								<a href={ templ.URL("/admin/audit/export?" + props.QueryString) } class="audit-btn audit-btn-export">
-									<span>📥</span>
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
 									<span>Export CSV</span>
 								</a>
 							</div>
 						</div>
+						<!-- Advanced Filters Toggle -->
+						<div class="audit-filters-toggle-row">
+							<button
+								type="button"
+								id="toggle-filters-btn"
+								class="audit-filters-toggle-btn"
+								onclick="toggleFilters()"
+								aria-expanded="true"
+								aria-controls="audit-advanced-filters"
+							>
+								<span class="toggle-filters-text">Hide Filters</span>
+								<svg class="toggle-filters-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform var(--transition-fast);transform:rotate(180deg);">
+									<path d="M4 6l4 4 4-4"></path>
+								</svg>
+							</button>
+						</div>
 						<!-- Advanced Filters -->
-						<div class="audit-advanced-filters">
+						<div class="audit-advanced-filters" id="audit-advanced-filters">
 						<div class="audit-filter-group">
 							<label class="search-label">Event Type</label>
 							<select name="event_type" class="audit-filter-select">
@@ -140,13 +165,11 @@ templ AdminAuditLogs(props AuditLogsPageProps) {
 				} else {
 					<!-- Empty State -->
 					<div class="empty-state">
-						<div class="empty-icon">
-							if props.Search != "" {
-								🔍
-							} else {
-								📋
-							}
-						</div>
+						if props.Search != "" {
+							@EmptyStateSearch()
+						} else {
+							@EmptyStateAudit()
+						}
 						<h3 class="empty-title">
 							if props.Search != "" {
 								No audit logs found
@@ -170,14 +193,14 @@ templ AdminAuditLogs(props AuditLogsPageProps) {
 
 templ AuditLogRow(log *models.AuditLog) {
 	<tr>
-		<td class="audit-timestamp-cell">
+		<td class="audit-timestamp-cell" data-label="Time">
 			<div class="audit-timestamp-date">{ log.EventTime.Format("2006-01-02") }</div>
 			<div class="audit-timestamp-time">{ log.EventTime.Format("15:04:05") }</div>
 		</td>
-		<td>
+		<td data-label="Event Type">
 			<span class="audit-event-type">{ log.EventType }</span>
 		</td>
-		<td>
+		<td data-label="Severity">
 			if log.Severity == "INFO" {
 				<span class="audit-severity-badge severity-info">{ log.Severity }</span>
 			} else if log.Severity == "WARNING" {
@@ -188,14 +211,14 @@ templ AuditLogRow(log *models.AuditLog) {
 				<span class="audit-severity-badge severity-critical">{ log.Severity }</span>
 			}
 		</td>
-		<td>
+		<td data-label="Actor">
 			if log.ActorUsername != "" {
 				<span class="audit-actor">{ log.ActorUsername }</span>
 			} else {
 				<span class="audit-actor-system">System</span>
 			}
 		</td>
-		<td>
+		<td data-label="Action">
 			<div class="audit-action">{ log.Action }</div>
 			if log.ErrorMessage != "" {
 				<div class="audit-error-message">
@@ -203,7 +226,7 @@ templ AuditLogRow(log *models.AuditLog) {
 				</div>
 			}
 		</td>
-		<td class="audit-resource">
+		<td class="audit-resource" data-label="Resource">
 			if log.ResourceName != "" {
 				{ log.ResourceName }
 			} else if log.ResourceID != "" {
@@ -212,14 +235,14 @@ templ AuditLogRow(log *models.AuditLog) {
 				<span class="audit-resource-empty">—</span>
 			}
 		</td>
-		<td>
+		<td data-label="IP Address">
 			<span class="audit-ip">{ log.ActorIP }</span>
 		</td>
-		<td style="text-align: center;">
+		<td style="text-align: center;" data-label="Status">
 			if log.Success {
-				<span class="audit-status-badge status-success">✓</span>
+				<span class="audit-status-badge status-success">&#10003;</span>
 			} else {
-				<span class="audit-status-badge status-failed">✗</span>
+				<span class="audit-status-badge status-failed">&#10007;</span>
 			}
 		</td>
 	</tr>
@@ -259,12 +282,12 @@ templ AuditLogsPagination(props AuditLogsPageProps) {
 					href={ templ.URL(buildAuditPaginationURL(props.PrevPage, props.PageSize, props.Search, props.EventType, props.Severity, props.Success, props.ActorIP)) }
 					class="pagination-button"
 				>
-					<span class="pagination-button-icon">←</span>
+					<span class="pagination-button-icon">&larr;</span>
 					<span>Previous</span>
 				</a>
 			} else {
 				<button class="pagination-button" disabled>
-					<span class="pagination-button-icon">←</span>
+					<span class="pagination-button-icon">&larr;</span>
 					<span>Previous</span>
 				</button>
 			}
@@ -277,12 +300,12 @@ templ AuditLogsPagination(props AuditLogsPageProps) {
 					class="pagination-button"
 				>
 					<span>Next</span>
-					<span class="pagination-button-icon">→</span>
+					<span class="pagination-button-icon">&rarr;</span>
 				</a>
 			} else {
 				<button class="pagination-button" disabled>
 					<span>Next</span>
-					<span class="pagination-button-icon">→</span>
+					<span class="pagination-button-icon">&rarr;</span>
 				</button>
 			}
 		</div>

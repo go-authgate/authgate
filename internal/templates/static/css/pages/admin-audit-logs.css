@@ -109,12 +109,51 @@
   color: white;
 }
 
+/* Filter toggle button */
+.audit-filters-toggle-row {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: var(--space-4);
+}
+
+.audit-filters-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  padding: var(--space-1) 0;
+  transition: color var(--transition-fast);
+}
+
+.audit-filters-toggle-btn:hover {
+  color: var(--color-primary);
+}
+
+.toggle-filters-icon {
+  transition: transform var(--transition-fast);
+}
+
 /* Advanced filters */
 .audit-advanced-filters {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: var(--space-4);
-  margin-top: var(--space-6);
+  margin-top: var(--space-4);
+  overflow: hidden;
+  max-height: 500px;
+  transition: max-height var(--transition-slow), opacity var(--transition-base), margin var(--transition-base);
+  opacity: 1;
+}
+
+.audit-advanced-filters.filters-collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
 }
 
 .audit-filter-group {
@@ -418,7 +457,58 @@
   }
 
   .audit-table-wrapper {
-    overflow-x: scroll;
+    overflow-x: visible;
+    border: none;
+    background: transparent;
+  }
+
+  .audit-logs-table thead {
+    display: none;
+  }
+
+  .audit-logs-table tbody tr {
+    display: block;
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .audit-logs-table tbody tr:last-child {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .audit-logs-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-bg-tertiary);
+  }
+
+  .audit-logs-table td:last-child {
+    border-bottom: none;
+  }
+
+  .audit-logs-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+    margin-right: var(--space-4);
+  }
+
+  .audit-timestamp-cell {
+    min-width: auto;
+  }
+
+  .audit-resource {
+    max-width: none;
   }
 }
 

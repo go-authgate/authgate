@@ -1,0 +1,219 @@
+/* ============================================
+   Dark Mode Overrides
+   Fixes hardcoded rgba() badge colors and
+   other elements that don't use CSS variables
+   ============================================ */
+
+/* Status badges with inline styles (hardcoded rgba colors) */
+[data-theme="dark"] .status-badge[style*="rgba(245,158,11"] {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: #FBBF24 !important;
+  border-color: rgba(245, 158, 11, 0.4) !important;
+}
+
+[data-theme="dark"] .status-badge[style*="rgba(0,114,255"] {
+  background: rgba(88, 166, 255, 0.15) !important;
+  color: #58a6ff !important;
+  border-color: rgba(88, 166, 255, 0.3) !important;
+}
+
+/* Session table badges */
+[data-theme="dark"] .session-table-badge.token-refresh {
+  background: rgba(88, 166, 255, 0.15);
+  color: #58a6ff;
+  border-color: rgba(88, 166, 255, 0.3);
+}
+
+[data-theme="dark"] .session-table-badge.token-access {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+[data-theme="dark"] .session-table-badge.status-active {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+[data-theme="dark"] .session-table-badge.status-disabled {
+  background: rgba(251, 191, 36, 0.15);
+  color: #FBBF24;
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+[data-theme="dark"] .session-table-badge.status-revoked {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+[data-theme="dark"] .session-table-expired-badge {
+  background: rgba(251, 191, 36, 0.15);
+  color: #FBBF24;
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+/* Action buttons */
+[data-theme="dark"] .session-table-action-btn.enable {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+[data-theme="dark"] .session-table-action-btn.disable {
+  background: rgba(251, 191, 36, 0.15);
+  color: #FBBF24;
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+[data-theme="dark"] .session-table-action-btn.revoke {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+/* Admin status badges */
+[data-theme="dark"] .status-badge.status-active {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+[data-theme="dark"] .status-badge.status-active::before {
+  background: #34d399;
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.6);
+}
+
+[data-theme="dark"] .status-badge.status-inactive {
+  background: rgba(156, 163, 175, 0.15);
+  color: #9CA3AF;
+  border-color: rgba(156, 163, 175, 0.3);
+}
+
+/* Audit severity badges */
+[data-theme="dark"] .audit-severity-badge.severity-info {
+  background: rgba(88, 166, 255, 0.15);
+  color: #58a6ff;
+  border-color: rgba(88, 166, 255, 0.3);
+}
+
+[data-theme="dark"] .audit-severity-badge.severity-info::before {
+  background: #58a6ff;
+  box-shadow: 0 0 6px rgba(88, 166, 255, 0.6);
+}
+
+[data-theme="dark"] .audit-severity-badge.severity-warning {
+  background: rgba(251, 191, 36, 0.15);
+  color: #FBBF24;
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+[data-theme="dark"] .audit-severity-badge.severity-warning::before {
+  background: #FBBF24;
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.6);
+}
+
+[data-theme="dark"] .audit-severity-badge.severity-error {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+[data-theme="dark"] .audit-severity-badge.severity-error::before {
+  background: #f87171;
+  box-shadow: 0 0 6px rgba(248, 113, 113, 0.6);
+}
+
+[data-theme="dark"] .audit-severity-badge.severity-critical {
+  background: rgba(220, 38, 38, 0.2);
+  color: #fca5a5;
+  border-color: rgba(220, 38, 38, 0.4);
+}
+
+[data-theme="dark"] .audit-severity-badge.severity-critical::before {
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.8);
+}
+
+/* Audit status badges */
+[data-theme="dark"] .audit-status-badge.status-success {
+  background: rgba(52, 211, 153, 0.2);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+[data-theme="dark"] .audit-status-badge.status-failed {
+  background: rgba(248, 113, 113, 0.2);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+/* Danger zone in dark mode */
+[data-theme="dark"] .admin-danger-zone {
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+/* Inline styled pending banners */
+[data-theme="dark"] div[style*="rgba(245,158,11"] {
+  background: rgba(245, 158, 11, 0.12) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+  color: #FBBF24 !important;
+}
+
+[data-theme="dark"] div[style*="rgba(239,68,68"] {
+  background: rgba(239, 68, 68, 0.12) !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+  color: #fca5a5 !important;
+}
+
+[data-theme="dark"] div[style*="rgba(34,197,94"] {
+  background: rgba(34, 197, 94, 0.12) !important;
+  border-color: rgba(34, 197, 94, 0.3) !important;
+  color: #6ee7b7 !important;
+}
+
+/* Button overrides */
+[data-theme="dark"] .btn-small.btn-danger {
+  background: linear-gradient(135deg, #DC2626, #B91C1C);
+}
+
+[data-theme="dark"] .btn-small.btn-success {
+  background: linear-gradient(135deg, #16A34A, #15803D);
+}
+
+[data-theme="dark"] .btn-small.btn-warning {
+  background: linear-gradient(135deg, #D97706, #B45309);
+}
+
+/* Gradient text in dark mode */
+[data-theme="dark"] .sessions-title {
+  background: linear-gradient(135deg, #58a6ff, #79c0ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* Admin clients inline-styled tabs */
+[data-theme="dark"] .admin-secret-info-box {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-border);
+}
+
+/* NavDropdownItemWithBadge inline badge */
+[data-theme="dark"] span[style*="background:#EF4444"] {
+  background: #DC2626 !important;
+}
+
+/* Footer RFC badges */
+[data-theme="dark"] .footer-rfc {
+  background: var(--color-bg-tertiary);
+  border-color: var(--color-border);
+  color: var(--color-text-tertiary);
+}
+
+/* Audit error message */
+[data-theme="dark"] .audit-error-message {
+  background: rgba(239, 68, 68, 0.1);
+  border-left-color: #f87171;
+  color: #fca5a5;
+}

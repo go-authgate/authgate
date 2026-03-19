@@ -2,6 +2,8 @@ package templates
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/store"
 )
@@ -22,7 +24,9 @@ templ AccountSessions(props SessionsPageProps) {
 							<div>
 								<label for="search" class="search-label">Search</label>
 								<div class="search-input-wrapper">
-									<span class="search-icon">🔍</span>
+									<span class="search-icon">
+										<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+									</span>
 									<input
 										type="text"
 										id="search"
@@ -30,6 +34,7 @@ templ AccountSessions(props SessionsPageProps) {
 										class="search-input"
 										placeholder="Search by client name or scopes..."
 										value={ props.Search }
+										data-debounce-search
 									/>
 								</div>
 							</div>
@@ -52,7 +57,14 @@ templ AccountSessions(props SessionsPageProps) {
 							<h3 class="sessions-count">{ fmt.Sprintf("%d", len(props.Sessions)) } Active Sessions</h3>
 							<form method="POST" action="/account/sessions/revoke-all" style="margin: 0;">
 								<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
-								<button type="submit" class="sessions-revoke-all-btn" onclick="return confirm('Are you sure you want to revoke all sessions? This will log out all your devices.')">
+								<button
+									type="submit"
+									class="sessions-revoke-all-btn"
+									data-confirm-title="Revoke All Sessions?"
+									data-confirm-message="This will log out all your devices. This action cannot be undone."
+									data-confirm-style="danger"
+									data-confirm-label="Revoke All"
+								>
 									Revoke All
 								</button>
 							</form>
@@ -82,7 +94,11 @@ templ AccountSessions(props SessionsPageProps) {
 						@SessionsPagination(props.Pagination, props.PageSize, props.Search)
 					} else {
 						<div class="empty-state">
-							<div class="empty-icon">📭</div>
+							if props.Search != "" {
+								@EmptyStateSearch()
+							} else {
+								@EmptyStateSessions()
+							}
 							<h3 class="empty-title">
 								if props.Search != "" {
 									No sessions found
@@ -116,12 +132,12 @@ templ SessionTableRow(session services.TokenWithClient, csrfToken string) {
 		}
 	>
 		<!-- Client Name & ID -->
-		<td class="session-table-client">
+		<td class="session-table-client" data-label="Client">
 			<span class="session-table-client-name">{ session.ClientName }</span>
 			<span class="session-table-client-id">{ session.ClientID }</span>
 		</td>
 		<!-- Type & Status Badges -->
-		<td>
+		<td data-label="Type / Status">
 			<div class="session-table-badges">
 				if session.TokenCategory == "refresh" {
 					<span class="session-table-badge token-refresh">Refresh</span>
@@ -136,26 +152,27 @@ templ SessionTableRow(session services.TokenWithClient, csrfToken string) {
 					<span class="session-table-badge status-revoked">Revoked</span>
 				}
 				if session.IsExpired() {
-					<span class="session-table-expired-badge">⚠ Expired</span>
+					<span class="session-table-expired-badge">Expired</span>
 				}
 			</div>
 		</td>
 		<!-- Scopes -->
-		<td class="session-table-scopes">
+		<td class="session-table-scopes" data-label="Scopes">
 			{ session.Scopes }
 		</td>
 		<!-- Created Date -->
-		<td class="session-table-date">
+		<td class="session-table-date" data-label="Created">
 			<span class="session-table-date-label">Created</span>
 			<span class="session-table-date-value">{ session.CreatedAt.Format("2006-01-02 15:04") }</span>
 		</td>
 		<!-- Expires Date -->
-		<td class="session-table-date">
+		<td class="session-table-date" data-label="Expires">
 			<span class="session-table-date-label">Expires</span>
 			<span class="session-table-date-value">{ session.ExpiresAt.Format("2006-01-02 15:04") }</span>
+			@TokenExpiryBar(session.CreatedAt, session.ExpiresAt)
 		</td>
 		<!-- Last Used -->
-		<td class="session-table-date">
+		<td class="session-table-date" data-label="Last Used">
 			if session.TokenCategory == "refresh" && session.LastUsedAt != nil && !session.LastUsedAt.IsZero() {
 				<span class="session-table-date-label">Last Used</span>
 				<span class="session-table-date-value">{ session.LastUsedAt.Format("2006-01-02 15:04") }</span>
@@ -164,12 +181,19 @@ templ SessionTableRow(session services.TokenWithClient, csrfToken string) {
 			}
 		</td>
 		<!-- Actions -->
-		<td>
+		<td data-label="Actions">
 			<div class="session-table-actions">
 				if session.Status == "active" {
 					<form method="POST" action={ templ.URL("/account/sessions/" + session.ID + "/disable") } style="margin: 0;">
 						<input type="hidden" name="csrf_token" value={ csrfToken }/>
-						<button type="submit" class="session-table-action-btn disable" onclick="return confirm('Disable this token? You can re-enable it later.')">
+						<button
+							type="submit"
+							class="session-table-action-btn disable"
+							data-confirm-title="Disable Token?"
+							data-confirm-message="You can re-enable this token later."
+							data-confirm-style="warning"
+							data-confirm-label="Disable"
+						>
 							Disable
 						</button>
 					</form>
@@ -184,7 +208,14 @@ templ SessionTableRow(session services.TokenWithClient, csrfToken string) {
 				if session.Status != "revoked" {
 					<form method="POST" action={ templ.URL("/account/sessions/" + session.ID + "/revoke") } style="margin: 0;">
 						<input type="hidden" name="csrf_token" value={ csrfToken }/>
-						<button type="submit" class="session-table-action-btn revoke" onclick="return confirm('Permanently revoke this token? This action cannot be undone.')">
+						<button
+							type="submit"
+							class="session-table-action-btn revoke"
+							data-confirm-title="Revoke Token?"
+							data-confirm-message="This token will be permanently revoked. This action cannot be undone."
+							data-confirm-style="danger"
+							data-confirm-label="Revoke"
+						>
 							Revoke
 						</button>
 					</form>
@@ -215,12 +246,12 @@ templ SessionsPagination(pagination store.PaginationResult, pageSize int, search
 					href={ templ.URL(buildSessionsPaginationURL(pagination.PrevPage, pageSize, search)) }
 					class="sessions-pagination-btn"
 				>
-					<span>←</span>
+					<span>&larr;</span>
 					<span>Previous</span>
 				</a>
 			} else {
 				<button class="sessions-pagination-btn" disabled>
-					<span>←</span>
+					<span>&larr;</span>
 					<span>Previous</span>
 				</button>
 			}
@@ -233,14 +264,54 @@ templ SessionsPagination(pagination store.PaginationResult, pageSize int, search
 					class="sessions-pagination-btn"
 				>
 					<span>Next</span>
-					<span>→</span>
+					<span>&rarr;</span>
 				</a>
 			} else {
 				<button class="sessions-pagination-btn" disabled>
 					<span>Next</span>
-					<span>→</span>
+					<span>&rarr;</span>
 				</button>
 			}
 		</div>
+	</div>
+}
+
+func expiryPercent(created, expires time.Time) int {
+	now := time.Now()
+	total := expires.Sub(created)
+	elapsed := now.Sub(created)
+	if total <= 0 {
+		return 100
+	}
+	pct := int(elapsed * 100 / total)
+	if pct < 0 {
+		return 0
+	}
+	if pct > 100 {
+		return 100
+	}
+	return pct
+}
+
+func expiryColorClass(created, expires time.Time) string {
+	pct := expiryPercent(created, expires)
+	if pct >= 100 {
+		return "expiry-expired"
+	}
+	if pct >= 75 {
+		return "expiry-warning"
+	}
+	if pct >= 50 {
+		return "expiry-caution"
+	}
+	return "expiry-ok"
+}
+
+templ TokenExpiryBar(created, expires time.Time) {
+	<div
+		class={ "token-expiry-bar " + expiryColorClass(created, expires) }
+		title={ fmt.Sprintf("%d%% elapsed", expiryPercent(created, expires)) }
+	>
+		<div class="token-expiry-bar-fill" style={ fmt.Sprintf("width:%d%%", expiryPercent(created, expires)) }></div>
 	</div>
 }

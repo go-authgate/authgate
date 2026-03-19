@@ -100,6 +100,100 @@
 }
 
 /* ============================================
+   Dark Mode - Variable Overrides
+   ============================================ */
+
+[data-theme="dark"] {
+  --color-primary: #58a6ff;
+  --color-primary-dark: #79c0ff;
+  --color-primary-light: #388bfd;
+  --color-primary-pale: #0d2240;
+
+  --color-success: #3fb950;
+  --color-success-pale: #0d2d1b;
+  --color-error: #f85149;
+  --color-error-pale: #3d1214;
+  --color-warning: #d29922;
+  --color-warning-pale: #3b2e08;
+
+  --color-gray-50: #161b22;
+  --color-gray-100: #21262d;
+  --color-gray-200: #30363d;
+  --color-gray-300: #484f58;
+  --color-gray-400: #6e7681;
+  --color-gray-500: #8b949e;
+  --color-gray-600: #b1bac4;
+  --color-gray-700: #c9d1d9;
+  --color-gray-800: #e6edf3;
+  --color-gray-900: #f0f6fc;
+
+  --color-bg-primary: #0d1117;
+  --color-bg-secondary: #161b22;
+  --color-bg-tertiary: #21262d;
+
+  --color-text-primary: #e6edf3;
+  --color-text-secondary: #8b949e;
+  --color-text-tertiary: #6e7681;
+  --color-text-inverse: #0d1117;
+
+  --color-border: #30363d;
+  --color-border-focus: #58a6ff;
+
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-primary: #58a6ff;
+    --color-primary-dark: #79c0ff;
+    --color-primary-light: #388bfd;
+    --color-primary-pale: #0d2240;
+
+    --color-success: #3fb950;
+    --color-success-pale: #0d2d1b;
+    --color-error: #f85149;
+    --color-error-pale: #3d1214;
+    --color-warning: #d29922;
+    --color-warning-pale: #3b2e08;
+
+    --color-gray-50: #161b22;
+    --color-gray-100: #21262d;
+    --color-gray-200: #30363d;
+    --color-gray-300: #484f58;
+    --color-gray-400: #6e7681;
+    --color-gray-500: #8b949e;
+    --color-gray-600: #b1bac4;
+    --color-gray-700: #c9d1d9;
+    --color-gray-800: #e6edf3;
+    --color-gray-900: #f0f6fc;
+
+    --color-bg-primary: #0d1117;
+    --color-bg-secondary: #161b22;
+    --color-bg-tertiary: #21262d;
+
+    --color-text-primary: #e6edf3;
+    --color-text-secondary: #8b949e;
+    --color-text-tertiary: #6e7681;
+    --color-text-inverse: #0d1117;
+
+    --color-border: #30363d;
+    --color-border-focus: #58a6ff;
+
+    --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+    --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* ============================================
    CSS Reset & Base Elements
    ============================================ */
 
@@ -483,6 +577,27 @@ a.footer-rfc:hover {
 /* ============================================
    Accessibility
    ============================================ */
+
+/* Skip Navigation Link */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: var(--space-4);
+  z-index: var(--z-tooltip);
+  padding: var(--space-3) var(--space-6);
+  background: var(--color-primary);
+  color: white;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  text-decoration: none;
+  transition: top var(--transition-fast);
+}
+
+.skip-link:focus {
+  top: 0;
+  color: white;
+}
 
 /* High-contrast mode support */
 @media (prefers-contrast: high) {

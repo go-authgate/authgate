@@ -5,6 +5,11 @@ templ AdminClientForm(props ClientFormPageProps) {
 		<div class="main-content">
 			<div class="admin-form-container">
 				<div class="card">
+					@Breadcrumb([]BreadcrumbItem{
+						{Label: "Admin", Href: "/admin/clients"},
+						{Label: "OAuth Clients", Href: "/admin/clients"},
+						{Label: props.Title, Href: ""},
+					})
 					<div class="admin-form-header">
 						<h1 class="admin-form-title">{ props.Title }</h1>
 					</div>
@@ -40,7 +45,10 @@ templ AdminClientForm(props ClientFormPageProps) {
 											type="submit"
 											formmethod="POST"
 											formaction={ "/admin/clients/" + props.Client.ClientID + "/regenerate-secret" }
-											onclick="return confirm('Are you sure? This will invalidate the current secret.');"
+											data-confirm-title="Regenerate Secret?"
+											data-confirm-message="This will invalidate the current secret. Any applications using it will stop working."
+											data-confirm-style="warning"
+											data-confirm-label="Regenerate"
 											style="background:none;border:none;color:var(--color-primary);cursor:pointer;padding:0;font:inherit;text-decoration:underline;"
 										>
 											Regenerate Secret
