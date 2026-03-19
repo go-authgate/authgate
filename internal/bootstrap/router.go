@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"time"
 
@@ -106,35 +105,62 @@ func serveStaticFiles(r *gin.Engine, templatesFS embed.FS, cacheMaxAge time.Dura
 // Cache-Control is only set on successful responses to avoid negative caching.
 func serveStaticFilesFromFS(r *gin.Engine, staticFS fs.FS, cacheMaxAge time.Duration) {
 	fileServer := http.StripPrefix("/static", http.FileServer(http.FS(staticFS)))
+
+	// Pre-compute the non-dist Cache-Control value once at startup.
+	var nonDistCacheControl string
+	if cacheMaxAge > 0 {
+		nonDistCacheControl = fmt.Sprintf("public, max-age=%d", int(cacheMaxAge.Seconds()))
+	}
+
 	handler := func(c *gin.Context) {
-		// Capture file server response to check status before setting cache headers
-		rec := httptest.NewRecorder()
-		fileServer.ServeHTTP(rec, c.Request)
-
-		// Only set Cache-Control on successful responses (avoid negative caching)
-		if rec.Code == http.StatusOK || rec.Code == http.StatusPartialContent {
-			path := c.Param("filepath")
-			if strings.HasPrefix(path, "/dist/") {
-				c.Header("Cache-Control", "public, max-age=31536000, immutable")
-			} else if cacheMaxAge > 0 {
-				c.Header(
-					"Cache-Control",
-					fmt.Sprintf("public, max-age=%d", int(cacheMaxAge.Seconds())),
-				)
-			}
+		// Set Cache-Control before serving so the file streams directly
+		// to the client without buffering. We determine the header from
+		// the URL path, and use a status-capturing wrapper to suppress
+		// the header on error responses.
+		path := c.Param("filepath")
+		var cacheValue string
+		if strings.HasPrefix(path, "/dist/") {
+			cacheValue = "public, max-age=31536000, immutable"
+		} else {
+			cacheValue = nonDistCacheControl
 		}
 
-		// Copy captured response to actual writer
-		for k, v := range rec.Header() {
-			for _, val := range v {
-				c.Writer.Header().Add(k, val)
-			}
+		w := &cacheControlWriter{
+			ResponseWriter: c.Writer,
+			cacheValue:     cacheValue,
 		}
-		c.Writer.WriteHeader(rec.Code)
-		_, _ = c.Writer.Write(rec.Body.Bytes())
+		c.Writer = w
+
+		fileServer.ServeHTTP(c.Writer, c.Request)
 	}
 	r.GET("/static/*filepath", handler)
 	r.HEAD("/static/*filepath", handler)
+}
+
+// cacheControlWriter injects a Cache-Control header only on successful responses.
+// It wraps gin.ResponseWriter so the file server streams directly to the client
+// without buffering the entire body (unlike httptest.NewRecorder).
+type cacheControlWriter struct {
+	gin.ResponseWriter
+	cacheValue  string
+	wroteHeader bool
+}
+
+func (w *cacheControlWriter) WriteHeader(code int) {
+	if !w.wroteHeader {
+		w.wroteHeader = true
+		if w.cacheValue != "" && (code == http.StatusOK || code == http.StatusPartialContent) {
+			w.ResponseWriter.Header().Set("Cache-Control", w.cacheValue)
+		}
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *cacheControlWriter) Write(b []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(b)
 }
 
 // setupMetricsEndpoint configures the Prometheus metrics endpoint
@@ -302,14 +328,12 @@ func setupOAuthRoutes(
 	providers map[string]*auth.OAuthProvider,
 	handler *handlers.OAuthHandler,
 ) {
-	switch {
-	case len(providers) == 0:
+	if len(providers) == 0 {
 		return
-	default:
-		oauthGroup := r.Group("/auth")
-		oauthGroup.GET("/login/:provider", handler.LoginWithProvider)
-		oauthGroup.GET("/callback/:provider", handler.OAuthCallback)
 	}
+	oauthGroup := r.Group("/auth")
+	oauthGroup.GET("/login/:provider", handler.LoginWithProvider)
+	oauthGroup.GET("/callback/:provider", handler.OAuthCallback)
 }
 
 // createFaviconHandler creates favicon endpoint handler

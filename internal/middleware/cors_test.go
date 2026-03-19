@@ -8,9 +8,22 @@ import (
 
 	"github.com/go-authgate/authgate/internal/config"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
+
+// newCORSConfig creates a cors.Config for testing purposes.
+func newCORSConfig(origins, methods, headers []string, maxAge time.Duration) cors.Config {
+	return cors.Config{
+		AllowOrigins:     origins,
+		AllowMethods:     methods,
+		AllowHeaders:     headers,
+		MaxAge:           maxAge,
+		ExposeHeaders:    []string{"Content-Length", "Content-Type"},
+		AllowCredentials: true,
+	}
+}
 
 func setupCORSRouter(cfg *config.Config) *gin.Engine {
 	gin.SetMode(gin.TestMode)
@@ -153,7 +166,7 @@ func TestCORS_POSTWithOrigin(t *testing.T) {
 }
 
 func TestNewCORSConfig(t *testing.T) {
-	cfg := NewCORSConfig(
+	cfg := newCORSConfig(
 		[]string{"http://localhost:3000"},
 		[]string{"GET", "POST"},
 		[]string{"Authorization"},

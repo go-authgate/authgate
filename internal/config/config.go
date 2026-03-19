@@ -468,14 +468,7 @@ func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
 
 func getEnvSlice(key string, defaultValue []string) []string {
 	if value := os.Getenv(key); value != "" {
-		// Split by comma and trim spaces
-		parts := []string{}
-		for _, part := range splitAndTrim(value, ",") {
-			if part != "" {
-				parts = append(parts, part)
-			}
-		}
-		if len(parts) > 0 {
+		if parts := splitAndTrim(value, ","); len(parts) > 0 {
 			return parts
 		}
 	}

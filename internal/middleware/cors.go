@@ -1,8 +1,6 @@
 package middleware
 
 import (
-	"time"
-
 	"github.com/go-authgate/authgate/internal/config"
 
 	"github.com/gin-contrib/cors"
@@ -24,16 +22,4 @@ func CORSMiddleware(cfg *config.Config) gin.HandlerFunc {
 		// Allow credentials (cookies, Authorization header) for token introspection
 		AllowCredentials: true,
 	})
-}
-
-// NewCORSConfig creates a cors.Config from application settings for testing purposes.
-func NewCORSConfig(origins, methods, headers []string, maxAge time.Duration) cors.Config {
-	return cors.Config{
-		AllowOrigins:     origins,
-		AllowMethods:     methods,
-		AllowHeaders:     headers,
-		MaxAge:           maxAge,
-		ExposeHeaders:    []string{"Content-Length", "Content-Type"},
-		AllowCredentials: true,
-	}
 }
