@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"time"
 
@@ -102,17 +103,38 @@ func serveStaticFiles(r *gin.Engine, templatesFS embed.FS, cacheMaxAge time.Dura
 // serveStaticFilesFromFS registers a static file handler on the router.
 // Content-hashed files under /static/dist/ get immutable caching (1 year).
 // Other static files use the configured cacheMaxAge duration.
+// Cache-Control is only set on successful responses to avoid negative caching.
 func serveStaticFilesFromFS(r *gin.Engine, staticFS fs.FS, cacheMaxAge time.Duration) {
 	fileServer := http.StripPrefix("/static", http.FileServer(http.FS(staticFS)))
-	r.GET("/static/*filepath", func(c *gin.Context) {
-		path := c.Param("filepath")
-		if strings.HasPrefix(path, "/dist/") {
-			c.Header("Cache-Control", "public, max-age=31536000, immutable")
-		} else if cacheMaxAge > 0 {
-			c.Header("Cache-Control", fmt.Sprintf("public, max-age=%d", int(cacheMaxAge.Seconds())))
+	handler := func(c *gin.Context) {
+		// Capture file server response to check status before setting cache headers
+		rec := httptest.NewRecorder()
+		fileServer.ServeHTTP(rec, c.Request)
+
+		// Only set Cache-Control on successful responses (avoid negative caching)
+		if rec.Code == http.StatusOK || rec.Code == http.StatusPartialContent {
+			path := c.Param("filepath")
+			if strings.HasPrefix(path, "/dist/") {
+				c.Header("Cache-Control", "public, max-age=31536000, immutable")
+			} else if cacheMaxAge > 0 {
+				c.Header(
+					"Cache-Control",
+					fmt.Sprintf("public, max-age=%d", int(cacheMaxAge.Seconds())),
+				)
+			}
 		}
-		fileServer.ServeHTTP(c.Writer, c.Request)
-	})
+
+		// Copy captured response to actual writer
+		for k, v := range rec.Header() {
+			for _, val := range v {
+				c.Writer.Header().Add(k, val)
+			}
+		}
+		c.Writer.WriteHeader(rec.Code)
+		_, _ = c.Writer.Write(rec.Body.Bytes())
+	}
+	r.GET("/static/*filepath", handler)
+	r.HEAD("/static/*filepath", handler)
 }
 
 // setupMetricsEndpoint configures the Prometheus metrics endpoint
@@ -310,6 +332,12 @@ func createFaviconHandler(templatesFS embed.FS, cacheMaxAge time.Duration) gin.H
 		}
 	}
 
+	return createFaviconHandlerFromBytes(faviconData, cacheMaxAge)
+}
+
+// createFaviconHandlerFromBytes creates a favicon handler from pre-loaded bytes.
+// Extracted so tests can call it directly without needing an embed.FS with a specific path.
+func createFaviconHandlerFromBytes(faviconData []byte, cacheMaxAge time.Duration) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if cacheMaxAge > 0 {
 			c.Header("Cache-Control", fmt.Sprintf("public, max-age=%d", int(cacheMaxAge.Seconds())))

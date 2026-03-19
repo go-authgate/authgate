@@ -89,21 +89,47 @@ func TestStaticCacheControl_CustomMaxAge(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("public, max-age=%d", 48*60*60), w.Header().Get("Cache-Control"))
 }
 
+func TestStaticCacheControl_404HasNoCacheHeader(t *testing.T) {
+	r := setupStaticRouter(t, 24*time.Hour)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/static/nonexistent.txt", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Empty(t, w.Header().Get("Cache-Control"))
+}
+
+func TestStaticCacheControl_HeadRequest(t *testing.T) {
+	r := setupStaticRouter(t, 24*time.Hour)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodHead, "/static/dist/main-62KIAYER.css", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "public, max-age=31536000, immutable", w.Header().Get("Cache-Control"))
+	assert.Empty(t, w.Body.String(), "HEAD response should have no body")
+}
+
+func TestStaticCacheControl_HeadNonDistFile(t *testing.T) {
+	r := setupStaticRouter(t, 24*time.Hour)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodHead, "/static/images/favicon.ico", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "public, max-age=86400", w.Header().Get("Cache-Control"))
+}
+
 func TestFaviconCacheControl(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	// createFaviconHandler reads from embed.FS at a fixed path;
-	// use the testdata FS which has the file at the adjusted path.
 	faviconData, err := testdataFS.ReadFile("testdata/internal/templates/static/images/favicon.ico")
 	require.NoError(t, err)
 
-	cacheMaxAge := 24 * time.Hour
-	r.GET("/favicon.ico", func(c *gin.Context) {
-		if cacheMaxAge > 0 {
-			c.Header("Cache-Control", fmt.Sprintf("public, max-age=%d", int(cacheMaxAge.Seconds())))
-		}
-		c.Data(http.StatusOK, "image/x-icon", faviconData)
-	})
+	r.GET("/favicon.ico", createFaviconHandlerFromBytes(faviconData, 24*time.Hour))
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/favicon.ico", nil)
@@ -119,13 +145,7 @@ func TestFaviconCacheControl_ZeroDisables(t *testing.T) {
 	faviconData, err := testdataFS.ReadFile("testdata/internal/templates/static/images/favicon.ico")
 	require.NoError(t, err)
 
-	var cacheMaxAge time.Duration // zero
-	r.GET("/favicon.ico", func(c *gin.Context) {
-		if cacheMaxAge > 0 {
-			c.Header("Cache-Control", fmt.Sprintf("public, max-age=%d", int(cacheMaxAge.Seconds())))
-		}
-		c.Data(http.StatusOK, "image/x-icon", faviconData)
-	})
+	r.GET("/favicon.ico", createFaviconHandlerFromBytes(faviconData, 0))
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/favicon.ico", nil)
