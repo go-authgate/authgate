@@ -97,7 +97,28 @@ func TestLoadSigningKey_UnsupportedFormat(t *testing.T) {
 
 	_, err := LoadSigningKey(path)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported key format")
+	assert.Contains(t, err.Error(), "no supported private key found")
+}
+
+func TestLoadSigningKey_MultiBlock_ECAfterUnknown(t *testing.T) {
+	// PEM with a non-key block first (e.g. EC PARAMETERS), followed by the real EC key.
+	// This mirrors OpenSSL's "traditional" EC format which emits two blocks.
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	ecDER, err := x509.MarshalECPrivateKey(ecKey)
+	require.NoError(t, err)
+
+	// Build two-block PEM: first an unknown block, then the real key.
+	buf := pem.EncodeToMemory(&pem.Block{Type: "EC PARAMETERS", Bytes: []byte("params")})
+	buf = append(buf, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: ecDER})...)
+
+	path := filepath.Join(t.TempDir(), "key.pem")
+	require.NoError(t, os.WriteFile(path, buf, 0o600))
+
+	key, err := LoadSigningKey(path)
+	require.NoError(t, err)
+	_, ok := key.(*ecdsa.PrivateKey)
+	assert.True(t, ok, "expected *ecdsa.PrivateKey from multi-block PEM")
 }
 
 func TestDeriveKeyID_RSA(t *testing.T) {
@@ -131,42 +152,57 @@ func TestDeriveKeyID_DifferentKeys(t *testing.T) {
 	assert.NotEqual(t, kid1, kid2)
 }
 
+func TestDeriveKeyID_FullHashLength(t *testing.T) {
+	// base64url of 32 bytes (full SHA-256) = 43 chars (no padding)
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	kid := DeriveKeyID(key.Public())
+	assert.Len(t, kid, 43, "kid must be base64url-encoded full SHA-256 (43 chars)")
+}
+
 func TestValidateKeyAlgorithm_RS256_RSAKey(t *testing.T) {
-	key, _ := rsa.GenerateKey(rand.Reader, 2048)
-	err := ValidateKeyAlgorithm(key, "RS256")
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	err = ValidateKeyAlgorithm(key, "RS256")
 	assert.NoError(t, err)
 }
 
 func TestValidateKeyAlgorithm_RS256_ECKey(t *testing.T) {
-	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	err := ValidateKeyAlgorithm(key, "RS256")
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	err = ValidateKeyAlgorithm(key, "RS256")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "requires an RSA private key")
 }
 
 func TestValidateKeyAlgorithm_ES256_ECKey(t *testing.T) {
-	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	err := ValidateKeyAlgorithm(key, "ES256")
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	err = ValidateKeyAlgorithm(key, "ES256")
 	assert.NoError(t, err)
 }
 
 func TestValidateKeyAlgorithm_ES256_WrongCurve(t *testing.T) {
-	key, _ := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
-	err := ValidateKeyAlgorithm(key, "ES256")
+	key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	require.NoError(t, err)
+	err = ValidateKeyAlgorithm(key, "ES256")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "requires P-256 curve")
 }
 
 func TestValidateKeyAlgorithm_ES256_RSAKey(t *testing.T) {
-	key, _ := rsa.GenerateKey(rand.Reader, 2048)
-	err := ValidateKeyAlgorithm(key, "ES256")
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	err = ValidateKeyAlgorithm(key, "ES256")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "requires an ECDSA private key")
 }
 
 func TestValidateKeyAlgorithm_Unsupported(t *testing.T) {
-	key, _ := rsa.GenerateKey(rand.Reader, 2048)
-	err := ValidateKeyAlgorithm(key, "PS256")
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	err = ValidateKeyAlgorithm(key, "PS256")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported algorithm")
 }

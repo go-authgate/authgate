@@ -41,7 +41,8 @@ func setupIntrospectTestEnv(t *testing.T) (*gin.Engine, *store.Store, *services.
 	s, err := store.New(context.Background(), "sqlite", ":memory:", &config.Config{})
 	require.NoError(t, err)
 
-	localProvider := token.NewLocalTokenProvider(cfg)
+	localProvider, err := token.NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 	auditSvc := services.NewAuditService(s, false, 0)
 	deviceSvc := services.NewDeviceService(s, cfg, auditSvc, metrics.NewNoopMetrics())
 	tokenSvc := services.NewTokenService(
@@ -296,11 +297,12 @@ func TestIntrospect_UserToken_IncludesUsername(t *testing.T) {
 	require.NoError(t, s.DB().Create(testUser).Error)
 
 	// Manually create a user-delegated token in the DB
-	localProvider := token.NewLocalTokenProvider(&config.Config{
+	localProvider, err := token.NewLocalTokenProvider(&config.Config{
 		JWTExpiration: 1 * time.Hour,
 		JWTSecret:     "test-secret-32-chars-long!!!!!!!",
 		BaseURL:       "http://localhost:8080",
 	})
+	require.NoError(t, err)
 	tokenResult, err := localProvider.GenerateToken(
 		context.Background(), testUser.ID, client.ClientID, "read",
 	)

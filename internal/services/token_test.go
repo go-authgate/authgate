@@ -19,7 +19,10 @@ import (
 
 func createTestTokenService(s *store.Store, cfg *config.Config) *TokenService {
 	deviceService := NewDeviceService(s, cfg, nil, metrics.NewNoopMetrics())
-	localProvider := token.NewLocalTokenProvider(cfg)
+	localProvider, err := token.NewLocalTokenProvider(cfg)
+	if err != nil {
+		panic("createTestTokenService: " + err.Error())
+	}
 	return NewTokenService(
 		s,
 		cfg,
@@ -824,7 +827,8 @@ func TestExchangeAuthorizationCode_IDToken_ContainsNonce(t *testing.T) {
 	require.NotEmpty(t, idToken)
 
 	// Parse the ID token claims (ID tokens have no "type" claim, use ParseJWT)
-	localProvider := token.NewLocalTokenProvider(cfg)
+	localProvider, err := token.NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 	result, err := localProvider.ParseJWT(idToken)
 	require.NoError(t, err)
 	assert.Equal(t, "my-unique-nonce", result.Claims["nonce"])
@@ -869,7 +873,8 @@ func TestExchangeAuthorizationCode_IDToken_ContainsAtHash(t *testing.T) {
 	// The at_hash in the ID token must be derived from the issued access token string.
 	expectedAtHash := token.ComputeAtHash(accessToken.RawToken)
 
-	localProvider := token.NewLocalTokenProvider(cfg)
+	localProvider, err := token.NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 	result, err := localProvider.ParseJWT(idToken)
 	require.NoError(t, err)
 	assert.Equal(t, expectedAtHash, result.Claims["at_hash"],

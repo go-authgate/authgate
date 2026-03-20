@@ -23,7 +23,8 @@ func TestLocalTokenProvider_GenerateToken(t *testing.T) {
 		JWTExpiration: 1 * time.Hour,
 		BaseURL:       "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg)
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 
 	result, err := provider.GenerateToken(
 		context.Background(),
@@ -48,7 +49,8 @@ func TestLocalTokenProvider_ValidateToken_Success(t *testing.T) {
 		JWTExpiration: 1 * time.Hour,
 		BaseURL:       "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg)
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 
 	// Generate a token first
 	genResult, err := provider.GenerateToken(
@@ -80,10 +82,11 @@ func TestLocalTokenProvider_ValidateToken_InvalidToken(t *testing.T) {
 		JWTExpiration: 1 * time.Hour,
 		BaseURL:       "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg)
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 
 	// Try to validate an invalid token
-	_, err := provider.ValidateToken(
+	_, err = provider.ValidateToken(
 		context.Background(),
 		"invalid-token-string",
 	)
@@ -99,7 +102,8 @@ func TestLocalTokenProvider_ValidateToken_WrongSecret(t *testing.T) {
 		JWTExpiration: 1 * time.Hour,
 		BaseURL:       "http://localhost:8080",
 	}
-	provider1 := NewLocalTokenProvider(cfg1)
+	provider1, err := NewLocalTokenProvider(cfg1)
+	require.NoError(t, err)
 	genResult, err := provider1.GenerateToken(
 		context.Background(),
 		"user123",
@@ -114,7 +118,8 @@ func TestLocalTokenProvider_ValidateToken_WrongSecret(t *testing.T) {
 		JWTExpiration: 1 * time.Hour,
 		BaseURL:       "http://localhost:8080",
 	}
-	provider2 := NewLocalTokenProvider(cfg2)
+	provider2, err := NewLocalTokenProvider(cfg2)
+	require.NoError(t, err)
 	_, err = provider2.ValidateToken(
 		context.Background(),
 		genResult.TokenString,
@@ -130,7 +135,8 @@ func TestLocalTokenProvider_ValidateToken_ExpiredToken(t *testing.T) {
 		JWTExpiration: 1 * time.Millisecond, // Very short expiration
 		BaseURL:       "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg)
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 
 	// Generate token
 	genResult, err := provider.GenerateToken(
@@ -160,7 +166,8 @@ func TestLocalTokenProvider_Name(t *testing.T) {
 		JWTExpiration: 1 * time.Hour,
 		BaseURL:       "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg)
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 
 	assert.Equal(t, "local", provider.Name())
 }
@@ -182,7 +189,8 @@ func TestLocalTokenProvider_GenerateToken_VariousExpirations(t *testing.T) {
 				JWTExpiration: tt.expiration,
 				BaseURL:       "http://localhost:8080",
 			}
-			provider := NewLocalTokenProvider(cfg)
+			provider, err := NewLocalTokenProvider(cfg)
+			require.NoError(t, err)
 
 			result, err := provider.GenerateToken(
 				context.Background(),
@@ -209,7 +217,8 @@ func TestValidateToken_RejectsRefreshToken(t *testing.T) {
 		RefreshTokenExpiration: 30 * 24 * time.Hour,
 		BaseURL:                "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg)
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 
 	// Generate a refresh token
 	refreshResult, err := provider.GenerateRefreshToken(
@@ -230,7 +239,8 @@ func TestValidateToken_RejectsIDToken(t *testing.T) {
 		JWTExpiration: 1 * time.Hour,
 		BaseURL:       "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg)
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 
 	// ID tokens have no "type" claim — ValidateToken must reject them
 	idTokenStr, err := provider.GenerateIDToken(IDTokenParams{
@@ -258,7 +268,8 @@ func TestValidateRefreshToken_Success(t *testing.T) {
 		RefreshTokenExpiration: 30 * 24 * time.Hour,
 		BaseURL:                "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg)
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 
 	genResult, err := provider.GenerateRefreshToken(
 		context.Background(), "user1", "client1", "read write",
@@ -282,7 +293,8 @@ func TestValidateRefreshToken_RejectsAccessToken(t *testing.T) {
 		RefreshTokenExpiration: 30 * 24 * time.Hour,
 		BaseURL:                "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg)
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 
 	// Generate an access token
 	accessResult, err := provider.GenerateToken(
@@ -306,7 +318,8 @@ func TestValidateRefreshToken_ExpiredReturnsRefreshError(t *testing.T) {
 		RefreshTokenExpiration: 1 * time.Millisecond, // Very short
 		BaseURL:                "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg)
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 
 	genResult, err := provider.GenerateRefreshToken(
 		context.Background(), "user1", "client1", "read",
@@ -330,10 +343,11 @@ func TestValidateRefreshToken_InvalidReturnsRefreshError(t *testing.T) {
 		RefreshTokenExpiration: 30 * 24 * time.Hour,
 		BaseURL:                "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg)
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 
 	// Must return ErrInvalidRefreshToken, not ErrInvalidToken
-	_, err := provider.ValidateRefreshToken(
+	_, err = provider.ValidateRefreshToken(
 		context.Background(), "garbage-token",
 	)
 	require.Error(t, err)
@@ -389,13 +403,16 @@ func TestMapRefreshError(t *testing.T) {
 // GenerateIDToken
 // ============================================================
 
-func testIDTokenProvider() (*LocalTokenProvider, *config.Config) {
+func testIDTokenProvider(t *testing.T) (*LocalTokenProvider, *config.Config) {
+	t.Helper()
 	cfg := &config.Config{
 		JWTSecret:     "test-secret-key-for-jwt-signing",
 		JWTExpiration: 1 * time.Hour,
 		BaseURL:       "http://localhost:8080",
 	}
-	return NewLocalTokenProvider(cfg), cfg
+	p, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
+	return p, cfg
 }
 
 // parseIDTokenClaims is a test helper that parses an ID token JWT and returns its claims.
@@ -412,7 +429,7 @@ func parseIDTokenClaims(
 }
 
 func TestGenerateIDToken_RequiredClaims(t *testing.T) {
-	provider, _ := testIDTokenProvider()
+	provider, _ := testIDTokenProvider(t)
 	authTime := time.Now().Add(-5 * time.Minute).Truncate(time.Second)
 
 	idTokenStr, err := provider.GenerateIDToken(IDTokenParams{
@@ -437,7 +454,7 @@ func TestGenerateIDToken_RequiredClaims(t *testing.T) {
 }
 
 func TestGenerateIDToken_WithNonce(t *testing.T) {
-	provider, _ := testIDTokenProvider()
+	provider, _ := testIDTokenProvider(t)
 
 	idTokenStr, err := provider.GenerateIDToken(IDTokenParams{
 		Issuer:   "http://localhost:8080",
@@ -454,7 +471,7 @@ func TestGenerateIDToken_WithNonce(t *testing.T) {
 }
 
 func TestGenerateIDToken_WithoutNonce_NoClaim(t *testing.T) {
-	provider, _ := testIDTokenProvider()
+	provider, _ := testIDTokenProvider(t)
 
 	idTokenStr, err := provider.GenerateIDToken(IDTokenParams{
 		Issuer:   "http://localhost:8080",
@@ -472,7 +489,7 @@ func TestGenerateIDToken_WithoutNonce_NoClaim(t *testing.T) {
 }
 
 func TestGenerateIDToken_WithAtHash(t *testing.T) {
-	provider, _ := testIDTokenProvider()
+	provider, _ := testIDTokenProvider(t)
 	accessToken := "some.access.token.string"
 	expectedAtHash := ComputeAtHash(accessToken)
 
@@ -491,7 +508,7 @@ func TestGenerateIDToken_WithAtHash(t *testing.T) {
 }
 
 func TestGenerateIDToken_ProfileClaims(t *testing.T) {
-	provider, _ := testIDTokenProvider()
+	provider, _ := testIDTokenProvider(t)
 	updatedAt := time.Now().Add(-1 * time.Hour).Truncate(time.Second)
 
 	idTokenStr, err := provider.GenerateIDToken(IDTokenParams{
@@ -515,7 +532,7 @@ func TestGenerateIDToken_ProfileClaims(t *testing.T) {
 }
 
 func TestGenerateIDToken_EmailClaims(t *testing.T) {
-	provider, _ := testIDTokenProvider()
+	provider, _ := testIDTokenProvider(t)
 
 	idTokenStr, err := provider.GenerateIDToken(IDTokenParams{
 		Issuer:        "http://localhost:8080",
@@ -534,7 +551,7 @@ func TestGenerateIDToken_EmailClaims(t *testing.T) {
 }
 
 func TestGenerateIDToken_NoProfileClaims_WhenEmpty(t *testing.T) {
-	provider, _ := testIDTokenProvider()
+	provider, _ := testIDTokenProvider(t)
 
 	idTokenStr, err := provider.GenerateIDToken(IDTokenParams{
 		Issuer:   "http://localhost:8080",
@@ -593,10 +610,11 @@ func TestLocalTokenProvider_RS256_GenerateAndValidate(t *testing.T) {
 		RefreshTokenExpiration: 30 * 24 * time.Hour,
 		BaseURL:                "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg,
+	provider, err := NewLocalTokenProvider(cfg,
 		WithSigningKey(rsaKey, &rsaKey.PublicKey),
 		WithKeyID("test-rsa-kid"),
 	)
+	require.NoError(t, err)
 
 	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read write")
 	require.NoError(t, err)
@@ -620,10 +638,11 @@ func TestLocalTokenProvider_ES256_GenerateAndValidate(t *testing.T) {
 		RefreshTokenExpiration: 30 * 24 * time.Hour,
 		BaseURL:                "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg,
+	provider, err := NewLocalTokenProvider(cfg,
 		WithSigningKey(ecKey, &ecKey.PublicKey),
 		WithKeyID("test-ec-kid"),
 	)
+	require.NoError(t, err)
 
 	result, err := provider.GenerateToken(context.Background(), "user2", "client2", "email")
 	require.NoError(t, err)
@@ -644,10 +663,11 @@ func TestLocalTokenProvider_RS256_IDToken(t *testing.T) {
 		JWTExpiration:       1 * time.Hour,
 		BaseURL:             "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg,
+	provider, err := NewLocalTokenProvider(cfg,
 		WithSigningKey(rsaKey, &rsaKey.PublicKey),
 		WithKeyID("rsa-kid"),
 	)
+	require.NoError(t, err)
 
 	idTokenStr, err := provider.GenerateIDToken(IDTokenParams{
 		Issuer:   "http://localhost:8080",
@@ -672,7 +692,8 @@ func TestLocalTokenProvider_HS256_BackwardCompatible(t *testing.T) {
 		BaseURL:                "http://localhost:8080",
 	}
 	// No options — pure HS256 backward compatibility
-	provider := NewLocalTokenProvider(cfg)
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 
 	// Access token
 	result, err := provider.GenerateToken(context.Background(), "u1", "c1", "r")
@@ -711,10 +732,11 @@ func TestLocalTokenProvider_KidHeader(t *testing.T) {
 		JWTExpiration:       1 * time.Hour,
 		BaseURL:             "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg,
+	provider, err := NewLocalTokenProvider(cfg,
 		WithSigningKey(rsaKey, &rsaKey.PublicKey),
 		WithKeyID("my-kid-123"),
 	)
+	require.NoError(t, err)
 
 	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read")
 	require.NoError(t, err)
@@ -733,7 +755,8 @@ func TestLocalTokenProvider_HS256_NoKidHeader(t *testing.T) {
 		JWTExpiration: 1 * time.Hour,
 		BaseURL:       "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg)
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 
 	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read")
 	require.NoError(t, err)
@@ -757,12 +780,14 @@ func TestLocalTokenProvider_RS256_CrossValidationFails(t *testing.T) {
 		BaseURL:             "http://localhost:8080",
 	}
 
-	provider1 := NewLocalTokenProvider(cfg,
+	provider1, err := NewLocalTokenProvider(cfg,
 		WithSigningKey(key1, &key1.PublicKey),
 	)
-	provider2 := NewLocalTokenProvider(cfg,
+	require.NoError(t, err)
+	provider2, err := NewLocalTokenProvider(cfg,
 		WithSigningKey(key2, &key2.PublicKey),
 	)
+	require.NoError(t, err)
 
 	result, err := provider1.GenerateToken(context.Background(), "u", "c", "r")
 	require.NoError(t, err)
@@ -782,9 +807,10 @@ func TestLocalTokenProvider_RS256_RefreshToken(t *testing.T) {
 		EnableTokenRotation:    true,
 		BaseURL:                "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg,
+	provider, err := NewLocalTokenProvider(cfg,
 		WithSigningKey(rsaKey, &rsaKey.PublicKey),
 	)
+	require.NoError(t, err)
 
 	refreshResult, err := provider.GenerateRefreshToken(context.Background(), "u1", "c1", "r")
 	require.NoError(t, err)
@@ -809,10 +835,11 @@ func TestLocalTokenProvider_PublicKey(t *testing.T) {
 		JWTExpiration:       1 * time.Hour,
 		BaseURL:             "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg,
+	provider, err := NewLocalTokenProvider(cfg,
 		WithSigningKey(rsaKey, &rsaKey.PublicKey),
 		WithKeyID("kid1"),
 	)
+	require.NoError(t, err)
 
 	assert.Equal(t, &rsaKey.PublicKey, provider.PublicKey())
 	assert.Equal(t, "kid1", provider.KeyID())
@@ -825,9 +852,33 @@ func TestLocalTokenProvider_HS256_PublicKey_Nil(t *testing.T) {
 		JWTExpiration: 1 * time.Hour,
 		BaseURL:       "http://localhost:8080",
 	}
-	provider := NewLocalTokenProvider(cfg)
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 
 	assert.Nil(t, provider.PublicKey())
 	assert.Empty(t, provider.KeyID())
 	assert.Equal(t, "HS256", provider.Algorithm())
+}
+
+func TestNewLocalTokenProvider_RS256_NoKey_Error(t *testing.T) {
+	cfg := &config.Config{
+		JWTSigningAlgorithm: "RS256",
+		JWTExpiration:       1 * time.Hour,
+		BaseURL:             "http://localhost:8080",
+		// No JWT secret needed for RS256, but no WithSigningKey provided
+	}
+	_, err := NewLocalTokenProvider(cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "RS256 requires a signing key")
+}
+
+func TestNewLocalTokenProvider_ES256_NoKey_Error(t *testing.T) {
+	cfg := &config.Config{
+		JWTSigningAlgorithm: "ES256",
+		JWTExpiration:       1 * time.Hour,
+		BaseURL:             "http://localhost:8080",
+	}
+	_, err := NewLocalTokenProvider(cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ES256 requires a signing key")
 }

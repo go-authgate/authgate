@@ -95,6 +95,92 @@ func TestConfig_Validate(t *testing.T) {
 	}
 }
 
+func TestConfig_Validate_JWTSigningAlgorithm(t *testing.T) {
+	base := &Config{
+		RateLimitStore:       RateLimitStoreMemory,
+		MetricsCacheType:     CacheTypeMemory,
+		UserCacheType:        CacheTypeMemory,
+		UserCacheTTL:         5 * time.Minute,
+		ClientCountCacheType: CacheTypeMemory,
+		ClientCountCacheTTL:  time.Minute,
+	}
+
+	tests := []struct {
+		name              string
+		algorithm         string
+		keyPath           string
+		tokenProviderMode string
+		expectError       bool
+		errorMsg          string
+	}{
+		{
+			name:      "HS256 default - no key required",
+			algorithm: "HS256",
+			expectError: false,
+		},
+		{
+			name:      "empty algorithm treated as HS256",
+			algorithm: "",
+			expectError: false,
+		},
+		{
+			name:              "RS256 local - requires key path",
+			algorithm:         "RS256",
+			tokenProviderMode: TokenProviderModeLocal,
+			expectError:       true,
+			errorMsg:          "JWT_PRIVATE_KEY_PATH is required",
+		},
+		{
+			name:              "RS256 local - with key path OK",
+			algorithm:         "RS256",
+			keyPath:           "/some/key.pem",
+			tokenProviderMode: TokenProviderModeLocal,
+			expectError:       false,
+		},
+		{
+			name:              "ES256 local - requires key path",
+			algorithm:         "ES256",
+			tokenProviderMode: TokenProviderModeLocal,
+			expectError:       true,
+			errorMsg:          "JWT_PRIVATE_KEY_PATH is required",
+		},
+		{
+			name:              "RS256 http_api - key path not required",
+			algorithm:         "RS256",
+			tokenProviderMode: TokenProviderModeHTTPAPI,
+			expectError:       false,
+		},
+		{
+			name:              "ES256 http_api - key path not required",
+			algorithm:         "ES256",
+			tokenProviderMode: TokenProviderModeHTTPAPI,
+			expectError:       false,
+		},
+		{
+			name:        "unsupported algorithm",
+			algorithm:   "PS256",
+			expectError: true,
+			errorMsg:    `invalid JWT_SIGNING_ALGORITHM value: "PS256"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := *base
+			cfg.JWTSigningAlgorithm = tt.algorithm
+			cfg.JWTPrivateKeyPath = tt.keyPath
+			cfg.TokenProviderMode = tt.tokenProviderMode
+			err := cfg.Validate()
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestRateLimitStoreConstants(t *testing.T) {
 	// Ensure constants are defined correctly
 	assert.Equal(t, "memory", RateLimitStoreMemory)

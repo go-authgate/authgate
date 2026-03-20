@@ -125,3 +125,20 @@ func TestJWKS_EC_CoordinatesPadded(t *testing.T) {
 	assert.Len(t, resp.Keys[0].X, 43, "X coordinate should be 43 base64url chars (32 bytes)")
 	assert.Len(t, resp.Keys[0].Y, 43, "Y coordinate should be 43 base64url chars (32 bytes)")
 }
+
+func TestJWKS_Keys_ReturnsCopy(t *testing.T) {
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	handler := NewJWKSHandler("RS256", "kid1", &rsaKey.PublicKey)
+
+	// Mutate the slice returned by Keys()
+	keys1 := handler.Keys()
+	require.Len(t, keys1, 1)
+	keys1[0].Kid = "mutated"
+
+	// A second call must return the original, unmodified data
+	keys2 := handler.Keys()
+	require.Len(t, keys2, 1)
+	assert.Equal(t, "kid1", keys2[0].Kid, "Keys() must return a copy; mutation must not affect internal state")
+}

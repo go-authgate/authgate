@@ -44,7 +44,8 @@ func WithKeyID(kid string) Option {
 
 // NewLocalTokenProvider creates a new local token provider.
 // By default it uses HS256. Use WithSigningKey and WithKeyID for asymmetric algorithms.
-func NewLocalTokenProvider(cfg *config.Config, opts ...Option) *LocalTokenProvider {
+// Returns an error if the algorithm requires an asymmetric key but none was provided.
+func NewLocalTokenProvider(cfg *config.Config, opts ...Option) (*LocalTokenProvider, error) {
 	p := &LocalTokenProvider{config: cfg}
 
 	// Apply options first so signKey can be set before choosing method
@@ -56,8 +57,18 @@ func NewLocalTokenProvider(cfg *config.Config, opts ...Option) *LocalTokenProvid
 	switch cfg.JWTSigningAlgorithm {
 	case "RS256":
 		p.method = jwt.SigningMethodRS256
+		if p.signKey == nil || p.verifyKey == nil {
+			return nil, fmt.Errorf(
+				"NewLocalTokenProvider: RS256 requires a signing key; use WithSigningKey",
+			)
+		}
 	case "ES256":
 		p.method = jwt.SigningMethodES256
+		if p.signKey == nil || p.verifyKey == nil {
+			return nil, fmt.Errorf(
+				"NewLocalTokenProvider: ES256 requires a signing key; use WithSigningKey",
+			)
+		}
 	default:
 		// HS256 (default)
 		p.method = jwt.SigningMethodHS256
@@ -65,7 +76,7 @@ func NewLocalTokenProvider(cfg *config.Config, opts ...Option) *LocalTokenProvid
 		p.verifyKey = []byte(cfg.JWTSecret)
 	}
 
-	return p
+	return p, nil
 }
 
 // PublicKey returns the asymmetric public verification key.

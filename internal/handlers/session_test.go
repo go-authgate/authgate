@@ -36,7 +36,8 @@ func setupSessionServices(t *testing.T) (*store.Store, *services.TokenService) {
 	s, err := store.New(context.Background(), "sqlite", ":memory:", &config.Config{})
 	require.NoError(t, err)
 
-	localProvider := token.NewLocalTokenProvider(cfg)
+	localProvider, err := token.NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 	auditSvc := services.NewAuditService(s, false, 0)
 	deviceSvc := services.NewDeviceService(s, cfg, auditSvc, metrics.NewNoopMetrics())
 	tokenSvc := services.NewTokenService(

@@ -66,7 +66,11 @@ func initializeTokenProvider(cfg *config.Config) core.TokenProvider {
 func newLocalTokenProvider(cfg *config.Config) *token.LocalTokenProvider {
 	if cfg.JWTSigningAlgorithm == "HS256" || cfg.JWTSigningAlgorithm == "" {
 		log.Printf("Token signing: HS256 (symmetric)")
-		return token.NewLocalTokenProvider(cfg)
+		p, err := token.NewLocalTokenProvider(cfg)
+		if err != nil {
+			log.Fatalf("Failed to create token provider: %v", err)
+		}
+		return p
 	}
 
 	// Load asymmetric key
@@ -87,8 +91,12 @@ func newLocalTokenProvider(cfg *config.Config) *token.LocalTokenProvider {
 	}
 
 	log.Printf("Token signing: %s (kid=%s)", cfg.JWTSigningAlgorithm, kid)
-	return token.NewLocalTokenProvider(cfg,
+	p, err := token.NewLocalTokenProvider(cfg,
 		token.WithSigningKey(privateKey, privateKey.Public()),
 		token.WithKeyID(kid),
 	)
+	if err != nil {
+		log.Fatalf("Failed to create token provider: %v", err)
+	}
+	return p
 }
