@@ -83,7 +83,7 @@ func TestRevokeSession_Success(t *testing.T) {
 	userID := uuid.New().String()
 	tok := createTestToken(t, s, userID, uuid.New().String())
 
-	handler := NewSessionHandler(tokenSvc, nil)
+	handler := NewSessionHandler(tokenSvc)
 	r := newSessionRouter(handler, userID)
 
 	w := httptest.NewRecorder()
@@ -103,7 +103,7 @@ func TestRevokeSession_NotOwned(t *testing.T) {
 	attackerID := uuid.New().String()
 	tok := createTestToken(t, s, ownerID, uuid.New().String())
 
-	handler := NewSessionHandler(tokenSvc, nil)
+	handler := NewSessionHandler(tokenSvc)
 	r := newSessionRouter(handler, attackerID)
 
 	w := httptest.NewRecorder()
@@ -115,7 +115,7 @@ func TestRevokeSession_NotOwned(t *testing.T) {
 
 func TestRevokeSession_Unauthenticated(t *testing.T) {
 	_, tokenSvc := setupSessionServices(t)
-	handler := NewSessionHandler(tokenSvc, nil)
+	handler := NewSessionHandler(tokenSvc)
 	r := newSessionRouter(handler, "") // no user_id
 
 	w := httptest.NewRecorder()
@@ -130,7 +130,7 @@ func TestDisableAndEnableSession(t *testing.T) {
 	userID := uuid.New().String()
 	tok := createTestToken(t, s, userID, uuid.New().String())
 
-	handler := NewSessionHandler(tokenSvc, nil)
+	handler := NewSessionHandler(tokenSvc)
 	r := newSessionRouter(handler, userID)
 
 	// Disable
@@ -161,7 +161,7 @@ func TestRevokeAllSessions(t *testing.T) {
 	createTestToken(t, s, userID, clientID)
 	createTestToken(t, s, userID, clientID)
 
-	handler := NewSessionHandler(tokenSvc, nil)
+	handler := NewSessionHandler(tokenSvc)
 	r := newSessionRouter(handler, userID)
 
 	w := httptest.NewRecorder()

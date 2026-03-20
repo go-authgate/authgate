@@ -61,10 +61,12 @@ type clientRegistrationRequest struct {
 func (h *RegistrationHandler) Register(c *gin.Context) {
 	// 1. Check if dynamic registration is enabled
 	if !h.config.EnableDynamicClientRegistration {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error":             "registration_not_supported",
-			"error_description": "Dynamic client registration is not enabled on this server",
-		})
+		respondOAuthError(
+			c,
+			http.StatusForbidden,
+			"registration_not_supported",
+			"Dynamic client registration is not enabled on this server",
+		)
 		return
 	}
 
@@ -78,19 +80,23 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 	// 3. Parse request body (RFC 7591 §2)
 	var req clientRegistrationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_client_metadata",
-			"error_description": "Invalid request body: " + err.Error(),
-		})
+		respondOAuthError(
+			c,
+			http.StatusBadRequest,
+			"invalid_client_metadata",
+			"Invalid request body: "+err.Error(),
+		)
 		return
 	}
 
 	// 4. Validate client_name (required)
 	if strings.TrimSpace(req.ClientName) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_client_metadata",
-			"error_description": "client_name is required",
-		})
+		respondOAuthError(
+			c,
+			http.StatusBadRequest,
+			"invalid_client_metadata",
+			"client_name is required",
+		)
 		return
 	}
 
@@ -104,15 +110,17 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 	} else {
 		for _, gt := range req.GrantTypes {
 			switch gt {
-			case "authorization_code":
+			case GrantTypeAuthorizationCode:
 				enableAuthCodeFlow = true
-			case "urn:ietf:params:oauth:grant-type:device_code", "device_code":
+			case GrantTypeDeviceCode, GrantTypeDeviceCodeShort:
 				enableDeviceFlow = true
 			default:
-				c.JSON(http.StatusBadRequest, gin.H{
-					"error":             "invalid_client_metadata",
-					"error_description": "Unsupported grant_type: " + gt + ". Supported: authorization_code, device_code",
-				})
+				respondOAuthError(
+					c,
+					http.StatusBadRequest,
+					"invalid_client_metadata",
+					"Unsupported grant_type: "+gt+". Supported: authorization_code, device_code",
+				)
 				return
 			}
 		}
@@ -131,10 +139,12 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 	case "client_secret_basic", "client_secret_post":
 		clientType = services.ClientTypeConfidential
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_client_metadata",
-			"error_description": "Unsupported token_endpoint_auth_method: " + req.TokenEPAuth + ". Supported: none, client_secret_basic, client_secret_post",
-		})
+		respondOAuthError(
+			c,
+			http.StatusBadRequest,
+			"invalid_client_metadata",
+			"Unsupported token_endpoint_auth_method: "+req.TokenEPAuth+". Supported: none, client_secret_basic, client_secret_post",
+		)
 		return
 	}
 
@@ -146,10 +156,12 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 			case "email", "profile", "openid", "offline_access":
 				// ok
 			default:
-				c.JSON(http.StatusBadRequest, gin.H{
-					"error":             "invalid_client_metadata",
-					"error_description": "Unsupported scope: " + s + ". Allowed: email, profile, openid, offline_access",
-				})
+				respondOAuthError(
+					c,
+					http.StatusBadRequest,
+					"invalid_client_metadata",
+					"Unsupported scope: "+s+". Allowed: email, profile, openid, offline_access",
+				)
 				return
 			}
 		}
@@ -170,15 +182,14 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 	resp, err := h.clientService.CreateClient(c.Request.Context(), createReq)
 	if err != nil {
 		if isClientValidationError(err) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_client_metadata",
-				"error_description": err.Error(),
-			})
+			respondOAuthError(c, http.StatusBadRequest, "invalid_client_metadata", err.Error())
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":             "server_error",
-				"error_description": "Failed to register client",
-			})
+			respondOAuthError(
+				c,
+				http.StatusInternalServerError,
+				"server_error",
+				"Failed to register client",
+			)
 		}
 		return
 	}
@@ -227,13 +238,13 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 func buildResponseGrantTypes(app *models.OAuthApplication) []string {
 	var grantTypes []string
 	if app.EnableDeviceFlow {
-		grantTypes = append(grantTypes, "urn:ietf:params:oauth:grant-type:device_code")
+		grantTypes = append(grantTypes, GrantTypeDeviceCode)
 	}
 	if app.EnableAuthCodeFlow {
-		grantTypes = append(grantTypes, "authorization_code")
+		grantTypes = append(grantTypes, GrantTypeAuthorizationCode)
 	}
 	if app.EnableClientCredentialsFlow {
-		grantTypes = append(grantTypes, "client_credentials")
+		grantTypes = append(grantTypes, GrantTypeClientCredentials)
 	}
 	return grantTypes
 }
@@ -244,19 +255,23 @@ func buildResponseGrantTypes(app *models.OAuthApplication) []string {
 func validateRegistrationToken(c *gin.Context, expected string) bool {
 	header := c.GetHeader("Authorization")
 	if header == "" || !strings.HasPrefix(header, "Bearer ") {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "invalid_token",
-			"error_description": "An initial access token is required for client registration",
-		})
+		respondOAuthError(
+			c,
+			http.StatusUnauthorized,
+			"invalid_token",
+			"An initial access token is required for client registration",
+		)
 		return false
 	}
 
 	token := strings.TrimPrefix(header, "Bearer ")
 	if subtle.ConstantTimeCompare([]byte(token), []byte(expected)) != 1 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "invalid_token",
-			"error_description": "The initial access token is invalid",
-		})
+		respondOAuthError(
+			c,
+			http.StatusUnauthorized,
+			"invalid_token",
+			"The initial access token is invalid",
+		)
 		return false
 	}
 

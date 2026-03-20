@@ -62,7 +62,11 @@ func clientToDisplay(app *models.OAuthApplication) *templates.ClientDisplay {
 	}
 }
 
-const ctxKeyPendingClientsCount = "pending_clients_count"
+const (
+	ctxKeyPendingClientsCount = "pending_clients_count"
+	// queryValueTrue represents the string "true" used in query parameters.
+	queryValueTrue = "true"
+)
 
 // buildNavbarProps creates NavbarProps from a user model and active link identifier.
 // If the gin context contains a pending_clients_count value (set by InjectPendingCount

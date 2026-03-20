@@ -17,6 +17,8 @@ import (
 const (
 	// https://datatracker.ietf.org/doc/html/rfc8628#section-3.4
 	GrantTypeDeviceCode = "urn:ietf:params:oauth:grant-type:device_code"
+	// GrantTypeDeviceCodeShort is the informal alias accepted by RFC 7591 registrations.
+	GrantTypeDeviceCodeShort = "device_code"
 	// https://datatracker.ietf.org/doc/html/rfc6749#section-6
 	GrantTypeRefreshToken = "refresh_token"
 	// https://datatracker.ietf.org/doc/html/rfc6749#section-4.1

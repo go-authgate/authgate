@@ -15,11 +15,6 @@ import (
 	"github.com/go-authgate/authgate/internal/templates"
 )
 
-const (
-	// queryValueTrue represents the string "true" used in query parameters
-	queryValueTrue = "true"
-)
-
 // AuditHandler handles audit log operations
 type AuditHandler struct {
 	auditService *services.AuditService

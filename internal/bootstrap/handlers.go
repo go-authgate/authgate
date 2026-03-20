@@ -62,7 +62,7 @@ func initializeHandlers(deps handlerDeps) handlerSet {
 		),
 		client:     handlers.NewClientHandler(deps.services.client, deps.services.authorization),
 		userClient: handlers.NewUserClientHandler(deps.services.client),
-		session:    handlers.NewSessionHandler(deps.services.token, deps.services.user),
+		session:    handlers.NewSessionHandler(deps.services.token),
 		oauth: handlers.NewOAuthHandler(
 			deps.oauthProviders,
 			deps.services.user,

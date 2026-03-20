@@ -12,13 +12,11 @@ import (
 
 type SessionHandler struct {
 	tokenService *services.TokenService
-	userService  *services.UserService
 }
 
-func NewSessionHandler(ts *services.TokenService, us *services.UserService) *SessionHandler {
+func NewSessionHandler(ts *services.TokenService) *SessionHandler {
 	return &SessionHandler{
 		tokenService: ts,
-		userService:  us,
 	}
 }
 
@@ -42,12 +40,8 @@ func (h *SessionHandler) ListSessions(c *gin.Context) {
 		return
 	}
 
-	// Get user info for navbar
-	user, err := h.userService.GetUserByID(userID.(string))
-	if err != nil {
-		renderErrorPage(c, http.StatusInternalServerError, "Failed to retrieve user information")
-		return
-	}
+	// Get user info for navbar (already loaded by RequireAuth middleware)
+	user := getUserFromContext(c)
 
 	templates.RenderTempl(c, http.StatusOK, templates.AccountSessions(templates.SessionsPageProps{
 		BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
