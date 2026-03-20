@@ -64,6 +64,7 @@ func (h *JWKSHandler) Keys() []JSONWebKey {
 //	@Success		200	{object}	JWKSResponse	"JWKS document"
 //	@Router			/.well-known/jwks.json [get]
 func (h *JWKSHandler) JWKS(c *gin.Context) {
+	c.Header("Cache-Control", "public, max-age=3600")
 	c.JSON(http.StatusOK, h.response)
 }
 

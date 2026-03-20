@@ -20,12 +20,15 @@ import (
 
 // Shared test keys generated once per package to avoid repeated 2048-bit RSA key generation.
 var (
-	testRSAKey    *rsa.PrivateKey
-	testRSAKeyErr error
-	testRSAOnce   sync.Once
-	testECKey     *ecdsa.PrivateKey
-	testECKeyErr  error
-	testECOnce    sync.Once
+	testRSAKey     *rsa.PrivateKey
+	testRSAKeyErr  error
+	testRSAOnce    sync.Once
+	testRSAKey2    *rsa.PrivateKey
+	testRSAKey2Err error
+	testRSAOnce2   sync.Once
+	testECKey      *ecdsa.PrivateKey
+	testECKeyErr   error
+	testECOnce     sync.Once
 )
 
 func getTestRSAKey(t *testing.T) *rsa.PrivateKey {
@@ -35,6 +38,15 @@ func getTestRSAKey(t *testing.T) *rsa.PrivateKey {
 	})
 	require.NoError(t, testRSAKeyErr)
 	return testRSAKey
+}
+
+func getTestRSAKey2(t *testing.T) *rsa.PrivateKey {
+	t.Helper()
+	testRSAOnce2.Do(func() {
+		testRSAKey2, testRSAKey2Err = rsa.GenerateKey(rand.Reader, 2048)
+	})
+	require.NoError(t, testRSAKey2Err)
+	return testRSAKey2
 }
 
 func getTestECKey(t *testing.T) *ecdsa.PrivateKey {
@@ -794,10 +806,8 @@ func TestLocalTokenProvider_HS256_NoKidHeader(t *testing.T) {
 }
 
 func TestLocalTokenProvider_RS256_CrossValidationFails(t *testing.T) {
-	key1, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
-	key2, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
+	key1 := getTestRSAKey(t)
+	key2 := getTestRSAKey2(t)
 
 	cfg := &config.Config{
 		JWTSigningAlgorithm: "RS256",

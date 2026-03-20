@@ -520,7 +520,7 @@ func (c *Config) Validate() error {
 		// ok
 	default:
 		return fmt.Errorf(
-			"invalid TOKEN_PROVIDER_MODE value: %q (must be empty, %q, or %q)",
+			"invalid TOKEN_PROVIDER_MODE value: %q (must be %q or %q)",
 			c.TokenProviderMode,
 			TokenProviderModeLocal,
 			TokenProviderModeHTTPAPI,
