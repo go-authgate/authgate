@@ -514,9 +514,10 @@ func (c *Config) Validate() error {
 	case "", "HS256":
 		// default, no key file required
 	case "RS256", "ES256":
-		if c.JWTPrivateKeyPath == "" && c.TokenProviderMode == TokenProviderModeLocal {
+		if c.JWTPrivateKeyPath == "" &&
+			(c.TokenProviderMode == "" || c.TokenProviderMode == TokenProviderModeLocal) {
 			return fmt.Errorf(
-				"JWT_PRIVATE_KEY_PATH is required when JWT_SIGNING_ALGORITHM=%s and TOKEN_PROVIDER_MODE=local",
+				"JWT_PRIVATE_KEY_PATH is required when JWT_SIGNING_ALGORITHM=%s and TOKEN_PROVIDER_MODE is local or empty",
 				c.JWTSigningAlgorithm,
 			)
 		}
