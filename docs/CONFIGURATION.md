@@ -273,7 +273,7 @@ openssl ecparam -genkey -name prime256v1 -noout -out ec-private.pem
 
 ### JWKS Endpoint
 
-When using RS256 or ES256 with the local token provider (`TOKEN_PROVIDER_MODE=local` or empty), AuthGate exposes the public key at:
+When using RS256 or ES256 with the local token provider (`TOKEN_PROVIDER_MODE=local` or unset), AuthGate exposes the public key at:
 
 ```
 GET /.well-known/jwks.json
