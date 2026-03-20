@@ -81,6 +81,12 @@ func NewLocalTokenProvider(cfg *config.Config, opts ...Option) (*LocalTokenProvi
 				p.verifyKey,
 			)
 		}
+		if privKey.N.BitLen() < 2048 {
+			return nil, fmt.Errorf(
+				"NewLocalTokenProvider: RS256 requires at least 2048-bit RSA key, got %d-bit",
+				privKey.N.BitLen(),
+			)
+		}
 		derivedPub := &privKey.PublicKey
 		if pubKey.E != derivedPub.E || pubKey.N.Cmp(derivedPub.N) != 0 {
 			return nil, errors.New(
@@ -171,7 +177,7 @@ func (p *LocalTokenProvider) signClaims(claims jwt.MapClaims) (string, error) {
 	}
 	signed, err := tok.SignedString(p.signKey)
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrTokenGeneration, err)
+		return "", fmt.Errorf("%w: %w", ErrTokenGeneration, err)
 	}
 	return signed, nil
 }
