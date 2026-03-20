@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +17,38 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// Shared test keys generated once per package to avoid repeated 2048-bit RSA key generation.
+var (
+	testRSAKey  *rsa.PrivateKey
+	testRSAOnce sync.Once
+	testECKey   *ecdsa.PrivateKey
+	testECOnce  sync.Once
+)
+
+func getTestRSAKey(t *testing.T) *rsa.PrivateKey {
+	t.Helper()
+	testRSAOnce.Do(func() {
+		var err error
+		testRSAKey, err = rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			panic("failed to generate test RSA key: " + err.Error())
+		}
+	})
+	return testRSAKey
+}
+
+func getTestECKey(t *testing.T) *ecdsa.PrivateKey {
+	t.Helper()
+	testECOnce.Do(func() {
+		var err error
+		testECKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			panic("failed to generate test EC key: " + err.Error())
+		}
+	})
+	return testECKey
+}
 
 func TestLocalTokenProvider_GenerateToken(t *testing.T) {
 	cfg := &config.Config{
@@ -601,8 +634,7 @@ func TestComputeAtHash_Length(t *testing.T) {
 // ============================================================
 
 func TestLocalTokenProvider_RS256_GenerateAndValidate(t *testing.T) {
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
+	rsaKey := getTestRSAKey(t)
 
 	cfg := &config.Config{
 		JWTSigningAlgorithm:    "RS256",
@@ -629,8 +661,7 @@ func TestLocalTokenProvider_RS256_GenerateAndValidate(t *testing.T) {
 }
 
 func TestLocalTokenProvider_ES256_GenerateAndValidate(t *testing.T) {
-	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
+	ecKey := getTestECKey(t)
 
 	cfg := &config.Config{
 		JWTSigningAlgorithm:    "ES256",
@@ -655,8 +686,7 @@ func TestLocalTokenProvider_ES256_GenerateAndValidate(t *testing.T) {
 }
 
 func TestLocalTokenProvider_RS256_IDToken(t *testing.T) {
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
+	rsaKey := getTestRSAKey(t)
 
 	cfg := &config.Config{
 		JWTSigningAlgorithm: "RS256",
@@ -724,8 +754,7 @@ func TestLocalTokenProvider_HS256_BackwardCompatible(t *testing.T) {
 }
 
 func TestLocalTokenProvider_KidHeader(t *testing.T) {
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
+	rsaKey := getTestRSAKey(t)
 
 	cfg := &config.Config{
 		JWTSigningAlgorithm: "RS256",
@@ -798,8 +827,7 @@ func TestLocalTokenProvider_RS256_CrossValidationFails(t *testing.T) {
 }
 
 func TestLocalTokenProvider_RS256_RefreshToken(t *testing.T) {
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
+	rsaKey := getTestRSAKey(t)
 	cfg := &config.Config{
 		JWTSigningAlgorithm:    "RS256",
 		JWTExpiration:          1 * time.Hour,
@@ -828,8 +856,7 @@ func TestLocalTokenProvider_RS256_RefreshToken(t *testing.T) {
 }
 
 func TestLocalTokenProvider_PublicKey(t *testing.T) {
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
+	rsaKey := getTestRSAKey(t)
 	cfg := &config.Config{
 		JWTSigningAlgorithm: "RS256",
 		JWTExpiration:       1 * time.Hour,
@@ -899,14 +926,13 @@ func TestNewLocalTokenProvider_ES256_WrongCurve(t *testing.T) {
 }
 
 func TestNewLocalTokenProvider_RS256_WrongKeyType(t *testing.T) {
-	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
+	ecKey := getTestECKey(t)
 	cfg := &config.Config{
 		JWTSigningAlgorithm: "RS256",
 		JWTExpiration:       1 * time.Hour,
 		BaseURL:             "http://localhost:8080",
 	}
-	_, err = NewLocalTokenProvider(cfg,
+	_, err := NewLocalTokenProvider(cfg,
 		WithSigningKey(ecKey, &ecKey.PublicKey),
 	)
 	require.Error(t, err)
@@ -914,14 +940,13 @@ func TestNewLocalTokenProvider_RS256_WrongKeyType(t *testing.T) {
 }
 
 func TestNewLocalTokenProvider_ES256_WrongKeyType(t *testing.T) {
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
+	rsaKey := getTestRSAKey(t)
 	cfg := &config.Config{
 		JWTSigningAlgorithm: "ES256",
 		JWTExpiration:       1 * time.Hour,
 		BaseURL:             "http://localhost:8080",
 	}
-	_, err = NewLocalTokenProvider(cfg,
+	_, err := NewLocalTokenProvider(cfg,
 		WithSigningKey(rsaKey, &rsaKey.PublicKey),
 	)
 	require.Error(t, err)

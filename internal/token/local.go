@@ -162,6 +162,20 @@ func (p *LocalTokenProvider) Algorithm() string {
 	return p.method.Alg()
 }
 
+// signClaims creates a signed JWT from the given claims using the provider's
+// signing method, key, and optional kid header. Shared by generateJWT and GenerateIDToken.
+func (p *LocalTokenProvider) signClaims(claims jwt.MapClaims) (string, error) {
+	tok := jwt.NewWithClaims(p.method, claims)
+	if p.keyID != "" {
+		tok.Header["kid"] = p.keyID
+	}
+	signed, err := tok.SignedString(p.signKey)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrTokenGeneration, err)
+	}
+	return signed, nil
+}
+
 // generateJWT creates a signed JWT token with the given claims and expiration
 func (p *LocalTokenProvider) generateJWT(
 	userID, clientID, scopes, tokenType string,
@@ -179,13 +193,9 @@ func (p *LocalTokenProvider) generateJWT(
 		"jti":       uuid.New().String(),
 	}
 
-	token := jwt.NewWithClaims(p.method, claims)
-	if p.keyID != "" {
-		token.Header["kid"] = p.keyID
-	}
-	tokenString, err := token.SignedString(p.signKey)
+	tokenString, err := p.signClaims(claims)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrTokenGeneration, err)
+		return nil, err
 	}
 
 	return &Result{

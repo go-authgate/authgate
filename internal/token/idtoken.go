@@ -3,7 +3,6 @@ package token
 import (
 	"crypto/sha256"
 	"encoding/base64"
-	"fmt"
 	"time"
 
 	"github.com/go-authgate/authgate/internal/core"
@@ -69,15 +68,7 @@ func (p *LocalTokenProvider) GenerateIDToken(params IDTokenParams) (string, erro
 		claims["email_verified"] = params.EmailVerified
 	}
 
-	token := jwt.NewWithClaims(p.method, claims)
-	if p.keyID != "" {
-		token.Header["kid"] = p.keyID
-	}
-	tokenString, err := token.SignedString(p.signKey)
-	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrTokenGeneration, err)
-	}
-	return tokenString, nil
+	return p.signClaims(claims)
 }
 
 // ComputeAtHash computes the at_hash claim value per OIDC Core 1.0 §3.3.2.11.

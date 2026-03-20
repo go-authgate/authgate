@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -15,11 +16,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	jwksTestRSAKey  *rsa.PrivateKey
+	jwksTestRSAOnce sync.Once
+	jwksTestECKey   *ecdsa.PrivateKey
+	jwksTestECOnce  sync.Once
+)
+
+func getJWKSTestRSAKey(t *testing.T) *rsa.PrivateKey {
+	t.Helper()
+	jwksTestRSAOnce.Do(func() {
+		var err error
+		jwksTestRSAKey, err = rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			panic("failed to generate test RSA key: " + err.Error())
+		}
+	})
+	return jwksTestRSAKey
+}
+
+func getJWKSTestECKey(t *testing.T) *ecdsa.PrivateKey {
+	t.Helper()
+	jwksTestECOnce.Do(func() {
+		var err error
+		jwksTestECKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			panic("failed to generate test EC key: " + err.Error())
+		}
+	})
+	return jwksTestECKey
+}
+
 func TestJWKS_RSA_ReturnsValidJWK(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
+	rsaKey := getJWKSTestRSAKey(t)
 
 	handler := NewJWKSHandler("RS256", "rsa-kid-1", &rsaKey.PublicKey)
 
@@ -51,8 +82,7 @@ func TestJWKS_RSA_ReturnsValidJWK(t *testing.T) {
 func TestJWKS_ECDSA_ReturnsValidJWK(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
+	ecKey := getJWKSTestECKey(t)
 
 	handler := NewJWKSHandler("ES256", "ec-kid-1", &ecKey.PublicKey)
 
@@ -104,8 +134,7 @@ func TestJWKS_HS256_ReturnsEmptyKeys(t *testing.T) {
 func TestJWKS_EC_CoordinatesPadded(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
+	ecKey := getJWKSTestECKey(t)
 
 	handler := NewJWKSHandler("ES256", "pad-test", &ecKey.PublicKey)
 
@@ -127,8 +156,7 @@ func TestJWKS_EC_CoordinatesPadded(t *testing.T) {
 }
 
 func TestJWKS_Keys_ReturnsCopy(t *testing.T) {
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
+	rsaKey := getJWKSTestRSAKey(t)
 
 	handler := NewJWKSHandler("RS256", "kid1", &rsaKey.PublicKey)
 
