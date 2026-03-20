@@ -3,6 +3,8 @@ package token
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/rsa"
 	"errors"
 	"fmt"
 	"time"
@@ -62,11 +64,35 @@ func NewLocalTokenProvider(cfg *config.Config, opts ...Option) (*LocalTokenProvi
 				"NewLocalTokenProvider: RS256 requires a signing key; use WithSigningKey",
 			)
 		}
+		if _, ok := p.signKey.(*rsa.PrivateKey); !ok {
+			return nil, fmt.Errorf(
+				"NewLocalTokenProvider: RS256 requires *rsa.PrivateKey, got %T",
+				p.signKey,
+			)
+		}
+		if _, ok := p.verifyKey.(*rsa.PublicKey); !ok {
+			return nil, fmt.Errorf(
+				"NewLocalTokenProvider: RS256 requires *rsa.PublicKey, got %T",
+				p.verifyKey,
+			)
+		}
 	case "ES256":
 		p.method = jwt.SigningMethodES256
 		if p.signKey == nil || p.verifyKey == nil {
 			return nil, errors.New(
 				"NewLocalTokenProvider: ES256 requires a signing key; use WithSigningKey",
+			)
+		}
+		if _, ok := p.signKey.(*ecdsa.PrivateKey); !ok {
+			return nil, fmt.Errorf(
+				"NewLocalTokenProvider: ES256 requires *ecdsa.PrivateKey, got %T",
+				p.signKey,
+			)
+		}
+		if _, ok := p.verifyKey.(*ecdsa.PublicKey); !ok {
+			return nil, fmt.Errorf(
+				"NewLocalTokenProvider: ES256 requires *ecdsa.PublicKey, got %T",
+				p.verifyKey,
 			)
 		}
 	case "HS256", "":
