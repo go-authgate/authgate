@@ -509,9 +509,14 @@ func validateCacheType(name, value, redisAddr string) error {
 
 // Validate checks the configuration for invalid values
 func (c *Config) Validate() error {
+	// Normalize empty TokenProviderMode to local
+	if c.TokenProviderMode == "" {
+		c.TokenProviderMode = TokenProviderModeLocal
+	}
+
 	// Validate token provider mode
 	switch c.TokenProviderMode {
-	case "", TokenProviderModeLocal, TokenProviderModeHTTPAPI:
+	case TokenProviderModeLocal, TokenProviderModeHTTPAPI:
 		// ok
 	default:
 		return fmt.Errorf(

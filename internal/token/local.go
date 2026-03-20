@@ -267,7 +267,10 @@ func mapRefreshError(err error) error {
 // keyFunc validates the signing method and returns the verification key.
 func (p *LocalTokenProvider) keyFunc(token *jwt.Token) (any, error) {
 	if token.Method.Alg() != p.method.Alg() {
-		return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		return nil, fmt.Errorf(
+			"unexpected signing method: got %q, expected %q",
+			token.Method.Alg(), p.method.Alg(),
+		)
 	}
 	return p.verifyKey, nil
 }
