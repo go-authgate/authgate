@@ -61,9 +61,9 @@ func LoadSigningKey(path string) (crypto.Signer, error) {
 	return nil, fmt.Errorf("no supported private key found in %s", path)
 }
 
-// DeriveKeyID computes a kid from the SHA-256 hash of the DER-encoded public key
-// (SPKI format). Returns a base64url-encoded string of the full 32-byte hash.
-// This is a stable, deterministic identifier suitable for JWKS key rotation.
+// DeriveKeyID computes a deterministic kid from the SHA-256 hash of the
+// DER-encoded public key (SPKI format). Returns a base64url-encoded string
+// of the full 32-byte hash, suitable for JWKS key rotation.
 func DeriveKeyID(pub crypto.PublicKey) (string, error) {
 	der, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
