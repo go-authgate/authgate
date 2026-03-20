@@ -97,10 +97,22 @@ func NewLocalTokenProvider(cfg *config.Config, opts ...Option) (*LocalTokenProvi
 				ecKey.Curve.Params().Name,
 			)
 		}
-		if _, ok := p.verifyKey.(*ecdsa.PublicKey); !ok {
+		pubKey, ok := p.verifyKey.(*ecdsa.PublicKey)
+		if !ok {
 			return nil, fmt.Errorf(
 				"NewLocalTokenProvider: ES256 requires *ecdsa.PublicKey, got %T",
 				p.verifyKey,
+			)
+		}
+		if pubKey.Curve != elliptic.P256() {
+			return nil, fmt.Errorf(
+				"NewLocalTokenProvider: ES256 requires P-256 curve for public key, got %s",
+				pubKey.Curve.Params().Name,
+			)
+		}
+		if ecKey.X.Cmp(pubKey.X) != 0 || ecKey.Y.Cmp(pubKey.Y) != 0 {
+			return nil, errors.New(
+				"NewLocalTokenProvider: ES256 signing and verification keys do not match",
 			)
 		}
 	case "HS256", "":
@@ -108,6 +120,7 @@ func NewLocalTokenProvider(cfg *config.Config, opts ...Option) (*LocalTokenProvi
 		p.method = jwt.SigningMethodHS256
 		p.signKey = []byte(cfg.JWTSecret)
 		p.verifyKey = []byte(cfg.JWTSecret)
+		p.keyID = ""
 	default:
 		return nil, fmt.Errorf(
 			"NewLocalTokenProvider: unsupported JWTSigningAlgorithm %q",
