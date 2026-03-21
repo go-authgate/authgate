@@ -546,5 +546,15 @@ func (c *Config) Validate() error {
 		)
 	}
 
+	// SESSION_REMEMBER_ME_MAX_AGE must be positive when remember-me is enabled.
+	// The gorilla/sessions cookie store codec has a default max-age of 30 days;
+	// values above 2592000 (30 days) may cause cookie decode failures.
+	if c.SessionRememberMeEnabled && c.SessionRememberMeMaxAge <= 0 {
+		return fmt.Errorf(
+			"SESSION_REMEMBER_ME_MAX_AGE must be a positive value when SESSION_REMEMBER_ME_ENABLED=true (got %d)",
+			c.SessionRememberMeMaxAge,
+		)
+	}
+
 	return nil
 }

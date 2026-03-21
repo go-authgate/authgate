@@ -58,10 +58,11 @@ func NewAuthHandler(
 
 // rememberMeDays converts SessionRememberMeMaxAge (seconds) to days for display.
 // Uses ceiling division so any partial day rounds up to the next whole day.
+// Clamps the result to a minimum of 1 day to avoid confusing "0 days" labels.
 func (h *AuthHandler) rememberMeDays() int {
 	maxAge := h.cfg.SessionRememberMeMaxAge
 	if maxAge <= 0 {
-		return 0
+		return 1
 	}
 	return (maxAge + 86400 - 1) / 86400
 }

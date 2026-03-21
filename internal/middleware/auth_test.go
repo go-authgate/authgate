@@ -546,6 +546,9 @@ func TestRequireAdmin_NoUserInContext(t *testing.T) {
 func TestSessionRememberMeMiddleware_SetsOptions(t *testing.T) {
 	r := setupTestRouter()
 
+	// Use 7 days (604800) to distinguish from gorilla's default 30-day MaxAge
+	const rememberMeMaxAge = 604800
+
 	// Set up session with remember_me flag
 	r.Use(func(c *gin.Context) {
 		session := sessions.Default(c)
@@ -555,7 +558,7 @@ func TestSessionRememberMeMiddleware_SetsOptions(t *testing.T) {
 		c.Next()
 	})
 
-	r.Use(SessionRememberMeMiddleware(2592000, false))
+	r.Use(SessionRememberMeMiddleware(rememberMeMaxAge, false))
 
 	handlerCalled := false
 	r.GET("/test", func(c *gin.Context) {
@@ -569,10 +572,20 @@ func TestSessionRememberMeMiddleware_SetsOptions(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.True(t, handlerCalled)
+
+	// Verify the last Set-Cookie header contains the remember-me Max-Age.
+	// Multiple Set-Cookie headers may exist; the browser uses the last one.
+	cookies := w.Header().Values("Set-Cookie")
+	require.NotEmpty(t, cookies, "expected at least one Set-Cookie header")
+	lastCookie := cookies[len(cookies)-1]
+	assert.Contains(t, lastCookie, "Max-Age=604800",
+		"remember-me cookie should have 7-day Max-Age")
 }
 
 func TestSessionRememberMeMiddleware_NoRememberMe(t *testing.T) {
 	r := setupTestRouter()
+
+	const rememberMeMaxAge = 604800
 
 	// Set up session WITHOUT remember_me flag
 	r.Use(func(c *gin.Context) {
@@ -582,7 +595,7 @@ func TestSessionRememberMeMiddleware_NoRememberMe(t *testing.T) {
 		c.Next()
 	})
 
-	r.Use(SessionRememberMeMiddleware(2592000, false))
+	r.Use(SessionRememberMeMiddleware(rememberMeMaxAge, false))
 
 	handlerCalled := false
 	r.GET("/test", func(c *gin.Context) {
@@ -596,6 +609,11 @@ func TestSessionRememberMeMiddleware_NoRememberMe(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.True(t, handlerCalled)
+
+	// Verify Set-Cookie does NOT contain the remember-me Max-Age
+	setCookie := w.Header().Get("Set-Cookie")
+	assert.NotContains(t, setCookie, "Max-Age=604800",
+		"non-remember-me cookie should not have 7-day Max-Age")
 }
 
 func TestSessionIdleTimeout_RememberMeBypassesTimeout(t *testing.T) {

@@ -92,12 +92,11 @@ func SessionRememberMeMiddleware(rememberMeMaxAge int, isProduction bool) gin.Ha
 	opts := SessionOptions(rememberMeMaxAge, isProduction)
 	return func(c *gin.Context) {
 		session := sessions.Default(c)
-		if session.Get(SessionRememberMe) != nil {
+		if remember, ok := session.Get(SessionRememberMe).(bool); ok && remember {
 			session.Options(opts)
-			c.Next()
-			// Ensure the updated cookie options are persisted (sliding expiration)
+			// Save before c.Next() so the sliding-expiration cookie is sent
+			// before the handler commits the response headers.
 			_ = session.Save()
-			return
 		}
 		c.Next()
 	}
@@ -164,9 +163,10 @@ func SessionIdleTimeout(idleTimeoutSeconds int) gin.HandlerFunc {
 		// Only check idle timeout for authenticated sessions
 		if userID != nil {
 			// For "remember me" sessions, skip idle-timeout enforcement
-			// but still update last activity for metrics/audit.
-			if session.Get(SessionRememberMe) != nil {
+			// but still update last activity and persist to the cookie.
+			if remember, ok := session.Get(SessionRememberMe).(bool); ok && remember {
 				session.Set(SessionLastActivity, time.Now().Unix())
+				_ = session.Save()
 				c.Next()
 				return
 			}
