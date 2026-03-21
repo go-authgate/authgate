@@ -737,6 +737,31 @@ func TestRequireAuth_DeletedUser_ClearsSessionAndRedirects(t *testing.T) {
 	// Should redirect to login (not 503)
 	assert.Equal(t, http.StatusFound, w.Code)
 	assert.Contains(t, w.Header().Get("Location"), "/login")
+
+	// Verify session is actually cleared by making a follow-up request
+	// with the returned cookies — RequireAuth should redirect again
+	// (no user_id in session) rather than loop back to /account/sessions.
+	r2 := setupTestRouter()
+	r2.Use(RequireAuth(userService))
+	var sessionUserID any
+	r2.GET("/login", func(c *gin.Context) {
+		session := sessions.Default(c)
+		sessionUserID = session.Get(SessionUserID)
+		c.String(http.StatusOK, "login page")
+	})
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequestWithContext(
+		context.Background(), http.MethodGet, "/login", nil,
+	)
+	// Forward cookies from first response
+	for _, c := range w.Result().Cookies() {
+		req2.AddCookie(c)
+	}
+	r2.ServeHTTP(w2, req2)
+
+	// The session should no longer contain the stale user_id
+	assert.Nil(t, sessionUserID, "stale user_id should be cleared from session")
 }
 
 func TestRequireAuth_TransientDBError_Returns503(t *testing.T) {

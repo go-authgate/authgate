@@ -57,9 +57,12 @@ func loadUserFromSession(c *gin.Context, userService *services.UserService) (boo
 	user, err := userService.GetUserByID(userIDStr)
 	if err != nil {
 		if errors.Is(err, services.ErrUserNotFound) {
-			// User no longer exists in DB — clear stale session to prevent redirect loops
+			// User no longer exists in DB — clear stale session to prevent redirect loops.
+			// Return save errors so callers can 503 instead of redirect-looping.
 			session.Clear()
-			_ = session.Save()
+			if saveErr := session.Save(); saveErr != nil {
+				return false, saveErr
+			}
 			return false, nil
 		}
 		// Transient DB error — don't clear the session
