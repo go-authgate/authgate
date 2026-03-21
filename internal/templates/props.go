@@ -63,9 +63,11 @@ type SuccessPageProps struct {
 type LoginPageProps struct {
 	BaseProps
 	NavbarProps
-	Error          string
-	Redirect       string
-	OAuthProviders []OAuthProvider
+	Error             string
+	Redirect          string
+	OAuthProviders    []OAuthProvider
+	RememberMeEnabled bool
+	RememberMeDays    int // Display label: "Remember me for N days"
 }
 
 // DevicePageProps contains properties for the device authorization page

@@ -542,3 +542,158 @@ func TestRequireAdmin_NoUserInContext(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
+
+func TestSessionRememberMeMiddleware_SetsOptions(t *testing.T) {
+	r := setupTestRouter()
+
+	// Use 7 days (604800) to distinguish from gorilla's default 30-day MaxAge
+	const rememberMeMaxAge = 604800
+
+	// Set up session with remember_me flag
+	r.Use(func(c *gin.Context) {
+		session := sessions.Default(c)
+		session.Set(SessionUserID, "user123")
+		session.Set(SessionRememberMe, true)
+		_ = session.Save()
+		c.Next()
+	})
+
+	r.Use(SessionRememberMeMiddleware(rememberMeMaxAge, false))
+
+	handlerCalled := false
+	r.GET("/test", func(c *gin.Context) {
+		handlerCalled = true
+		c.String(http.StatusOK, "OK")
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, handlerCalled)
+
+	// Verify the last Set-Cookie header contains the remember-me Max-Age.
+	// Multiple Set-Cookie headers may exist; the browser uses the last one.
+	cookies := w.Header().Values("Set-Cookie")
+	require.NotEmpty(t, cookies, "expected at least one Set-Cookie header")
+	lastCookie := cookies[len(cookies)-1]
+	assert.Contains(t, lastCookie, "Max-Age=604800",
+		"remember-me cookie should have 7-day Max-Age")
+}
+
+func TestSessionRememberMeMiddleware_NoRememberMe(t *testing.T) {
+	r := setupTestRouter()
+
+	const rememberMeMaxAge = 604800
+
+	// Set up session WITHOUT remember_me flag
+	r.Use(func(c *gin.Context) {
+		session := sessions.Default(c)
+		session.Set(SessionUserID, "user123")
+		_ = session.Save()
+		c.Next()
+	})
+
+	r.Use(SessionRememberMeMiddleware(rememberMeMaxAge, false))
+
+	handlerCalled := false
+	r.GET("/test", func(c *gin.Context) {
+		handlerCalled = true
+		c.String(http.StatusOK, "OK")
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, handlerCalled)
+
+	// Verify Set-Cookie does NOT contain the remember-me Max-Age
+	setCookie := w.Header().Get("Set-Cookie")
+	assert.NotContains(t, setCookie, "Max-Age=604800",
+		"non-remember-me cookie should not have 7-day Max-Age")
+}
+
+func TestSessionIdleTimeout_RememberMeBypassesTimeout(t *testing.T) {
+	r := setupTestRouter()
+
+	// Set up session with remember_me AND expired last activity
+	r.Use(func(c *gin.Context) {
+		session := sessions.Default(c)
+		session.Set(SessionUserID, "user123")
+		session.Set(SessionRememberMe, true)
+		session.Set(SessionLastActivity, time.Now().Unix()-3600) // 1 hour ago
+		_ = session.Save()
+		c.Next()
+	})
+
+	// Add idle timeout middleware (30 seconds — would normally expire)
+	r.Use(SessionIdleTimeout(30))
+
+	handlerCalled := false
+	r.GET("/test", func(c *gin.Context) {
+		handlerCalled = true
+		c.String(http.StatusOK, "OK")
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
+	r.ServeHTTP(w, req)
+
+	// Should NOT redirect (remember-me bypasses idle timeout)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, handlerCalled)
+}
+
+func TestSessionIdleTimeout_RememberMeUpdatesLastActivity(t *testing.T) {
+	r := setupTestRouter()
+
+	oldTimestamp := time.Now().Unix() - 3600 // 1 hour ago
+
+	// Set up session with remember_me and old last activity
+	r.Use(func(c *gin.Context) {
+		session := sessions.Default(c)
+		session.Set(SessionUserID, "user123")
+		session.Set(SessionRememberMe, true)
+		session.Set(SessionLastActivity, oldTimestamp)
+		_ = session.Save()
+		c.Next()
+	})
+
+	r.Use(SessionIdleTimeout(30))
+
+	r.GET("/test", func(c *gin.Context) {
+		session := sessions.Default(c)
+		lastActivity := session.Get(SessionLastActivity)
+		assert.NotNil(t, lastActivity)
+		// Last activity should be updated even for remember-me sessions
+		assert.Greater(t, lastActivity.(int64), oldTimestamp)
+		c.String(http.StatusOK, "OK")
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestSessionOptions_Production(t *testing.T) {
+	opts := SessionOptions(3600, true)
+	assert.Equal(t, "/", opts.Path)
+	assert.Equal(t, 3600, opts.MaxAge)
+	assert.True(t, opts.HttpOnly)
+	assert.True(t, opts.Secure)
+	assert.Equal(t, http.SameSiteLaxMode, opts.SameSite)
+}
+
+func TestSessionOptions_Development(t *testing.T) {
+	opts := SessionOptions(2592000, false)
+	assert.Equal(t, "/", opts.Path)
+	assert.Equal(t, 2592000, opts.MaxAge)
+	assert.True(t, opts.HttpOnly)
+	assert.False(t, opts.Secure)
+	assert.Equal(t, http.SameSiteLaxMode, opts.SameSite)
+}

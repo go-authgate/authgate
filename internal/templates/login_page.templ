@@ -103,6 +103,31 @@ templ LoginPage(props LoginPageProps) {
 							required
 						/>
 					</div>
+					if props.RememberMeEnabled {
+						<div class="login-remember">
+							<label class="login-remember-label" for="remember_me">
+								<input
+									type="checkbox"
+									id="remember_me"
+									name="remember_me"
+									value="1"
+									class="login-remember-checkbox"
+								/>
+								<span class="login-remember-indicator" aria-hidden="true">
+									<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<polyline points="2.5 6 5 8.5 9.5 3.5"></polyline>
+									</svg>
+								</span>
+								<span class="login-remember-text">
+								if props.RememberMeDays == 1 {
+									{ fmt.Sprintf("Remember me for %d day", props.RememberMeDays) }
+								} else {
+									{ fmt.Sprintf("Remember me for %d days", props.RememberMeDays) }
+								}
+							</span>
+							</label>
+						</div>
+					}
 					<button type="submit" class="login-submit-btn">
 						Sign In
 					</button>
