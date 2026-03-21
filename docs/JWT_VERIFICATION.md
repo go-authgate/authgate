@@ -49,57 +49,34 @@ Benefits:
 
 ## How It Works
 
-```
-                                    ┌─────────────┐
-                              ┌────►│  JWKS Cache  │
-                              │     └──────┬───────┘
-                              │            │ lookup by kid
-                              │            ▼
-┌────────┐  access_token  ┌───┴────────────────┐
-│ Client  ├──────────────►│  Resource Server    │──► Verify signature
-│  App    │  (Bearer JWT) │  (your API)         │──► Validate claims
-└───┬─────┘               └───┬────────────────┘──► Grant/deny access
-    │                         │
-    │ authenticate            │ fetch JWKS (cached)
-    ▼                         ▼
-┌──────────┐           ┌──────────┐
-│ AuthGate │           │ AuthGate │
-│ /oauth/  │           │ /.well-  │
-│ token    │           │ known/   │
-│          │           │ jwks.json│
-└──────────┘           └──────────┘
+```mermaid
+flowchart LR
+    Client[Client App] -->|authenticate| AuthToken[AuthGate<br/>/oauth/token]
+    Client -->|"access_token (Bearer JWT)"| RS[Resource Server<br/>your API]
+    RS -->|lookup by kid| Cache[JWKS Cache]
+    RS -->|"fetch JWKS (cached)"| AuthJWKS[AuthGate<br/>/.well-known/jwks.json]
+    RS --> Verify["✓ Verify signature<br/>✓ Validate claims<br/>✓ Grant/deny access"]
 ```
 
 **Sequence diagram:**
 
-```
-Client App                    AuthGate                  Resource Server
-    │                            │                            │
-    │  POST /oauth/token         │                            │
-    │  (authenticate)            │                            │
-    │───────────────────────────►│                            │
-    │                            │                            │
-    │  access_token (JWT)        │                            │
-    │◄───────────────────────────│                            │
-    │                            │                            │
-    │  GET /api/resource                                      │
-    │  Authorization: Bearer <JWT>                            │
-    │────────────────────────────────────────────────────────►│
-    │                            │                            │
-    │                            │  GET /.well-known/jwks.json│
-    │                            │  (first time or cache miss)│
-    │                            │◄───────────────────────────│
-    │                            │                            │
-    │                            │  {"keys": [...]}           │
-    │                            │───────────────────────────►│
-    │                            │                            │
-    │                            │     Verify JWT signature   │
-    │                            │     + validate claims      │
-    │                            │     (all local, no call    │
-    │                            │      back to AuthGate)     │
-    │                            │                            │
-    │  200 OK (resource data)                                 │
-    │◄────────────────────────────────────────────────────────│
+```mermaid
+sequenceDiagram
+    participant Client as Client App
+    participant AuthGate as AuthGate
+    participant RS as Resource Server
+
+    Client->>+AuthGate: POST /oauth/token<br/>(authenticate)
+    AuthGate-->>-Client: access_token (JWT)
+
+    Client->>+RS: GET /api/resource<br/>Authorization: Bearer <JWT>
+
+    RS->>+AuthGate: GET /.well-known/jwks.json<br/>(first time or cache miss)
+    AuthGate-->>-RS: {"keys": [...]}
+
+    Note over RS: Verify JWT signature<br/>+ validate claims<br/>(all local, no call back to AuthGate)
+
+    RS-->>-Client: 200 OK (resource data)
 ```
 
 ## Configuring AuthGate
@@ -246,17 +223,17 @@ The `kid` (Key ID) header identifies which key was used to sign the token. Use t
 }
 ```
 
-| Claim       | Description                            |
-| ----------- | -------------------------------------- |
-| `user_id`   | End-user identifier, or `client:<client_id>` for `client_credentials` tokens |
-| `client_id` | OAuth client that requested the token  |
-| `scope`     | Space-separated list of granted scopes |
-| `type`      | `access` or `refresh`                  |
-| `exp`       | Expiration time (Unix timestamp)       |
-| `iat`       | Issued-at time (Unix timestamp)        |
-| `iss`       | Issuer URL (AuthGate's `BASE_URL`)     |
+| Claim       | Description                                                                                 |
+| ----------- | ------------------------------------------------------------------------------------------- |
+| `user_id`   | End-user identifier, or `client:<client_id>` for `client_credentials` tokens                |
+| `client_id` | OAuth client that requested the token                                                       |
+| `scope`     | Space-separated list of granted scopes                                                      |
+| `type`      | `access` or `refresh`                                                                       |
+| `exp`       | Expiration time (Unix timestamp)                                                            |
+| `iat`       | Issued-at time (Unix timestamp)                                                             |
+| `iss`       | Issuer URL (AuthGate's `BASE_URL`)                                                          |
 | `sub`       | Subject: user UUID for user tokens, or `client:<client_id>` for `client_credentials` tokens |
-| `jti`       | Unique token identifier (UUID)         |
+| `jti`       | Unique token identifier (UUID)                                                              |
 
 > **Note:** For access tokens issued via the `client_credentials` grant, there is no end user. Both `sub` and `user_id` are set to a synthetic machine identity (`client:<client_id>`).
 
