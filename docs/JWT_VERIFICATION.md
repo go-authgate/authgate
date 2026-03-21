@@ -518,7 +518,7 @@ T+1h:  All old access tokens have expired (default expiry = 1 hour)
 - AuthGate serves **a single active public key** in the JWKS response (multi-key JWKS is not currently supported)
 - During rotation, resource servers that don't handle unknown `kid` gracefully may reject new tokens until their JWKS cache expires
 
-> For key management security practices, see the [Security Guide](SECURITY.md#asymmetric-key-management-rs256es256).
+> For key management security practices, see the [Security Guide](SECURITY.md#secrets-management).
 
 ## Common Pitfalls
 
