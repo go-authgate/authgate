@@ -69,7 +69,7 @@ sequenceDiagram
     Client->>+AuthGate: POST /oauth/token<br/>(authenticate)
     AuthGate-->>-Client: access_token (JWT)
 
-    Client->>+RS: GET /api/resource<br/>Authorization: Bearer <JWT>
+    Client->>+RS: GET /api/resource<br/>Authorization: Bearer [JWT]
 
     RS->>+AuthGate: GET /.well-known/jwks.json<br/>(first time or cache miss)
     AuthGate-->>-RS: {"keys": [...]}
