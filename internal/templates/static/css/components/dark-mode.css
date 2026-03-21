@@ -343,21 +343,25 @@
   color: #fca5a5;
 }
 
-/* Login brand icon — hardcoded #dbeafe and rgba(0,114,255) won't adapt in dark mode */
+/* Login brand icon — use theme primary color token instead of hardcoded rgba() */
 [data-theme="dark"] .login-brand-icon {
-  background: linear-gradient(135deg, var(--color-primary-pale), rgba(88, 166, 255, 0.12));
-  border-color: rgba(88, 166, 255, 0.2);
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-pale),
+    color-mix(in srgb, var(--color-primary) 12%, transparent)
+  );
+  border-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
 }
 
-/* Login security label — hardcoded rgba(0,114,255) border/bg won't adapt in dark mode */
+/* Login security label — derive border/bg from theme primary color token */
 [data-theme="dark"] .login-security-label {
-  border-color: rgba(88, 166, 255, 0.25);
-  background: rgba(88, 166, 255, 0.06);
+  border-color: color-mix(in srgb, var(--color-primary) 25%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
 }
 
-/* Login card shadow — hardcoded rgba(0,114,255) glow is too bright on dark backgrounds */
+/* Login card shadow — derive glow from theme primary color token */
 [data-theme="dark"] .login-card {
   box-shadow:
-    0 20px 50px -12px rgba(88, 166, 255, 0.08),
-    0 0 0 1px rgba(88, 166, 255, 0.1);
+    0 20px 50px -12px color-mix(in srgb, var(--color-primary) 8%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
