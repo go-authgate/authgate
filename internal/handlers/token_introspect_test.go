@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/metrics"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
@@ -70,7 +71,7 @@ func createIntrospectClient(
 		UserID:                      uuid.New().String(),
 		Scopes:                      "read write",
 		GrantTypes:                  "client_credentials",
-		ClientType:                  services.ClientTypeConfidential,
+		ClientType:                  core.ClientTypeConfidential.String(),
 		EnableClientCredentialsFlow: true,
 		Status:                      models.ClientStatusActive,
 	}

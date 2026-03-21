@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/store"
 
@@ -25,7 +26,7 @@ func TestCreateClient_CCFlowConfidentialSuccess(t *testing.T) {
 		ClientName:                  "CC Confidential",
 		UserID:                      userID,
 		CreatedBy:                   userID,
-		ClientType:                  ClientTypeConfidential,
+		ClientType:                  core.ClientTypeConfidential,
 		EnableClientCredentialsFlow: true,
 		IsAdminCreated:              true,
 	})
@@ -43,7 +44,7 @@ func TestCreateClient_CCFlowPublicRejected(t *testing.T) {
 		ClientName:                  "CC Public",
 		UserID:                      userID,
 		CreatedBy:                   userID,
-		ClientType:                  ClientTypePublic,
+		ClientType:                  core.ClientTypePublic,
 		EnableClientCredentialsFlow: true,
 		IsAdminCreated:              true,
 	})
@@ -215,7 +216,7 @@ func TestUserUpdateClient_CCFlowConfidentialClient(t *testing.T) {
 		ClientName:     "CC App",
 		UserID:         ownerID,
 		CreatedBy:      ownerID,
-		ClientType:     ClientTypeConfidential,
+		ClientType:     core.ClientTypeConfidential,
 		IsAdminCreated: false,
 	})
 	require.NoError(t, err)
@@ -226,7 +227,7 @@ func TestUserUpdateClient_CCFlowConfidentialClient(t *testing.T) {
 		ownerID,
 		UserUpdateClientRequest{
 			ClientName:                  "CC App",
-			ClientType:                  ClientTypeConfidential,
+			ClientType:                  core.ClientTypeConfidential,
 			EnableClientCredentialsFlow: true,
 			Scopes:                      "email",
 		},
@@ -248,7 +249,7 @@ func TestUserUpdateClient_CCFlowPublicClientRejected(t *testing.T) {
 		ClientName:     "Public CC App",
 		UserID:         ownerID,
 		CreatedBy:      ownerID,
-		ClientType:     ClientTypePublic,
+		ClientType:     core.ClientTypePublic,
 		IsAdminCreated: false,
 	})
 	require.NoError(t, err)
@@ -259,7 +260,7 @@ func TestUserUpdateClient_CCFlowPublicClientRejected(t *testing.T) {
 		ownerID,
 		UserUpdateClientRequest{
 			ClientName:                  "Public CC App",
-			ClientType:                  ClientTypePublic,
+			ClientType:                  core.ClientTypePublic,
 			EnableClientCredentialsFlow: true,
 			Scopes:                      "email",
 		},
@@ -276,7 +277,7 @@ func TestUserUpdateClient_CCOnlyConfidentialClient(t *testing.T) {
 		ClientName:     "CC Only App",
 		UserID:         ownerID,
 		CreatedBy:      ownerID,
-		ClientType:     ClientTypeConfidential,
+		ClientType:     core.ClientTypeConfidential,
 		IsAdminCreated: false,
 	})
 	require.NoError(t, err)
@@ -288,7 +289,7 @@ func TestUserUpdateClient_CCOnlyConfidentialClient(t *testing.T) {
 		ownerID,
 		UserUpdateClientRequest{
 			ClientName:                  "CC Only App",
-			ClientType:                  ClientTypeConfidential,
+			ClientType:                  core.ClientTypeConfidential,
 			EnableClientCredentialsFlow: true,
 			EnableDeviceFlow:            false,
 			EnableAuthCodeFlow:          false,

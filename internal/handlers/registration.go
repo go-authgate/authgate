@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
 
@@ -132,12 +133,12 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 		authMethod = "client_secret_basic"
 	}
 
-	var clientType string
+	var clientType core.ClientType
 	switch authMethod {
 	case "none":
-		clientType = services.ClientTypePublic
+		clientType = core.ClientTypePublic
 	case "client_secret_basic", "client_secret_post":
-		clientType = services.ClientTypeConfidential
+		clientType = core.ClientTypeConfidential
 	default:
 		respondOAuthError(
 			c,

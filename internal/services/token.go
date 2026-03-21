@@ -690,7 +690,7 @@ func (s *TokenService) IssueClientCredentialsToken(
 	}
 
 	// 2. Only confidential clients may use this flow
-	if client.ClientType != ClientTypeConfidential {
+	if core.ClientType(client.ClientType) != core.ClientTypeConfidential {
 		return nil, ErrClientNotConfidential
 	}
 

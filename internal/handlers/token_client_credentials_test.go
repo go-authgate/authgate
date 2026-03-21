@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/metrics"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
@@ -63,7 +64,7 @@ func createCCClient(
 	t *testing.T,
 	s *store.Store,
 	enableFlow bool,
-	clientType string,
+	clientType core.ClientType,
 ) (*models.OAuthApplication, string) {
 	t.Helper()
 	client := &models.OAuthApplication{
@@ -72,7 +73,7 @@ func createCCClient(
 		UserID:                      uuid.New().String(),
 		Scopes:                      "read write",
 		GrantTypes:                  "client_credentials",
-		ClientType:                  clientType,
+		ClientType:                  clientType.String(),
 		EnableClientCredentialsFlow: enableFlow,
 		Status:                      models.ClientStatusActive,
 	}
@@ -107,7 +108,7 @@ func postToken(
 
 func TestHandleClientCredentialsGrant_BasicAuth_Success(t *testing.T) {
 	r, s := setupCCTestEnv(t)
-	client, plainSecret := createCCClient(t, s, true, services.ClientTypeConfidential)
+	client, plainSecret := createCCClient(t, s, true, core.ClientTypeConfidential)
 
 	form := url.Values{"grant_type": {"client_credentials"}}
 	w := postToken(t, r, form, &[2]string{client.ClientID, plainSecret})
@@ -127,7 +128,7 @@ func TestHandleClientCredentialsGrant_BasicAuth_Success(t *testing.T) {
 
 func TestHandleClientCredentialsGrant_FormBody_Success(t *testing.T) {
 	r, s := setupCCTestEnv(t)
-	client, plainSecret := createCCClient(t, s, true, services.ClientTypeConfidential)
+	client, plainSecret := createCCClient(t, s, true, core.ClientTypeConfidential)
 
 	form := url.Values{
 		"grant_type":    {"client_credentials"},
@@ -147,7 +148,7 @@ func TestHandleClientCredentialsGrant_FormBody_Success(t *testing.T) {
 
 func TestHandleClientCredentialsGrant_ScopeRestriction(t *testing.T) {
 	r, s := setupCCTestEnv(t)
-	client, plainSecret := createCCClient(t, s, true, services.ClientTypeConfidential)
+	client, plainSecret := createCCClient(t, s, true, core.ClientTypeConfidential)
 
 	form := url.Values{
 		"grant_type": {"client_credentials"},
@@ -181,7 +182,7 @@ func TestHandleClientCredentialsGrant_MissingCredentials(t *testing.T) {
 
 func TestHandleClientCredentialsGrant_WrongSecret(t *testing.T) {
 	r, s := setupCCTestEnv(t)
-	client, _ := createCCClient(t, s, true, services.ClientTypeConfidential)
+	client, _ := createCCClient(t, s, true, core.ClientTypeConfidential)
 
 	form := url.Values{"grant_type": {"client_credentials"}}
 	w := postToken(t, r, form, &[2]string{client.ClientID, "wrong-secret"})
@@ -197,7 +198,7 @@ func TestHandleClientCredentialsGrant_WrongSecret(t *testing.T) {
 func TestHandleClientCredentialsGrant_PublicClient(t *testing.T) {
 	r, s := setupCCTestEnv(t)
 	// Public client — CC flow should be rejected regardless
-	client, plainSecret := createCCClient(t, s, false, services.ClientTypePublic)
+	client, plainSecret := createCCClient(t, s, false, core.ClientTypePublic)
 
 	form := url.Values{"grant_type": {"client_credentials"}}
 	w := postToken(t, r, form, &[2]string{client.ClientID, plainSecret})
@@ -212,7 +213,7 @@ func TestHandleClientCredentialsGrant_PublicClient(t *testing.T) {
 
 func TestHandleClientCredentialsGrant_FlowDisabled(t *testing.T) {
 	r, s := setupCCTestEnv(t)
-	client, plainSecret := createCCClient(t, s, false, services.ClientTypeConfidential)
+	client, plainSecret := createCCClient(t, s, false, core.ClientTypeConfidential)
 
 	form := url.Values{"grant_type": {"client_credentials"}}
 	w := postToken(t, r, form, &[2]string{client.ClientID, plainSecret})
@@ -227,7 +228,7 @@ func TestHandleClientCredentialsGrant_FlowDisabled(t *testing.T) {
 
 func TestHandleClientCredentialsGrant_InvalidScope(t *testing.T) {
 	r, s := setupCCTestEnv(t)
-	client, plainSecret := createCCClient(t, s, true, services.ClientTypeConfidential)
+	client, plainSecret := createCCClient(t, s, true, core.ClientTypeConfidential)
 
 	form := url.Values{
 		"grant_type": {"client_credentials"},
@@ -243,7 +244,7 @@ func TestHandleClientCredentialsGrant_InvalidScope(t *testing.T) {
 
 func TestHandleClientCredentialsGrant_OpenIDScopeRejected(t *testing.T) {
 	r, s := setupCCTestEnv(t)
-	client, plainSecret := createCCClient(t, s, true, services.ClientTypeConfidential)
+	client, plainSecret := createCCClient(t, s, true, core.ClientTypeConfidential)
 
 	form := url.Values{
 		"grant_type": {"client_credentials"},
@@ -261,7 +262,7 @@ func TestHandleClientCredentialsGrant_OpenIDScopeRejected(t *testing.T) {
 
 func TestTokenInfo_SubjectType_Client(t *testing.T) {
 	r, s := setupCCTestEnv(t)
-	client, plainSecret := createCCClient(t, s, true, services.ClientTypeConfidential)
+	client, plainSecret := createCCClient(t, s, true, core.ClientTypeConfidential)
 
 	// Issue a client credentials token
 	form := url.Values{"grant_type": {"client_credentials"}}

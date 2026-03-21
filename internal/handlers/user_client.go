@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/middleware"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
@@ -71,7 +72,7 @@ func (h *UserClientHandler) CreateApp(c *gin.Context) {
 		Scopes:                      c.PostForm("scopes"),
 		RedirectURIs:                parseRedirectURIs(c.PostForm("redirect_uris")),
 		CreatedBy:                   userID.(string),
-		ClientType:                  c.PostForm("client_type"),
+		ClientType:                  core.NormalizeClientType(c.PostForm("client_type")),
 		EnableDeviceFlow:            c.PostForm("enable_device_flow") == queryValueTrue,
 		EnableAuthCodeFlow:          c.PostForm("enable_auth_code_flow") == queryValueTrue,
 		EnableClientCredentialsFlow: c.PostForm("enable_client_credentials_flow") == queryValueTrue,
@@ -105,7 +106,7 @@ func (h *UserClientHandler) CreateApp(c *gin.Context) {
 			Description:                 req.Description,
 			Scopes:                      req.Scopes,
 			RedirectURIs:                strings.Join(req.RedirectURIs, ", "),
-			ClientType:                  req.ClientType,
+			ClientType:                  req.ClientType.String(),
 			EnableDeviceFlow:            req.EnableDeviceFlow,
 			EnableAuthCodeFlow:          req.EnableAuthCodeFlow,
 			EnableClientCredentialsFlow: req.EnableClientCredentialsFlow,
@@ -205,7 +206,7 @@ func (h *UserClientHandler) UpdateApp(c *gin.Context) {
 		Description:                 c.PostForm("description"),
 		Scopes:                      c.PostForm("scopes"),
 		RedirectURIs:                parseRedirectURIs(c.PostForm("redirect_uris")),
-		ClientType:                  c.PostForm("client_type"),
+		ClientType:                  core.NormalizeClientType(c.PostForm("client_type")),
 		EnableDeviceFlow:            c.PostForm("enable_device_flow") == queryValueTrue,
 		EnableAuthCodeFlow:          c.PostForm("enable_auth_code_flow") == queryValueTrue,
 		EnableClientCredentialsFlow: c.PostForm("enable_client_credentials_flow") == queryValueTrue,
@@ -224,7 +225,7 @@ func (h *UserClientHandler) UpdateApp(c *gin.Context) {
 			Description:                 req.Description,
 			Scopes:                      req.Scopes,
 			RedirectURIs:                strings.Join(req.RedirectURIs, ", "),
-			ClientType:                  req.ClientType,
+			ClientType:                  req.ClientType.String(),
 			EnableDeviceFlow:            req.EnableDeviceFlow,
 			EnableAuthCodeFlow:          req.EnableAuthCodeFlow,
 			EnableClientCredentialsFlow: req.EnableClientCredentialsFlow,
@@ -294,12 +295,7 @@ func (h *UserClientHandler) RegenerateAppSecret(c *gin.Context) {
 		return
 	}
 
-	refreshed, err := h.clientService.GetClient(clientID)
-	if err != nil {
-		// Fall back to the pre-regeneration client loaded during ownership check
-		refreshed = client
-	}
-	display := clientToDisplay(refreshed)
+	display := clientToDisplay(client)
 
 	templates.RenderTempl(
 		c,

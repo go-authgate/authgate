@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/metrics"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/store"
@@ -31,7 +32,7 @@ func createConfidentialClientWithCCFlow(
 		UserID:                      uuid.New().String(),
 		Scopes:                      "read write",
 		GrantTypes:                  "client_credentials",
-		ClientType:                  ClientTypeConfidential,
+		ClientType:                  core.ClientTypeConfidential.String(),
 		EnableClientCredentialsFlow: enableCCFlow,
 		Status:                      models.ClientStatusActive,
 	}
@@ -119,7 +120,7 @@ func TestIssueClientCredentialsToken_Error_PublicClient(t *testing.T) {
 		UserID:                      uuid.New().String(),
 		Scopes:                      "read",
 		GrantTypes:                  "authorization_code",
-		ClientType:                  ClientTypePublic,
+		ClientType:                  core.ClientTypePublic.String(),
 		EnableClientCredentialsFlow: false,
 		Status:                      models.ClientStatusActive,
 	}

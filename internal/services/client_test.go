@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/store"
 
@@ -276,7 +277,7 @@ func TestCreateClient_PublicClientType(t *testing.T) {
 		UserID:             userID,
 		CreatedBy:          userID,
 		Scopes:             "read",
-		ClientType:         ClientTypePublic,
+		ClientType:         core.ClientTypePublic,
 		EnableAuthCodeFlow: true,
 		RedirectURIs:       []string{"https://spa.example.com/callback"},
 	}
@@ -284,7 +285,7 @@ func TestCreateClient_PublicClientType(t *testing.T) {
 	resp, err := svc.CreateClient(context.Background(), req)
 	require.NoError(t, err)
 
-	assert.Equal(t, ClientTypePublic, resp.ClientType)
+	assert.Equal(t, core.ClientTypePublic.String(), resp.ClientType)
 }
 
 func TestCreateClient_DefaultClientType(t *testing.T) {
@@ -303,7 +304,7 @@ func TestCreateClient_DefaultClientType(t *testing.T) {
 	resp, err := svc.CreateClient(context.Background(), req)
 	require.NoError(t, err)
 
-	assert.Equal(t, ClientTypeConfidential, resp.ClientType)
+	assert.Equal(t, core.ClientTypeConfidential.String(), resp.ClientType)
 }
 
 func TestCreateClient_DefaultScope(t *testing.T) {
