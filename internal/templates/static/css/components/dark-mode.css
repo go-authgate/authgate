@@ -342,3 +342,22 @@
   border-left-color: #f87171;
   color: #fca5a5;
 }
+
+/* Login brand icon — hardcoded #dbeafe and rgba(0,114,255) won't adapt in dark mode */
+[data-theme="dark"] .login-brand-icon {
+  background: linear-gradient(135deg, var(--color-primary-pale), rgba(88, 166, 255, 0.12));
+  border-color: rgba(88, 166, 255, 0.2);
+}
+
+/* Login security label — hardcoded rgba(0,114,255) border/bg won't adapt in dark mode */
+[data-theme="dark"] .login-security-label {
+  border-color: rgba(88, 166, 255, 0.25);
+  background: rgba(88, 166, 255, 0.06);
+}
+
+/* Login card shadow — hardcoded rgba(0,114,255) glow is too bright on dark backgrounds */
+[data-theme="dark"] .login-card {
+  box-shadow:
+    0 20px 50px -12px rgba(88, 166, 255, 0.08),
+    0 0 0 1px rgba(88, 166, 255, 0.1);
+}
