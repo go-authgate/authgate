@@ -496,12 +496,15 @@ server.listen(8081, () => console.log("Resource server on :8081"));
 
 ## Key Rotation
 
-AuthGate supports key rotation. To achieve zero-downtime, run multiple AuthGate instances behind a load balancer and perform a rolling restart:
+AuthGate supports key rotation. Since AuthGate currently serves a single active key in the JWKS response, all instances must be updated to the new key at the same time to avoid intermittent verification failures:
 
 1. **Generate a new key pair** (see [Configuring AuthGate](#configuring-authgate))
-2. **Update `JWT_PRIVATE_KEY_PATH`** (and optionally `JWT_KEY_ID`) in AuthGate's configuration
-3. **Restart AuthGate** — new tokens are signed with the new key; the JWKS endpoint serves the new public key
-4. **Resource servers adapt automatically** — tokens with an unknown `kid` trigger a JWKS re-fetch
+2. **Update `JWT_PRIVATE_KEY_PATH`** (and optionally `JWT_KEY_ID`) in AuthGate's configuration on all instances
+3. **Pre-warm resource server JWKS caches** — optionally, have resource servers fetch the new JWKS before the switch
+4. **Restart all AuthGate instances** — new tokens are signed with the new key; the JWKS endpoint serves the new public key
+5. **Resource servers adapt automatically** — tokens with an unknown `kid` trigger a JWKS re-fetch
+
+> **Note:** During the brief window between restart and JWKS cache refresh, resource servers with stale caches may reject tokens signed with the new key. To minimize this, ensure resource servers re-fetch JWKS on unknown `kid` (as shown in the [Code Examples](#code-examples)).
 
 ### Timeline
 
