@@ -78,14 +78,10 @@ func setupRouter(
 // setupSessionMiddleware configures session handling middleware
 func setupSessionMiddleware(r *gin.Engine, cfg *config.Config) {
 	sessionStore := cookie.NewStore([]byte(cfg.SessionSecret))
-	sessionStore.Options(sessions.Options{
-		Path:     "/",
-		MaxAge:   cfg.SessionMaxAge,
-		HttpOnly: true,
-		Secure:   cfg.IsProduction,
-		SameSite: http.SameSiteLaxMode,
-	})
+	opts := middleware.SessionOptions(cfg.SessionMaxAge, cfg.IsProduction)
+	sessionStore.Options(opts)
 	r.Use(sessions.Sessions("oauth_session", sessionStore))
+	r.Use(middleware.SessionRememberMeMiddleware(cfg.SessionRememberMeMaxAge, cfg.IsProduction))
 	r.Use(middleware.SessionIdleTimeout(cfg.SessionIdleTimeout))
 	r.Use(middleware.SessionFingerprintMiddleware(cfg.SessionFingerprint, cfg.SessionFingerprintIP))
 }

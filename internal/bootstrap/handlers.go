@@ -50,9 +50,7 @@ func initializeHandlers(deps handlerDeps) handlerSet {
 	return handlerSet{
 		auth: handlers.NewAuthHandler(
 			deps.services.user,
-			deps.cfg.BaseURL,
-			deps.cfg.SessionFingerprint,
-			deps.cfg.SessionFingerprintIP,
+			deps.cfg,
 			deps.metrics,
 		),
 		device: handlers.NewDeviceHandler(

@@ -18,7 +18,20 @@ const (
 	SessionUsername     = "username"
 	SessionLastActivity = "last_activity"
 	SessionFingerprint  = "session_fingerprint"
+	SessionRememberMe   = "remember_me"
 )
+
+// SessionOptions builds a sessions.Options with the project's standard cookie
+// settings (Path "/", HttpOnly, SameSite Lax, Secure based on production flag).
+func SessionOptions(maxAge int, isProduction bool) sessions.Options {
+	return sessions.Options{
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   isProduction,
+		SameSite: http.SameSiteLaxMode,
+	}
+}
 
 // GenerateFingerprint creates a SHA256 hash from IP (optional) and User-Agent.
 func GenerateFingerprint(ip, userAgent string, includeIP bool) string {
@@ -69,6 +82,19 @@ func RequireAuth(userService *services.UserService) gin.HandlerFunc {
 			return
 		}
 
+		c.Next()
+	}
+}
+
+// SessionRememberMeMiddleware overrides cookie MaxAge for "remember me" sessions.
+// Must run after sessions.Sessions() and before SessionIdleTimeout.
+func SessionRememberMeMiddleware(rememberMeMaxAge int, isProduction bool) gin.HandlerFunc {
+	opts := SessionOptions(rememberMeMaxAge, isProduction)
+	return func(c *gin.Context) {
+		session := sessions.Default(c)
+		if session.Get(SessionRememberMe) != nil {
+			session.Options(opts)
+		}
 		c.Next()
 	}
 }
@@ -133,6 +159,12 @@ func SessionIdleTimeout(idleTimeoutSeconds int) gin.HandlerFunc {
 
 		// Only check idle timeout for authenticated sessions
 		if userID != nil {
+			// Skip idle timeout for "remember me" sessions
+			if session.Get(SessionRememberMe) != nil {
+				c.Next()
+				return
+			}
+
 			lastActivity := session.Get(SessionLastActivity)
 
 			if lastActivity != nil {

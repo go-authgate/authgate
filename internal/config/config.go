@@ -44,11 +44,13 @@ type Config struct {
 	JWTKeyID            string // "kid" header for JWKS key rotation (auto-generated if empty)
 
 	// Session settings
-	SessionSecret        string
-	SessionMaxAge        int  // Session max age in seconds (default: 3600 = 1 hour)
-	SessionIdleTimeout   int  // Session idle timeout in seconds (0 = disabled, default: 1800 = 30 minutes)
-	SessionFingerprint   bool // Enable session fingerprinting (IP + User-Agent validation, default: true)
-	SessionFingerprintIP bool // Include IP address in fingerprint (default: false, due to dynamic IPs)
+	SessionSecret            string
+	SessionMaxAge            int  // Session max age in seconds (default: 3600 = 1 hour)
+	SessionIdleTimeout       int  // Session idle timeout in seconds (0 = disabled, default: 1800 = 30 minutes)
+	SessionFingerprint       bool // Enable session fingerprinting (IP + User-Agent validation, default: true)
+	SessionFingerprintIP     bool // Include IP address in fingerprint (default: false, due to dynamic IPs)
+	SessionRememberMeEnabled bool // Enable "Remember Me" checkbox on login (default: true)
+	SessionRememberMeMaxAge  int  // Remember Me session max age in seconds (default: 2592000 = 30 days)
 
 	// Device code settings
 	DeviceCodeExpiration time.Duration
@@ -236,14 +238,16 @@ func Load() *Config {
 			"SESSION_FINGERPRINT_IP",
 			false,
 		), // Disabled by default (dynamic IPs)
-		DeviceCodeExpiration: 30 * time.Minute,
-		PollingInterval:      5,
-		DatabaseDriver:       driver,
-		DatabaseDSN:          dsn,
-		DBMaxOpenConns:       getEnvInt("DB_MAX_OPEN_CONNS", 25),
-		DBMaxIdleConns:       getEnvInt("DB_MAX_IDLE_CONNS", 10),
-		DBConnMaxLifetime:    getEnvDuration("DB_CONN_MAX_LIFETIME", 5*time.Minute),
-		DBConnMaxIdleTime:    getEnvDuration("DB_CONN_MAX_IDLE_TIME", 10*time.Minute),
+		SessionRememberMeEnabled: getEnvBool("SESSION_REMEMBER_ME_ENABLED", true),
+		SessionRememberMeMaxAge:  getEnvInt("SESSION_REMEMBER_ME_MAX_AGE", 2592000), // 30 days
+		DeviceCodeExpiration:     30 * time.Minute,
+		PollingInterval:          5,
+		DatabaseDriver:           driver,
+		DatabaseDSN:              dsn,
+		DBMaxOpenConns:           getEnvInt("DB_MAX_OPEN_CONNS", 25),
+		DBMaxIdleConns:           getEnvInt("DB_MAX_IDLE_CONNS", 10),
+		DBConnMaxLifetime:        getEnvDuration("DB_CONN_MAX_LIFETIME", 5*time.Minute),
+		DBConnMaxIdleTime:        getEnvDuration("DB_CONN_MAX_IDLE_TIME", 10*time.Minute),
 
 		// Default Admin User
 		DefaultAdminPassword: getEnv("DEFAULT_ADMIN_PASSWORD", ""),

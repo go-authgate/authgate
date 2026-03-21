@@ -354,6 +354,95 @@
   color: var(--color-gray-400);
 }
 
+/* Remember me checkbox */
+.login-remember {
+  margin-bottom: var(--space-6);
+}
+
+.login-remember-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Hide native checkbox visually but keep it accessible */
+.login-remember-checkbox {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Custom checkbox indicator */
+.login-remember-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border: 2px solid var(--color-gray-300);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-secondary);
+  color: transparent;
+  transition:
+    background 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.login-remember-indicator svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Hover state */
+.login-remember-label:hover .login-remember-indicator {
+  border-color: var(--color-primary);
+  background: var(--color-bg-primary);
+}
+
+/* Focus-visible ring (keyboard navigation) */
+.login-remember-checkbox:focus-visible + .login-remember-indicator {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow:
+    0 0 0 4px rgba(0, 114, 255, 0.1),
+    0 0 12px rgba(0, 114, 255, 0.08);
+}
+
+/* Checked state */
+.login-remember-checkbox:checked + .login-remember-indicator {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
+.login-remember-checkbox:checked + .login-remember-indicator svg {
+  animation: checkPop 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Label text */
+.login-remember-text {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  transition: color var(--transition-fast);
+}
+
+.login-remember-label:hover .login-remember-text {
+  color: var(--color-text-primary);
+}
+
 /* Submit button */
 .login-submit-btn {
   width: 100%;
@@ -455,6 +544,18 @@
   }
 }
 
+@keyframes checkPop {
+  0% {
+    transform: scale(0);
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 @keyframes gradientShift {
   0%, 100% {
     background-position: 0% 50%;
@@ -539,6 +640,15 @@
   .login-submit-btn:hover {
     transform: none !important;
   }
+
+  .login-remember-indicator,
+  .login-remember-text {
+    transition: none !important;
+  }
+
+  .login-remember-checkbox:checked + .login-remember-indicator svg {
+    animation: none !important;
+  }
 }
 
 @media (prefers-contrast: high) {
@@ -547,6 +657,10 @@
   }
 
   .login-form-input {
+    border-width: 3px;
+  }
+
+  .login-remember-indicator {
     border-width: 3px;
   }
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/auth"
+	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/middleware"
 	"github.com/go-authgate/authgate/internal/models"
@@ -38,27 +39,26 @@ func buildOAuthProviderList(providers map[string]*auth.OAuthProvider) []template
 }
 
 type AuthHandler struct {
-	userService                 *services.UserService
-	baseURL                     string
-	sessionFingerprintEnabled   bool
-	sessionFingerprintIncludeIP bool
-	metrics                     core.Recorder
+	userService *services.UserService
+	cfg         *config.Config
+	metrics     core.Recorder
 }
 
 func NewAuthHandler(
 	us *services.UserService,
-	baseURL string,
-	fingerprintEnabled bool,
-	fingerprintIncludeIP bool,
+	cfg *config.Config,
 	m core.Recorder,
 ) *AuthHandler {
 	return &AuthHandler{
-		userService:                 us,
-		baseURL:                     baseURL,
-		sessionFingerprintEnabled:   fingerprintEnabled,
-		sessionFingerprintIncludeIP: fingerprintIncludeIP,
-		metrics:                     m,
+		userService: us,
+		cfg:         cfg,
+		metrics:     m,
 	}
+}
+
+// rememberMeDays converts SessionRememberMeMaxAge (seconds) to days for display.
+func (h *AuthHandler) rememberMeDays() int {
+	return h.cfg.SessionRememberMeMaxAge / 86400
 }
 
 // LoginPage renders the login page
@@ -80,7 +80,7 @@ func (h *AuthHandler) LoginPageWithOAuth(
 
 	redirectTo := c.Query("redirect")
 	// Validate redirect URL security
-	if !util.IsRedirectSafe(redirectTo, h.baseURL) {
+	if !util.IsRedirectSafe(redirectTo, h.cfg.BaseURL) {
 		redirectTo = ""
 	}
 
@@ -98,10 +98,12 @@ func (h *AuthHandler) LoginPageWithOAuth(
 	}
 
 	templates.RenderTempl(c, http.StatusOK, templates.LoginPage(templates.LoginPageProps{
-		BaseProps:      templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-		Redirect:       redirectTo,
-		Error:          errorMsg,
-		OAuthProviders: buildOAuthProviderList(oauthProviders),
+		BaseProps:         templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		Redirect:          redirectTo,
+		Error:             errorMsg,
+		OAuthProviders:    buildOAuthProviderList(oauthProviders),
+		RememberMeEnabled: h.cfg.SessionRememberMeEnabled,
+		RememberMeDays:    h.rememberMeDays(),
 	}))
 }
 
@@ -115,7 +117,7 @@ func (h *AuthHandler) Login(c *gin.Context,
 	redirectTo := c.PostForm("redirect")
 
 	// Validate redirect URL security, fall back to default
-	if !util.IsRedirectSafe(redirectTo, h.baseURL) {
+	if !util.IsRedirectSafe(redirectTo, h.cfg.BaseURL) {
 		redirectTo = "/account/sessions"
 	}
 
@@ -139,10 +141,12 @@ func (h *AuthHandler) Login(c *gin.Context,
 			c,
 			http.StatusUnauthorized,
 			templates.LoginPage(templates.LoginPageProps{
-				BaseProps:      templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-				Error:          errorMsg,
-				Redirect:       redirectTo,
-				OAuthProviders: buildOAuthProviderList(oauthProviders),
+				BaseProps:         templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				Error:             errorMsg,
+				Redirect:          redirectTo,
+				OAuthProviders:    buildOAuthProviderList(oauthProviders),
+				RememberMeEnabled: h.cfg.SessionRememberMeEnabled,
+				RememberMeDays:    h.rememberMeDays(),
 			}),
 		)
 		return
@@ -164,15 +168,23 @@ func (h *AuthHandler) Login(c *gin.Context,
 	session.Set(SessionLastActivity, time.Now().Unix()) // Set initial last activity time
 
 	// Set session fingerprint if enabled
-	if h.sessionFingerprintEnabled {
+	if h.cfg.SessionFingerprint {
 		clientIP := c.GetString(middleware.ContextKeyClientIP) // Set by IPMiddleware
 		userAgent := c.Request.UserAgent()
 		fingerprint := middleware.GenerateFingerprint(
 			clientIP,
 			userAgent,
-			h.sessionFingerprintIncludeIP,
+			h.cfg.SessionFingerprintIP,
 		)
 		session.Set(SessionFingerprint, fingerprint)
+	}
+
+	// Handle "Remember Me" — extend session to configured duration
+	if h.cfg.SessionRememberMeEnabled && c.PostForm("remember_me") == "1" {
+		session.Set(middleware.SessionRememberMe, true)
+		session.Options(
+			middleware.SessionOptions(h.cfg.SessionRememberMeMaxAge, h.cfg.IsProduction),
+		)
 	}
 
 	if err := session.Save(); err != nil {
@@ -180,8 +192,10 @@ func (h *AuthHandler) Login(c *gin.Context,
 			c,
 			http.StatusInternalServerError,
 			templates.LoginPage(templates.LoginPageProps{
-				BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-				Error:     "Failed to create session",
+				BaseProps:         templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				Error:             "Failed to create session",
+				RememberMeEnabled: h.cfg.SessionRememberMeEnabled,
+				RememberMeDays:    h.rememberMeDays(),
 			}),
 		)
 		return

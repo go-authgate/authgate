@@ -20,6 +20,13 @@
   box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.25);
 }
 
+/* Remember-me checkbox focus ring */
+[data-theme="dark"] .login-remember-checkbox:focus-visible + .login-remember-indicator {
+  box-shadow:
+    0 0 0 4px rgba(88, 166, 255, 0.2),
+    0 0 12px rgba(88, 166, 255, 0.12);
+}
+
 /* Navbar — ensure readable contrast */
 [data-theme="dark"] .navbar {
   background: rgba(13, 17, 23, 0.95);
