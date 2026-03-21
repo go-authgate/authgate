@@ -51,7 +51,8 @@ func newCCTokenService(t *testing.T) (*TokenService, *store.Store) {
 		JWTSecret:                        "test-secret",
 		BaseURL:                          "http://localhost:8080",
 	}
-	localProvider := token.NewLocalTokenProvider(cfg)
+	localProvider, err := token.NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
 	svc := NewTokenService(
 		s,
 		cfg,

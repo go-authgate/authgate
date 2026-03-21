@@ -14,10 +14,12 @@ import (
 
 // OIDCHandler handles OIDC Discovery and UserInfo endpoints.
 type OIDCHandler struct {
-	tokenService *services.TokenService
-	userService  *services.UserService
-	config       *config.Config
-	issuerURL    string // BaseURL with trailing slash stripped, computed once
+	tokenService     *services.TokenService
+	userService      *services.UserService
+	config           *config.Config
+	issuerURL        string // BaseURL with trailing slash stripped, computed once
+	jwksAvailable    bool   // true when JWKS endpoint has at least one public key
+	idTokenSupported bool   // true when the token provider can generate ID tokens
 }
 
 // NewOIDCHandler creates a new OIDCHandler.
@@ -25,12 +27,16 @@ func NewOIDCHandler(
 	ts *services.TokenService,
 	us *services.UserService,
 	cfg *config.Config,
+	jwksAvailable bool,
+	idTokenSupported bool,
 ) *OIDCHandler {
 	return &OIDCHandler{
-		tokenService: ts,
-		userService:  us,
-		config:       cfg,
-		issuerURL:    strings.TrimRight(cfg.BaseURL, "/"),
+		tokenService:     ts,
+		userService:      us,
+		config:           cfg,
+		issuerURL:        strings.TrimRight(cfg.BaseURL, "/"),
+		jwksAvailable:    jwksAvailable,
+		idTokenSupported: idTokenSupported,
 	}
 }
 
@@ -41,9 +47,10 @@ type discoveryMetadata struct {
 	TokenEndpoint                    string   `json:"token_endpoint"`
 	UserinfoEndpoint                 string   `json:"userinfo_endpoint"`
 	RevocationEndpoint               string   `json:"revocation_endpoint"`
+	JwksURI                          string   `json:"jwks_uri,omitempty"`
 	ResponseTypesSupported           []string `json:"response_types_supported"`
 	SubjectTypesSupported            []string `json:"subject_types_supported"`
-	IDTokenSigningAlgValuesSupported []string `json:"id_token_signing_alg_values_supported"`
+	IDTokenSigningAlgValuesSupported []string `json:"id_token_signing_alg_values_supported,omitempty"`
 	ScopesSupported                  []string `json:"scopes_supported"`
 	TokenEndpointAuthMethods         []string `json:"token_endpoint_auth_methods_supported"`
 	GrantTypesSupported              []string `json:"grant_types_supported"`
@@ -60,6 +67,18 @@ type discoveryMetadata struct {
 //	@Success		200	{object}	discoveryMetadata	"Provider metadata"
 //	@Router			/.well-known/openid-configuration [get]
 func (h *OIDCHandler) Discovery(c *gin.Context) {
+	alg := h.config.JWTSigningAlgorithm
+	if alg == "" {
+		alg = "HS256"
+	}
+
+	scopes := []string{"read", "write"}
+	var idTokenAlgs []string
+	if h.idTokenSupported {
+		scopes = append([]string{"openid", "profile", "email"}, scopes...)
+		idTokenAlgs = []string{alg}
+	}
+
 	meta := discoveryMetadata{
 		Issuer:                           h.issuerURL,
 		AuthorizationEndpoint:            h.issuerURL + "/oauth/authorize",
@@ -68,8 +87,8 @@ func (h *OIDCHandler) Discovery(c *gin.Context) {
 		RevocationEndpoint:               h.issuerURL + "/oauth/revoke",
 		ResponseTypesSupported:           []string{"code"},
 		SubjectTypesSupported:            []string{"public"},
-		IDTokenSigningAlgValuesSupported: []string{"HS256"},
-		ScopesSupported:                  []string{"openid", "profile", "email", "read", "write"},
+		IDTokenSigningAlgValuesSupported: idTokenAlgs,
+		ScopesSupported:                  scopes,
 		TokenEndpointAuthMethods: []string{
 			"client_secret_basic",
 			"client_secret_post",
@@ -99,6 +118,12 @@ func (h *OIDCHandler) Discovery(c *gin.Context) {
 		},
 		CodeChallengeMethodsSupported: []string{"S256"},
 	}
+
+	// Include jwks_uri only when the JWKS endpoint has public keys
+	if h.jwksAvailable {
+		meta.JwksURI = h.issuerURL + "/.well-known/jwks.json"
+	}
+
 	c.JSON(http.StatusOK, meta)
 }
 

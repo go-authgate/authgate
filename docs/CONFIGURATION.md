@@ -234,6 +234,74 @@ echo "SESSION_SECRET=$(openssl rand -hex 32)" >> .env
 
 ---
 
+## JWT Signing Algorithm
+
+AuthGate supports three JWT signing algorithms:
+
+| Algorithm | Type       | Key                          | Use Case                                |
+| --------- | ---------- | ---------------------------- | --------------------------------------- |
+| `HS256`   | Symmetric  | `JWT_SECRET` (shared secret) | Default, simple deployments             |
+| `RS256`   | Asymmetric | RSA private key (2048+ bits) | Resource servers verify with public key |
+| `ES256`   | Asymmetric | ECDSA P-256 private key      | Compact tokens, modern deployments      |
+
+### Configuration
+
+```bash
+# HS256 (default — no additional config needed)
+JWT_SIGNING_ALGORITHM=HS256
+
+# RS256
+JWT_SIGNING_ALGORITHM=RS256
+JWT_PRIVATE_KEY_PATH=/path/to/rsa-private.pem
+JWT_KEY_ID=                   # Optional: auto-generated from key fingerprint
+
+# ES256
+JWT_SIGNING_ALGORITHM=ES256
+JWT_PRIVATE_KEY_PATH=/path/to/ec-private.pem
+JWT_KEY_ID=                   # Optional: auto-generated from key fingerprint
+```
+
+### Generate Keys
+
+```bash
+# RSA 2048-bit key for RS256
+openssl genrsa -out rsa-private.pem 2048
+
+# ECDSA P-256 key for ES256
+openssl ecparam -genkey -name prime256v1 -noout -out ec-private.pem
+```
+
+### JWKS Endpoint
+
+When using RS256 or ES256 with the local token provider (`TOKEN_PROVIDER_MODE=local` or unset), AuthGate exposes the public key at:
+
+```
+GET /.well-known/jwks.json
+```
+
+Resource servers can fetch this endpoint to verify JWT signatures without sharing secrets. The OIDC Discovery endpoint (`/.well-known/openid-configuration`) includes the `jwks_uri` field automatically.
+
+> **Note**: JWKS and `jwks_uri` are only available when the local token provider loads an asymmetric private key. When using `TOKEN_PROVIDER_MODE=http_api`, the JWKS endpoint returns an empty key set.
+
+For HS256, the JWKS endpoint returns an empty key set (`{"keys":[]}`) since symmetric secrets are never exposed.
+
+### Key Rotation
+
+Use `JWT_KEY_ID` to set an explicit `kid` (Key ID) header in JWTs. This enables key rotation:
+
+1. Generate a new key pair
+2. Update `JWT_PRIVATE_KEY_PATH` and `JWT_KEY_ID` to point to the new key
+3. Restart the server — it will begin signing new tokens with the new key
+4. Resource servers match the `kid` header to select the correct verification key from JWKS
+
+> **Note**: The JWKS endpoint serves a single active public key at a time. For zero-downtime
+> rotation, pre-cache the new JWKS at resource servers before switching, or accept a brief
+> gap while cached JWKS entries expire. Multi-key JWKS is not currently supported.
+
+If `JWT_KEY_ID` is not set, it is automatically derived from the SHA-256 hash of the DER-encoded public key.
+
+---
+
 ## Default Test Data
 
 The server initializes with default test accounts:
@@ -849,8 +917,8 @@ REDIS_PASSWORD=your-password
 | `POST /oauth/device/code` | 10 req/min | Prevent device code spam             |
 | `POST /oauth/token`       | 20 req/min | Allow polling while preventing abuse |
 | `POST /device/verify`     | 10 req/min | Prevent user code guessing           |
-| `POST /oauth/register`   | 5 req/min  | Prevent registration spam            |
-| `POST /oauth/introspect` | 20 req/min | Prevent client secret brute force    |
+| `POST /oauth/register`    | 5 req/min  | Prevent registration spam            |
+| `POST /oauth/introspect`  | 20 req/min | Prevent client secret brute force    |
 
 ### Configuration Guide
 
@@ -895,13 +963,13 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,https://app.example.com
 
 ### Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CORS_ENABLED` | `false` | Enable CORS for API endpoints |
-| `CORS_ALLOWED_ORIGINS` | _(none)_ | Comma-separated list of allowed origins |
-| `CORS_ALLOWED_METHODS` | `GET,POST,PUT,DELETE,OPTIONS` | Allowed HTTP methods |
-| `CORS_ALLOWED_HEADERS` | `Origin,Content-Type,Authorization` | Allowed request headers |
-| `CORS_MAX_AGE` | `12h` | How long browsers cache preflight responses |
+| Variable               | Default                             | Description                                 |
+| ---------------------- | ----------------------------------- | ------------------------------------------- |
+| `CORS_ENABLED`         | `false`                             | Enable CORS for API endpoints               |
+| `CORS_ALLOWED_ORIGINS` | _(none)_                            | Comma-separated list of allowed origins     |
+| `CORS_ALLOWED_METHODS` | `GET,POST,PUT,DELETE,OPTIONS`       | Allowed HTTP methods                        |
+| `CORS_ALLOWED_HEADERS` | `Origin,Content-Type,Authorization` | Allowed request headers                     |
+| `CORS_MAX_AGE`         | `12h`                               | How long browsers cache preflight responses |
 
 ### How It Works
 

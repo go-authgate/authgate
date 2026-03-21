@@ -136,7 +136,7 @@ func TestDiscovery_ReturnsCorrectMetadata(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{BaseURL: "https://auth.example.com"}
-	handler := NewOIDCHandler(nil, nil, cfg)
+	handler := NewOIDCHandler(nil, nil, cfg, false, true)
 
 	r := gin.New()
 	r.GET("/.well-known/openid-configuration", handler.Discovery)
@@ -198,7 +198,7 @@ func TestDiscovery_StripsTrailingSlashFromBaseURL(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{BaseURL: "https://auth.example.com/"}
-	handler := NewOIDCHandler(nil, nil, cfg)
+	handler := NewOIDCHandler(nil, nil, cfg, false, true)
 
 	r := gin.New()
 	r.GET("/.well-known/openid-configuration", handler.Discovery)
@@ -224,7 +224,7 @@ func TestUserInfo_NoAuthorizationHeader_Returns401(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{BaseURL: "https://auth.example.com"}
-	handler := NewOIDCHandler(nil, nil, cfg)
+	handler := NewOIDCHandler(nil, nil, cfg, false, true)
 
 	r := gin.New()
 	r.GET("/oauth/userinfo", handler.UserInfo)
@@ -247,7 +247,7 @@ func TestUserInfo_NonBearerToken_Returns401(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{BaseURL: "https://auth.example.com"}
-	handler := NewOIDCHandler(nil, nil, cfg)
+	handler := NewOIDCHandler(nil, nil, cfg, false, true)
 
 	r := gin.New()
 	r.GET("/oauth/userinfo", handler.UserInfo)
@@ -262,4 +262,127 @@ func TestUserInfo_NonBearerToken_Returns401(t *testing.T) {
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	assert.Equal(t, "invalid_token", body["error"])
+}
+
+// ============================================================
+// Discovery — JWT signing algorithm and jwks_uri
+// ============================================================
+
+func TestDiscovery_RS256_IncludesJwksURI(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		BaseURL:             "https://auth.example.com",
+		JWTSigningAlgorithm: "RS256",
+	}
+	handler := NewOIDCHandler(nil, nil, cfg, true, true)
+
+	r := gin.New()
+	r.GET("/.well-known/openid-configuration", handler.Discovery)
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/openid-configuration", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var meta map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &meta))
+
+	// jwks_uri present for asymmetric algorithms
+	assert.Equal(t, "https://auth.example.com/.well-known/jwks.json", meta["jwks_uri"])
+
+	// Algorithm matches config
+	algs, ok := meta["id_token_signing_alg_values_supported"].([]any)
+	require.True(t, ok)
+	assert.Contains(t, algs, "RS256")
+}
+
+func TestDiscovery_ES256_IncludesJwksURI(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		BaseURL:             "https://auth.example.com",
+		JWTSigningAlgorithm: "ES256",
+	}
+	handler := NewOIDCHandler(nil, nil, cfg, true, true)
+
+	r := gin.New()
+	r.GET("/.well-known/openid-configuration", handler.Discovery)
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/openid-configuration", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var meta map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &meta))
+
+	assert.Equal(t, "https://auth.example.com/.well-known/jwks.json", meta["jwks_uri"])
+
+	algs, ok := meta["id_token_signing_alg_values_supported"].([]any)
+	require.True(t, ok)
+	assert.Contains(t, algs, "ES256")
+}
+
+func TestDiscovery_HS256_NoJwksURI(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		BaseURL:             "https://auth.example.com",
+		JWTSigningAlgorithm: "HS256",
+	}
+	handler := NewOIDCHandler(nil, nil, cfg, false, true)
+
+	r := gin.New()
+	r.GET("/.well-known/openid-configuration", handler.Discovery)
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/openid-configuration", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var meta map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &meta))
+
+	// jwks_uri must be absent for HS256
+	_, hasJwksURI := meta["jwks_uri"]
+	assert.False(t, hasJwksURI, "HS256 should not include jwks_uri")
+
+	algs, ok := meta["id_token_signing_alg_values_supported"].([]any)
+	require.True(t, ok)
+	assert.Contains(t, algs, "HS256")
+}
+
+func TestDiscovery_EmptyAlgorithm_DefaultsToHS256(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		BaseURL:             "https://auth.example.com",
+		JWTSigningAlgorithm: "", // empty = default HS256
+	}
+	handler := NewOIDCHandler(nil, nil, cfg, false, true)
+
+	r := gin.New()
+	r.GET("/.well-known/openid-configuration", handler.Discovery)
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/openid-configuration", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var meta map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &meta))
+
+	// Default to HS256 when empty
+	algs, ok := meta["id_token_signing_alg_values_supported"].([]any)
+	require.True(t, ok)
+	assert.Contains(t, algs, "HS256")
+
+	// No jwks_uri for HS256
+	_, hasJwksURI := meta["jwks_uri"]
+	assert.False(t, hasJwksURI)
 }

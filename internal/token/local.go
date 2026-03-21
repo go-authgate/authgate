@@ -2,6 +2,10 @@ package token
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rsa"
 	"errors"
 	"fmt"
 	"time"
@@ -16,12 +20,166 @@ var _ core.TokenProvider = (*LocalTokenProvider)(nil)
 
 // LocalTokenProvider generates and validates JWT tokens locally
 type LocalTokenProvider struct {
-	config *config.Config
+	config    *config.Config
+	method    jwt.SigningMethod // HS256 / RS256 / ES256
+	signKey   any               // []byte (HS256) / *rsa.PrivateKey / *ecdsa.PrivateKey
+	verifyKey any               // []byte (HS256) / *rsa.PublicKey / *ecdsa.PublicKey
+	keyID     string            // "kid" header value (empty for HS256)
 }
 
-// NewLocalTokenProvider creates a new local token provider
-func NewLocalTokenProvider(cfg *config.Config) *LocalTokenProvider {
-	return &LocalTokenProvider{config: cfg}
+// Option configures a LocalTokenProvider.
+type Option func(*LocalTokenProvider)
+
+// WithSigningKey sets the asymmetric signing and verification keys.
+// Only *rsa.PrivateKey/*rsa.PublicKey (RS256) and *ecdsa.PrivateKey/*ecdsa.PublicKey (ES256)
+// are supported; NewLocalTokenProvider validates concrete types and returns an error on mismatch.
+func WithSigningKey(privateKey crypto.Signer, publicKey crypto.PublicKey) Option {
+	return func(p *LocalTokenProvider) {
+		p.signKey = privateKey
+		p.verifyKey = publicKey
+	}
+}
+
+// WithKeyID sets the "kid" JWT header value.
+func WithKeyID(kid string) Option {
+	return func(p *LocalTokenProvider) {
+		p.keyID = kid
+	}
+}
+
+// NewLocalTokenProvider creates a new local token provider.
+// By default it uses HS256. Use WithSigningKey and WithKeyID for asymmetric algorithms.
+// Returns an error if the algorithm requires an asymmetric key but none was provided.
+func NewLocalTokenProvider(cfg *config.Config, opts ...Option) (*LocalTokenProvider, error) {
+	p := &LocalTokenProvider{config: cfg}
+
+	// Apply options first so signKey can be set before choosing method
+	for _, opt := range opts {
+		opt(p)
+	}
+
+	// Determine signing method from config
+	switch cfg.JWTSigningAlgorithm {
+	case "RS256":
+		p.method = jwt.SigningMethodRS256
+		if p.signKey == nil || p.verifyKey == nil {
+			return nil, errors.New(
+				"NewLocalTokenProvider: RS256 requires a signing key; use WithSigningKey",
+			)
+		}
+		privKey, ok := p.signKey.(*rsa.PrivateKey)
+		if !ok {
+			return nil, fmt.Errorf(
+				"NewLocalTokenProvider: RS256 requires *rsa.PrivateKey, got %T",
+				p.signKey,
+			)
+		}
+		pubKey, ok := p.verifyKey.(*rsa.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf(
+				"NewLocalTokenProvider: RS256 requires *rsa.PublicKey, got %T",
+				p.verifyKey,
+			)
+		}
+		if privKey.N.BitLen() < 2048 {
+			return nil, fmt.Errorf(
+				"NewLocalTokenProvider: RS256 requires at least 2048-bit RSA key, got %d-bit",
+				privKey.N.BitLen(),
+			)
+		}
+		derivedPub := &privKey.PublicKey
+		if pubKey.E != derivedPub.E || pubKey.N.Cmp(derivedPub.N) != 0 {
+			return nil, errors.New(
+				"NewLocalTokenProvider: RS256 signing and verification keys do not match",
+			)
+		}
+	case "ES256":
+		p.method = jwt.SigningMethodES256
+		if p.signKey == nil || p.verifyKey == nil {
+			return nil, errors.New(
+				"NewLocalTokenProvider: ES256 requires a signing key; use WithSigningKey",
+			)
+		}
+		ecKey, ok := p.signKey.(*ecdsa.PrivateKey)
+		if !ok {
+			return nil, fmt.Errorf(
+				"NewLocalTokenProvider: ES256 requires *ecdsa.PrivateKey, got %T",
+				p.signKey,
+			)
+		}
+		if ecKey.Curve != elliptic.P256() {
+			return nil, fmt.Errorf(
+				"NewLocalTokenProvider: ES256 requires P-256 curve, got %s",
+				ecKey.Curve.Params().Name,
+			)
+		}
+		pubKey, ok := p.verifyKey.(*ecdsa.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf(
+				"NewLocalTokenProvider: ES256 requires *ecdsa.PublicKey, got %T",
+				p.verifyKey,
+			)
+		}
+		if pubKey.Curve != elliptic.P256() {
+			return nil, fmt.Errorf(
+				"NewLocalTokenProvider: ES256 requires P-256 curve for public key, got %s",
+				pubKey.Curve.Params().Name,
+			)
+		}
+		if ecKey.X.Cmp(pubKey.X) != 0 || ecKey.Y.Cmp(pubKey.Y) != 0 {
+			return nil, errors.New(
+				"NewLocalTokenProvider: ES256 signing and verification keys do not match",
+			)
+		}
+	case "HS256", "":
+		// HS256 (default)
+		p.method = jwt.SigningMethodHS256
+		p.signKey = []byte(cfg.JWTSecret)
+		p.verifyKey = []byte(cfg.JWTSecret)
+		p.keyID = ""
+	default:
+		return nil, fmt.Errorf(
+			"NewLocalTokenProvider: unsupported JWTSigningAlgorithm %q",
+			cfg.JWTSigningAlgorithm,
+		)
+	}
+
+	return p, nil
+}
+
+// PublicKey returns the asymmetric public verification key.
+// Returns nil for HS256 (symmetric key).
+func (p *LocalTokenProvider) PublicKey() crypto.PublicKey {
+	switch p.verifyKey.(type) {
+	case []byte:
+		return nil // HS256 symmetric secret
+	default:
+		return p.verifyKey
+	}
+}
+
+// KeyID returns the "kid" value used in JWT headers.
+func (p *LocalTokenProvider) KeyID() string {
+	return p.keyID
+}
+
+// Algorithm returns the JWT signing algorithm name (e.g. "HS256", "RS256", "ES256").
+func (p *LocalTokenProvider) Algorithm() string {
+	return p.method.Alg()
+}
+
+// signClaims creates a signed JWT from the given claims using the provider's
+// signing method, key, and optional kid header. Shared by generateJWT and GenerateIDToken.
+func (p *LocalTokenProvider) signClaims(claims jwt.MapClaims) (string, error) {
+	tok := jwt.NewWithClaims(p.method, claims)
+	if p.keyID != "" {
+		tok.Header["kid"] = p.keyID
+	}
+	signed, err := tok.SignedString(p.signKey)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrTokenGeneration, err)
+	}
+	return signed, nil
 }
 
 // generateJWT creates a signed JWT token with the given claims and expiration
@@ -41,10 +199,9 @@ func (p *LocalTokenProvider) generateJWT(
 		"jti":       uuid.New().String(),
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(p.config.JWTSecret))
+	tokenString, err := p.signClaims(claims)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrTokenGeneration, err)
+		return nil, err
 	}
 
 	return &Result{
@@ -107,12 +264,15 @@ func mapRefreshError(err error) error {
 	}
 }
 
-// keyFunc validates the signing method and returns the HMAC secret.
+// keyFunc validates the signing method and returns the verification key.
 func (p *LocalTokenProvider) keyFunc(token *jwt.Token) (any, error) {
-	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-		return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+	if token.Method.Alg() != p.method.Alg() {
+		return nil, fmt.Errorf(
+			"unexpected signing method: got %q, expected %q",
+			token.Method.Alg(), p.method.Alg(),
+		)
 	}
-	return []byte(p.config.JWTSecret), nil
+	return p.verifyKey, nil
 }
 
 // GenerateToken creates a JWT token using local signing

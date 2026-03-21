@@ -3,7 +3,6 @@ package token
 import (
 	"crypto/sha256"
 	"encoding/base64"
-	"fmt"
 	"time"
 
 	"github.com/go-authgate/authgate/internal/core"
@@ -22,7 +21,8 @@ type IDTokenProvider = core.IDTokenProvider
 // unchanged while the canonical definition lives in core.
 type IDTokenParams = core.IDTokenParams
 
-// GenerateIDToken creates a signed HS256 JWT ID Token for the given params.
+// GenerateIDToken creates a signed JWT ID Token for the given params.
+// The signing algorithm and key are determined by the provider's configuration.
 // ID tokens are not stored in the database; they are short-lived and non-revocable by design.
 func (p *LocalTokenProvider) GenerateIDToken(params IDTokenParams) (string, error) {
 	now := time.Now()
@@ -68,12 +68,7 @@ func (p *LocalTokenProvider) GenerateIDToken(params IDTokenParams) (string, erro
 		claims["email_verified"] = params.EmailVerified
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(p.config.JWTSecret))
-	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrTokenGeneration, err)
-	}
-	return tokenString, nil
+	return p.signClaims(claims)
 }
 
 // ComputeAtHash computes the at_hash claim value per OIDC Core 1.0 §3.3.2.11.
