@@ -660,6 +660,8 @@ func TestSessionIdleTimeout_RememberMeUpdatesLastActivity(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	// Verify session was saved (Set-Cookie present), ensuring cookie expiration slides
+	assert.NotEmpty(t, w.Header().Get("Set-Cookie"), "session.Save() must be called to slide cookie expiration")
 }
 
 func TestSessionOptions_Production(t *testing.T) {

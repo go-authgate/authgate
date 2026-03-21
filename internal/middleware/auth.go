@@ -164,9 +164,11 @@ func SessionIdleTimeout(idleTimeoutSeconds int) gin.HandlerFunc {
 		// Only check idle timeout for authenticated sessions
 		if userID != nil {
 			// For "remember me" sessions, skip idle-timeout enforcement
-			// but still update last activity for metrics/audit.
+			// but still update last activity and save the session so that
+			// cookie expiration can slide on each request.
 			if session.Get(SessionRememberMe) != nil {
 				session.Set(SessionLastActivity, time.Now().Unix())
+				_ = session.Save()
 				c.Next()
 				return
 			}
