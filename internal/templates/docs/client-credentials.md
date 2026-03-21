@@ -118,3 +118,4 @@ To rotate the secret later: **Admin → OAuth Clients → [client] → Regenerat
 - [Getting Started](./getting-started)
 - [Device Authorization Flow](./device-flow)
 - [Authorization Code Flow](./auth-code-flow)
+- [JWT Verification](./jwt-verification)

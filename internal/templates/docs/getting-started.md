@@ -83,3 +83,4 @@ See the full configuration reference in `.env.example`.
 - [Device Authorization Flow](./device-flow) — Learn how CLI and headless clients authenticate
 - [Authorization Code Flow](./auth-code-flow) — Learn how web and mobile apps authenticate
 - [Client Credentials Flow](./client-credentials) — Learn how services authenticate without a user
+- [JWT Verification](./jwt-verification) — Verify tokens at resource servers using JWKS public keys

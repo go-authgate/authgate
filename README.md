@@ -263,6 +263,7 @@ The Authorization Code Flow CLI starts a local callback server, opens your brows
 - **[Device Code Flow Guide](docs/DEVICE_CODE_FLOW.md)** - CLI and IoT authentication, polling, token lifecycle, Go implementation
 - **[Authorization Code Flow Guide](docs/AUTHORIZATION_CODE_FLOW.md)** - Auth Code Flow, PKCE, user consent, admin controls
 - **[Client Credentials Flow Guide](docs/CLIENT_CREDENTIALS_FLOW.md)** - Machine-to-machine authentication, M2M token management
+- **[JWT Verification Guide](docs/JWT_VERIFICATION.md)** - Verify tokens at resource servers using JWKS public keys (RS256/ES256)
 - **[OAuth Setup Guide](docs/OAUTH_SETUP.md)** - GitHub, Gitea, Microsoft Entra ID integration
 - **[Rate Limiting Guide](docs/RATE_LIMITING.md)** - Protect against brute force and API abuse
 - **[Performance Guide](docs/PERFORMANCE.md)** - Scalability, optimization, benchmarks

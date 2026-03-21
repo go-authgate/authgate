@@ -261,7 +261,7 @@ When using RS256 or ES256, AuthGate exposes the public key at:
 GET /.well-known/jwks.json
 ```
 
-Resource servers can fetch this endpoint to verify JWT signatures without sharing secrets. The OIDC Discovery endpoint (`/.well-known/openid-configuration`) includes the `jwks_uri` field automatically when asymmetric keys are available.
+Resource servers can fetch this endpoint to verify JWT signatures without sharing secrets. The OIDC Discovery endpoint (`/.well-known/openid-configuration`) includes the `jwks_uri` field automatically when asymmetric keys are available. For a complete guide on verifying tokens at resource servers, see the [JWT Verification Guide](JWT_VERIFICATION.md).
 
 The JWKS response includes a `Cache-Control: public, max-age=3600` header (1 hour). Resource servers should respect this cache directive; after key rotation, allow up to 1 hour for cached JWKS entries to expire.
 

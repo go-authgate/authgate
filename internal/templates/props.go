@@ -1,6 +1,7 @@
 package templates
 
 import (
+	"strings"
 	"time"
 
 	"github.com/go-authgate/authgate/internal/models"
@@ -18,8 +19,13 @@ type NavbarProps struct {
 	Username            string
 	FullName            string
 	IsAdmin             bool
-	ActiveLink          string // "device", "sessions", "clients", "audit"
+	ActiveLink          string // e.g. "device", "sessions", "clients", "audit", "docs-<slug>"
 	PendingClientsCount int    // Badge count for admin → OAuth Clients link
+}
+
+// IsDocsActive returns true if the current ActiveLink belongs to a docs page.
+func (p *NavbarProps) IsDocsActive() bool {
+	return strings.HasPrefix(p.ActiveLink, "docs-")
 }
 
 // DisplayName returns FullName if set, otherwise Username.
