@@ -15,6 +15,16 @@ Use JWT verification with JWKS when:
 
 > **Prerequisite**: AuthGate must be configured with **RS256** or **ES256** signing. For **HS256** (symmetric) signing, the JWKS endpoint exists but returns an empty key set, and the OIDC discovery document omits `jwks_uri`.
 
+## Algorithm Comparison
+
+| Algorithm | Type       | Key Material                 | Token Size | Use Case                           |
+| --------- | ---------- | ---------------------------- | ---------- | ---------------------------------- |
+| `HS256`   | Symmetric  | `JWT_SECRET` (shared secret) | ~300 bytes | Simple single-service deployments  |
+| `RS256`   | Asymmetric | RSA 2048-bit private key     | ~600 bytes | Wide ecosystem support, JWKS-based |
+| `ES256`   | Asymmetric | ECDSA P-256 private key      | ~400 bytes | Compact tokens, modern deployments |
+
+> **Recommendation**: Use **RS256** for maximum compatibility or **ES256** for smaller tokens. Avoid HS256 in multi-service architectures.
+
 ## How It Works
 
 ```mermaid
@@ -116,6 +126,8 @@ curl https://your-authgate/.well-known/jwks.json
 
 The response includes `Cache-Control: public, max-age=3600` — cache for up to 1 hour.
 
+> **HS256**: The JWKS endpoint returns `{"keys": []}` for HS256. Symmetric secrets are never exposed via JWKS.
+
 ## JWT Token Structure
 
 **Header:**
@@ -151,6 +163,7 @@ The response includes `Cache-Control: public, max-age=3600` — cache for up to 
 | `scope`     | Space-separated granted scopes         |
 | `type`      | `access` or `refresh`      |
 | `exp`       | Expiration time (Unix timestamp)       |
+| `iat`       | Issued-at time (Unix timestamp)        |
 | `iss`       | Issuer URL (AuthGate's BASE_URL)       |
 | `sub`       | Subject: user UUID for user tokens, or `client:<client_id>` for `client_credentials` tokens |
 | `jti`       | Unique token identifier (UUID)         |
@@ -164,7 +177,7 @@ The response includes `Cache-Control: public, max-age=3600` — cache for up to 
 3. **Find the key** matching the `kid` from the JWT header
 4. **Verify the signature** using the public key
 5. **Validate claims**: `exp` (not expired), `iss` (matches AuthGate URL), `type` (is `access`)
-6. **Check authorization**: verify `scope` and `client_id` match your requirements
+6. **Check authorization**: verify `scope` matches your requirements; optionally validate `client_id` if your API restricts access to specific clients
 
 ## Code Examples
 
@@ -179,6 +192,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/MicahParks/keyfunc/v3"
@@ -222,6 +236,14 @@ func main() {
 		tokenType, ok := claims["type"].(string)
 		if !ok || tokenType != "access" {
 			http.Error(w, "Invalid token type", http.StatusUnauthorized)
+			return
+		}
+
+		// Check scopes
+		scopeStr, _ := claims["scope"].(string)
+		scopes := strings.Fields(scopeStr)
+		if !slices.Contains(scopes, "read") {
+			http.Error(w, "Insufficient scope", http.StatusForbidden)
 			return
 		}
 
@@ -278,6 +300,11 @@ def protected_resource():
     if payload.get("type") != "access":
         return jsonify({"error": "Invalid token type"}), 401
 
+    # Check scopes
+    scopes = payload.get("scope", "").split()
+    if "read" not in scopes:
+        return jsonify({"error": "Insufficient scope"}), 403
+
     return jsonify({"message": f"Hello, user {payload['user_id']}!"})
 ```
 
@@ -315,6 +342,14 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    // Check scopes
+    const scopes = (payload.scope || "").trim().split(/\s+/).filter(Boolean);
+    if (!scopes.includes("read")) {
+      res.writeHead(403);
+      res.end(JSON.stringify({ error: "Insufficient scope" }));
+      return;
+    }
+
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ message: `Hello, user ${payload.user_id}!` }));
   } catch (err) {
@@ -332,6 +367,7 @@ server.listen(8081, () => console.log("Resource server on :8081"));
 | -------- | ------- |
 | **Respect `Cache-Control`** | AuthGate sets `max-age=3600` (1 hour). Don't fetch more often. |
 | **Use JWKS libraries** | Libraries like `keyfunc` (Go), `PyJWKClient` (Python), and `jose` (Node.js) handle caching automatically. |
+| **Cache by `kid`** | Index cached keys by their `kid` value for O(1) lookup. |
 | **Handle unknown `kid`** | Re-fetch JWKS once on unknown `kid`. If still no match, reject the token. |
 | **Pre-warm cache** | Fetch JWKS at service startup to avoid latency on the first request. |
 
@@ -341,15 +377,25 @@ server.listen(8081, () => console.log("Resource server on :8081"));
 2. Restart AuthGate — new tokens are signed with the new key
 3. Resource servers detect the unknown `kid` and re-fetch JWKS automatically
 
-> AuthGate currently serves a single active key. During rotation, allow up to 1 hour for cached JWKS to expire at resource servers.
+### Timeline
+
+| Time   | Event                                                                  |
+| ------ | ---------------------------------------------------------------------- |
+| T+0    | AuthGate restarts with new key; JWKS endpoint serves new public key    |
+| T+0~1h | Resource servers with cached old JWKS re-fetch on unknown `kid`        |
+| T+1h   | All old access tokens have expired (default expiry = 1 hour)           |
+
+> **Limitations**: AuthGate serves a single active public key in the JWKS response. During rotation, resource servers that don't handle unknown `kid` gracefully may reject new tokens until their JWKS cache expires (up to 1 hour). Once a resource server refreshes to the new JWKS, it can no longer verify still-unexpired tokens signed with the old key. To minimize disruption, use short-lived access tokens or schedule rotation during low-traffic periods.
 
 ## Common Pitfalls
 
+- **Not checking `kid` header** — Always match the JWT's `kid` against JWKS keys to support key rotation
+- **Not re-fetching JWKS on unknown `kid`** — Re-fetch once before rejecting; this enables seamless key rotation
 - **JWKS empty for HS256** — Switch to RS256 or ES256 for JWKS-based verification
 - **Not validating `iss`** — Always check the issuer matches your AuthGate URL
 - **Accepting refresh tokens** — Always verify `type` is `access`
 - **Hardcoding public keys** — Use JWKS for automatic key rotation support
-- **Clock skew** — Keep server clocks synchronized with NTP
+- **Clock skew** — Keep server clocks synchronized with NTP; configure a 30-60 second tolerance in your JWT library
 
 ## Related
 
