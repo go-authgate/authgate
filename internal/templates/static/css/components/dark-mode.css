@@ -345,6 +345,10 @@
 
 /* Login brand icon — use theme primary color token instead of hardcoded rgba() */
 [data-theme="dark"] .login-brand-icon {
+  /* Fallbacks for browsers without color-mix() support */
+  background: linear-gradient(135deg, var(--color-primary-pale), rgba(88, 166, 255, 0.12));
+  border-color: rgba(88, 166, 255, 0.2);
+  /* Enhanced versions using theme token; override fallback when supported */
   background: linear-gradient(
     135deg,
     var(--color-primary-pale),
@@ -355,12 +359,21 @@
 
 /* Login security label — derive border/bg from theme primary color token */
 [data-theme="dark"] .login-security-label {
+  /* Fallbacks for browsers without color-mix() support */
+  border-color: rgba(88, 166, 255, 0.25);
+  background: rgba(88, 166, 255, 0.06);
+  /* Enhanced versions using theme token; override fallback when supported */
   border-color: color-mix(in srgb, var(--color-primary) 25%, transparent);
   background: color-mix(in srgb, var(--color-primary) 6%, transparent);
 }
 
 /* Login card shadow — derive glow from theme primary color token */
 [data-theme="dark"] .login-card {
+  /* Fallback shadow for browsers without color-mix() support */
+  box-shadow:
+    0 20px 50px -12px rgba(88, 166, 255, 0.08),
+    0 0 0 1px rgba(88, 166, 255, 0.1);
+  /* Enhanced shadow using theme token; overrides fallback when supported */
   box-shadow:
     0 20px 50px -12px color-mix(in srgb, var(--color-primary) 8%, transparent),
     0 0 0 1px color-mix(in srgb, var(--color-primary) 10%, transparent);
