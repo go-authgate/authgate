@@ -234,6 +234,28 @@ function toggleTheme() {
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem('authgate-theme', next);
   updateThemeToggleIcon(next);
+  reRenderMermaid(next);
+}
+
+// Re-initializes Mermaid diagrams with the new theme.
+function reRenderMermaid(theme) {
+  if (typeof mermaid === 'undefined') return;
+  var containers = document.querySelectorAll('.mermaid');
+  if (!containers.length) return;
+
+  var isDark = theme === 'dark';
+  // startOnLoad: false prevents double-render when combined with mermaid.run()
+  mermaid.initialize({ startOnLoad: false, theme: isDark ? 'dark' : 'default' });
+
+  containers.forEach(function(el) {
+    var source = el.getAttribute('data-mermaid-source');
+    if (!source) return;
+
+    el.removeAttribute('data-processed');
+    el.innerHTML = source;
+  });
+
+  mermaid.run({ nodes: containers });
 }
 
 function updateThemeToggleIcon(theme) {

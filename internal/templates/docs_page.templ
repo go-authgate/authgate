@@ -32,7 +32,16 @@ templ DocsPage(props DocsPageProps) {
 		<script>Prism.highlightAll();</script>
 		<!-- Mermaid diagrams -->
 		<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-		<script>mermaid.initialize({ startOnLoad: true, theme: 'default' });</script>
+		<script>
+		(function() {
+			// Mermaid destroys source text on render; preserve it for theme-switch re-rendering
+			document.querySelectorAll('.mermaid').forEach(function(el) {
+				el.setAttribute('data-mermaid-source', el.textContent);
+			});
+			var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+			mermaid.initialize({ startOnLoad: true, theme: isDark ? 'dark' : 'default' });
+		})();
+		</script>
 		<!-- Code block enhancements: language badge + copy button -->
 		<script>
 		(function () {
