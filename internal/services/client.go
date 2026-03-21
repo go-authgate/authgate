@@ -178,6 +178,16 @@ func (s *ClientService) CreateClient(
 		return nil, ErrClientNameRequired
 	}
 
+	// Normalize client type early so validation uses the same value as persistence.
+	clientType := ClientTypeConfidential
+	if req.ClientType == ClientTypePublic {
+		clientType = ClientTypePublic
+	}
+
+	if req.EnableClientCredentialsFlow && clientType != ClientTypeConfidential {
+		return nil, ErrClientCredentialsRequireConfidential
+	}
+
 	if req.EnableAuthCodeFlow && len(req.RedirectURIs) == 0 {
 		return nil, ErrRedirectURIRequired
 	}
@@ -195,13 +205,6 @@ func (s *ClientService) CreateClient(
 		scopes = "email profile"
 	}
 
-	// Default client type
-	clientType := req.ClientType
-	if clientType != ClientTypePublic {
-		clientType = ClientTypeConfidential
-	}
-
-	// Client credentials flow is only available for confidential clients
 	enableClientCredentials := req.EnableClientCredentialsFlow &&
 		clientType == ClientTypeConfidential
 
@@ -287,8 +290,18 @@ func (s *ClientService) UpdateClient(
 		return ErrClientNameRequired
 	}
 
+	// Normalize client type early so validation uses the same value as persistence.
+	adminClientType := ClientTypeConfidential
+	if req.ClientType == ClientTypePublic {
+		adminClientType = ClientTypePublic
+	}
+
 	if !req.EnableDeviceFlow && !req.EnableAuthCodeFlow && !req.EnableClientCredentialsFlow {
 		return ErrAtLeastOneGrantRequired
+	}
+
+	if req.EnableClientCredentialsFlow && adminClientType != ClientTypeConfidential {
+		return ErrClientCredentialsRequireConfidential
 	}
 
 	if req.EnableAuthCodeFlow && len(req.RedirectURIs) == 0 {
@@ -320,18 +333,11 @@ func (s *ClientService) UpdateClient(
 	client.Scopes = strings.TrimSpace(req.Scopes)
 	client.RedirectURIs = models.StringArray(req.RedirectURIs)
 	client.Status = req.Status
-
-	// Client type defaults to confidential
-	if req.ClientType == ClientTypePublic {
-		client.ClientType = ClientTypePublic
-	} else {
-		client.ClientType = ClientTypeConfidential
-	}
+	client.ClientType = adminClientType
 
 	// Rebuild GrantTypes from enablement flags
-	// Client credentials flow is restricted to confidential clients
 	enableClientCredentials := req.EnableClientCredentialsFlow &&
-		client.ClientType == ClientTypeConfidential
+		adminClientType == ClientTypeConfidential
 	client.EnableDeviceFlow = req.EnableDeviceFlow
 	client.EnableAuthCodeFlow = req.EnableAuthCodeFlow
 	client.EnableClientCredentialsFlow = enableClientCredentials
