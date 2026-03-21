@@ -277,6 +277,11 @@ type UserClientCreatedPageProps struct {
 	PlainSecret string
 }
 
+// UserClientSecretPageProps is used by the dedicated secret-regeneration page.
+// It carries the same fields as UserClientCreatedPageProps but gives the template
+// a self-describing name for the regeneration flow.
+type UserClientSecretPageProps = UserClientCreatedPageProps
+
 // ClientFormFieldsProps configures the shared client form fields component.
 type ClientFormFieldsProps struct {
 	Client                *ClientDisplay

@@ -290,13 +290,17 @@ func (h *UserClientHandler) RegenerateAppSecret(c *gin.Context) {
 		return
 	}
 
-	refreshed, _ := h.clientService.GetClient(clientID)
+	refreshed, err := h.clientService.GetClient(clientID)
+	if err != nil {
+		// Fall back to the pre-regeneration client loaded during ownership check
+		refreshed = client
+	}
 	display := clientToDisplay(refreshed)
 
 	templates.RenderTempl(
 		c,
 		http.StatusOK,
-		templates.UserAppSecret(templates.UserClientCreatedPageProps{
+		templates.UserAppSecret(templates.UserClientSecretPageProps{
 			BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
 			NavbarProps: buildNavbarProps(c, userModel, "my-apps"),
 			Client:      display,
