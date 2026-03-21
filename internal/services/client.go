@@ -562,11 +562,17 @@ func (s *ClientService) UserUpdateClient(
 		return ErrClientNameRequired
 	}
 
+	// Normalize client type early so validation uses the same value as persistence.
+	clientType := ClientTypeConfidential
+	if req.ClientType == ClientTypePublic {
+		clientType = ClientTypePublic
+	}
+
 	if !req.EnableDeviceFlow && !req.EnableAuthCodeFlow && !req.EnableClientCredentialsFlow {
 		return ErrAtLeastOneGrantRequired
 	}
 
-	if req.EnableClientCredentialsFlow && req.ClientType != ClientTypeConfidential {
+	if req.EnableClientCredentialsFlow && clientType != ClientTypeConfidential {
 		return ErrClientCredentialsRequireConfidential
 	}
 
@@ -595,17 +601,12 @@ func (s *ClientService) UserUpdateClient(
 	client.Description = strings.TrimSpace(req.Description)
 	client.Scopes = strings.TrimSpace(req.Scopes)
 	client.RedirectURIs = models.StringArray(req.RedirectURIs)
-
-	if req.ClientType == ClientTypePublic {
-		client.ClientType = ClientTypePublic
-	} else {
-		client.ClientType = ClientTypeConfidential
-	}
+	client.ClientType = clientType
 
 	client.EnableDeviceFlow = req.EnableDeviceFlow
 	client.EnableAuthCodeFlow = req.EnableAuthCodeFlow
 	enableClientCredentials := req.EnableClientCredentialsFlow &&
-		client.ClientType == ClientTypeConfidential
+		clientType == ClientTypeConfidential
 	client.EnableClientCredentialsFlow = enableClientCredentials
 	client.GrantTypes = buildGrantTypes(
 		req.EnableDeviceFlow,
