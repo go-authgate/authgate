@@ -12,7 +12,7 @@ import (
 
 // Token query operations
 
-// GetUserTokens returns all active tokens for a user
+// GetUserTokens returns all tokens for a user
 func (s *TokenService) GetUserTokens(userID string) ([]models.AccessToken, error) {
 	return s.store.GetTokensByUserID(userID)
 }
@@ -50,7 +50,7 @@ func (s *TokenService) enrichTokensWithClients(
 	return result, nil
 }
 
-// GetUserTokensWithClient returns all active tokens for a user with client information
+// GetUserTokensWithClient returns all tokens for a user with client information
 func (s *TokenService) GetUserTokensWithClient(userID string) ([]TokenWithClient, error) {
 	tokens, err := s.store.GetTokensByUserID(userID)
 	if err != nil {

@@ -58,7 +58,7 @@ func (s *TokenService) IssueClientCredentialsToken(
 				return nil, token.ErrInvalidScope
 			}
 		}
-		// Requested scopes must be a strict subset of the client's registered scopes
+		// Requested scopes must be a subset of the client's registered scopes
 		if !util.IsScopeSubset(client.Scopes, effectiveScopes) {
 			return nil, token.ErrInvalidScope
 		}
