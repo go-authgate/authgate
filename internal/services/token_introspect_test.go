@@ -136,6 +136,18 @@ func TestAuthenticateClient_NonexistentClient(t *testing.T) {
 	assert.ErrorIs(t, err, ErrInvalidClientCredentials)
 }
 
+func TestAuthenticateClient_InactiveClient(t *testing.T) {
+	svc, s := newIntrospectTokenService(t)
+
+	// Create a confidential client with CC flow, then deactivate it
+	client, plainSecret := createConfidentialClientWithCCFlow(t, s, true)
+	client.Status = models.ClientStatusInactive
+	require.NoError(t, s.UpdateClient(client))
+
+	err := svc.AuthenticateClient(client.ClientID, plainSecret)
+	assert.ErrorIs(t, err, ErrInvalidClientCredentials)
+}
+
 func TestGetUserByID_Success(t *testing.T) {
 	svc, s := newIntrospectTokenService(t)
 

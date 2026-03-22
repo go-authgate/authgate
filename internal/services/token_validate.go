@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
+	"log"
 
 	"github.com/go-authgate/authgate/internal/token"
 	"github.com/go-authgate/authgate/internal/util"
@@ -27,7 +27,8 @@ func (s *TokenService) ValidateToken(
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("token not found or revoked")
 		}
-		return nil, fmt.Errorf("token lookup failed: %w", err)
+		log.Printf("[Token] token lookup failed: %v", err)
+		return nil, errors.New("token not found or revoked")
 	}
 	if !tok.IsAccessToken() {
 		return nil, errors.New("token is not an access token")
