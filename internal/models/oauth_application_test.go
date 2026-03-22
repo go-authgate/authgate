@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"database/sql/driver"
 	"testing"
 )
@@ -186,6 +187,67 @@ func TestStringArray_Value(t *testing.T) {
 						string(wantBytes),
 					)
 				}
+			}
+		})
+	}
+}
+
+func TestOAuthApplication_GenerateClientSecret(t *testing.T) {
+	app := &OAuthApplication{}
+	secret, err := app.GenerateClientSecret(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateClientSecret() unexpected error: %v", err)
+	}
+
+	if len(secret) < 4 || secret[:4] != "ago_" {
+		t.Errorf("GenerateClientSecret() secret missing 'ago_' prefix: %v", secret)
+	}
+	if app.ClientSecret == "" {
+		t.Error("GenerateClientSecret() did not set ClientSecret hash")
+	}
+	if app.ClientSecret == secret {
+		t.Error("GenerateClientSecret() stored plaintext instead of hash")
+	}
+}
+
+func TestOAuthApplication_ValidateClientSecret(t *testing.T) {
+	app := &OAuthApplication{}
+	secret, err := app.GenerateClientSecret(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateClientSecret() unexpected error: %v", err)
+	}
+
+	if !app.ValidateClientSecret([]byte(secret)) {
+		t.Error("ValidateClientSecret() returned false for correct secret")
+	}
+	if app.ValidateClientSecret([]byte("wrong_secret")) {
+		t.Error("ValidateClientSecret() returned true for wrong secret")
+	}
+}
+
+func TestOAuthApplication_TableName(t *testing.T) {
+	app := OAuthApplication{}
+	if got := app.TableName(); got != "oauth_applications" {
+		t.Errorf("OAuthApplication.TableName() = %v, want %v", got, "oauth_applications")
+	}
+}
+
+func TestOAuthApplication_IsActive(t *testing.T) {
+	tests := []struct {
+		name   string
+		status string
+		want   bool
+	}{
+		{name: "active", status: ClientStatusActive, want: true},
+		{name: "pending", status: ClientStatusPending, want: false},
+		{name: "inactive", status: ClientStatusInactive, want: false},
+		{name: "empty", status: "", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := &OAuthApplication{Status: tt.status}
+			if got := app.IsActive(); got != tt.want {
+				t.Errorf("OAuthApplication.IsActive() = %v, want %v", got, tt.want)
 			}
 		})
 	}
