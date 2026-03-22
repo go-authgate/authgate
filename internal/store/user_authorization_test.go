@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 // createTestApp creates a minimal OAuthApplication for foreign key references.
@@ -68,7 +69,7 @@ func TestGetUserAuthorizationByUUID(t *testing.T) {
 		require.NoError(t, store.UpsertUserAuthorization(auth))
 
 		_, err := store.GetUserAuthorizationByUUID(authUUID, otherUserID)
-		assert.Error(t, err)
+		assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 	})
 }
 
@@ -154,7 +155,7 @@ func TestRevokeUserAuthorization(t *testing.T) {
 		require.NoError(t, store.UpsertUserAuthorization(auth))
 
 		_, err := store.RevokeUserAuthorization(authUUID, otherUserID)
-		assert.Error(t, err)
+		assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 	})
 }
 
