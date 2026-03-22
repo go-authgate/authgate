@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -25,10 +26,16 @@ func TestAuditDetails_Value_NonNil(t *testing.T) {
 	if !ok {
 		t.Fatalf("AuditDetails.Value() returned non-[]byte type: %T", val)
 	}
-	// Verify it's valid JSON containing our keys
-	str := string(bytes)
-	if len(str) == 0 {
-		t.Error("AuditDetails.Value() returned empty bytes")
+
+	var roundTrip map[string]any
+	if err := json.Unmarshal(bytes, &roundTrip); err != nil {
+		t.Fatalf("AuditDetails.Value() returned invalid JSON: %v", err)
+	}
+	if roundTrip["key"] != "value" {
+		t.Errorf("round-trip key = %v, want \"value\"", roundTrip["key"])
+	}
+	if roundTrip["count"] != float64(42) {
+		t.Errorf("round-trip count = %v, want 42", roundTrip["count"])
 	}
 }
 

@@ -199,17 +199,12 @@ func TestOAuthApplication_GenerateClientSecret(t *testing.T) {
 		t.Fatalf("GenerateClientSecret() unexpected error: %v", err)
 	}
 
-	// Secret should have "ago_" prefix
 	if len(secret) < 4 || secret[:4] != "ago_" {
 		t.Errorf("GenerateClientSecret() secret missing 'ago_' prefix: %v", secret)
 	}
-
-	// Hash should be set
 	if app.ClientSecret == "" {
 		t.Error("GenerateClientSecret() did not set ClientSecret hash")
 	}
-
-	// Hash should not equal plaintext
 	if app.ClientSecret == secret {
 		t.Error("GenerateClientSecret() stored plaintext instead of hash")
 	}
@@ -222,12 +217,9 @@ func TestOAuthApplication_ValidateClientSecret(t *testing.T) {
 		t.Fatalf("GenerateClientSecret() unexpected error: %v", err)
 	}
 
-	// Correct secret should validate
 	if !app.ValidateClientSecret([]byte(secret)) {
 		t.Error("ValidateClientSecret() returned false for correct secret")
 	}
-
-	// Wrong secret should not validate
 	if app.ValidateClientSecret([]byte("wrong_secret")) {
 		t.Error("ValidateClientSecret() returned true for wrong secret")
 	}
