@@ -81,6 +81,10 @@ func TestStoreWithPostgres(t *testing.T) {
 func createFreshStore(t *testing.T, driver string, pgContainer *postgres.PostgresContainer) *Store {
 	t.Helper()
 
+	// seedData() writes authgate-credentials.txt to the working directory;
+	// chdir into a temp dir so it doesn't pollute the repo checkout.
+	t.Chdir(t.TempDir())
+
 	var dsn string
 	switch driver {
 	case "sqlite":
