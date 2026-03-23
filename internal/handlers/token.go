@@ -50,10 +50,11 @@ func NewTokenHandler(
 
 // buildTokenResponse constructs a standard OAuth 2.0 token response (RFC 6749 §5.1).
 func buildTokenResponse(accessToken, refreshToken *models.AccessToken, idToken string) gin.H {
+	expiresIn := max(int(time.Until(accessToken.ExpiresAt).Seconds()), 0)
 	resp := gin.H{
 		"access_token": accessToken.RawToken,
 		"token_type":   accessToken.TokenType,
-		"expires_in":   int(time.Until(accessToken.ExpiresAt).Seconds()),
+		"expires_in":   expiresIn,
 		"scope":        accessToken.Scopes,
 	}
 	if refreshToken != nil {
