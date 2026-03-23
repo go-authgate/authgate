@@ -26,11 +26,11 @@ func NewUserClientHandler(cs *services.ClientService) *UserClientHandler {
 
 // ShowMyAppsPage lists all OAuth applications owned by the logged-in user.
 func (h *UserClientHandler) ShowMyAppsPage(c *gin.Context) {
-	userID, _ := c.Get("user_id")
+	userID := getUserIDFromContext(c)
 	userModel := getUserFromContext(c)
 
 	params := parsePaginationParams(c)
-	apps, pagination, err := h.clientService.ListClientsByUser(userID.(string), params)
+	apps, pagination, err := h.clientService.ListClientsByUser(userID, params)
 	if err != nil {
 		renderErrorPage(c, http.StatusInternalServerError, "Failed to load apps: "+err.Error())
 		return
@@ -62,16 +62,16 @@ func (h *UserClientHandler) ShowCreateAppPage(c *gin.Context) {
 
 // CreateApp handles POST /apps to register a new OAuth client.
 func (h *UserClientHandler) CreateApp(c *gin.Context) {
-	userID, _ := c.Get("user_id")
+	userID := getUserIDFromContext(c)
 	userModel := getUserFromContext(c)
 
 	req := services.CreateClientRequest{
 		ClientName:                  c.PostForm("client_name"),
 		Description:                 c.PostForm("description"),
-		UserID:                      userID.(string),
+		UserID:                      userID,
 		Scopes:                      c.PostForm("scopes"),
 		RedirectURIs:                parseRedirectURIs(c.PostForm("redirect_uris")),
-		CreatedBy:                   userID.(string),
+		CreatedBy:                   userID,
 		ClientType:                  core.NormalizeClientType(c.PostForm("client_type")),
 		EnableDeviceFlow:            c.PostForm("enable_device_flow") == queryValueTrue,
 		EnableAuthCodeFlow:          c.PostForm("enable_auth_code_flow") == queryValueTrue,
@@ -132,7 +132,7 @@ func (h *UserClientHandler) CreateApp(c *gin.Context) {
 // ShowAppPage displays details for a user-owned app.
 func (h *UserClientHandler) ShowAppPage(c *gin.Context) {
 	clientID := c.Param("id")
-	userID, _ := c.Get("user_id")
+	userID := getUserIDFromContext(c)
 	userModel := getUserFromContext(c)
 
 	client, err := h.clientService.GetClient(clientID)
@@ -141,7 +141,7 @@ func (h *UserClientHandler) ShowAppPage(c *gin.Context) {
 		return
 	}
 
-	if client.UserID != userID.(string) {
+	if client.UserID != userID {
 		renderErrorPage(c, http.StatusForbidden, "You do not have access to this app")
 		return
 	}
@@ -169,7 +169,7 @@ func (h *UserClientHandler) ShowAppPage(c *gin.Context) {
 // ShowEditAppPage displays the edit form for a user-owned app.
 func (h *UserClientHandler) ShowEditAppPage(c *gin.Context) {
 	clientID := c.Param("id")
-	userID, _ := c.Get("user_id")
+	userID := getUserIDFromContext(c)
 	userModel := getUserFromContext(c)
 
 	client, err := h.clientService.GetClient(clientID)
@@ -178,7 +178,7 @@ func (h *UserClientHandler) ShowEditAppPage(c *gin.Context) {
 		return
 	}
 
-	if client.UserID != userID.(string) {
+	if client.UserID != userID {
 		renderErrorPage(c, http.StatusForbidden, "You do not have access to this app")
 		return
 	}
@@ -198,7 +198,7 @@ func (h *UserClientHandler) ShowEditAppPage(c *gin.Context) {
 // UpdateApp handles POST /apps/:id to update a user-owned app.
 func (h *UserClientHandler) UpdateApp(c *gin.Context) {
 	clientID := c.Param("id")
-	userID, _ := c.Get("user_id")
+	userID := getUserIDFromContext(c)
 	userModel := getUserFromContext(c)
 
 	req := services.UserUpdateClientRequest{
@@ -212,7 +212,7 @@ func (h *UserClientHandler) UpdateApp(c *gin.Context) {
 		EnableClientCredentialsFlow: c.PostForm("enable_client_credentials_flow") == queryValueTrue,
 	}
 
-	err := h.clientService.UserUpdateClient(c.Request.Context(), clientID, userID.(string), req)
+	err := h.clientService.UserUpdateClient(c.Request.Context(), clientID, userID, req)
 	if err != nil {
 		if errors.Is(err, services.ErrClientOwnershipRequired) {
 			renderErrorPage(c, http.StatusForbidden, err.Error())
@@ -245,9 +245,9 @@ func (h *UserClientHandler) UpdateApp(c *gin.Context) {
 // DeleteApp handles POST /apps/:id/delete to remove a pending or inactive user-owned app.
 func (h *UserClientHandler) DeleteApp(c *gin.Context) {
 	clientID := c.Param("id")
-	userID, _ := c.Get("user_id")
+	userID := getUserIDFromContext(c)
 
-	err := h.clientService.UserDeleteClient(c.Request.Context(), clientID, userID.(string))
+	err := h.clientService.UserDeleteClient(c.Request.Context(), clientID, userID)
 	if err != nil {
 		if errors.Is(err, services.ErrClientOwnershipRequired) {
 			renderErrorPage(c, http.StatusForbidden, err.Error())
@@ -267,7 +267,7 @@ func (h *UserClientHandler) DeleteApp(c *gin.Context) {
 // RegenerateAppSecret handles POST /apps/:id/regenerate-secret.
 func (h *UserClientHandler) RegenerateAppSecret(c *gin.Context) {
 	clientID := c.Param("id")
-	userID, _ := c.Get("user_id")
+	userID := getUserIDFromContext(c)
 	userModel := getUserFromContext(c)
 
 	// Ownership check
@@ -276,7 +276,7 @@ func (h *UserClientHandler) RegenerateAppSecret(c *gin.Context) {
 		renderErrorPage(c, http.StatusNotFound, "App not found")
 		return
 	}
-	if client.UserID != userID.(string) {
+	if client.UserID != userID {
 		renderErrorPage(c, http.StatusForbidden, "You do not have access to this app")
 		return
 	}
@@ -284,7 +284,7 @@ func (h *UserClientHandler) RegenerateAppSecret(c *gin.Context) {
 	newSecret, err := h.clientService.RegenerateSecret(
 		c.Request.Context(),
 		clientID,
-		userID.(string),
+		userID,
 	)
 	if err != nil {
 		renderErrorPage(

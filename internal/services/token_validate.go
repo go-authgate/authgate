@@ -5,11 +5,27 @@ import (
 	"errors"
 	"log"
 
+	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/token"
 	"github.com/go-authgate/authgate/internal/util"
 
 	"gorm.io/gorm"
 )
+
+// validateAccessTokenRecord checks that a database token record is an active,
+// non-expired access token. Returns a descriptive error if any check fails.
+func validateAccessTokenRecord(tok *models.AccessToken) error {
+	if !tok.IsAccessToken() {
+		return errors.New("token is not an access token")
+	}
+	if !tok.IsActive() {
+		return errors.New("token not found or revoked")
+	}
+	if tok.IsExpired() {
+		return errors.New("token has expired")
+	}
+	return nil
+}
 
 // ValidateToken validates a JWT token using the configured provider
 func (s *TokenService) ValidateToken(
@@ -30,14 +46,8 @@ func (s *TokenService) ValidateToken(
 		log.Printf("[Token] token lookup failed: %v", err)
 		return nil, errors.New("token not found or revoked")
 	}
-	if !tok.IsAccessToken() {
-		return nil, errors.New("token is not an access token")
-	}
-	if !tok.IsActive() {
-		return nil, errors.New("token not found or revoked")
-	}
-	if tok.IsExpired() {
-		return nil, errors.New("token has expired")
+	if err := validateAccessTokenRecord(tok); err != nil {
+		return nil, err
 	}
 
 	return result, nil

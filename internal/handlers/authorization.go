@@ -81,8 +81,7 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("user_id")
-	userIDStr := userID.(string)
+	userIDStr := getUserIDFromContext(c)
 
 	// Retrieve the logged-in user for display
 	user, err := h.userService.GetUserByID(userIDStr)
@@ -183,8 +182,7 @@ func (h *AuthorizationHandler) HandleAuthorize(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("user_id")
-	userIDStr := userID.(string)
+	userIDStr := getUserIDFromContext(c)
 
 	// Persist the consent record
 	if _, err := h.authorizationService.SaveUserAuthorization(
@@ -279,8 +277,7 @@ func (h *AuthorizationHandler) redirectWithError(
 
 // ListAuthorizations renders the user's authorized applications page (GET /account/authorizations).
 func (h *AuthorizationHandler) ListAuthorizations(c *gin.Context) {
-	userID, _ := c.Get("user_id")
-	userIDStr := userID.(string)
+	userIDStr := getUserIDFromContext(c)
 
 	auths, err := h.authorizationService.ListUserAuthorizations(c.Request.Context(), userIDStr)
 	if err != nil {
@@ -326,8 +323,7 @@ func (h *AuthorizationHandler) ListAuthorizations(c *gin.Context) {
 // RevokeAuthorization revokes a user's consent for one application (POST /account/authorizations/:uuid/revoke).
 func (h *AuthorizationHandler) RevokeAuthorization(c *gin.Context) {
 	authUUID := c.Param("uuid")
-	userID, _ := c.Get("user_id")
-	userIDStr := userID.(string)
+	userIDStr := getUserIDFromContext(c)
 
 	if err := h.authorizationService.RevokeUserAuthorization(
 		c.Request.Context(),

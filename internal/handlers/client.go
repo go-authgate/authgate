@@ -119,15 +119,15 @@ func (h *ClientHandler) ShowCreateClientPage(c *gin.Context) {
 
 // CreateClient handles the creation of a new OAuth client
 func (h *ClientHandler) CreateClient(c *gin.Context) {
-	userID, _ := c.Get("user_id")
+	userID := getUserIDFromContext(c)
 
 	req := services.CreateClientRequest{
 		ClientName:                  c.PostForm("client_name"),
 		Description:                 c.PostForm("description"),
-		UserID:                      userID.(string),
+		UserID:                      userID,
 		Scopes:                      c.PostForm("scopes"),
 		RedirectURIs:                parseRedirectURIs(c.PostForm("redirect_uris")),
-		CreatedBy:                   userID.(string),
+		CreatedBy:                   userID,
 		ClientType:                  core.NormalizeClientType(c.PostForm("client_type")),
 		EnableDeviceFlow:            c.PostForm("enable_device_flow") == queryValueTrue,
 		EnableAuthCodeFlow:          c.PostForm("enable_auth_code_flow") == queryValueTrue,
@@ -227,8 +227,8 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 		EnableClientCredentialsFlow: c.PostForm("enable_client_credentials_flow") == queryValueTrue,
 	}
 
-	userID, _ := c.Get("user_id")
-	err := h.clientService.UpdateClient(c.Request.Context(), clientID, userID.(string), req)
+	userID := getUserIDFromContext(c)
+	err := h.clientService.UpdateClient(c.Request.Context(), clientID, userID, req)
 	if err != nil {
 		client, _ := h.clientService.GetClient(clientID)
 
@@ -275,8 +275,8 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 func (h *ClientHandler) DeleteClient(c *gin.Context) {
 	clientID := c.Param("id")
 
-	userID, _ := c.Get("user_id")
-	err := h.clientService.DeleteClient(c.Request.Context(), clientID, userID.(string))
+	userID := getUserIDFromContext(c)
+	err := h.clientService.DeleteClient(c.Request.Context(), clientID, userID)
 	if err != nil {
 		renderErrorPage(c, http.StatusInternalServerError, "Failed to delete client: "+err.Error())
 		return
@@ -297,11 +297,11 @@ func (h *ClientHandler) DeleteClient(c *gin.Context) {
 func (h *ClientHandler) RegenerateSecret(c *gin.Context) {
 	clientID := c.Param("id")
 
-	userID, _ := c.Get("user_id")
+	userID := getUserIDFromContext(c)
 	newSecret, err := h.clientService.RegenerateSecret(
 		c.Request.Context(),
 		clientID,
-		userID.(string),
+		userID,
 	)
 	if err != nil {
 		renderErrorPage(
@@ -370,12 +370,12 @@ func (h *ClientHandler) ViewClient(c *gin.Context) {
 // ApproveClient sets a pending client's status to active.
 func (h *ClientHandler) ApproveClient(c *gin.Context) {
 	clientID := c.Param("id")
-	userID, _ := c.Get("user_id")
+	userID := getUserIDFromContext(c)
 
 	if err := h.clientService.ApproveClient(
 		c.Request.Context(),
 		clientID,
-		userID.(string),
+		userID,
 	); err != nil {
 		renderErrorPage(c, http.StatusInternalServerError, "Failed to approve client: "+err.Error())
 		return
@@ -387,12 +387,12 @@ func (h *ClientHandler) ApproveClient(c *gin.Context) {
 // RejectClient sets a pending client's status to inactive.
 func (h *ClientHandler) RejectClient(c *gin.Context) {
 	clientID := c.Param("id")
-	userID, _ := c.Get("user_id")
+	userID := getUserIDFromContext(c)
 
 	if err := h.clientService.RejectClient(
 		c.Request.Context(),
 		clientID,
-		userID.(string),
+		userID,
 	); err != nil {
 		renderErrorPage(c, http.StatusInternalServerError, "Failed to reject client: "+err.Error())
 		return
@@ -450,12 +450,12 @@ func (h *ClientHandler) ListClientAuthorizations(c *gin.Context) {
 // RevokeAllTokens revokes all active tokens for a client (admin danger zone action).
 func (h *ClientHandler) RevokeAllTokens(c *gin.Context) {
 	clientID := c.Param("id")
-	userID, _ := c.Get("user_id")
+	userID := getUserIDFromContext(c)
 
 	revokedCount, err := h.authorizationService.RevokeAllApplicationTokens(
 		c.Request.Context(),
 		clientID,
-		userID.(string),
+		userID,
 	)
 	if err != nil {
 		userModel := getUserFromContext(c)

@@ -18,6 +18,17 @@ func parsePaginationParams(c *gin.Context) store.PaginationParams {
 	return store.NewPaginationParams(page, pageSize, search)
 }
 
+// parseClientCredentials extracts client_id and client_secret from the request
+// using HTTP Basic Auth (preferred per RFC 6749 §2.3.1) or form-body parameters.
+func parseClientCredentials(c *gin.Context) (clientID, clientSecret string) {
+	clientID, clientSecret, ok := c.Request.BasicAuth()
+	if !ok {
+		clientID = c.PostForm("client_id")
+		clientSecret = c.PostForm("client_secret")
+	}
+	return clientID, clientSecret
+}
+
 // respondOAuthError writes an RFC-compliant OAuth error JSON response.
 func respondOAuthError(c *gin.Context, status int, errorCode, description string) {
 	resp := gin.H{"error": errorCode}
@@ -25,6 +36,17 @@ func respondOAuthError(c *gin.Context, status int, errorCode, description string
 		resp["error_description"] = description
 	}
 	c.JSON(status, resp)
+}
+
+// getUserIDFromContext returns the user ID string stored by RequireAuth middleware,
+// or an empty string if no user ID is present.
+func getUserIDFromContext(c *gin.Context) string {
+	if id, exists := c.Get("user_id"); exists {
+		if userID, ok := id.(string); ok {
+			return userID
+		}
+	}
+	return ""
 }
 
 // getUserFromContext returns the *models.User stored by RequireAuth middleware,

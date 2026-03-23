@@ -111,6 +111,9 @@ func (s *Store) UpsertExternalUser(
 	}
 
 	if err := s.db.Create(&user).Error; err != nil {
+		if isUniqueConstraintError(err) {
+			return nil, ErrUsernameConflict
+		}
 		return nil, fmt.Errorf("failed to create external user: %w", err)
 	}
 

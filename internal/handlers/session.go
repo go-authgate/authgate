@@ -22,8 +22,8 @@ func NewSessionHandler(ts *services.TokenService) *SessionHandler {
 
 // ListSessions shows all active sessions (tokens) for the current user
 func (h *SessionHandler) ListSessions(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
+	userID := getUserIDFromContext(c)
+	if userID == "" {
 		renderErrorPage(c, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
@@ -32,7 +32,7 @@ func (h *SessionHandler) ListSessions(c *gin.Context) {
 
 	// Get paginated tokens
 	tokens, pagination, err := h.tokenService.GetUserTokensWithClientPaginated(
-		userID.(string),
+		userID,
 		params,
 	)
 	if err != nil {
@@ -59,8 +59,8 @@ func (h *SessionHandler) validateTokenOwnership(
 	c *gin.Context,
 	actionName string,
 ) (tokenID string, valid bool) {
-	userIDVal, exists := c.Get("user_id")
-	if !exists {
+	userID := getUserIDFromContext(c)
+	if userID == "" {
 		renderErrorPage(c, http.StatusUnauthorized, "User not authenticated")
 		return "", false
 	}
@@ -70,8 +70,6 @@ func (h *SessionHandler) validateTokenOwnership(
 		renderErrorPage(c, http.StatusBadRequest, "Token ID is required")
 		return "", false
 	}
-
-	userID := userIDVal.(string)
 
 	owned, err := h.tokenService.IsTokenOwnedByUser(tokenID, userID)
 	if err != nil {
@@ -98,13 +96,13 @@ func (h *SessionHandler) RevokeSession(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("user_id")
+	userID := getUserIDFromContext(c)
 
 	// Revoke the token
 	if err := h.tokenService.RevokeTokenByID(
 		c.Request.Context(),
 		tokenID,
-		userID.(string),
+		userID,
 	); err != nil {
 		renderErrorPage(c, http.StatusInternalServerError, "Failed to revoke session")
 		return
@@ -115,13 +113,13 @@ func (h *SessionHandler) RevokeSession(c *gin.Context) {
 
 // RevokeAllSessions revokes all sessions for the current user
 func (h *SessionHandler) RevokeAllSessions(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
+	userID := getUserIDFromContext(c)
+	if userID == "" {
 		renderErrorPage(c, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
-	if err := h.tokenService.RevokeAllUserTokens(userID.(string)); err != nil {
+	if err := h.tokenService.RevokeAllUserTokens(userID); err != nil {
 		renderErrorPage(c, http.StatusInternalServerError, "Failed to revoke all sessions")
 		return
 	}
@@ -136,13 +134,13 @@ func (h *SessionHandler) DisableSession(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("user_id")
+	userID := getUserIDFromContext(c)
 
 	// Disable the token
 	if err := h.tokenService.DisableToken(
 		c.Request.Context(),
 		tokenID,
-		userID.(string),
+		userID,
 	); err != nil {
 		renderErrorPage(c, http.StatusInternalServerError, "Failed to disable session")
 		return
@@ -158,13 +156,13 @@ func (h *SessionHandler) EnableSession(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("user_id")
+	userID := getUserIDFromContext(c)
 
 	// Enable the token
 	if err := h.tokenService.EnableToken(
 		c.Request.Context(),
 		tokenID,
-		userID.(string),
+		userID,
 	); err != nil {
 		renderErrorPage(c, http.StatusInternalServerError, "Failed to enable session")
 		return
