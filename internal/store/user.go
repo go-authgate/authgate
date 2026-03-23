@@ -111,6 +111,17 @@ func (s *Store) UpsertExternalUser(
 	}
 
 	if err := s.db.Create(&user).Error; err != nil {
+		// GORM TranslateError maps driver-specific unique constraint violations
+		// to gorm.ErrDuplicatedKey. Re-check username to confirm the conflict
+		// is on username (not email or another unique field).
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			if existing, lookupErr := s.GetUserByUsername(
+				username,
+			); lookupErr == nil &&
+				existing != nil {
+				return nil, ErrUsernameConflict
+			}
+		}
 		return nil, fmt.Errorf("failed to create external user: %w", err)
 	}
 

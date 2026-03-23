@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/token"
 
@@ -45,6 +46,24 @@ func NewTokenHandler(
 		authorizationService: as,
 		config:               cfg,
 	}
+}
+
+// buildTokenResponse constructs a standard OAuth 2.0 token response (RFC 6749 §5.1).
+func buildTokenResponse(accessToken, refreshToken *models.AccessToken, idToken string) gin.H {
+	expiresIn := max(int(time.Until(accessToken.ExpiresAt).Seconds()), 0)
+	resp := gin.H{
+		"access_token": accessToken.RawToken,
+		"token_type":   accessToken.TokenType,
+		"expires_in":   expiresIn,
+		"scope":        accessToken.Scopes,
+	}
+	if refreshToken != nil {
+		resp["refresh_token"] = refreshToken.RawToken
+	}
+	if idToken != "" {
+		resp["id_token"] = idToken
+	}
+	return resp
 }
 
 // Token godoc
@@ -128,13 +147,7 @@ func (h *TokenHandler) handleDeviceCodeGrant(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"access_token":  accessToken.RawToken,
-		"refresh_token": refreshToken.RawToken,
-		"token_type":    accessToken.TokenType,
-		"expires_in":    int(h.config.JWTExpiration.Seconds()),
-		"scope":         accessToken.Scopes,
-	})
+	c.JSON(http.StatusOK, buildTokenResponse(accessToken, refreshToken, ""))
 }
 
 // handleRefreshTokenGrant handles refresh token grant type (RFC 6749)
@@ -201,13 +214,7 @@ func (h *TokenHandler) handleRefreshTokenGrant(c *gin.Context) {
 	}
 
 	// 5. Return new tokens (RFC 6749 format)
-	c.JSON(http.StatusOK, gin.H{
-		"access_token":  newAccessToken.RawToken,
-		"refresh_token": newRefreshToken.RawToken,
-		"token_type":    newAccessToken.TokenType,
-		"expires_in":    int(h.config.JWTExpiration.Seconds()),
-		"scope":         newAccessToken.Scopes,
-	})
+	c.JSON(http.StatusOK, buildTokenResponse(newAccessToken, newRefreshToken, ""))
 }
 
 // TokenInfo godoc
@@ -275,13 +282,7 @@ func (h *TokenHandler) TokenInfo(c *gin.Context) {
 //	@Router			/oauth/introspect [post]
 func (h *TokenHandler) Introspect(c *gin.Context) {
 	// 1. Authenticate the calling client (RFC 7662 §2.1)
-	// Prefer HTTP Basic Auth; fall back to form-body parameters
-	clientID, clientSecret, ok := c.Request.BasicAuth()
-	if !ok {
-		clientID = c.PostForm("client_id")
-		clientSecret = c.PostForm("client_secret")
-	}
-
+	clientID, clientSecret := parseClientCredentials(c)
 	if clientID == "" || clientSecret == "" {
 		c.Header("WWW-Authenticate", `Basic realm="authgate"`)
 		respondOAuthError(
@@ -399,13 +400,7 @@ func (h *TokenHandler) Revoke(c *gin.Context) {
 // Only confidential clients with the client_credentials flow enabled may use this endpoint.
 // No refresh token is issued in the response.
 func (h *TokenHandler) handleClientCredentialsGrant(c *gin.Context) {
-	// Prefer HTTP Basic Auth; fall back to form-body parameters
-	clientID, clientSecret, ok := c.Request.BasicAuth()
-	if !ok {
-		clientID = c.PostForm("client_id")
-		clientSecret = c.PostForm("client_secret")
-	}
-
+	clientID, clientSecret := parseClientCredentials(c)
 	if clientID == "" || clientSecret == "" {
 		c.Header("WWW-Authenticate", `Basic realm="authgate"`)
 		respondOAuthError(
@@ -459,12 +454,7 @@ func (h *TokenHandler) handleClientCredentialsGrant(c *gin.Context) {
 	}
 
 	// RFC 6749 §4.4.3: response MUST NOT include a refresh_token
-	c.JSON(http.StatusOK, gin.H{
-		"access_token": accessToken.RawToken,
-		"token_type":   accessToken.TokenType,
-		"expires_in":   int(time.Until(accessToken.ExpiresAt).Seconds()),
-		"scope":        accessToken.Scopes,
-	})
+	c.JSON(http.StatusOK, buildTokenResponse(accessToken, nil, ""))
 }
 
 // handleAuthorizationCodeGrant handles the authorization_code grant type (RFC 6749 §4.1.3).
@@ -524,18 +514,9 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 		return
 	}
 
-	resp := gin.H{
-		"access_token": accessToken.RawToken,
-		"token_type":   accessToken.TokenType,
-		"expires_in":   int(time.Until(accessToken.ExpiresAt).Seconds()),
-		"scope":        accessToken.Scopes,
-	}
+	var rt *models.AccessToken
 	if refreshToken != nil && h.config.EnableRefreshTokens {
-		resp["refresh_token"] = refreshToken.RawToken
+		rt = refreshToken
 	}
-	if idToken != "" {
-		resp["id_token"] = idToken
-	}
-
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, buildTokenResponse(accessToken, rt, idToken))
 }

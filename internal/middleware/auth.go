@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -118,7 +119,9 @@ func SessionRememberMeMiddleware(rememberMeMaxAge int, isProduction bool) gin.Ha
 			session.Options(opts)
 			// Save before c.Next() so the sliding-expiration cookie is sent
 			// before the handler commits the response headers.
-			_ = session.Save()
+			if err := session.Save(); err != nil {
+				log.Printf("[session] save error: %v", err)
+			}
 		}
 		c.Next()
 	}
@@ -151,7 +154,14 @@ func SessionFingerprintMiddleware(enabled, includeIP bool) gin.HandlerFunc {
 				if storedFingerprint.(string) != currentFingerprint {
 					// Fingerprint mismatch - possible session hijacking
 					session.Clear()
-					_ = session.Save()
+					if err := session.Save(); err != nil {
+						log.Printf(
+							"[session] save error while clearing fingerprint-mismatched session: %v",
+							err,
+						)
+						c.AbortWithStatus(http.StatusInternalServerError)
+						return
+					}
 
 					// Redirect to login with security warning
 					redirectURL := c.Request.URL.String()
@@ -188,7 +198,9 @@ func SessionIdleTimeout(idleTimeoutSeconds int) gin.HandlerFunc {
 			// but still update last activity and persist to the cookie.
 			if remember, ok := session.Get(SessionRememberMe).(bool); ok && remember {
 				session.Set(SessionLastActivity, time.Now().Unix())
-				_ = session.Save()
+				if err := session.Save(); err != nil {
+					log.Printf("[session] save error: %v", err)
+				}
 				c.Next()
 				return
 			}
@@ -202,7 +214,11 @@ func SessionIdleTimeout(idleTimeoutSeconds int) gin.HandlerFunc {
 					if idleSeconds > int64(idleTimeoutSeconds) {
 						// Session idle timeout exceeded, clear session
 						session.Clear()
-						_ = session.Save()
+						if err := session.Save(); err != nil {
+							log.Printf("[session] save error: %v", err)
+							c.AbortWithStatus(http.StatusInternalServerError)
+							return
+						}
 
 						// Redirect to login with timeout message
 						redirectURL := c.Request.URL.String()
@@ -220,7 +236,9 @@ func SessionIdleTimeout(idleTimeoutSeconds int) gin.HandlerFunc {
 
 			// Update last activity timestamp
 			session.Set(SessionLastActivity, time.Now().Unix())
-			_ = session.Save()
+			if err := session.Save(); err != nil {
+				log.Printf("[session] save error: %v", err)
+			}
 		}
 
 		c.Next()

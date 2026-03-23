@@ -66,11 +66,11 @@ func NewAuditService(s core.Store, enabled bool, bufferSize int) *AuditService {
 		bufferSize:  bufferSize,
 		logChan:     make(chan *models.AuditLog, bufferSize),
 		batchBuffer: make([]*models.AuditLog, 0, 100),
-		batchTicker: time.NewTicker(1 * time.Second),
 		shutdownCh:  make(chan struct{}),
 	}
 
 	if enabled {
+		service.batchTicker = time.NewTicker(1 * time.Second)
 		service.wg.Add(1)
 		go service.worker()
 		log.Printf("Audit service started with buffer size %d", bufferSize)
