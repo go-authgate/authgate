@@ -209,15 +209,16 @@ func (s *TokenService) EnableToken(ctx context.Context, tokenID, actorUserID str
 // RevokeTokenByStatus permanently revokes a token (uses status update, not deletion)
 func (s *TokenService) RevokeTokenByStatus(tokenID string) error {
 	// Look up token hash for cache invalidation before revoking
-	tok, _ := s.store.GetAccessTokenByID(tokenID)
+	tok, err := s.store.GetAccessTokenByID(tokenID)
+	if err != nil {
+		return err
+	}
 
 	if err := s.store.UpdateTokenStatus(tokenID, models.TokenStatusRevoked); err != nil {
 		return err
 	}
 
-	if tok != nil {
-		s.invalidateTokenCache(context.Background(), tok.TokenHash)
-	}
+	s.invalidateTokenCache(context.Background(), tok.TokenHash)
 
 	return nil
 }

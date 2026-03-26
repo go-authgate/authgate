@@ -12,6 +12,7 @@ import (
 	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // TokenWithClient combines token and client information for display
@@ -73,6 +74,8 @@ func NewTokenService(
 }
 
 // getAccessTokenByHash looks up a token, using cache if available.
+// On cache backend errors (e.g. Redis unavailable), falls back to direct DB lookup
+// so that valid tokens are not rejected due to cache infrastructure issues.
 func (s *TokenService) getAccessTokenByHash(
 	ctx context.Context,
 	hash string,
@@ -87,10 +90,15 @@ func (s *TokenService) getAccessTokenByHash(
 				return *t, nil
 			},
 		)
-		if err != nil {
+		if err == nil {
+			return &tok, nil
+		}
+		// If the fetch function itself returned a DB error (e.g. record not found),
+		// propagate it. Otherwise, the cache backend failed — fall back to DB.
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
-		return &tok, nil
+		log.Printf("[TokenCache] cache lookup failed, falling back to DB: %v", err)
 	}
 	return s.store.GetAccessTokenByHash(hash)
 }
