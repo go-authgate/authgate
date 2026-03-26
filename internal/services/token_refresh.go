@@ -32,7 +32,11 @@ func (s *TokenService) revokeTokenFamilyWithAudit(
 	// Collect hashes before revocation for cache invalidation
 	var hashesToInvalidate []string
 	if s.tokenCache != nil {
-		hashesToInvalidate, _ = s.store.GetActiveTokenHashesByFamilyID(familyID)
+		var err error
+		hashesToInvalidate, err = s.store.GetActiveTokenHashesByFamilyID(familyID)
+		if err != nil {
+			log.Printf("[TokenCache] failed to collect family hashes for invalidation family=%s: %v", familyID, err)
+		}
 	}
 
 	revokedCount, err := s.store.RevokeTokenFamily(familyID)

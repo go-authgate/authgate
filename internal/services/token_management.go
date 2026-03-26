@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"log"
 
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/util"
@@ -95,6 +96,8 @@ func (s *TokenService) RevokeAllUserTokens(userID string) error {
 				}
 				s.invalidateTokenCacheByHashes(context.Background(), hashes)
 			}()
+		} else {
+			log.Printf("[TokenCache] failed to collect user token hashes for invalidation user=%s: %v", userID, err)
 		}
 	}
 	return s.store.RevokeTokensByUserID(userID)

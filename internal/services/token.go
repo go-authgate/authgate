@@ -99,7 +99,11 @@ func (s *TokenService) getAccessTokenByHash(
 func (s *TokenService) invalidateTokenCache(ctx context.Context, hash string) {
 	if s.tokenCache != nil {
 		if err := s.tokenCache.Delete(ctx, hash); err != nil {
-			log.Printf("[TokenCache] failed to invalidate cache for hash=%s...: %v", hash[:8], err)
+			hashPrefix := hash
+			if len(hashPrefix) > 8 {
+				hashPrefix = hashPrefix[:8]
+			}
+			log.Printf("[TokenCache] failed to invalidate cache for hash=%s...: %v", hashPrefix, err)
 		}
 	}
 }
