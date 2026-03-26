@@ -86,21 +86,29 @@ func (s *TokenService) RevokeTokenByID(ctx context.Context, tokenID, actorUserID
 
 // RevokeAllUserTokens revokes all tokens for a user
 func (s *TokenService) RevokeAllUserTokens(userID string) error {
-	// Collect hashes before deletion so we can invalidate the cache
+	// Collect hashes before deletion so we can invalidate the cache,
+	// but only invalidate if revocation succeeds.
+	var hashes []string
 	if s.tokenCache != nil {
 		if tokens, err := s.store.GetTokensByUserID(userID); err == nil {
-			defer func() {
-				hashes := make([]string, 0, len(tokens))
-				for _, t := range tokens {
-					hashes = append(hashes, t.TokenHash)
-				}
-				s.invalidateTokenCacheByHashes(context.Background(), hashes)
-			}()
+			hashes = make([]string, 0, len(tokens))
+			for _, t := range tokens {
+				hashes = append(hashes, t.TokenHash)
+			}
 		} else {
 			log.Printf("[TokenCache] failed to collect user token hashes for invalidation user=%s: %v", userID, err)
 		}
 	}
-	return s.store.RevokeTokensByUserID(userID)
+
+	if err := s.store.RevokeTokensByUserID(userID); err != nil {
+		return err
+	}
+
+	if len(hashes) > 0 {
+		s.invalidateTokenCacheByHashes(context.Background(), hashes)
+	}
+
+	return nil
 }
 
 // updateTokenStatusWithAudit is a helper function to update token status and log audit events
