@@ -111,7 +111,10 @@ func (s *TokenService) invalidateTokenCache(ctx context.Context, hash string) {
 			if len(hashPrefix) > 8 {
 				hashPrefix = hashPrefix[:8]
 			}
-			log.Printf("[TokenCache] failed to invalidate cache for hash=%s...: %v", hashPrefix, err)
+			log.Printf(
+				"[TokenCache] failed to invalidate cache for hash=%s...: %v",
+				hashPrefix, err,
+			)
 		}
 	}
 }

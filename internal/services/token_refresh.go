@@ -35,7 +35,10 @@ func (s *TokenService) revokeTokenFamilyWithAudit(
 		var err error
 		hashesToInvalidate, err = s.store.GetActiveTokenHashesByFamilyID(familyID)
 		if err != nil {
-			log.Printf("[TokenCache] failed to collect family hashes for invalidation family=%s: %v", familyID, err)
+			log.Printf(
+				"[TokenCache] failed to collect family hashes for invalidation family=%s: %v",
+				familyID, err,
+			)
 		}
 	}
 

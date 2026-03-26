@@ -343,7 +343,7 @@ func TestEnableToken_CacheInvalidated(t *testing.T) {
 	err = svc.DisableToken(ctx, tok.ID, "admin")
 	require.NoError(t, err)
 	_, err = memCache.Get(ctx, util.SHA256Hex(result.TokenString))
-	assert.Error(t, err, "cache should be invalidated after disable")
+	require.Error(t, err, "cache should be invalidated after disable")
 
 	// Re-enable token — cache should be invalidated again (stale disabled entry evicted)
 	err = svc.EnableToken(ctx, tok.ID, "admin")
@@ -407,7 +407,7 @@ func TestRevokeAllUserTokens_CacheInvalidated(t *testing.T) {
 
 	// Verify both cache entries are invalidated
 	_, err = memCache.Get(ctx, util.SHA256Hex(result1.TokenString))
-	assert.Error(t, err, "token 1 cache should be invalidated after RevokeAllUserTokens")
+	require.Error(t, err, "token 1 cache should be invalidated after RevokeAllUserTokens")
 	_, err = memCache.Get(ctx, util.SHA256Hex(result2.TokenString))
 	assert.Error(t, err, "token 2 cache should be invalidated after RevokeAllUserTokens")
 }
@@ -483,7 +483,9 @@ func TestRevokeTokenFamily_CacheInvalidated(t *testing.T) {
 	// Create client and get initial tokens via device flow
 	client := createTestClient(t, s, true)
 	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
-	initialAccess, initialRefresh, err := svc.ExchangeDeviceCode(ctx, dc.DeviceCode, client.ClientID)
+	initialAccess, initialRefresh, err := svc.ExchangeDeviceCode(
+		ctx, dc.DeviceCode, client.ClientID,
+	)
 	require.NoError(t, err)
 	require.NotNil(t, initialRefresh)
 

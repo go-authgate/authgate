@@ -96,7 +96,10 @@ func (s *TokenService) RevokeAllUserTokens(userID string) error {
 				hashes = append(hashes, t.TokenHash)
 			}
 		} else {
-			log.Printf("[TokenCache] failed to collect user token hashes for invalidation user=%s: %v", userID, err)
+			log.Printf(
+				"[TokenCache] failed to collect user token hashes for invalidation user=%s: %v",
+				userID, err,
+			)
 		}
 	}
 
