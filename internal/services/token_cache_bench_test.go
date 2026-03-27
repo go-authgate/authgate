@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/metrics"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/store"
@@ -45,17 +46,13 @@ func newBenchEnv(b *testing.B, withCache bool) *benchTokenEnv {
 	}
 	deviceSvc := NewDeviceService(s, cfg, nil, metrics.NewNoopMetrics())
 
-	var svc *TokenService
+	var tokenCache core.Cache[models.AccessToken]
 	if withCache {
-		memCache := cache.NewMemoryCache[models.AccessToken]()
-		svc = NewTokenService(
-			s, cfg, deviceSvc, localProvider, nil, metrics.NewNoopMetrics(), memCache,
-		)
-	} else {
-		svc = NewTokenService(
-			s, cfg, deviceSvc, localProvider, nil, metrics.NewNoopMetrics(), nil,
-		)
+		tokenCache = cache.NewMemoryCache[models.AccessToken]()
 	}
+	svc := NewTokenService(
+		s, cfg, deviceSvc, localProvider, nil, metrics.NewNoopMetrics(), tokenCache,
+	)
 
 	ctx := context.Background()
 	result, err := localProvider.GenerateToken(ctx, "bench-user", "bench-client", "read")

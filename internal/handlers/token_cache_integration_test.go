@@ -110,23 +110,20 @@ func TestTokenInfo_CachePopulatedOnFirstCall(t *testing.T) {
 	accessToken := issueAndExtractToken(t, r, s)
 	hash := util.SHA256Hex(accessToken)
 
-	// Cache should be empty before first tokeninfo call
 	_, err := memCache.Get(ctx, hash)
 	require.Error(t, err, "cache should be empty before first call")
 
-	// First call: cache miss, loads from DB
 	w := tokenInfoReq(t, r, accessToken)
 	assert.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]any
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	assert.Equal(t, true, resp["active"])
 
-	// Cache should now be populated
 	cached, err := memCache.Get(ctx, hash)
 	require.NoError(t, err, "cache should be populated after first call")
 	assert.Equal(t, models.TokenStatusActive, cached.Status)
 
-	// Second call: hits cache, still succeeds
+	// Second call hits cache — must still succeed
 	w2 := tokenInfoReq(t, r, accessToken)
 	assert.Equal(t, http.StatusOK, w2.Code)
 }
@@ -139,23 +136,18 @@ func TestTokenInfo_RevokeViaHTTP_InvalidatesCache(t *testing.T) {
 	accessToken := issueAndExtractToken(t, r, s)
 	hash := util.SHA256Hex(accessToken)
 
-	// Populate cache via tokeninfo
 	w := tokenInfoReq(t, r, accessToken)
 	require.Equal(t, http.StatusOK, w.Code)
-
-	// Verify cache is populated
 	_, err := memCache.Get(ctx, hash)
 	require.NoError(t, err, "cache should be populated")
 
-	// Revoke via HTTP endpoint (RFC 7009)
 	w2 := postRevoke(t, r, accessToken)
 	assert.Equal(t, http.StatusOK, w2.Code)
 
-	// Cache must be invalidated
 	_, err = memCache.Get(ctx, hash)
 	require.Error(t, err, "cache should be invalidated after revocation")
 
-	// Immediately call tokeninfo again — must be rejected
+	// Immediately re-validate — must be rejected despite prior cache entry
 	w3 := tokenInfoReq(t, r, accessToken)
 	assert.Equal(t, http.StatusUnauthorized, w3.Code)
 	var errResp map[string]any
@@ -171,25 +163,19 @@ func TestTokenInfo_DisableToken_InvalidatesCache(t *testing.T) {
 	accessToken := issueAndExtractToken(t, r, s)
 	hash := util.SHA256Hex(accessToken)
 
-	// Populate cache
 	w := tokenInfoReq(t, r, accessToken)
 	require.Equal(t, http.StatusOK, w.Code)
-
-	// Verify cache is populated
 	_, err := memCache.Get(ctx, hash)
 	require.NoError(t, err)
 
-	// Disable via service layer
 	tok, err := s.GetAccessTokenByHash(hash)
 	require.NoError(t, err)
 	err = tokenSvc.DisableToken(ctx, tok.ID, "test-admin")
 	require.NoError(t, err)
 
-	// Cache must be invalidated
 	_, err = memCache.Get(ctx, hash)
 	require.Error(t, err, "cache should be invalidated after disable")
 
-	// tokeninfo must reject disabled token
 	w2 := tokenInfoReq(t, r, accessToken)
 	assert.Equal(t, http.StatusUnauthorized, w2.Code)
 	var errResp map[string]any
@@ -204,17 +190,15 @@ func TestTokenInfo_NilCache_RevokeStillWorks(t *testing.T) {
 	accessToken := issueAndExtractToken(t, r, s)
 	hash := util.SHA256Hex(accessToken)
 
-	// Validate token works
 	w := tokenInfoReq(t, r, accessToken)
 	require.Equal(t, http.StatusOK, w.Code)
 
-	// Revoke directly via store (setupCCTestEnv has no /oauth/revoke route)
+	// Revoke directly via store — setupCCTestEnv has no /oauth/revoke route
 	tok, err := s.GetAccessTokenByHash(hash)
 	require.NoError(t, err)
 	err = s.RevokeToken(tok.ID)
 	require.NoError(t, err)
 
-	// tokeninfo must reject revoked token even without cache
 	w2 := tokenInfoReq(t, r, accessToken)
 	assert.Equal(t, http.StatusUnauthorized, w2.Code)
 	var errResp map[string]any
