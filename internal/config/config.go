@@ -233,7 +233,7 @@ func Load() *Config {
 		IsProduction: getEnvBool("ENVIRONMENT", false) ||
 			getEnv("ENVIRONMENT", "") == "production",
 		JWTSecret:           getEnv("JWT_SECRET", "your-256-bit-secret-change-in-production"),
-		JWTExpiration:       time.Hour,
+		JWTExpiration:       getEnvDuration("JWT_EXPIRATION", time.Hour),
 		JWTSigningAlgorithm: getEnv("JWT_SIGNING_ALGORITHM", "HS256"),
 		JWTPrivateKeyPath:   getEnv("JWT_PRIVATE_KEY_PATH", ""),
 		JWTKeyID:            getEnv("JWT_KEY_ID", ""),
@@ -492,6 +492,11 @@ func validateCacheType(name, value, redisAddr string) error {
 
 // Validate checks the configuration for invalid values
 func (c *Config) Validate() error {
+	// Validate JWT expiration
+	if c.JWTExpiration <= 0 {
+		return fmt.Errorf("JWT_EXPIRATION must be a positive duration (got %s)", c.JWTExpiration)
+	}
+
 	// Validate JWT signing algorithm
 	switch c.JWTSigningAlgorithm {
 	case "", "HS256":
