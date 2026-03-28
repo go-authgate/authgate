@@ -18,6 +18,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "valid memory store",
 			config: &Config{
+				JWTExpiration:        time.Hour,
 				RateLimitStore:       RateLimitStoreMemory,
 				MetricsCacheType:     CacheTypeMemory,
 				UserCacheType:        CacheTypeMemory,
@@ -30,6 +31,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "valid redis store",
 			config: &Config{
+				JWTExpiration:        time.Hour,
 				RateLimitStore:       RateLimitStoreRedis,
 				MetricsCacheType:     CacheTypeMemory,
 				UserCacheType:        CacheTypeMemory,
@@ -42,6 +44,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "invalid store - typo",
 			config: &Config{
+				JWTExpiration:    time.Hour,
 				RateLimitStore:   "reddis",
 				MetricsCacheType: CacheTypeMemory,
 				UserCacheType:    CacheTypeMemory,
@@ -52,6 +55,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "invalid store - memcache",
 			config: &Config{
+				JWTExpiration:    time.Hour,
 				RateLimitStore:   "memcache",
 				MetricsCacheType: CacheTypeMemory,
 				UserCacheType:    CacheTypeMemory,
@@ -62,6 +66,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "invalid store - empty string",
 			config: &Config{
+				JWTExpiration:    time.Hour,
 				RateLimitStore:   "",
 				MetricsCacheType: CacheTypeMemory,
 				UserCacheType:    CacheTypeMemory,
@@ -72,6 +77,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "invalid store - uppercase",
 			config: &Config{
+				JWTExpiration:    time.Hour,
 				RateLimitStore:   "MEMORY",
 				MetricsCacheType: CacheTypeMemory,
 				UserCacheType:    CacheTypeMemory,
@@ -97,6 +103,7 @@ func TestConfig_Validate(t *testing.T) {
 
 func TestConfig_Validate_JWTSigningAlgorithm(t *testing.T) {
 	base := &Config{
+		JWTExpiration:        time.Hour,
 		RateLimitStore:       RateLimitStoreMemory,
 		MetricsCacheType:     CacheTypeMemory,
 		UserCacheType:        CacheTypeMemory,
@@ -186,6 +193,7 @@ func TestMetricsCacheValidation(t *testing.T) {
 		{
 			name: "valid memory cache",
 			config: &Config{
+				JWTExpiration:        time.Hour,
 				RateLimitStore:       RateLimitStoreMemory,
 				MetricsCacheType:     CacheTypeMemory,
 				UserCacheType:        CacheTypeMemory,
@@ -198,6 +206,7 @@ func TestMetricsCacheValidation(t *testing.T) {
 		{
 			name: "valid redis cache with redis address",
 			config: &Config{
+				JWTExpiration:        time.Hour,
 				RateLimitStore:       RateLimitStoreMemory,
 				MetricsCacheType:     CacheTypeRedis,
 				UserCacheType:        CacheTypeMemory,
@@ -211,6 +220,7 @@ func TestMetricsCacheValidation(t *testing.T) {
 		{
 			name: "valid redis-aside cache with redis address",
 			config: &Config{
+				JWTExpiration:        time.Hour,
 				RateLimitStore:       RateLimitStoreMemory,
 				MetricsCacheType:     CacheTypeRedisAside,
 				UserCacheType:        CacheTypeMemory,
@@ -224,6 +234,7 @@ func TestMetricsCacheValidation(t *testing.T) {
 		{
 			name: "invalid cache type - typo",
 			config: &Config{
+				JWTExpiration:    time.Hour,
 				RateLimitStore:   RateLimitStoreMemory,
 				MetricsCacheType: "reddis",
 			},
@@ -233,6 +244,7 @@ func TestMetricsCacheValidation(t *testing.T) {
 		{
 			name: "invalid cache type - memcached",
 			config: &Config{
+				JWTExpiration:    time.Hour,
 				RateLimitStore:   RateLimitStoreMemory,
 				MetricsCacheType: "memcached",
 			},
@@ -242,6 +254,7 @@ func TestMetricsCacheValidation(t *testing.T) {
 		{
 			name: "redis-aside without redis address",
 			config: &Config{
+				JWTExpiration:    time.Hour,
 				RateLimitStore:   RateLimitStoreMemory,
 				MetricsCacheType: CacheTypeRedisAside,
 				RedisAddr:        "",
@@ -252,6 +265,7 @@ func TestMetricsCacheValidation(t *testing.T) {
 		{
 			name: "redis cache type without redis address",
 			config: &Config{
+				JWTExpiration:    time.Hour,
 				RateLimitStore:   RateLimitStoreMemory,
 				MetricsCacheType: CacheTypeRedis,
 				RedisAddr:        "",
@@ -285,6 +299,7 @@ func TestUserCacheValidation(t *testing.T) {
 		{
 			name: "valid memory user cache",
 			config: &Config{
+				JWTExpiration:        time.Hour,
 				RateLimitStore:       RateLimitStoreMemory,
 				MetricsCacheType:     CacheTypeMemory,
 				UserCacheType:        CacheTypeMemory,
@@ -297,6 +312,7 @@ func TestUserCacheValidation(t *testing.T) {
 		{
 			name: "valid redis user cache with redis address",
 			config: &Config{
+				JWTExpiration:        time.Hour,
 				RateLimitStore:       RateLimitStoreMemory,
 				MetricsCacheType:     CacheTypeMemory,
 				UserCacheType:        CacheTypeRedis,
@@ -310,6 +326,7 @@ func TestUserCacheValidation(t *testing.T) {
 		{
 			name: "valid redis-aside user cache with redis address",
 			config: &Config{
+				JWTExpiration:        time.Hour,
 				RateLimitStore:       RateLimitStoreMemory,
 				MetricsCacheType:     CacheTypeMemory,
 				UserCacheType:        CacheTypeRedisAside,
@@ -324,6 +341,7 @@ func TestUserCacheValidation(t *testing.T) {
 		{
 			name: "invalid user cache type",
 			config: &Config{
+				JWTExpiration:    time.Hour,
 				RateLimitStore:   RateLimitStoreMemory,
 				MetricsCacheType: CacheTypeMemory,
 				UserCacheType:    "invalid",
@@ -334,6 +352,7 @@ func TestUserCacheValidation(t *testing.T) {
 		{
 			name: "redis user cache without redis address",
 			config: &Config{
+				JWTExpiration:    time.Hour,
 				RateLimitStore:   RateLimitStoreMemory,
 				MetricsCacheType: CacheTypeMemory,
 				UserCacheType:    CacheTypeRedis,
@@ -345,6 +364,7 @@ func TestUserCacheValidation(t *testing.T) {
 		{
 			name: "redis-aside user cache without redis address",
 			config: &Config{
+				JWTExpiration:    time.Hour,
 				RateLimitStore:   RateLimitStoreMemory,
 				MetricsCacheType: CacheTypeMemory,
 				UserCacheType:    CacheTypeRedisAside,
@@ -356,6 +376,7 @@ func TestUserCacheValidation(t *testing.T) {
 		{
 			name: "zero UserCacheTTL rejected",
 			config: &Config{
+				JWTExpiration:    time.Hour,
 				RateLimitStore:   RateLimitStoreMemory,
 				MetricsCacheType: CacheTypeMemory,
 				UserCacheType:    CacheTypeMemory,
@@ -367,6 +388,7 @@ func TestUserCacheValidation(t *testing.T) {
 		{
 			name: "negative UserCacheTTL rejected",
 			config: &Config{
+				JWTExpiration:    time.Hour,
 				RateLimitStore:   RateLimitStoreMemory,
 				MetricsCacheType: CacheTypeMemory,
 				UserCacheType:    CacheTypeMemory,
@@ -378,6 +400,7 @@ func TestUserCacheValidation(t *testing.T) {
 		{
 			name: "zero UserCacheClientTTL rejected for redis-aside",
 			config: &Config{
+				JWTExpiration:      time.Hour,
 				RateLimitStore:     RateLimitStoreMemory,
 				MetricsCacheType:   CacheTypeMemory,
 				UserCacheType:      CacheTypeRedisAside,
@@ -391,6 +414,7 @@ func TestUserCacheValidation(t *testing.T) {
 		{
 			name: "zero UserCacheClientTTL allowed for non-redis-aside",
 			config: &Config{
+				JWTExpiration:        time.Hour,
 				RateLimitStore:       RateLimitStoreMemory,
 				MetricsCacheType:     CacheTypeMemory,
 				UserCacheType:        CacheTypeMemory,
@@ -424,6 +448,7 @@ func TestCacheTypeConstants(t *testing.T) {
 
 func TestClientCountCacheValidation(t *testing.T) {
 	validBase := &Config{
+		JWTExpiration:       time.Hour,
 		RateLimitStore:      RateLimitStoreMemory,
 		MetricsCacheType:    CacheTypeMemory,
 		UserCacheType:       CacheTypeMemory,
@@ -512,6 +537,75 @@ func TestClientCountCacheValidation(t *testing.T) {
 // ============================================================
 // Authorization Code Flow config (RFC 6749 + RFC 7636)
 // ============================================================
+
+func TestConfig_Validate_JWTExpiration(t *testing.T) {
+	base := &Config{
+		JWTExpiration:        time.Hour,
+		RateLimitStore:       RateLimitStoreMemory,
+		MetricsCacheType:     CacheTypeMemory,
+		UserCacheType:        CacheTypeMemory,
+		UserCacheTTL:         5 * time.Minute,
+		ClientCountCacheType: CacheTypeMemory,
+		ClientCountCacheTTL:  time.Minute,
+	}
+
+	tests := []struct {
+		name        string
+		expiration  time.Duration
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "default 1 hour",
+			expiration:  time.Hour,
+			expectError: false,
+		},
+		{
+			name:        "short 5 minutes",
+			expiration:  5 * time.Minute,
+			expectError: false,
+		},
+		{
+			name:        "zero rejected",
+			expiration:  0,
+			expectError: true,
+			errorMsg:    "JWT_EXPIRATION must be a positive duration",
+		},
+		{
+			name:        "negative rejected",
+			expiration:  -1 * time.Minute,
+			expectError: true,
+			errorMsg:    "JWT_EXPIRATION must be a positive duration",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := *base
+			cfg.JWTExpiration = tt.expiration
+			err := cfg.Validate()
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestJWTExpirationConfigurable(t *testing.T) {
+	// Verify JWT_EXPIRATION env var is respected
+	t.Setenv("JWT_EXPIRATION", "5m")
+	cfg := Load()
+	assert.Equal(t, 5*time.Minute, cfg.JWTExpiration)
+}
+
+func TestJWTExpirationDefault(t *testing.T) {
+	// Without env var, default is 1 hour
+	cfg := Load()
+	assert.Equal(t, time.Hour, cfg.JWTExpiration)
+}
 
 func TestAuthCodeFlowConfigDefaults(t *testing.T) {
 	cfg := Load()
