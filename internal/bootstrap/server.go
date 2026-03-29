@@ -10,7 +10,6 @@ import (
 	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/metrics"
 	"github.com/go-authgate/authgate/internal/models"
-	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/store"
 
 	"github.com/appleboy/graceful"
@@ -98,7 +97,7 @@ func addRedisClientShutdownJob(m *graceful.Manager, redisClient *redis.Client, c
 // addAuditServiceShutdownJob adds audit service shutdown handler
 func addAuditServiceShutdownJob(
 	m *graceful.Manager,
-	auditService *services.AuditService,
+	auditService core.AuditLogger,
 	cfg *config.Config,
 ) {
 	m.AddShutdownJob(func() error {
@@ -120,7 +119,7 @@ func addAuditServiceShutdownJob(
 func addAuditLogCleanupJob(
 	m *graceful.Manager,
 	cfg *config.Config,
-	auditService *services.AuditService,
+	auditService core.AuditLogger,
 ) {
 	if !cfg.EnableAuditLogging || cfg.AuditLogRetention <= 0 {
 		return

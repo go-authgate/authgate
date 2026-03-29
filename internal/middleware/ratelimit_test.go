@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-authgate/authgate/internal/services"
+
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -22,6 +24,7 @@ func TestNewMemoryRateLimiter(t *testing.T) {
 		RequestsPerMinute: 5,
 		StoreType:         RateLimitStoreMemory,
 		CleanupInterval:   5 * time.Minute,
+		AuditService:      services.NewNoopAuditService(),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, limiter)
@@ -59,6 +62,7 @@ func TestNewRateLimiter_MemoryStore(t *testing.T) {
 		RequestsPerMinute: 10,
 		StoreType:         RateLimitStoreMemory,
 		CleanupInterval:   1 * time.Minute,
+		AuditService:      services.NewNoopAuditService(),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, limiter)
@@ -84,6 +88,7 @@ func TestRateLimiter_DifferentIPs(t *testing.T) {
 	limiter, err := NewRateLimiter(RateLimitConfig{
 		RequestsPerMinute: 2,
 		StoreType:         RateLimitStoreMemory,
+		AuditService:      services.NewNoopAuditService(),
 	})
 	require.NoError(t, err)
 
@@ -129,6 +134,7 @@ func TestRateLimiter_ErrorResponse(t *testing.T) {
 	limiter, err := NewRateLimiter(RateLimitConfig{
 		RequestsPerMinute: 1,
 		StoreType:         RateLimitStoreMemory,
+		AuditService:      services.NewNoopAuditService(),
 	})
 	require.NoError(t, err)
 
@@ -170,6 +176,7 @@ func TestNewRedisRateLimiter_InvalidAddress(t *testing.T) {
 		StoreType:         RateLimitStoreRedis,
 		RedisClient:       invalidClient,
 		CleanupInterval:   5 * time.Minute,
+		AuditService:      services.NewNoopAuditService(),
 	})
 
 	// Should fail to create store
@@ -207,6 +214,7 @@ func TestNewRedisRateLimiter_Success(t *testing.T) {
 		StoreType:         RateLimitStoreRedis,
 		RedisClient:       redisClient,
 		CleanupInterval:   5 * time.Minute,
+		AuditService:      services.NewNoopAuditService(),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, limiter)
@@ -267,12 +275,14 @@ func TestRedisRateLimiter_MultiInstance(t *testing.T) {
 		StoreType:         RateLimitStoreRedis,
 		RedisClient:       redisClient,
 		CleanupInterval:   5 * time.Minute,
+		AuditService:      services.NewNoopAuditService(),
 	})
 	limiter2, err2 := NewRateLimiter(RateLimitConfig{
 		RequestsPerMinute: 5,
 		StoreType:         RateLimitStoreRedis,
 		RedisClient:       redisClient,
 		CleanupInterval:   5 * time.Minute,
+		AuditService:      services.NewNoopAuditService(),
 	})
 
 	if err1 != nil || err2 != nil {
@@ -357,6 +367,7 @@ func TestRateLimiter_HTMLErrorResponse(t *testing.T) {
 	limiter, err := NewRateLimiter(RateLimitConfig{
 		RequestsPerMinute: 1,
 		StoreType:         RateLimitStoreMemory,
+		AuditService:      services.NewNoopAuditService(),
 	})
 	require.NoError(t, err)
 
@@ -409,6 +420,7 @@ func TestRateLimiter_JSONErrorResponse(t *testing.T) {
 	limiter, err := NewRateLimiter(RateLimitConfig{
 		RequestsPerMinute: 1,
 		StoreType:         RateLimitStoreMemory,
+		AuditService:      services.NewNoopAuditService(),
 	})
 	require.NoError(t, err)
 
@@ -448,6 +460,7 @@ func TestRateLimiter_NoAcceptHeader(t *testing.T) {
 	limiter, err := NewRateLimiter(RateLimitConfig{
 		RequestsPerMinute: 1,
 		StoreType:         RateLimitStoreMemory,
+		AuditService:      services.NewNoopAuditService(),
 	})
 	require.NoError(t, err)
 
@@ -538,6 +551,7 @@ func TestSharedRedisClient(t *testing.T) {
 		StoreType:         RateLimitStoreRedis,
 		RedisClient:       sharedClient,
 		CleanupInterval:   1 * time.Minute,
+		AuditService:      services.NewNoopAuditService(),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, limiter1)
@@ -547,6 +561,7 @@ func TestSharedRedisClient(t *testing.T) {
 		StoreType:         RateLimitStoreRedis,
 		RedisClient:       sharedClient,
 		CleanupInterval:   1 * time.Minute,
+		AuditService:      services.NewNoopAuditService(),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, limiter2)
@@ -663,6 +678,7 @@ func TestRateLimiter_MixedAcceptHeaders(t *testing.T) {
 			limiter, err := NewRateLimiter(RateLimitConfig{
 				RequestsPerMinute: 1,
 				StoreType:         RateLimitStoreMemory,
+				AuditService:      services.NewNoopAuditService(),
 			})
 			require.NoError(t, err)
 

@@ -16,29 +16,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// AuditLogEntry represents the data needed to create an audit log entry
-type AuditLogEntry struct {
-	EventType     models.EventType
-	Severity      models.EventSeverity
-	ActorUserID   string
-	ActorUsername string
-	ActorIP       string
-	ResourceType  models.ResourceType
-	ResourceID    string
-	ResourceName  string
-	Action        string
-	Details       models.AuditDetails
-	Success       bool
-	ErrorMessage  string
-	UserAgent     string
-	RequestPath   string
-	RequestMethod string
-}
+// Compile-time interface check.
+var _ core.AuditLogger = (*AuditService)(nil)
 
 // AuditService handles audit logging operations
 type AuditService struct {
 	store      core.Store
-	enabled    bool
 	bufferSize int
 
 	// Async logging channel
@@ -55,28 +38,23 @@ type AuditService struct {
 }
 
 // NewAuditService creates a new audit service
-func NewAuditService(s core.Store, enabled bool, bufferSize int) *AuditService {
+func NewAuditService(s core.Store, bufferSize int) *AuditService {
 	if bufferSize <= 0 {
 		bufferSize = 1000 // Default buffer size
 	}
 
 	service := &AuditService{
 		store:       s,
-		enabled:     enabled,
 		bufferSize:  bufferSize,
 		logChan:     make(chan *models.AuditLog, bufferSize),
 		batchBuffer: make([]*models.AuditLog, 0, 100),
 		shutdownCh:  make(chan struct{}),
 	}
 
-	if enabled {
-		service.batchTicker = time.NewTicker(1 * time.Second)
-		service.wg.Add(1)
-		go service.worker()
-		log.Printf("Audit service started with buffer size %d", bufferSize)
-	} else {
-		log.Println("Audit service is disabled")
-	}
+	service.batchTicker = time.NewTicker(1 * time.Second)
+	service.wg.Add(1)
+	go service.worker()
+	log.Printf("Audit service started with buffer size %d", bufferSize)
 
 	return service
 }
@@ -141,7 +119,10 @@ func (s *AuditService) flushBatchUnsafe() {
 }
 
 // buildAuditLog enriches an AuditLogEntry from context and builds the database record.
-func (s *AuditService) buildAuditLog(ctx context.Context, entry AuditLogEntry) *models.AuditLog {
+func (s *AuditService) buildAuditLog(
+	ctx context.Context,
+	entry core.AuditLogEntry,
+) *models.AuditLog {
 	if entry.ActorIP == "" {
 		entry.ActorIP = util.GetIPFromContext(ctx)
 	}
@@ -177,10 +158,7 @@ func (s *AuditService) buildAuditLog(ctx context.Context, entry AuditLogEntry) *
 }
 
 // Log records an audit log entry asynchronously
-func (s *AuditService) Log(ctx context.Context, entry AuditLogEntry) {
-	if !s.enabled {
-		return
-	}
+func (s *AuditService) Log(ctx context.Context, entry core.AuditLogEntry) {
 	auditLog := s.buildAuditLog(ctx, entry)
 	select {
 	case s.logChan <- auditLog:
@@ -190,10 +168,7 @@ func (s *AuditService) Log(ctx context.Context, entry AuditLogEntry) {
 }
 
 // LogSync records an audit log entry synchronously (for critical events)
-func (s *AuditService) LogSync(ctx context.Context, entry AuditLogEntry) error {
-	if !s.enabled {
-		return nil
-	}
+func (s *AuditService) LogSync(ctx context.Context, entry core.AuditLogEntry) error {
 	return s.store.CreateAuditLog(s.buildAuditLog(ctx, entry))
 }
 
@@ -218,10 +193,6 @@ func (s *AuditService) GetAuditLogStats(startTime, endTime time.Time) (store.Aud
 
 // Shutdown gracefully shuts down the audit service
 func (s *AuditService) Shutdown(ctx context.Context) error {
-	if !s.enabled {
-		return nil
-	}
-
 	// Stop ticker
 	s.batchTicker.Stop()
 

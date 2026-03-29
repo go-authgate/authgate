@@ -53,23 +53,21 @@ func (s *TokenService) revokeTokenFamilyWithAudit(
 	}
 
 	// Audit log — CRITICAL severity because this indicates potential token theft
-	if s.auditService != nil {
-		_ = s.auditService.LogSync(ctx, AuditLogEntry{
-			EventType:    models.EventSuspiciousActivity,
-			Severity:     models.SeverityCritical,
-			ActorUserID:  reusedToken.UserID,
-			ResourceType: models.ResourceToken,
-			ResourceID:   reusedToken.ID,
-			Action:       "Refresh token reuse detected — token family revoked",
-			Details: models.AuditDetails{
-				"family_id":       familyID,
-				"reused_token_id": reusedToken.ID,
-				"client_id":       reusedToken.ClientID,
-				"tokens_revoked":  revokedCount,
-			},
-			Success: true,
-		})
-	}
+	_ = s.auditService.LogSync(ctx, core.AuditLogEntry{
+		EventType:    models.EventSuspiciousActivity,
+		Severity:     models.SeverityCritical,
+		ActorUserID:  reusedToken.UserID,
+		ResourceType: models.ResourceToken,
+		ResourceID:   reusedToken.ID,
+		Action:       "Refresh token reuse detected — token family revoked",
+		Details: models.AuditDetails{
+			"family_id":       familyID,
+			"reused_token_id": reusedToken.ID,
+			"client_id":       reusedToken.ClientID,
+			"tokens_revoked":  revokedCount,
+		},
+		Success: true,
+	})
 }
 
 // RefreshAccessToken generates new access token (and optionally new refresh token in rotation mode)
@@ -207,32 +205,30 @@ func (s *TokenService) RefreshAccessToken(
 	s.metrics.RecordTokenRefresh(true)
 
 	// Log token refresh
-	if s.auditService != nil {
-		providerName := s.tokenProvider.Name()
-		details := models.AuditDetails{
-			"client_id":           newAccessToken.ClientID,
-			"scopes":              newAccessToken.Scopes,
-			"token_provider":      providerName,
-			"rotation_enabled":    s.config.EnableTokenRotation,
-			"new_access_token_id": newAccessToken.ID,
-		}
-
-		if rotated && newRefreshToken.ID != refreshToken.ID {
-			details["new_refresh_token_id"] = newRefreshToken.ID
-			details["old_refresh_token_id"] = refreshToken.ID
-		}
-
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventTokenRefreshed,
-			Severity:     models.SeverityInfo,
-			ActorUserID:  newAccessToken.UserID,
-			ResourceType: models.ResourceToken,
-			ResourceID:   newAccessToken.ID,
-			Action:       "Access token refreshed",
-			Details:      details,
-			Success:      true,
-		})
+	providerName := s.tokenProvider.Name()
+	details := models.AuditDetails{
+		"client_id":           newAccessToken.ClientID,
+		"scopes":              newAccessToken.Scopes,
+		"token_provider":      providerName,
+		"rotation_enabled":    s.config.EnableTokenRotation,
+		"new_access_token_id": newAccessToken.ID,
 	}
+
+	if rotated && newRefreshToken.ID != refreshToken.ID {
+		details["new_refresh_token_id"] = newRefreshToken.ID
+		details["old_refresh_token_id"] = refreshToken.ID
+	}
+
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventTokenRefreshed,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  newAccessToken.UserID,
+		ResourceType: models.ResourceToken,
+		ResourceID:   newAccessToken.ID,
+		Action:       "Access token refreshed",
+		Details:      details,
+		Success:      true,
+	})
 
 	return newAccessToken, newRefreshToken, nil
 }

@@ -38,7 +38,7 @@ type Application struct {
 	RateLimitRedisClient   *redis.Client
 
 	// Services
-	AuditService *services.AuditService
+	AuditService core.AuditLogger
 	services     serviceSet
 
 	// HTTP
@@ -134,11 +134,14 @@ func (app *Application) initializeInfrastructure(ctx context.Context) error {
 // initializeBusinessLayer sets up services
 func (app *Application) initializeBusinessLayer() {
 	// Audit service (required by other services)
-	app.AuditService = services.NewAuditService(
-		app.DB,
-		app.Config.EnableAuditLogging,
-		app.Config.AuditLogBufferSize,
-	)
+	if app.Config.EnableAuditLogging {
+		app.AuditService = services.NewAuditService(
+			app.DB,
+			app.Config.AuditLogBufferSize,
+		)
+	} else {
+		app.AuditService = services.NewNoopAuditService()
+	}
 
 	// Initialize token provider (stored for JWKS handler)
 	app.TokenProvider = initializeTokenProvider(app.Config)

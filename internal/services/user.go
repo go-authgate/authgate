@@ -53,7 +53,7 @@ type UserService struct {
 	httpAPIProvider   core.AuthProvider
 	authMode          string
 	oauthAutoRegister bool
-	auditService      *AuditService
+	auditService      core.AuditLogger
 	userCache         core.Cache[models.User]
 	userCacheTTL      time.Duration
 }
@@ -64,7 +64,7 @@ func NewUserService(
 	httpAPIProvider core.AuthProvider,
 	authMode string,
 	oauthAutoRegister bool,
-	auditService *AuditService,
+	auditService core.AuditLogger,
 	userCache core.Cache[models.User],
 	userCacheTTL time.Duration,
 ) *UserService {
@@ -103,10 +103,7 @@ func (s *UserService) Authenticate(
 
 // logAuthFailure logs a failed authentication audit event.
 func (s *UserService) logAuthFailure(ctx context.Context, user *models.User, providerName string) {
-	if s.auditService == nil {
-		return
-	}
-	s.auditService.Log(ctx, AuditLogEntry{
+	s.auditService.Log(ctx, core.AuditLogEntry{
 		EventType:     models.EventAuthenticationFailure,
 		Severity:      models.SeverityWarning,
 		ActorUserID:   user.ID,
@@ -170,22 +167,20 @@ func (s *UserService) authenticateExistingUser(
 	}
 
 	// Log successful authentication
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:     models.EventAuthenticationSuccess,
-			Severity:      models.SeverityInfo,
-			ActorUserID:   user.ID,
-			ActorUsername: user.Username,
-			ResourceType:  models.ResourceUser,
-			ResourceID:    user.ID,
-			Action:        "User login successful",
-			Details: models.AuditDetails{
-				"auth_source": user.AuthSource,
-				"provider":    providerName,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:     models.EventAuthenticationSuccess,
+		Severity:      models.SeverityInfo,
+		ActorUserID:   user.ID,
+		ActorUsername: user.Username,
+		ResourceType:  models.ResourceUser,
+		ResourceID:    user.ID,
+		Action:        "User login successful",
+		Details: models.AuditDetails{
+			"auth_source": user.AuthSource,
+			"provider":    providerName,
+		},
+		Success: true,
+	})
 
 	return user, nil
 }
@@ -203,20 +198,18 @@ func (s *UserService) authenticateAndCreateExternalUser(
 	authResult, err := s.httpAPIProvider.Authenticate(ctx, username, password)
 	if err != nil {
 		// Log failed authentication attempt
-		if s.auditService != nil {
-			s.auditService.Log(ctx, AuditLogEntry{
-				EventType:     models.EventAuthenticationFailure,
-				Severity:      models.SeverityWarning,
-				ActorUsername: username,
-				Action:        "External user login attempt failed",
-				Details: models.AuditDetails{
-					"auth_source": AuthModeHTTPAPI,
-					"reason":      "external_auth_error",
-				},
-				Success:      false,
-				ErrorMessage: err.Error(),
-			})
-		}
+		s.auditService.Log(ctx, core.AuditLogEntry{
+			EventType:     models.EventAuthenticationFailure,
+			Severity:      models.SeverityWarning,
+			ActorUsername: username,
+			Action:        "External user login attempt failed",
+			Details: models.AuditDetails{
+				"auth_source": AuthModeHTTPAPI,
+				"reason":      "external_auth_error",
+			},
+			Success:      false,
+			ErrorMessage: err.Error(),
+		})
 		return nil, ErrInvalidCredentials
 	}
 
@@ -226,17 +219,15 @@ func (s *UserService) authenticateAndCreateExternalUser(
 		log.Printf("[Auth] Failed to create user=%s: %v", username, err)
 
 		// Log user creation failure
-		if s.auditService != nil {
-			s.auditService.Log(ctx, AuditLogEntry{
-				EventType:     models.EventAuthenticationFailure,
-				Severity:      models.SeverityError,
-				ActorUsername: username,
-				Action:        "Failed to create external user",
-				Details:       models.AuditDetails{"auth_source": AuthModeHTTPAPI},
-				Success:       false,
-				ErrorMessage:  err.Error(),
-			})
-		}
+		s.auditService.Log(ctx, core.AuditLogEntry{
+			EventType:     models.EventAuthenticationFailure,
+			Severity:      models.SeverityError,
+			ActorUsername: username,
+			Action:        "Failed to create external user",
+			Details:       models.AuditDetails{"auth_source": AuthModeHTTPAPI},
+			Success:       false,
+			ErrorMessage:  err.Error(),
+		})
 
 		return nil, ErrUserSyncFailed
 	}
@@ -244,22 +235,20 @@ func (s *UserService) authenticateAndCreateExternalUser(
 	log.Printf("[Auth] New external user created: %s", username)
 
 	// Log successful authentication and user creation
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:     models.EventAuthenticationSuccess,
-			Severity:      models.SeverityInfo,
-			ActorUserID:   user.ID,
-			ActorUsername: user.Username,
-			ResourceType:  models.ResourceUser,
-			ResourceID:    user.ID,
-			Action:        "New external user created and authenticated",
-			Details: models.AuditDetails{
-				"auth_source": user.AuthSource,
-				"external_id": user.ExternalID,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:     models.EventAuthenticationSuccess,
+		Severity:      models.SeverityInfo,
+		ActorUserID:   user.ID,
+		ActorUsername: user.Username,
+		ResourceType:  models.ResourceUser,
+		ResourceID:    user.ID,
+		Action:        "New external user created and authenticated",
+		Details: models.AuditDetails{
+			"auth_source": user.AuthSource,
+			"external_id": user.ExternalID,
+		},
+		Success: true,
+	})
 
 	return user, nil
 }
@@ -420,22 +409,20 @@ func (s *UserService) updateOAuthConnectionAndGetUser(
 	log.Printf("[OAuth] User login: user=%s provider=%s", user.Username, connection.Provider)
 
 	// Log OAuth authentication
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:     models.EventOAuthAuthentication,
-			Severity:      models.SeverityInfo,
-			ActorUserID:   user.ID,
-			ActorUsername: user.Username,
-			ResourceType:  models.ResourceUser,
-			ResourceID:    user.ID,
-			Action:        "OAuth authentication successful",
-			Details: models.AuditDetails{
-				"provider":         connection.Provider,
-				"provider_user_id": connection.ProviderUserID,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:     models.EventOAuthAuthentication,
+		Severity:      models.SeverityInfo,
+		ActorUserID:   user.ID,
+		ActorUsername: user.Username,
+		ResourceType:  models.ResourceUser,
+		ResourceID:    user.ID,
+		Action:        "OAuth authentication successful",
+		Details: models.AuditDetails{
+			"provider":         connection.Provider,
+			"provider_user_id": connection.ProviderUserID,
+		},
+		Success: true,
+	})
 
 	return user, nil
 }
@@ -486,22 +473,20 @@ func (s *UserService) linkOAuthToExistingUser(
 	log.Printf("[OAuth] Linked existing user: user=%s provider=%s", user.Username, provider)
 
 	// Log OAuth linking
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:     models.EventOAuthAuthentication,
-			Severity:      models.SeverityInfo,
-			ActorUserID:   user.ID,
-			ActorUsername: user.Username,
-			ResourceType:  models.ResourceUser,
-			ResourceID:    user.ID,
-			Action:        "OAuth provider linked to existing user",
-			Details: models.AuditDetails{
-				"provider":         provider,
-				"provider_user_id": oauthUserInfo.ProviderUserID,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:     models.EventOAuthAuthentication,
+		Severity:      models.SeverityInfo,
+		ActorUserID:   user.ID,
+		ActorUsername: user.Username,
+		ResourceType:  models.ResourceUser,
+		ResourceID:    user.ID,
+		Action:        "OAuth provider linked to existing user",
+		Details: models.AuditDetails{
+			"provider":         provider,
+			"provider_user_id": oauthUserInfo.ProviderUserID,
+		},
+		Success: true,
+	})
 
 	return user, nil
 }
@@ -566,23 +551,21 @@ func (s *UserService) createUserWithOAuth(
 		user.Username, user.Email, provider)
 
 	// Log new user creation via OAuth
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:     models.EventOAuthAuthentication,
-			Severity:      models.SeverityInfo,
-			ActorUserID:   user.ID,
-			ActorUsername: user.Username,
-			ResourceType:  models.ResourceUser,
-			ResourceID:    user.ID,
-			Action:        "New user created via OAuth",
-			Details: models.AuditDetails{
-				"provider":         provider,
-				"provider_user_id": oauthUserInfo.ProviderUserID,
-				"email":            user.Email,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:     models.EventOAuthAuthentication,
+		Severity:      models.SeverityInfo,
+		ActorUserID:   user.ID,
+		ActorUsername: user.Username,
+		ResourceType:  models.ResourceUser,
+		ResourceID:    user.ID,
+		Action:        "New user created via OAuth",
+		Details: models.AuditDetails{
+			"provider":         provider,
+			"provider_user_id": oauthUserInfo.ProviderUserID,
+			"email":            user.Email,
+		},
+		Success: true,
+	})
 
 	return user, nil
 }

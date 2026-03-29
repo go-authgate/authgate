@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/util"
 )
@@ -42,19 +43,17 @@ func (s *TokenService) RevokeTokenByID(ctx context.Context, tokenID, actorUserID
 	err = s.store.RevokeToken(tokenID)
 	if err != nil {
 		// Log revocation failure
-		if s.auditService != nil {
-			s.auditService.Log(ctx, AuditLogEntry{
-				EventType:    models.EventTokenRevoked,
-				Severity:     models.SeverityError,
-				ActorUserID:  actorUserID,
-				ResourceType: models.ResourceToken,
-				ResourceID:   tokenID,
-				Action:       "Token revocation failed",
-				Details:      models.AuditDetails{"token_category": tok.TokenCategory},
-				Success:      false,
-				ErrorMessage: err.Error(),
-			})
-		}
+		s.auditService.Log(ctx, core.AuditLogEntry{
+			EventType:    models.EventTokenRevoked,
+			Severity:     models.SeverityError,
+			ActorUserID:  actorUserID,
+			ResourceType: models.ResourceToken,
+			ResourceID:   tokenID,
+			Action:       "Token revocation failed",
+			Details:      models.AuditDetails{"token_category": tok.TokenCategory},
+			Success:      false,
+			ErrorMessage: err.Error(),
+		})
 		return err
 	}
 
@@ -64,22 +63,20 @@ func (s *TokenService) RevokeTokenByID(ctx context.Context, tokenID, actorUserID
 	s.metrics.RecordTokenRevoked(tok.TokenCategory, "user_request")
 
 	// Log token revocation
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventTokenRevoked,
-			Severity:     models.SeverityInfo,
-			ActorUserID:  actorUserID,
-			ResourceType: models.ResourceToken,
-			ResourceID:   tokenID,
-			Action:       "Token revoked",
-			Details: models.AuditDetails{
-				"token_category": tok.TokenCategory,
-				"client_id":      tok.ClientID,
-				"token_user_id":  tok.UserID,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventTokenRevoked,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  actorUserID,
+		ResourceType: models.ResourceToken,
+		ResourceID:   tokenID,
+		Action:       "Token revoked",
+		Details: models.AuditDetails{
+			"token_category": tok.TokenCategory,
+			"client_id":      tok.ClientID,
+			"token_user_id":  tok.UserID,
+		},
+		Success: true,
+	})
 
 	return nil
 }
@@ -137,41 +134,37 @@ func (s *TokenService) updateTokenStatusWithAudit(
 	err = s.store.UpdateTokenStatus(tokenID, newStatus)
 	if err != nil {
 		// Log failure
-		if s.auditService != nil {
-			s.auditService.Log(ctx, AuditLogEntry{
-				EventType:    eventType,
-				Severity:     models.SeverityError,
-				ActorUserID:  actorUserID,
-				ResourceType: models.ResourceToken,
-				ResourceID:   tokenID,
-				Action:       actionFailed,
-				Details:      models.AuditDetails{"token_category": tok.TokenCategory},
-				Success:      false,
-				ErrorMessage: err.Error(),
-			})
-		}
+		s.auditService.Log(ctx, core.AuditLogEntry{
+			EventType:    eventType,
+			Severity:     models.SeverityError,
+			ActorUserID:  actorUserID,
+			ResourceType: models.ResourceToken,
+			ResourceID:   tokenID,
+			Action:       actionFailed,
+			Details:      models.AuditDetails{"token_category": tok.TokenCategory},
+			Success:      false,
+			ErrorMessage: err.Error(),
+		})
 		return err
 	}
 
 	s.invalidateTokenCache(ctx, tok.TokenHash)
 
 	// Log success
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    eventType,
-			Severity:     models.SeverityInfo,
-			ActorUserID:  actorUserID,
-			ResourceType: models.ResourceToken,
-			ResourceID:   tokenID,
-			Action:       actionSuccess,
-			Details: models.AuditDetails{
-				"token_category": tok.TokenCategory,
-				"client_id":      tok.ClientID,
-				"token_user_id":  tok.UserID,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    eventType,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  actorUserID,
+		ResourceType: models.ResourceToken,
+		ResourceID:   tokenID,
+		Action:       actionSuccess,
+		Details: models.AuditDetails{
+			"token_category": tok.TokenCategory,
+			"client_id":      tok.ClientID,
+			"token_user_id":  tok.UserID,
+		},
+		Success: true,
+	})
 
 	return nil
 }

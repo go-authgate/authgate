@@ -29,8 +29,15 @@ func newIntrospectTokenService(t *testing.T) (*TokenService, *store.Store) {
 	}
 	localProvider, err := token.NewLocalTokenProvider(cfg)
 	require.NoError(t, err)
-	svc := NewTokenService(s, cfg, nil, localProvider, nil, metrics.NewNoopMetrics(),
-		cache.NewNoopCache[models.AccessToken]())
+	svc := NewTokenService(
+		s,
+		cfg,
+		nil,
+		localProvider,
+		NewNoopAuditService(),
+		metrics.NewNoopMetrics(),
+		cache.NewNoopCache[models.AccessToken](),
+	)
 	return svc, s
 }
 

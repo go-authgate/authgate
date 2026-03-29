@@ -106,22 +106,20 @@ func (s *TokenService) IssueClientCredentialsToken(
 	s.metrics.RecordTokenIssued("access", "client_credentials", duration, providerName)
 
 	// 9. Audit log
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventClientCredentialsTokenIssued,
-			Severity:     models.SeverityInfo,
-			ActorUserID:  machineUserID,
-			ResourceType: models.ResourceToken,
-			ResourceID:   accessToken.ID,
-			Action:       "Access token issued via client credentials grant",
-			Details: models.AuditDetails{
-				"client_id":      clientID,
-				"scopes":         effectiveScopes,
-				"token_provider": providerName,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventClientCredentialsTokenIssued,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  machineUserID,
+		ResourceType: models.ResourceToken,
+		ResourceID:   accessToken.ID,
+		Action:       "Access token issued via client credentials grant",
+		Details: models.AuditDetails{
+			"client_id":      clientID,
+			"scopes":         effectiveScopes,
+			"token_provider": providerName,
+		},
+		Success: true,
+	})
 
 	return accessToken, nil
 }

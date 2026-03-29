@@ -39,7 +39,7 @@ func setupSessionServices(t *testing.T) (*store.Store, *services.TokenService) {
 
 	localProvider, err := token.NewLocalTokenProvider(cfg)
 	require.NoError(t, err)
-	auditSvc := services.NewAuditService(s, false, 0)
+	auditSvc := services.NewNoopAuditService()
 	deviceSvc := services.NewDeviceService(s, cfg, auditSvc, metrics.NewNoopMetrics())
 	tokenSvc := services.NewTokenService(
 		s, cfg, deviceSvc, localProvider, auditSvc, metrics.NewNoopMetrics(),

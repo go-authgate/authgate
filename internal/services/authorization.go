@@ -53,14 +53,14 @@ type AuthorizationRequest struct {
 type AuthorizationService struct {
 	store        core.Store
 	config       *config.Config
-	auditService *AuditService
+	auditService core.AuditLogger
 	tokenService *TokenService
 }
 
 func NewAuthorizationService(
 	s core.Store,
 	cfg *config.Config,
-	auditService *AuditService,
+	auditService core.AuditLogger,
 	tokenService *TokenService,
 ) *AuthorizationService {
 	return &AuthorizationService{
@@ -180,23 +180,21 @@ func (s *AuthorizationService) CreateAuthorizationCode(
 		return "", nil, fmt.Errorf("failed to save authorization code: %w", err)
 	}
 
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventAuthorizationCodeGenerated,
-			Severity:     models.SeverityInfo,
-			ActorUserID:  params.UserID,
-			ResourceType: models.ResourceAuthorization,
-			ResourceID:   record.UUID,
-			Action:       "Authorization code generated",
-			Details: models.AuditDetails{
-				"client_id":    params.ClientID,
-				"scopes":       params.Scopes,
-				"pkce":         params.CodeChallenge != "",
-				"redirect_uri": params.RedirectURI,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventAuthorizationCodeGenerated,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  params.UserID,
+		ResourceType: models.ResourceAuthorization,
+		ResourceID:   record.UUID,
+		Action:       "Authorization code generated",
+		Details: models.AuditDetails{
+			"client_id":    params.ClientID,
+			"scopes":       params.Scopes,
+			"pkce":         params.CodeChallenge != "",
+			"redirect_uri": params.RedirectURI,
+		},
+		Success: true,
+	})
 
 	return plainCode, record, nil
 }
@@ -267,21 +265,19 @@ func (s *AuthorizationService) ExchangeCode(
 	}
 	record.UsedAt = &now // Reflect DB state in the returned struct
 
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventAuthorizationCodeExchanged,
-			Severity:     models.SeverityInfo,
-			ActorUserID:  record.UserID,
-			ResourceType: models.ResourceAuthorization,
-			ResourceID:   record.UUID,
-			Action:       "Authorization code exchanged for token",
-			Details: models.AuditDetails{
-				"client_id": clientID,
-				"scopes":    record.Scopes,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventAuthorizationCodeExchanged,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  record.UserID,
+		ResourceType: models.ResourceAuthorization,
+		ResourceID:   record.UUID,
+		Action:       "Authorization code exchanged for token",
+		Details: models.AuditDetails{
+			"client_id": clientID,
+			"scopes":    record.Scopes,
+		},
+		Success: true,
+	})
 
 	return record, nil
 }
@@ -326,21 +322,19 @@ func (s *AuthorizationService) SaveUserAuthorization(
 		return auth, nil // Return what we built; non-fatal
 	}
 
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventUserAuthorizationGranted,
-			Severity:     models.SeverityInfo,
-			ActorUserID:  userID,
-			ResourceType: models.ResourceAuthorization,
-			ResourceID:   stored.UUID,
-			Action:       "User granted authorization to application",
-			Details: models.AuditDetails{
-				"client_id": clientID,
-				"scopes":    scopes,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventUserAuthorizationGranted,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  userID,
+		ResourceType: models.ResourceAuthorization,
+		ResourceID:   stored.UUID,
+		Action:       "User granted authorization to application",
+		Details: models.AuditDetails{
+			"client_id": clientID,
+			"scopes":    scopes,
+		},
+		Success: true,
+	})
 
 	return stored, nil
 }
@@ -379,21 +373,19 @@ func (s *AuthorizationService) RevokeUserAuthorization(
 		s.tokenService.InvalidateTokenCacheByHashes(ctx, hashes)
 	}
 
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventUserAuthorizationRevoked,
-			Severity:     models.SeverityInfo,
-			ActorUserID:  userID,
-			ResourceType: models.ResourceAuthorization,
-			ResourceID:   authUUID,
-			Action:       "User revoked authorization for application",
-			Details: models.AuditDetails{
-				"client_id": revoked.ClientID,
-				"scopes":    revoked.Scopes,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventUserAuthorizationRevoked,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  userID,
+		ResourceType: models.ResourceAuthorization,
+		ResourceID:   authUUID,
+		Action:       "User revoked authorization for application",
+		Details: models.AuditDetails{
+			"client_id": revoked.ClientID,
+			"scopes":    revoked.Scopes,
+		},
+		Success: true,
+	})
 
 	return nil
 }
@@ -460,21 +452,19 @@ func (s *AuthorizationService) RevokeAllApplicationTokens(
 	// Invalidate all consent records so users see the consent page again
 	_ = s.store.RevokeAllUserAuthorizationsByClientID(clientID)
 
-	if s.auditService != nil {
-		_ = s.auditService.LogSync(ctx, AuditLogEntry{
-			EventType:    models.EventClientTokensRevokedAll,
-			Severity:     models.SeverityCritical,
-			ActorUserID:  actorUserID,
-			ResourceType: models.ResourceClient,
-			ResourceID:   clientID,
-			Action:       "All client tokens revoked by administrator",
-			Details: models.AuditDetails{
-				"client_id":     clientID,
-				"revoked_count": revokedCount,
-			},
-			Success: true,
-		})
-	}
+	_ = s.auditService.LogSync(ctx, core.AuditLogEntry{
+		EventType:    models.EventClientTokensRevokedAll,
+		Severity:     models.SeverityCritical,
+		ActorUserID:  actorUserID,
+		ResourceType: models.ResourceClient,
+		ResourceID:   clientID,
+		Action:       "All client tokens revoked by administrator",
+		Details: models.AuditDetails{
+			"client_id":     clientID,
+			"revoked_count": revokedCount,
+		},
+		Success: true,
+	})
 
 	return revokedCount, nil
 }

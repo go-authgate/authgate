@@ -37,7 +37,7 @@ type handlerSet struct {
 type handlerDeps struct {
 	cfg            *config.Config
 	services       serviceSet
-	auditService   *services.AuditService
+	auditService   core.AuditLogger
 	oauthProviders map[string]*auth.OAuthProvider
 	oauthClient    *http.Client
 	metrics        core.Recorder

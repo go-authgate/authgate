@@ -60,7 +60,7 @@ func newCCTokenService(t *testing.T) (*TokenService, *store.Store) {
 		cfg,
 		nil,
 		localProvider,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
 		cache.NewNoopCache[models.AccessToken](),
 	)

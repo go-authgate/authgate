@@ -8,20 +8,20 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/middleware"
 	"github.com/go-authgate/authgate/internal/models"
-	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/store"
 	"github.com/go-authgate/authgate/internal/templates"
 )
 
 // AuditHandler handles audit log operations
 type AuditHandler struct {
-	auditService *services.AuditService
+	auditService core.AuditLogger
 }
 
 // NewAuditHandler creates a new audit handler
-func NewAuditHandler(auditService *services.AuditService) *AuditHandler {
+func NewAuditHandler(auditService core.AuditLogger) *AuditHandler {
 	return &AuditHandler{
 		auditService: auditService,
 	}
@@ -121,7 +121,7 @@ func (h *AuditHandler) ListAuditLogs(c *gin.Context) {
 	// Log this action (viewing audit logs)
 	if userID, exists := c.Get("user_id"); exists {
 		if username, usernameExists := c.Get("username"); usernameExists {
-			h.auditService.Log(c.Request.Context(), services.AuditLogEntry{
+			h.auditService.Log(c.Request.Context(), core.AuditLogEntry{
 				EventType:     models.EventTypeAuditLogView,
 				Severity:      models.SeverityInfo,
 				ActorUserID:   userID.(string),
@@ -281,7 +281,7 @@ func (h *AuditHandler) ExportAuditLogs(c *gin.Context) {
 	// Log this action
 	if userID, exists := c.Get("user_id"); exists {
 		if username, usernameExists := c.Get("username"); usernameExists {
-			h.auditService.Log(c.Request.Context(), services.AuditLogEntry{
+			h.auditService.Log(c.Request.Context(), core.AuditLogEntry{
 				EventType:     models.EventTypeAuditLogExported,
 				Severity:      models.SeverityInfo,
 				ActorUserID:   userID.(string),

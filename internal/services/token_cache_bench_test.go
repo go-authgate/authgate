@@ -44,7 +44,7 @@ func newBenchEnv(b *testing.B, withCache bool) *benchTokenEnv {
 	if err != nil {
 		b.Fatal(err)
 	}
-	deviceSvc := NewDeviceService(s, cfg, nil, metrics.NewNoopMetrics())
+	deviceSvc := NewDeviceService(s, cfg, NewNoopAuditService(), metrics.NewNoopMetrics())
 
 	var tokenCache core.Cache[models.AccessToken]
 	if withCache {
@@ -53,7 +53,13 @@ func newBenchEnv(b *testing.B, withCache bool) *benchTokenEnv {
 		tokenCache = cache.NewNoopCache[models.AccessToken]()
 	}
 	svc := NewTokenService(
-		s, cfg, deviceSvc, localProvider, nil, metrics.NewNoopMetrics(), tokenCache,
+		s,
+		cfg,
+		deviceSvc,
+		localProvider,
+		NewNoopAuditService(),
+		metrics.NewNoopMetrics(),
+		tokenCache,
 	)
 
 	ctx := context.Background()

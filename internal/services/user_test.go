@@ -19,7 +19,16 @@ import (
 )
 
 func newUserServiceWithStore(db *store.Store, c core.Cache[models.User]) *UserService {
-	return NewUserService(db, nil, nil, AuthModeLocal, false, nil, c, 5*time.Minute)
+	return NewUserService(
+		db,
+		nil,
+		nil,
+		AuthModeLocal,
+		false,
+		NewNoopAuditService(),
+		c,
+		5*time.Minute,
+	)
 }
 
 func makeTestUser(t *testing.T, db *store.Store) *models.User {
@@ -184,7 +193,14 @@ func newUserServiceForAuth(
 	c core.Cache[models.User],
 ) *UserService {
 	return NewUserService(
-		db, localProvider, httpAPIProvider, authMode, false, nil, c, 5*time.Minute,
+		db,
+		localProvider,
+		httpAPIProvider,
+		authMode,
+		false,
+		NewNoopAuditService(),
+		c,
+		5*time.Minute,
 	)
 }
 

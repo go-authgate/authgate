@@ -20,7 +20,16 @@ func newOAuthUserService(t *testing.T) *UserService {
 	t.Helper()
 	db := setupTestStore(t)
 	c := cache.NewMemoryCache[models.User]()
-	return NewUserService(db, nil, nil, AuthModeLocal, true, nil, c, 5*time.Minute)
+	return NewUserService(
+		db,
+		nil,
+		nil,
+		AuthModeLocal,
+		true,
+		NewNoopAuditService(),
+		c,
+		5*time.Minute,
+	)
 }
 
 func newOAuthToken() *oauth2.Token {
@@ -112,7 +121,7 @@ func TestAuthenticateWithOAuth_AutoRegisterDisabled(t *testing.T) {
 		nil,
 		AuthModeLocal,
 		false, /* autoRegister */
-		nil,
+		NewNoopAuditService(),
 		c,
 		5*time.Minute,
 	)
@@ -211,7 +220,16 @@ func TestAuthenticateWithOAuth_UnverifiedEmail_AutoRegisterDisabled(t *testing.T
 	c := cache.NewMemoryCache[models.User]()
 
 	// First create a user with auto-register enabled.
-	svcEnabled := NewUserService(db, nil, nil, AuthModeLocal, true, nil, c, 5*time.Minute)
+	svcEnabled := NewUserService(
+		db,
+		nil,
+		nil,
+		AuthModeLocal,
+		true,
+		NewNoopAuditService(),
+		c,
+		5*time.Minute,
+	)
 	existingInfo := &auth.OAuthUserInfo{
 		ProviderUserID: uuid.New().String(),
 		Username:       "localuser",
@@ -227,7 +245,16 @@ func TestAuthenticateWithOAuth_UnverifiedEmail_AutoRegisterDisabled(t *testing.T
 	require.NoError(t, err)
 
 	// Now use a service with auto-register disabled.
-	svcDisabled := NewUserService(db, nil, nil, AuthModeLocal, false, nil, c, 5*time.Minute)
+	svcDisabled := NewUserService(
+		db,
+		nil,
+		nil,
+		AuthModeLocal,
+		false,
+		NewNoopAuditService(),
+		c,
+		5*time.Minute,
+	)
 	attackerInfo := &auth.OAuthUserInfo{
 		ProviderUserID: uuid.New().String(),
 		Username:       "attacker",
