@@ -490,7 +490,7 @@ T+0:   AuthGate restarts with new key
 T+0:   New tokens signed with new kid
 T+0:   JWKS endpoint serves new public key
 T+0~1h: Resource servers with cached old JWKS re-fetch on unknown kid
-T+1h:  All old access tokens have expired (default expiry = 1 hour)
+T+10h: All old access tokens have expired (default expiry = 10 hours)
 ```
 
 ### Limitations

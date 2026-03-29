@@ -8,6 +8,7 @@ import (
 	"crypto/rsa"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"time"
 
 	"github.com/go-authgate/authgate/internal/config"
@@ -280,7 +281,11 @@ func (p *LocalTokenProvider) GenerateToken(
 	ctx context.Context,
 	userID, clientID, scopes string,
 ) (*Result, error) {
-	expiresAt := time.Now().Add(p.config.JWTExpiration)
+	expiry := p.config.JWTExpiration
+	if p.config.JWTExpirationJitter > 0 {
+		expiry += time.Duration(rand.Int64N(int64(p.config.JWTExpirationJitter)))
+	}
+	expiresAt := time.Now().Add(expiry)
 	return p.generateJWT(userID, clientID, scopes, TokenCategoryAccess, expiresAt)
 }
 

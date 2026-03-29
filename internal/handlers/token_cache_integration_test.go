@@ -57,7 +57,7 @@ func setupCacheTestEnv(t *testing.T) (
 	tokenSvc := services.NewTokenService(
 		s, cfg, deviceSvc, localProvider, auditSvc, metrics.NewNoopMetrics(), memCache,
 	)
-	authzSvc := services.NewAuthorizationService(s, cfg, auditSvc)
+	authzSvc := services.NewAuthorizationService(s, cfg, auditSvc, tokenSvc)
 	handler := NewTokenHandler(tokenSvc, authzSvc, cfg)
 
 	r := gin.New()

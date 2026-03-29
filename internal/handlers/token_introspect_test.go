@@ -51,7 +51,7 @@ func setupIntrospectTestEnv(t *testing.T) (*gin.Engine, *store.Store, *services.
 		s, cfg, deviceSvc, localProvider, auditSvc, metrics.NewNoopMetrics(),
 		cache.NewNoopCache[models.AccessToken](),
 	)
-	authzSvc := services.NewAuthorizationService(s, cfg, auditSvc)
+	authzSvc := services.NewAuthorizationService(s, cfg, auditSvc, tokenSvc)
 	handler := NewTokenHandler(tokenSvc, authzSvc, cfg)
 
 	r := gin.New()

@@ -122,6 +122,12 @@ func (s *TokenService) invalidateTokenCacheByHashes(ctx context.Context, hashes 
 	}
 }
 
+// InvalidateTokenCacheByHashes removes multiple tokens from cache by their hashes.
+// Exported for use by other services (e.g., AuthorizationService) during bulk revocation.
+func (s *TokenService) InvalidateTokenCacheByHashes(ctx context.Context, hashes []string) {
+	s.invalidateTokenCacheByHashes(ctx, hashes)
+}
+
 // tokenPairParams holds the inputs for creating an access + refresh token pair.
 type tokenPairParams struct {
 	UserID          string

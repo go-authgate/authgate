@@ -57,7 +57,7 @@ func initializeServices(
 	clientService := services.NewClientService(
 		db, auditService, clientCountCache, cfg.ClientCountCacheTTL,
 	)
-	authorizationService := services.NewAuthorizationService(db, cfg, auditService)
+	authorizationService := services.NewAuthorizationService(db, cfg, auditService, tokenService)
 
 	return serviceSet{
 		user:          userService,

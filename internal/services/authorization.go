@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"slices"
 	"strings"
 	"time"
@@ -52,17 +53,20 @@ type AuthorizationService struct {
 	store        core.Store
 	config       *config.Config
 	auditService *AuditService
+	tokenService *TokenService
 }
 
 func NewAuthorizationService(
 	s core.Store,
 	cfg *config.Config,
 	auditService *AuditService,
+	tokenService *TokenService,
 ) *AuthorizationService {
 	return &AuthorizationService{
 		store:        s,
 		config:       cfg,
 		auditService: auditService,
+		tokenService: tokenService,
 	}
 }
 
@@ -340,8 +344,27 @@ func (s *AuthorizationService) RevokeUserAuthorization(
 		return ErrAuthorizationNotFound
 	}
 
+	hashes, err := s.store.GetActiveTokenHashesByAuthorizationID(revoked.ID)
+	if err != nil {
+		log.Printf(
+			"[TokenCache] failed to collect token hashes for authorization=%d: %v",
+			revoked.ID,
+			err,
+		)
+	}
+
 	// Cascade-revoke all tokens tied to this authorization
-	_ = s.store.RevokeTokensByAuthorizationID(revoked.ID)
+	if revokeErr := s.store.RevokeTokensByAuthorizationID(revoked.ID); revokeErr != nil {
+		log.Printf(
+			"[Authorization] failed to revoke tokens for authorization=%d: %v",
+			revoked.ID,
+			revokeErr,
+		)
+	}
+
+	if len(hashes) > 0 && s.tokenService != nil {
+		s.tokenService.InvalidateTokenCacheByHashes(ctx, hashes)
+	}
 
 	if s.auditService != nil {
 		s.auditService.Log(ctx, AuditLogEntry{
@@ -403,10 +426,18 @@ func (s *AuthorizationService) RevokeAllApplicationTokens(
 	ctx context.Context,
 	clientID, actorUserID string,
 ) (int64, error) {
-	// Revoke all active tokens
+	hashes, err := s.store.GetActiveTokenHashesByClientID(clientID)
+	if err != nil {
+		log.Printf("[TokenCache] failed to collect token hashes for client=%s: %v", clientID, err)
+	}
+
 	revokedCount, err := s.store.RevokeAllActiveTokensByClientID(clientID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to revoke tokens: %w", err)
+	}
+
+	if len(hashes) > 0 && s.tokenService != nil {
+		s.tokenService.InvalidateTokenCacheByHashes(ctx, hashes)
 	}
 
 	// Invalidate all consent records so users see the consent page again

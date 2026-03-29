@@ -547,6 +547,36 @@ func (mr *MockTokenReaderMockRecorder) GetAccessTokenByID(tokenID any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccessTokenByID", reflect.TypeOf((*MockTokenReader)(nil).GetAccessTokenByID), tokenID)
 }
 
+// GetActiveTokenHashesByAuthorizationID mocks base method.
+func (m *MockTokenReader) GetActiveTokenHashesByAuthorizationID(authorizationID uint) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveTokenHashesByAuthorizationID", authorizationID)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveTokenHashesByAuthorizationID indicates an expected call of GetActiveTokenHashesByAuthorizationID.
+func (mr *MockTokenReaderMockRecorder) GetActiveTokenHashesByAuthorizationID(authorizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveTokenHashesByAuthorizationID", reflect.TypeOf((*MockTokenReader)(nil).GetActiveTokenHashesByAuthorizationID), authorizationID)
+}
+
+// GetActiveTokenHashesByClientID mocks base method.
+func (m *MockTokenReader) GetActiveTokenHashesByClientID(clientID string) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveTokenHashesByClientID", clientID)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveTokenHashesByClientID indicates an expected call of GetActiveTokenHashesByClientID.
+func (mr *MockTokenReaderMockRecorder) GetActiveTokenHashesByClientID(clientID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveTokenHashesByClientID", reflect.TypeOf((*MockTokenReader)(nil).GetActiveTokenHashesByClientID), clientID)
+}
+
 // GetActiveTokenHashesByFamilyID mocks base method.
 func (m *MockTokenReader) GetActiveTokenHashesByFamilyID(familyID string) ([]string, error) {
 	m.ctrl.T.Helper()
@@ -1657,6 +1687,36 @@ func (m *MockStore) GetAccessTokenByID(tokenID string) (*models.AccessToken, err
 func (mr *MockStoreMockRecorder) GetAccessTokenByID(tokenID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccessTokenByID", reflect.TypeOf((*MockStore)(nil).GetAccessTokenByID), tokenID)
+}
+
+// GetActiveTokenHashesByAuthorizationID mocks base method.
+func (m *MockStore) GetActiveTokenHashesByAuthorizationID(authorizationID uint) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveTokenHashesByAuthorizationID", authorizationID)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveTokenHashesByAuthorizationID indicates an expected call of GetActiveTokenHashesByAuthorizationID.
+func (mr *MockStoreMockRecorder) GetActiveTokenHashesByAuthorizationID(authorizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveTokenHashesByAuthorizationID", reflect.TypeOf((*MockStore)(nil).GetActiveTokenHashesByAuthorizationID), authorizationID)
+}
+
+// GetActiveTokenHashesByClientID mocks base method.
+func (m *MockStore) GetActiveTokenHashesByClientID(clientID string) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveTokenHashesByClientID", clientID)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveTokenHashesByClientID indicates an expected call of GetActiveTokenHashesByClientID.
+func (mr *MockStoreMockRecorder) GetActiveTokenHashesByClientID(clientID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveTokenHashesByClientID", reflect.TypeOf((*MockStore)(nil).GetActiveTokenHashesByClientID), clientID)
 }
 
 // GetActiveTokenHashesByFamilyID mocks base method.

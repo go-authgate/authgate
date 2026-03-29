@@ -59,6 +59,12 @@ HTTP_API_MAX_RETRIES=3           # Maximum retry attempts (default: 3, set 0 to 
 HTTP_API_RETRY_DELAY=1s          # Initial retry delay (default: 1s)
 HTTP_API_MAX_RETRY_DELAY=10s     # Maximum retry delay (default: 10s)
 
+# JWT Token Expiration
+JWT_EXPIRATION=10h                   # Access token lifetime (default: 10h)
+JWT_EXPIRATION_JITTER=30m            # Max random jitter on access token expiry (default: 30m)
+                                     # Must be less than JWT_EXPIRATION. Prevents refresh thundering herd.
+                                     # Example: JWT_EXPIRATION=8h + JWT_EXPIRATION_JITTER=30m → lifetime [8h, 8h30m)
+
 # Refresh Token Configuration
 REFRESH_TOKEN_EXPIRATION=720h        # Refresh token lifetime (default: 30 days)
 ENABLE_REFRESH_TOKENS=true          # Feature flag to enable/disable refresh tokens

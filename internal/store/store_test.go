@@ -597,6 +597,85 @@ func testBasicOperations(t *testing.T, driver string, pgContainer *postgres.Post
 		assert.Len(t, tokens, 1)
 	})
 
+	t.Run("GetActiveTokenHashesByAuthorizationID", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+		clientID := uuid.New().String()
+		authzID := uint(42)
+
+		activeHash1 := util.SHA256Hex(uuid.New().String())
+		activeHash2 := util.SHA256Hex(uuid.New().String())
+		revokedHash := util.SHA256Hex(uuid.New().String())
+
+		// 2 active tokens linked to authorization
+		for _, h := range []string{activeHash1, activeHash2} {
+			require.NoError(t, store.CreateAccessToken(&models.AccessToken{
+				ID:              uuid.New().String(),
+				TokenHash:       h,
+				TokenCategory:   models.TokenCategoryAccess,
+				Status:          models.TokenStatusActive,
+				UserID:          uuid.New().String(),
+				ClientID:        clientID,
+				Scopes:          "read",
+				ExpiresAt:       time.Now().Add(time.Hour),
+				AuthorizationID: &authzID,
+			}))
+		}
+		// 1 revoked token (should not be returned)
+		require.NoError(t, store.CreateAccessToken(&models.AccessToken{
+			ID:              uuid.New().String(),
+			TokenHash:       revokedHash,
+			TokenCategory:   models.TokenCategoryAccess,
+			Status:          models.TokenStatusRevoked,
+			UserID:          uuid.New().String(),
+			ClientID:        clientID,
+			Scopes:          "read",
+			ExpiresAt:       time.Now().Add(time.Hour),
+			AuthorizationID: &authzID,
+		}))
+
+		hashes, err := store.GetActiveTokenHashesByAuthorizationID(authzID)
+		require.NoError(t, err)
+		assert.Len(t, hashes, 2)
+		assert.Contains(t, hashes, activeHash1)
+		assert.Contains(t, hashes, activeHash2)
+		assert.NotContains(t, hashes, revokedHash)
+	})
+
+	t.Run("GetActiveTokenHashesByClientID", func(t *testing.T) {
+		store := createFreshStore(t, driver, pgContainer)
+		clientID := uuid.New().String()
+
+		activeHash := util.SHA256Hex(uuid.New().String())
+		revokedHash := util.SHA256Hex(uuid.New().String())
+
+		require.NoError(t, store.CreateAccessToken(&models.AccessToken{
+			ID:            uuid.New().String(),
+			TokenHash:     activeHash,
+			TokenCategory: models.TokenCategoryAccess,
+			Status:        models.TokenStatusActive,
+			UserID:        uuid.New().String(),
+			ClientID:      clientID,
+			Scopes:        "read",
+			ExpiresAt:     time.Now().Add(time.Hour),
+		}))
+		require.NoError(t, store.CreateAccessToken(&models.AccessToken{
+			ID:            uuid.New().String(),
+			TokenHash:     revokedHash,
+			TokenCategory: models.TokenCategoryAccess,
+			Status:        models.TokenStatusRevoked,
+			UserID:        uuid.New().String(),
+			ClientID:      clientID,
+			Scopes:        "read",
+			ExpiresAt:     time.Now().Add(time.Hour),
+		}))
+
+		hashes, err := store.GetActiveTokenHashesByClientID(clientID)
+		require.NoError(t, err)
+		assert.Len(t, hashes, 1)
+		assert.Contains(t, hashes, activeHash)
+		assert.NotContains(t, hashes, revokedHash)
+	})
+
 	t.Run("UserCRUD", func(t *testing.T) {
 		store := createFreshStore(t, driver, pgContainer)
 		userID := uuid.New().String()

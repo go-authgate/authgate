@@ -128,6 +128,26 @@ func (s *Store) GetActiveTokenHashesByFamilyID(familyID string) ([]string, error
 	return hashes, err
 }
 
+// GetActiveTokenHashesByAuthorizationID returns token hashes for all active tokens
+// linked to a specific UserAuthorization. Used for cache invalidation before bulk revocation.
+func (s *Store) GetActiveTokenHashesByAuthorizationID(authorizationID uint) ([]string, error) {
+	var hashes []string
+	err := s.db.Model(&models.AccessToken{}).
+		Where("authorization_id = ? AND status = ?", authorizationID, models.TokenStatusActive).
+		Pluck("token_hash", &hashes).Error
+	return hashes, err
+}
+
+// GetActiveTokenHashesByClientID returns token hashes for all active tokens
+// belonging to a specific client. Used for cache invalidation before bulk revocation.
+func (s *Store) GetActiveTokenHashesByClientID(clientID string) ([]string, error) {
+	var hashes []string
+	err := s.db.Model(&models.AccessToken{}).
+		Where("client_id = ? AND status = ?", clientID, models.TokenStatusActive).
+		Pluck("token_hash", &hashes).Error
+	return hashes, err
+}
+
 // GetTokensByCategoryAndStatus returns tokens filtered by category and status
 func (s *Store) GetTokensByCategoryAndStatus(
 	userID, category, status string,

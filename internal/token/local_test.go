@@ -969,3 +969,70 @@ func TestNewLocalTokenProvider_UnsupportedAlgorithm(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported JWTSigningAlgorithm")
 }
+
+func TestGenerateToken_WithJitter(t *testing.T) {
+	cfg := &config.Config{
+		JWTSecret:           "test-secret-key-for-jwt-signing",
+		JWTExpiration:       1 * time.Hour,
+		JWTExpirationJitter: 10 * time.Minute,
+		BaseURL:             "http://localhost:8080",
+	}
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
+
+	minExpiry := time.Now().Add(1 * time.Hour)
+	maxExpiry := time.Now().Add(1*time.Hour + 10*time.Minute)
+
+	var expirations []time.Time
+	for range 20 {
+		result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read")
+		require.NoError(t, err)
+		assert.True(t, result.ExpiresAt.After(minExpiry) || result.ExpiresAt.Equal(minExpiry),
+			"ExpiresAt %v should be >= %v", result.ExpiresAt, minExpiry)
+		assert.True(t, result.ExpiresAt.Before(maxExpiry.Add(5*time.Second)),
+			"ExpiresAt %v should be < %v", result.ExpiresAt, maxExpiry)
+		expirations = append(expirations, result.ExpiresAt)
+	}
+
+	// Verify jitter produces variation (not all identical)
+	allSame := true
+	for _, exp := range expirations[1:] {
+		if !exp.Equal(expirations[0]) {
+			allSame = false
+			break
+		}
+	}
+	assert.False(t, allSame, "jitter should produce varying expiration times")
+}
+
+func TestGenerateToken_WithoutJitter(t *testing.T) {
+	cfg := &config.Config{
+		JWTSecret:           "test-secret-key-for-jwt-signing",
+		JWTExpiration:       1 * time.Hour,
+		JWTExpirationJitter: 0,
+		BaseURL:             "http://localhost:8080",
+	}
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
+
+	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read")
+	require.NoError(t, err)
+	assert.WithinDuration(t, time.Now().Add(1*time.Hour), result.ExpiresAt, 5*time.Second)
+}
+
+func TestGenerateRefreshToken_NotAffectedByJitter(t *testing.T) {
+	cfg := &config.Config{
+		JWTSecret:              "test-secret-key-for-jwt-signing",
+		JWTExpiration:          1 * time.Hour,
+		JWTExpirationJitter:    10 * time.Minute,
+		RefreshTokenExpiration: 720 * time.Hour,
+		BaseURL:                "http://localhost:8080",
+	}
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
+
+	result, err := provider.GenerateRefreshToken(context.Background(), "user1", "client1", "read")
+	require.NoError(t, err)
+	// Refresh token should use RefreshTokenExpiration, not affected by JWTExpirationJitter
+	assert.WithinDuration(t, time.Now().Add(720*time.Hour), result.ExpiresAt, 5*time.Second)
+}

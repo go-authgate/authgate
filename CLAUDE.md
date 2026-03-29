@@ -186,7 +186,7 @@ In addition to Device Code Flow, AuthGate supports Authorization Code Flow with 
 
 - Device codes expire after 30min (configurable via `DeviceCodeExpiration`)
 - User codes: 8-char uppercase alphanumeric, normalized (uppercase + dashes removed)
-- JWTs signed with configurable algorithm (HS256/RS256/ES256), expire after 1 hour
+- JWTs signed with configurable algorithm (HS256/RS256/ES256), configurable expiry (`JWT_EXPIRATION`, default: 10 hours) with optional jitter (`JWT_EXPIRATION_JITTER`, default: 30 minutes)
 - Sessions: encrypted cookies (gin-contrib/sessions), configurable expiry (default: 1 hour), with idle timeout (default: 30 minutes) and fingerprinting (User-Agent validation)
 - Polling interval: 5 seconds
 - Templates and static files embedded via `//go:embed`
@@ -251,6 +251,7 @@ Key configuration categories (see `.env.example` and `docs/CONFIGURATION.md` for
 - `SERVER_ADDR`, `BASE_URL` - Server address and public URL
 - `JWT_SECRET`, `SESSION_SECRET` - Must be changed in production (use `openssl rand -hex 32`)
 - `JWT_SIGNING_ALGORITHM` - HS256 (default), RS256, or ES256; asymmetric keys require `JWT_PRIVATE_KEY_PATH`
+- `JWT_EXPIRATION` - Access token lifetime (default: 1h); `JWT_EXPIRATION_JITTER` - Random expiry offset to prevent thundering herd
 - `DATABASE_DRIVER` (sqlite/postgres), `DATABASE_DSN` - Database configuration
 
 **Authentication & Authorization**
@@ -268,6 +269,13 @@ Key configuration categories (see `.env.example` and `docs/CONFIGURATION.md` for
 **OAuth Providers**
 
 - `GITHUB_OAUTH_ENABLED`, `GITEA_OAUTH_ENABLED`, `MICROSOFT_OAUTH_ENABLED` - Third-party OAuth login
+
+**Token Cache**
+
+- `TOKEN_CACHE_ENABLED` - Enable token verification cache (default: false)
+- `TOKEN_CACHE_TYPE` (memory/redis/redis-aside) - Cache backend for token verification
+- `TOKEN_CACHE_TTL` - Cache lifetime (default: 10h, matches `JWT_EXPIRATION`); revocation uses explicit invalidation
+- `TOKEN_CACHE_CLIENT_TTL` - Redis-aside client-side TTL (default: 1h); RESP3 handles real-time invalidation
 
 **Observability**
 

@@ -39,9 +39,10 @@ type Config struct {
 	// JWT settings
 	JWTSecret           string
 	JWTExpiration       time.Duration
-	JWTSigningAlgorithm string // "HS256" (default), "RS256", or "ES256"
-	JWTPrivateKeyPath   string // PEM file path (required for RS256/ES256)
-	JWTKeyID            string // "kid" header for JWKS key rotation (auto-generated if empty)
+	JWTSigningAlgorithm string        // "HS256" (default), "RS256", or "ES256"
+	JWTPrivateKeyPath   string        // PEM file path (required for RS256/ES256)
+	JWTKeyID            string        // "kid" header for JWKS key rotation (auto-generated if empty)
+	JWTExpirationJitter time.Duration // Max random jitter added to access token expiry (default: 30m)
 
 	// Session settings
 	SessionSecret            string
@@ -179,8 +180,8 @@ type Config struct {
 	// Token Cache settings (reduces DB queries for token verification)
 	TokenCacheEnabled     bool          // TOKEN_CACHE_ENABLED: enable token verification cache (default: false)
 	TokenCacheType        string        // TOKEN_CACHE_TYPE: memory|redis|redis-aside (default: memory)
-	TokenCacheTTL         time.Duration // TOKEN_CACHE_TTL: cache lifetime (default: 5m)
-	TokenCacheClientTTL   time.Duration // TOKEN_CACHE_CLIENT_TTL: redis-aside client-side TTL (default: 30s)
+	TokenCacheTTL         time.Duration // TOKEN_CACHE_TTL: cache lifetime (default: 10h, matches JWT_EXPIRATION)
+	TokenCacheClientTTL   time.Duration // TOKEN_CACHE_CLIENT_TTL: redis-aside client-side TTL (default: 1h)
 	TokenCacheSizePerConn int           // TOKEN_CACHE_SIZE_PER_CONN: redis-aside size in MB (default: 32MB)
 
 	// Dynamic Client Registration (RFC 7591)
@@ -233,10 +234,11 @@ func Load() *Config {
 		IsProduction: getEnvBool("ENVIRONMENT", false) ||
 			getEnv("ENVIRONMENT", "") == "production",
 		JWTSecret:           getEnv("JWT_SECRET", "your-256-bit-secret-change-in-production"),
-		JWTExpiration:       getEnvDuration("JWT_EXPIRATION", time.Hour),
+		JWTExpiration:       getEnvDuration("JWT_EXPIRATION", 10*time.Hour),
 		JWTSigningAlgorithm: getEnv("JWT_SIGNING_ALGORITHM", "HS256"),
 		JWTPrivateKeyPath:   getEnv("JWT_PRIVATE_KEY_PATH", ""),
 		JWTKeyID:            getEnv("JWT_KEY_ID", ""),
+		JWTExpirationJitter: getEnvDuration("JWT_EXPIRATION_JITTER", 30*time.Minute),
 		SessionSecret:       getEnv("SESSION_SECRET", "session-secret-change-in-production"),
 		SessionMaxAge:       getEnvInt("SESSION_MAX_AGE", 3600),      // 1 hour default
 		SessionIdleTimeout:  getEnvInt("SESSION_IDLE_TIMEOUT", 1800), // 30 minutes default
@@ -381,8 +383,8 @@ func Load() *Config {
 		// Token Cache settings
 		TokenCacheEnabled:     getEnvBool("TOKEN_CACHE_ENABLED", false),
 		TokenCacheType:        getEnv("TOKEN_CACHE_TYPE", CacheTypeMemory),
-		TokenCacheTTL:         getEnvDuration("TOKEN_CACHE_TTL", 5*time.Minute),
-		TokenCacheClientTTL:   getEnvDuration("TOKEN_CACHE_CLIENT_TTL", 30*time.Second),
+		TokenCacheTTL:         getEnvDuration("TOKEN_CACHE_TTL", 10*time.Hour),
+		TokenCacheClientTTL:   getEnvDuration("TOKEN_CACHE_CLIENT_TTL", time.Hour),
 		TokenCacheSizePerConn: getEnvInt("TOKEN_CACHE_SIZE_PER_CONN", 32), // 32MB default
 
 		// Dynamic Client Registration (RFC 7591)
@@ -495,6 +497,20 @@ func (c *Config) Validate() error {
 	// Validate JWT expiration
 	if c.JWTExpiration <= 0 {
 		return fmt.Errorf("JWT_EXPIRATION must be a positive duration (got %s)", c.JWTExpiration)
+	}
+
+	// Validate JWT expiration jitter
+	if c.JWTExpirationJitter < 0 {
+		return fmt.Errorf(
+			"JWT_EXPIRATION_JITTER must be non-negative (got %s)",
+			c.JWTExpirationJitter,
+		)
+	}
+	if c.JWTExpirationJitter > 0 && c.JWTExpirationJitter >= c.JWTExpiration {
+		return fmt.Errorf(
+			"JWT_EXPIRATION_JITTER must be less than JWT_EXPIRATION (%s >= %s)",
+			c.JWTExpirationJitter, c.JWTExpiration,
+		)
 	}
 
 	// Validate JWT signing algorithm
