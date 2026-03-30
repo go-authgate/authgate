@@ -95,6 +95,8 @@
   cursor: pointer;
   font-weight: 500;
   min-height: 36px;
+  width: auto;
+  flex-shrink: 0;
 }
 
 .sf-search-row .search-btn,
@@ -111,6 +113,7 @@
   border: 2px solid transparent;
   transition: all var(--transition-fast);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .sf-search-row .search-btn {
