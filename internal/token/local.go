@@ -61,7 +61,7 @@ func NewLocalTokenProvider(cfg *config.Config, opts ...Option) (*LocalTokenProvi
 
 	// Determine signing method from config
 	switch cfg.JWTSigningAlgorithm {
-	case "RS256":
+	case config.AlgRS256:
 		p.method = jwt.SigningMethodRS256
 		if p.signKey == nil || p.verifyKey == nil {
 			return nil, errors.New(
@@ -94,7 +94,7 @@ func NewLocalTokenProvider(cfg *config.Config, opts ...Option) (*LocalTokenProvi
 				"NewLocalTokenProvider: RS256 signing and verification keys do not match",
 			)
 		}
-	case "ES256":
+	case config.AlgES256:
 		p.method = jwt.SigningMethodES256
 		if p.signKey == nil || p.verifyKey == nil {
 			return nil, errors.New(
@@ -132,7 +132,7 @@ func NewLocalTokenProvider(cfg *config.Config, opts ...Option) (*LocalTokenProvi
 				"NewLocalTokenProvider: ES256 signing and verification keys do not match",
 			)
 		}
-	case "HS256", "":
+	case config.AlgHS256, "":
 		// HS256 (default)
 		p.method = jwt.SigningMethodHS256
 		p.signKey = []byte(cfg.JWTSecret)

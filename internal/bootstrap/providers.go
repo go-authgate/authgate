@@ -39,14 +39,14 @@ func initializeHTTPAPIAuthProvider(cfg *config.Config) core.AuthProvider {
 // initializeTokenProvider creates a LocalTokenProvider with key loading for asymmetric algorithms.
 func initializeTokenProvider(cfg *config.Config) *token.LocalTokenProvider {
 	switch cfg.JWTSigningAlgorithm {
-	case "HS256", "":
+	case config.AlgHS256, "":
 		log.Printf("Token signing: HS256 (symmetric)")
 		p, err := token.NewLocalTokenProvider(cfg)
 		if err != nil {
 			log.Fatalf("Failed to create token provider: %v", err)
 		}
 		return p
-	case "RS256", "ES256":
+	case config.AlgRS256, config.AlgES256:
 		// handled below
 	default:
 		log.Fatalf("Unsupported JWT_SIGNING_ALGORITHM: %q", cfg.JWTSigningAlgorithm)

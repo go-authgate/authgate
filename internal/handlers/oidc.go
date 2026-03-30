@@ -69,7 +69,7 @@ type discoveryMetadata struct {
 func (h *OIDCHandler) Discovery(c *gin.Context) {
 	alg := h.config.JWTSigningAlgorithm
 	if alg == "" {
-		alg = "HS256"
+		alg = config.AlgHS256
 	}
 
 	scopes := []string{"read", "write"}
