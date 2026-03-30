@@ -21,6 +21,8 @@ templ AccountSessions(props SessionsPageProps) {
 					<!-- Search and Filters -->
 					<div class="search-section">
 						<form method="GET" action="/account/sessions" class="search-grid">
+							<input type="hidden" name="status" value={ props.StatusFilter }/>
+							<input type="hidden" name="category" value={ props.CategoryFilter }/>
 							<div>
 								<label for="search" class="search-label">Search</label>
 								<div class="search-input-wrapper">
@@ -52,9 +54,28 @@ templ AccountSessions(props SessionsPageProps) {
 							</div>
 						</form>
 					</div>
+					<!-- Status Filter Tabs -->
+					<div class="sessions-filter-group">
+						<span class="sessions-filter-label">Status</span>
+						<div class="status-filter-tabs">
+							@SessionsFilterTab(buildSessionsFilterURL("", props.CategoryFilter), "All", props.StatusFilter == "")
+							@SessionsFilterTab(buildSessionsFilterURL("active", props.CategoryFilter), "Active", props.StatusFilter == "active")
+							@SessionsFilterTab(buildSessionsFilterURL("disabled", props.CategoryFilter), "Disabled", props.StatusFilter == "disabled")
+							@SessionsFilterTab(buildSessionsFilterURL("revoked", props.CategoryFilter), "Revoked", props.StatusFilter == "revoked")
+						</div>
+					</div>
+					<!-- Token Type Filter Tabs -->
+					<div class="sessions-filter-group">
+						<span class="sessions-filter-label">Token Type</span>
+						<div class="status-filter-tabs">
+							@SessionsFilterTab(buildSessionsFilterURL(props.StatusFilter, ""), "All", props.CategoryFilter == "")
+							@SessionsFilterTab(buildSessionsFilterURL(props.StatusFilter, "access"), "Access Token", props.CategoryFilter == "access")
+							@SessionsFilterTab(buildSessionsFilterURL(props.StatusFilter, "refresh"), "Refresh Token", props.CategoryFilter == "refresh")
+						</div>
+					</div>
 					if len(props.Sessions) > 0 {
 						<div class="sessions-list-header">
-							<h3 class="sessions-count">{ fmt.Sprintf("%d", len(props.Sessions)) } Active Sessions</h3>
+							<h3 class="sessions-count">{ fmt.Sprintf("%d", props.Pagination.Total) } Sessions</h3>
 							<form method="POST" action="/account/sessions/revoke-all" class="form-inline">
 								<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
 								<button
@@ -92,24 +113,24 @@ templ AccountSessions(props SessionsPageProps) {
 							</table>
 						</div>
 						<!-- Pagination Controls -->
-						@SessionsPagination(props.Pagination, props.PageSize, props.Search)
+						@SessionsPagination(props.Pagination, props.PageSize, props.Search, props.StatusFilter, props.CategoryFilter)
 					} else {
 						<div class="empty-state">
-							if props.Search != "" {
+							if props.Search != "" || props.StatusFilter != "" || props.CategoryFilter != "" {
 								@EmptyStateSearch()
 							} else {
 								@EmptyStateSessions()
 							}
 							<h3 class="empty-title">
-								if props.Search != "" {
+								if props.Search != "" || props.StatusFilter != "" || props.CategoryFilter != "" {
 									No sessions found
 								} else {
 									No Active Sessions
 								}
 							</h3>
 							<p class="empty-text">
-								if props.Search != "" {
-									Try adjusting your search terms or clear the filter.
+								if props.Search != "" || props.StatusFilter != "" || props.CategoryFilter != "" {
+									Try adjusting your search terms or filters, or clear all filters.
 								} else {
 									You don't have any active sessions. Authorize a device to see it here.
 								}
@@ -228,15 +249,43 @@ templ SessionTableRow(session services.TokenWithClient, csrfToken string) {
 	</tr>
 }
 
-func buildSessionsPaginationURL(page, pageSize int, search string) string {
-	searchParam := ""
-	if search != "" {
-		searchParam = "&search=" + search
+func buildSessionsFilterURL(status, category string) string {
+	url := "/account/sessions"
+	sep := "?"
+	if status != "" {
+		url += sep + "status=" + status
+		sep = "&"
 	}
-	return fmt.Sprintf("/account/sessions?page=%d&page_size=%d%s", page, pageSize, searchParam)
+	if category != "" {
+		url += sep + "category=" + category
+	}
+	return url
 }
 
-templ SessionsPagination(pagination store.PaginationResult, pageSize int, search string) {
+func buildSessionsPaginationURL(page, pageSize int, search, status, category string) string {
+	url := fmt.Sprintf("/account/sessions?page=%d&page_size=%d", page, pageSize)
+	if search != "" {
+		url += "&search=" + search
+	}
+	if status != "" {
+		url += "&status=" + status
+	}
+	if category != "" {
+		url += "&category=" + category
+	}
+	return url
+}
+
+templ SessionsFilterTab(href, label string, isActive bool) {
+	<a
+		href={ templ.URL(href) }
+		class={ templ.Classes("status-filter-tab", templ.KV("status-filter-tab--active", isActive)) }
+	>
+		{ label }
+	</a>
+}
+
+templ SessionsPagination(pagination store.PaginationResult, pageSize int, search, status, category string) {
 	<div class="sessions-pagination">
 		<div class="sessions-pagination-info">
 			<span>Showing</span>
@@ -246,7 +295,7 @@ templ SessionsPagination(pagination store.PaginationResult, pageSize int, search
 		<div class="sessions-pagination-controls">
 			if pagination.HasPrev {
 				<a
-					href={ templ.URL(buildSessionsPaginationURL(pagination.PrevPage, pageSize, search)) }
+					href={ templ.URL(buildSessionsPaginationURL(pagination.PrevPage, pageSize, search, status, category)) }
 					class="sessions-pagination-btn"
 				>
 					<span>&larr;</span>
@@ -263,7 +312,7 @@ templ SessionsPagination(pagination store.PaginationResult, pageSize int, search
 			</span>
 			if pagination.HasNext {
 				<a
-					href={ templ.URL(buildSessionsPaginationURL(pagination.NextPage, pageSize, search)) }
+					href={ templ.URL(buildSessionsPaginationURL(pagination.NextPage, pageSize, search, status, category)) }
 					class="sessions-pagination-btn"
 				>
 					<span>Next</span>

@@ -63,6 +63,16 @@ func (s *Store) GetTokensByUserIDPaginated(
 		)
 	}
 
+	// Apply status filter if provided
+	if params.StatusFilter != "" {
+		query = query.Where("status = ?", params.StatusFilter)
+	}
+
+	// Apply category filter if provided
+	if params.CategoryFilter != "" {
+		query = query.Where("token_category = ?", params.CategoryFilter)
+	}
+
 	// Count total records
 	if err := query.Count(&total).Error; err != nil {
 		return nil, PaginationResult{}, err

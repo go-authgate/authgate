@@ -207,6 +207,178 @@ func TestGetTokensByUserIDPaginated(t *testing.T) {
 			assert.Equal(t, user1, tok.UserID)
 		}
 	})
+
+	t.Run("FilterByStatus", func(t *testing.T) {
+		store := createFreshStore(t, "sqlite", nil)
+		userID := uuid.New().String()
+		clientID := uuid.New().String()
+		createTestClient(t, store, clientID, "Filter App")
+
+		// Create tokens with different statuses
+		active := createTestToken(userID, clientID)
+		active.Status = models.TokenStatusActive
+		require.NoError(t, store.CreateAccessToken(active))
+
+		disabled := createTestToken(userID, clientID)
+		disabled.Status = models.TokenStatusDisabled
+		require.NoError(t, store.CreateAccessToken(disabled))
+
+		revoked := createTestToken(userID, clientID)
+		revoked.Status = models.TokenStatusRevoked
+		require.NoError(t, store.CreateAccessToken(revoked))
+
+		// Filter by active status
+		tokens, pagination, err := store.GetTokensByUserIDPaginated(userID, PaginationParams{
+			Page:         1,
+			PageSize:     10,
+			StatusFilter: models.TokenStatusActive,
+		})
+		require.NoError(t, err)
+		assert.Len(t, tokens, 1)
+		assert.Equal(t, int64(1), pagination.Total)
+		assert.Equal(t, models.TokenStatusActive, tokens[0].Status)
+
+		// Filter by disabled status
+		tokens, pagination, err = store.GetTokensByUserIDPaginated(userID, PaginationParams{
+			Page:         1,
+			PageSize:     10,
+			StatusFilter: models.TokenStatusDisabled,
+		})
+		require.NoError(t, err)
+		assert.Len(t, tokens, 1)
+		assert.Equal(t, int64(1), pagination.Total)
+		assert.Equal(t, models.TokenStatusDisabled, tokens[0].Status)
+	})
+
+	t.Run("FilterByCategory", func(t *testing.T) {
+		store := createFreshStore(t, "sqlite", nil)
+		userID := uuid.New().String()
+		clientID := uuid.New().String()
+		createTestClient(t, store, clientID, "Category App")
+
+		// Create access and refresh tokens
+		access := createTestToken(userID, clientID)
+		access.TokenCategory = models.TokenCategoryAccess
+		require.NoError(t, store.CreateAccessToken(access))
+
+		refresh := createTestToken(userID, clientID)
+		refresh.TokenCategory = models.TokenCategoryRefresh
+		require.NoError(t, store.CreateAccessToken(refresh))
+
+		// Filter by access category
+		tokens, pagination, err := store.GetTokensByUserIDPaginated(userID, PaginationParams{
+			Page:           1,
+			PageSize:       10,
+			CategoryFilter: models.TokenCategoryAccess,
+		})
+		require.NoError(t, err)
+		assert.Len(t, tokens, 1)
+		assert.Equal(t, int64(1), pagination.Total)
+		assert.Equal(t, models.TokenCategoryAccess, tokens[0].TokenCategory)
+
+		// Filter by refresh category
+		tokens, pagination, err = store.GetTokensByUserIDPaginated(userID, PaginationParams{
+			Page:           1,
+			PageSize:       10,
+			CategoryFilter: models.TokenCategoryRefresh,
+		})
+		require.NoError(t, err)
+		assert.Len(t, tokens, 1)
+		assert.Equal(t, int64(1), pagination.Total)
+		assert.Equal(t, models.TokenCategoryRefresh, tokens[0].TokenCategory)
+	})
+
+	t.Run("CombinedStatusAndCategoryFilters", func(t *testing.T) {
+		store := createFreshStore(t, "sqlite", nil)
+		userID := uuid.New().String()
+		clientID := uuid.New().String()
+		createTestClient(t, store, clientID, "Combined App")
+
+		// Create a matrix of tokens
+		activeAccess := createTestToken(userID, clientID)
+		activeAccess.Status = models.TokenStatusActive
+		activeAccess.TokenCategory = models.TokenCategoryAccess
+		require.NoError(t, store.CreateAccessToken(activeAccess))
+
+		activeRefresh := createTestToken(userID, clientID)
+		activeRefresh.Status = models.TokenStatusActive
+		activeRefresh.TokenCategory = models.TokenCategoryRefresh
+		require.NoError(t, store.CreateAccessToken(activeRefresh))
+
+		disabledAccess := createTestToken(userID, clientID)
+		disabledAccess.Status = models.TokenStatusDisabled
+		disabledAccess.TokenCategory = models.TokenCategoryAccess
+		require.NoError(t, store.CreateAccessToken(disabledAccess))
+
+		disabledRefresh := createTestToken(userID, clientID)
+		disabledRefresh.Status = models.TokenStatusDisabled
+		disabledRefresh.TokenCategory = models.TokenCategoryRefresh
+		require.NoError(t, store.CreateAccessToken(disabledRefresh))
+
+		// Filter: active + refresh → should return 1
+		tokens, pagination, err := store.GetTokensByUserIDPaginated(userID, PaginationParams{
+			Page:           1,
+			PageSize:       10,
+			StatusFilter:   models.TokenStatusActive,
+			CategoryFilter: models.TokenCategoryRefresh,
+		})
+		require.NoError(t, err)
+		assert.Len(t, tokens, 1)
+		assert.Equal(t, int64(1), pagination.Total)
+		assert.Equal(t, models.TokenStatusActive, tokens[0].Status)
+		assert.Equal(t, models.TokenCategoryRefresh, tokens[0].TokenCategory)
+
+		// Filter: disabled only (no category) → should return 2
+		tokens, pagination, err = store.GetTokensByUserIDPaginated(userID, PaginationParams{
+			Page:         1,
+			PageSize:     10,
+			StatusFilter: models.TokenStatusDisabled,
+		})
+		require.NoError(t, err)
+		assert.Len(t, tokens, 2)
+		assert.Equal(t, int64(2), pagination.Total)
+	})
+
+	t.Run("FiltersWithSearch", func(t *testing.T) {
+		store := createFreshStore(t, "sqlite", nil)
+		userID := uuid.New().String()
+
+		clientA := uuid.New().String()
+		clientB := uuid.New().String()
+		createTestClient(t, store, clientA, "Alpha App")
+		createTestClient(t, store, clientB, "Beta App")
+
+		// Active access token for Alpha
+		tok1 := createTestToken(userID, clientA)
+		tok1.Status = models.TokenStatusActive
+		tok1.TokenCategory = models.TokenCategoryAccess
+		require.NoError(t, store.CreateAccessToken(tok1))
+
+		// Active refresh token for Alpha
+		tok2 := createTestToken(userID, clientA)
+		tok2.Status = models.TokenStatusActive
+		tok2.TokenCategory = models.TokenCategoryRefresh
+		require.NoError(t, store.CreateAccessToken(tok2))
+
+		// Active access token for Beta
+		tok3 := createTestToken(userID, clientB)
+		tok3.Status = models.TokenStatusActive
+		tok3.TokenCategory = models.TokenCategoryAccess
+		require.NoError(t, store.CreateAccessToken(tok3))
+
+		// Search "Alpha" + filter active + access → should return 1
+		tokens, pagination, err := store.GetTokensByUserIDPaginated(userID, PaginationParams{
+			Page:           1,
+			PageSize:       10,
+			Search:         "Alpha",
+			StatusFilter:   models.TokenStatusActive,
+			CategoryFilter: models.TokenCategoryAccess,
+		})
+		require.NoError(t, err)
+		assert.Len(t, tokens, 1)
+		assert.Equal(t, int64(1), pagination.Total)
+		assert.Equal(t, clientA, tokens[0].ClientID)
+	})
 }
 
 func TestRevokeToken(t *testing.T) {

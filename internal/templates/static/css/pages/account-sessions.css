@@ -36,6 +36,28 @@
   font-weight: 500;
 }
 
+/* Filter groups */
+.sessions-filter-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.sessions-filter-group:last-of-type {
+  margin-bottom: var(--space-6);
+}
+
+.sessions-filter-label {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
 /* Sessions list header */
 .sessions-list-header {
   display: flex;
@@ -421,6 +443,15 @@
 }
 
 @media (max-width: 768px) {
+  .sessions-filter-group {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .sessions-filter-label {
+    min-width: auto;
+  }
+
   .sessions-table-wrapper {
     overflow-x: visible;
     border: none;

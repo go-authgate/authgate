@@ -29,6 +29,8 @@ func (h *SessionHandler) ListSessions(c *gin.Context) {
 	}
 
 	params := parsePaginationParams(c)
+	params.StatusFilter = c.Query("status")
+	params.CategoryFilter = c.Query("category")
 
 	// Get paginated tokens
 	tokens, pagination, err := h.tokenService.GetUserTokensWithClientPaginated(
@@ -44,12 +46,14 @@ func (h *SessionHandler) ListSessions(c *gin.Context) {
 	user := getUserFromContext(c)
 
 	templates.RenderTempl(c, http.StatusOK, templates.AccountSessions(templates.SessionsPageProps{
-		BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
-		NavbarProps: buildNavbarProps(c, user, "sessions"),
-		Sessions:    tokens,
-		Pagination:  pagination,
-		Search:      params.Search,
-		PageSize:    params.PageSize,
+		BaseProps:      templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		NavbarProps:    buildNavbarProps(c, user, "sessions"),
+		Sessions:       tokens,
+		Pagination:     pagination,
+		Search:         params.Search,
+		PageSize:       params.PageSize,
+		StatusFilter:   params.StatusFilter,
+		CategoryFilter: params.CategoryFilter,
 	}))
 }
 

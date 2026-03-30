@@ -91,10 +91,12 @@ type DevicePageProps struct {
 type SessionsPageProps struct {
 	BaseProps
 	NavbarProps
-	Sessions   []services.TokenWithClient
-	Pagination store.PaginationResult
-	Search     string
-	PageSize   int
+	Sessions       []services.TokenWithClient
+	Pagination     store.PaginationResult
+	Search         string
+	PageSize       int
+	StatusFilter   string
+	CategoryFilter string
 }
 
 // ClientsPageProps contains properties for the admin clients page
