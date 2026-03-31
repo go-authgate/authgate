@@ -62,6 +62,7 @@ type DeviceCodeStore interface {
 	GetDeviceCodesByID(deviceCodeID string) ([]*models.DeviceCode, error)
 	GetDeviceCodeByUserCode(userCode string) (*models.DeviceCode, error)
 	UpdateDeviceCode(dc *models.DeviceCode) error
+	AuthorizeDeviceCode(id int64, userID string) error
 	DeleteDeviceCodeByID(id int64) error
 }
 

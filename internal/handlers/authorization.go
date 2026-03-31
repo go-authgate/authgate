@@ -56,7 +56,7 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 
 	// Validate the authorization request parameters
 	req, err := h.authorizationService.ValidateAuthorizationRequest(
-		clientID, redirectURI, responseType, scope, codeChallengeMethod, nonce,
+		clientID, redirectURI, responseType, scope, codeChallenge, codeChallengeMethod, nonce,
 	)
 	if err != nil {
 		h.redirectWithError(c, redirectURI, state, oauthErrorCode(err), err.Error())
@@ -77,16 +77,7 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 	if h.config.ConsentRemember {
 		existing, _ := h.authorizationService.GetUserAuthorization(userIDStr, req.Client.ID)
 		if existing != nil && util.IsScopeSubset(existing.Scopes, req.Scopes) {
-			h.issueCodeAndRedirect(
-				c,
-				req,
-				userIDStr,
-				redirectURI,
-				state,
-				nonce,
-				codeChallenge,
-				codeChallengeMethod,
-			)
+			h.issueCodeAndRedirect(c, req, userIDStr, state)
 			return
 		}
 	}
@@ -99,13 +90,13 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 		ClientID:            req.Client.ClientID,
 		ClientName:          req.Client.ClientName,
 		ClientDescription:   req.Client.Description,
-		RedirectURI:         redirectURI,
+		RedirectURI:         req.RedirectURI,
 		Scopes:              req.Scopes,
 		ScopeList:           strings.Fields(req.Scopes),
 		State:               state,
-		Nonce:               nonce,
-		CodeChallenge:       codeChallenge,
-		CodeChallengeMethod: codeChallengeMethod,
+		Nonce:               req.Nonce,
+		CodeChallenge:       req.CodeChallenge,
+		CodeChallengeMethod: req.CodeChallengeMethod,
 	}))
 }
 
@@ -139,7 +130,7 @@ func (h *AuthorizationHandler) HandleAuthorize(c *gin.Context) {
 
 	// Re-validate request on POST to prevent parameter tampering
 	req, err := h.authorizationService.ValidateAuthorizationRequest(
-		clientID, redirectURI, "code", scope, codeChallengeMethod, nonce,
+		clientID, redirectURI, "code", scope, codeChallenge, codeChallengeMethod, nonce,
 	)
 	if err != nil {
 		h.redirectWithError(c, redirectURI, state, oauthErrorCode(err), err.Error())
@@ -160,32 +151,32 @@ func (h *AuthorizationHandler) HandleAuthorize(c *gin.Context) {
 		return
 	}
 
-	h.issueCodeAndRedirect(
-		c, req, userIDStr, redirectURI, state, nonce, codeChallenge, codeChallengeMethod,
-	)
+	h.issueCodeAndRedirect(c, req, userIDStr, state)
 }
 
 // issueCodeAndRedirect generates an authorization code and redirects to the client's redirect_uri.
 func (h *AuthorizationHandler) issueCodeAndRedirect(
 	c *gin.Context,
 	req *services.AuthorizationRequest,
-	userID, redirectURI, state, nonce, codeChallenge, codeChallengeMethod string,
+	userID, state string,
 ) {
 	plainCode, _, err := h.authorizationService.CreateAuthorizationCode(
 		c.Request.Context(),
-		req.Client.ID,
-		req.Client.ClientID,
-		userID,
-		redirectURI,
-		req.Scopes,
-		codeChallenge,
-		codeChallengeMethod,
-		nonce,
+		services.CreateAuthorizationCodeParams{
+			ApplicationID:       req.Client.ID,
+			ClientID:            req.Client.ClientID,
+			UserID:              userID,
+			RedirectURI:         req.RedirectURI,
+			Scopes:              req.Scopes,
+			CodeChallenge:       req.CodeChallenge,
+			CodeChallengeMethod: req.CodeChallengeMethod,
+			Nonce:               req.Nonce,
+		},
 	)
 	if err != nil {
 		h.redirectWithError(
 			c,
-			redirectURI,
+			req.RedirectURI,
 			state,
 			errServerError,
 			"Failed to generate authorization code",
@@ -193,7 +184,7 @@ func (h *AuthorizationHandler) issueCodeAndRedirect(
 		return
 	}
 
-	u, err := url.Parse(redirectURI)
+	u, err := url.Parse(req.RedirectURI)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid redirect_uri"})
 		return

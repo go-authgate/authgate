@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/go-authgate/authgate/internal/config"
@@ -21,6 +22,8 @@ func deviceCodeErrorMessage(err error) string {
 		return "User code not found"
 	case errors.Is(err, services.ErrDeviceCodeExpired):
 		return "Code has expired, please request a new one"
+	case errors.Is(err, services.ErrDeviceCodeAlreadyAuthorized):
+		return "This code has already been authorized"
 	default:
 		return "Invalid or expired code"
 	}
@@ -124,7 +127,13 @@ func (h *DeviceHandler) DeviceCodeRequest(c *gin.Context) {
 			)
 			return
 		}
-		respondOAuthError(c, http.StatusInternalServerError, errServerError, err.Error())
+		log.Printf("[device] device code generation error: %v", err)
+		respondOAuthError(
+			c,
+			http.StatusInternalServerError,
+			errServerError,
+			"An internal error occurred",
+		)
 		return
 	}
 

@@ -421,6 +421,20 @@ func (m *MockDeviceCodeStore) EXPECT() *MockDeviceCodeStoreMockRecorder {
 	return m.recorder
 }
 
+// AuthorizeDeviceCode mocks base method.
+func (m *MockDeviceCodeStore) AuthorizeDeviceCode(id int64, userID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AuthorizeDeviceCode", id, userID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AuthorizeDeviceCode indicates an expected call of AuthorizeDeviceCode.
+func (mr *MockDeviceCodeStoreMockRecorder) AuthorizeDeviceCode(id, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AuthorizeDeviceCode", reflect.TypeOf((*MockDeviceCodeStore)(nil).AuthorizeDeviceCode), id, userID)
+}
+
 // CreateDeviceCode mocks base method.
 func (m *MockDeviceCodeStore) CreateDeviceCode(dc *models.DeviceCode) error {
 	m.ctrl.T.Helper()
@@ -1357,6 +1371,20 @@ func NewMockStore(ctrl *gomock.Controller) *MockStore {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 	return m.recorder
+}
+
+// AuthorizeDeviceCode mocks base method.
+func (m *MockStore) AuthorizeDeviceCode(id int64, userID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AuthorizeDeviceCode", id, userID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AuthorizeDeviceCode indicates an expected call of AuthorizeDeviceCode.
+func (mr *MockStoreMockRecorder) AuthorizeDeviceCode(id, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AuthorizeDeviceCode", reflect.TypeOf((*MockStore)(nil).AuthorizeDeviceCode), id, userID)
 }
 
 // Close mocks base method.

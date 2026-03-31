@@ -9,4 +9,8 @@ var (
 	// ErrAuthCodeAlreadyUsed is returned by MarkAuthorizationCodeUsed when the
 	// code was already consumed by a concurrent request (0 rows updated).
 	ErrAuthCodeAlreadyUsed = errors.New("authorization code already used")
+
+	// ErrDeviceCodeAlreadyAuthorized is returned by AuthorizeDeviceCode when the
+	// device code was already authorized by a concurrent request (0 rows updated).
+	ErrDeviceCodeAlreadyAuthorized = errors.New("device code already authorized")
 )

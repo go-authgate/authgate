@@ -491,10 +491,28 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 	)
 	if err != nil {
 		errCode := errInvalidGrant
-		if errors.Is(err, services.ErrUnauthorizedClient) {
+		var description string
+		switch {
+		case errors.Is(err, services.ErrUnauthorizedClient):
 			errCode = errUnauthorizedClient
+			description = "Client authentication failed"
+		case errors.Is(err, services.ErrAuthCodeNotFound):
+			description = "Authorization code is invalid or expired"
+		case errors.Is(err, services.ErrAuthCodeExpired):
+			description = "Authorization code has expired"
+		case errors.Is(err, services.ErrAuthCodeAlreadyUsed):
+			description = "Authorization code has already been used"
+		case errors.Is(err, services.ErrInvalidRedirectURI):
+			description = "Redirect URI does not match"
+		case errors.Is(err, services.ErrPKCERequired):
+			description = "PKCE code_verifier is required for public clients"
+		case errors.Is(err, services.ErrInvalidCodeVerifier):
+			description = "PKCE code_verifier validation failed"
+		default:
+			log.Printf("[token] authorization code exchange error: %v", err)
+			description = "An internal error occurred"
 		}
-		respondOAuthError(c, http.StatusBadRequest, errCode, err.Error())
+		respondOAuthError(c, http.StatusBadRequest, errCode, description)
 		return
 	}
 

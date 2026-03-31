@@ -74,7 +74,7 @@ func NewAuthorizationService(
 // ValidateAuthorizationRequest validates all parameters of an incoming authorization request.
 // Returns the parsed AuthorizationRequest on success.
 func (s *AuthorizationService) ValidateAuthorizationRequest(
-	clientID, redirectURI, responseType, scope, codeChallengeMethod, nonce string,
+	clientID, redirectURI, responseType, scope, codeChallenge, codeChallengeMethod, nonce string,
 ) (*AuthorizationRequest, error) {
 	// 1. response_type must be "code"
 	if responseType != "code" {
@@ -126,17 +126,29 @@ func (s *AuthorizationService) ValidateAuthorizationRequest(
 		Client:              client,
 		RedirectURI:         redirectURI,
 		Scopes:              scope,
+		CodeChallenge:       codeChallenge,
 		CodeChallengeMethod: codeChallengeMethod,
 		Nonce:               nonce,
 	}, nil
+}
+
+// CreateAuthorizationCodeParams bundles the inputs for authorization code creation.
+type CreateAuthorizationCodeParams struct {
+	ApplicationID       int64
+	ClientID            string
+	UserID              string
+	RedirectURI         string
+	Scopes              string
+	CodeChallenge       string
+	CodeChallengeMethod string
+	Nonce               string
 }
 
 // CreateAuthorizationCode generates a one-time authorization code and saves it to the database.
 // Returns the plaintext code (to be sent in the redirect) and the stored record.
 func (s *AuthorizationService) CreateAuthorizationCode(
 	ctx context.Context,
-	applicationID int64,
-	clientID, userID, redirectURI, scopes, codeChallenge, codeChallengeMethod, nonce string,
+	params CreateAuthorizationCodeParams,
 ) (plainCode string, record *models.AuthorizationCode, err error) {
 	// Generate 32 cryptographically random bytes (256-bit entropy)
 	rawBytes, err := util.CryptoRandomBytes(32)
@@ -153,14 +165,14 @@ func (s *AuthorizationService) CreateAuthorizationCode(
 		UUID:                uuid.New().String(),
 		CodeHash:            codeHash,
 		CodePrefix:          codePrefix,
-		ApplicationID:       applicationID,
-		ClientID:            clientID,
-		UserID:              userID,
-		RedirectURI:         redirectURI,
-		Scopes:              scopes,
-		CodeChallenge:       codeChallenge,
-		CodeChallengeMethod: codeChallengeMethod,
-		Nonce:               nonce,
+		ApplicationID:       params.ApplicationID,
+		ClientID:            params.ClientID,
+		UserID:              params.UserID,
+		RedirectURI:         params.RedirectURI,
+		Scopes:              params.Scopes,
+		CodeChallenge:       params.CodeChallenge,
+		CodeChallengeMethod: params.CodeChallengeMethod,
+		Nonce:               params.Nonce,
 		ExpiresAt:           time.Now().Add(s.config.AuthCodeExpiration),
 	}
 
@@ -172,15 +184,15 @@ func (s *AuthorizationService) CreateAuthorizationCode(
 		s.auditService.Log(ctx, AuditLogEntry{
 			EventType:    models.EventAuthorizationCodeGenerated,
 			Severity:     models.SeverityInfo,
-			ActorUserID:  userID,
+			ActorUserID:  params.UserID,
 			ResourceType: models.ResourceAuthorization,
 			ResourceID:   record.UUID,
 			Action:       "Authorization code generated",
 			Details: models.AuditDetails{
-				"client_id":    clientID,
-				"scopes":       scopes,
-				"pkce":         codeChallenge != "",
-				"redirect_uri": redirectURI,
+				"client_id":    params.ClientID,
+				"scopes":       params.Scopes,
+				"pkce":         params.CodeChallenge != "",
+				"redirect_uri": params.RedirectURI,
 			},
 			Success: true,
 		})

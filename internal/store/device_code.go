@@ -1,6 +1,10 @@
 package store
 
-import "github.com/go-authgate/authgate/internal/models"
+import (
+	"time"
+
+	"github.com/go-authgate/authgate/internal/models"
+)
 
 // Device Code operations (implements core.DeviceCodeStore)
 
@@ -31,6 +35,27 @@ func (s *Store) GetDeviceCodeByUserCode(userCode string) (*models.DeviceCode, er
 // UpdateDeviceCode updates a device code
 func (s *Store) UpdateDeviceCode(dc *models.DeviceCode) error {
 	return s.db.Save(dc).Error
+}
+
+// AuthorizeDeviceCode atomically marks a device code as authorized by a user.
+// It uses a WHERE clause to ensure only one concurrent request wins; the loser
+// receives ErrDeviceCodeAlreadyAuthorized (0 rows updated).
+func (s *Store) AuthorizeDeviceCode(id int64, userID string) error {
+	now := time.Now()
+	result := s.db.Model(&models.DeviceCode{}).
+		Where("id = ? AND authorized = ?", id, false).
+		Updates(map[string]any{
+			"authorized":    true,
+			"authorized_at": now,
+			"user_id":       userID,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrDeviceCodeAlreadyAuthorized
+	}
+	return nil
 }
 
 // DeleteDeviceCodeByID deletes device code by ID (primary key)

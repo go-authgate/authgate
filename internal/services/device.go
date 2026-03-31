@@ -14,16 +14,18 @@ import (
 	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/store"
 	"github.com/go-authgate/authgate/internal/util"
 )
 
 var (
-	ErrInvalidClient        = errors.New("invalid client_id")
-	ErrClientInactive       = errors.New("client is inactive")
-	ErrDeviceFlowNotEnabled = errors.New("device flow not enabled for this client")
-	ErrDeviceCodeNotFound   = errors.New("device code not found")
-	ErrDeviceCodeExpired    = errors.New("device code expired")
-	ErrUserCodeNotFound     = errors.New("user code not found")
+	ErrInvalidClient               = errors.New("invalid client_id")
+	ErrClientInactive              = errors.New("client is inactive")
+	ErrDeviceFlowNotEnabled        = errors.New("device flow not enabled for this client")
+	ErrDeviceCodeNotFound          = errors.New("device code not found")
+	ErrDeviceCodeExpired           = errors.New("device code expired")
+	ErrUserCodeNotFound            = errors.New("user code not found")
+	ErrDeviceCodeAlreadyAuthorized = errors.New("device code already authorized")
 )
 
 type DeviceService struct {
@@ -199,12 +201,11 @@ func (s *DeviceService) AuthorizeDeviceCode(
 		return err
 	}
 
-	dc.UserID = userID
-	dc.Authorized = true
-	dc.AuthorizedAt = time.Now()
-
-	err = s.store.UpdateDeviceCode(dc)
+	err = s.store.AuthorizeDeviceCode(dc.ID, userID)
 	if err != nil {
+		if errors.Is(err, store.ErrDeviceCodeAlreadyAuthorized) {
+			return ErrDeviceCodeAlreadyAuthorized
+		}
 		return err
 	}
 
