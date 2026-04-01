@@ -41,9 +41,12 @@ function copyToClipboard(text) {
 
     var success = false;
     try {
-      document.execCommand('copy');
-      showNotification('Copied to clipboard!', 'success');
-      success = true;
+      success = document.execCommand('copy');
+      if (success) {
+        showNotification('Copied to clipboard!', 'success');
+      } else {
+        showNotification('Failed to copy', 'error');
+      }
     } catch (err) {
       console.error('Failed to copy:', err);
       showNotification('Failed to copy', 'error');
@@ -372,8 +375,11 @@ function initCopyableValues() {
     var btn = target.closest('.copyable-value-btn');
     if (!btn) return;
 
-    var value = btn.getAttribute('data-copy-value');
-    if (!value) return;
+    var wrapper = btn.closest('.copyable-value');
+    var textEl = wrapper && wrapper.querySelector('.copyable-value-text');
+    if (!textEl) return;
+
+    var value = textEl.textContent;
 
     copyToClipboard(value).then(function(success) {
       if (!success) return;
