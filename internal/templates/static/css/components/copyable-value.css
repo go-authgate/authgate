@@ -84,6 +84,10 @@
 }
 
 /* Wrap variant for full-length secrets */
+.copyable-value--wrap {
+  align-items: flex-start;
+}
+
 .copyable-value--wrap .copyable-value-text {
   white-space: normal;
   word-break: break-all;
@@ -106,6 +110,13 @@
 .copyable-value--compact .copyable-icon {
   width: 12px;
   height: 12px;
+}
+
+/* Responsive: remove max-width on small screens */
+@media (max-width: 768px) {
+  .copyable-value--compact {
+    max-width: none;
+  }
 }
 
 /* Dark mode */
