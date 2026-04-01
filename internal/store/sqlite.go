@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
@@ -23,6 +22,20 @@ import (
 // Compile-time check: *Store must satisfy core.Store.
 var _ core.Store = (*Store)(nil)
 
+// parseGORMLogLevel converts a string log level to a GORM logger.LogLevel.
+func parseGORMLogLevel(level string) logger.LogLevel {
+	switch strings.ToLower(level) {
+	case "silent":
+		return logger.Silent
+	case "error":
+		return logger.Error
+	case "info":
+		return logger.Info
+	default:
+		return logger.Warn
+	}
+}
+
 type Store struct {
 	db *gorm.DB
 }
@@ -34,7 +47,7 @@ func New(ctx context.Context, driver, dsn string, cfg *config.Config) (*Store, e
 	}
 
 	db, err := gorm.Open(dialector, &gorm.Config{
-		Logger:         logger.Default.LogMode(logger.Warn),
+		Logger:         logger.Default.LogMode(parseGORMLogLevel(cfg.DBLogLevel)),
 		TranslateError: true,
 	})
 	if err != nil {
@@ -129,16 +142,6 @@ func (s *Store) Close(ctx context.Context) error {
 	}
 }
 
-// generateRandomPassword generates a random password of specified length.
-// Uses base64url encoding and truncates to length printable characters.
-func generateRandomPassword(length int) (string, error) {
-	b, err := util.CryptoRandomBytes(length)
-	if err != nil {
-		return "", err
-	}
-	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(b)[:length], nil
-}
-
 func (s *Store) seedData(ctx context.Context, cfg *config.Config) error {
 	// Create default user if not exists
 	var userCount int64
@@ -157,7 +160,7 @@ func (s *Store) seedData(ctx context.Context, cfg *config.Config) error {
 		if configuredPassword != "" {
 			password = configuredPassword
 		} else {
-			password, err = generateRandomPassword(16)
+			password, err = util.GenerateRandomPassword(16)
 			if err != nil {
 				return err
 			}

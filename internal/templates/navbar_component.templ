@@ -42,8 +42,9 @@ templ Navbar(props *NavbarProps) {
 						}
 						if props.IsAdmin {
 							<div class="navbar-admin-divider" aria-hidden="true"></div>
-							@NavAdminDropdown(props.ActiveLink == "clients" || props.ActiveLink == "audit") {
+							@NavAdminDropdown(props.ActiveLink == "clients" || props.ActiveLink == "users" || props.ActiveLink == "audit") {
 								@NavDropdownItemWithBadge("/admin/clients", "OAuth Clients", props.ActiveLink == "clients", props.PendingClientsCount)
+								@NavDropdownItem("/admin/users", "Users", props.ActiveLink == "users", true, false)
 								@NavDropdownItem("/admin/audit", "Audit Logs", props.ActiveLink == "audit", true, false)
 							}
 						}

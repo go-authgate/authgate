@@ -53,3 +53,8 @@ func (s *Store) UpdateOAuthConnection(conn *models.OAuthConnection) error {
 func (s *Store) DeleteOAuthConnection(id string) error {
 	return s.db.Delete(&models.OAuthConnection{}, "id = ?", id).Error
 }
+
+// DeleteOAuthConnectionsByUserID deletes all OAuth connections for a user.
+func (s *Store) DeleteOAuthConnectionsByUserID(userID string) error {
+	return s.db.Where("user_id = ?", userID).Delete(&models.OAuthConnection{}).Error
+}

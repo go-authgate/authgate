@@ -398,3 +398,175 @@ func TestAuthenticate_HTTPAPINewUser_AuthError(t *testing.T) {
 	_, err := svc.Authenticate(context.Background(), "ghost-user", "bad-pass")
 	assert.ErrorIs(t, err, ErrInvalidCredentials)
 }
+
+// ── Admin User Management Tests ────────────────────────────────────────
+
+func TestUpdateUserProfile_Success(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	u := makeTestUser(t, db)
+	actor := makeTestUser(t, db)
+
+	mockCache.EXPECT().Delete(gomock.Any(), "user:"+u.ID).Return(nil).Times(1)
+
+	svc := newUserServiceWithStore(db, mockCache)
+	err := svc.UpdateUserProfile(context.Background(), u.ID, actor.ID, UpdateUserProfileRequest{
+		FullName: "New Name",
+		Email:    u.Email, // keep same email
+		Role:     models.UserRoleAdmin,
+	})
+	require.NoError(t, err)
+
+	// Verify changes persisted
+	updated, err := db.GetUserByID(u.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "New Name", updated.FullName)
+	assert.Equal(t, models.UserRoleAdmin, updated.Role)
+}
+
+func TestUpdateUserProfile_CannotChangeOwnRole(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	u := makeTestUser(t, db)
+
+	svc := newUserServiceWithStore(db, mockCache)
+	err := svc.UpdateUserProfile(context.Background(), u.ID, u.ID, UpdateUserProfileRequest{
+		FullName: "Self",
+		Email:    u.Email,
+		Role:     models.UserRoleAdmin, // trying to promote self
+	})
+	assert.ErrorIs(t, err, ErrCannotChangeOwnRole)
+}
+
+func TestUpdateUserProfile_EmailConflict(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	u1 := makeTestUser(t, db)
+	u2 := makeTestUser(t, db)
+	actor := makeTestUser(t, db)
+
+	svc := newUserServiceWithStore(db, mockCache)
+	err := svc.UpdateUserProfile(context.Background(), u1.ID, actor.ID, UpdateUserProfileRequest{
+		FullName: u1.FullName,
+		Email:    u2.Email, // taken by u2
+		Role:     u1.Role,
+	})
+	assert.ErrorIs(t, err, ErrEmailConflict)
+}
+
+func TestResetUserPassword_LocalSuccess(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	u := makeTestUser(t, db) // auth_source=local
+
+	mockCache.EXPECT().Delete(gomock.Any(), "user:"+u.ID).Return(nil).Times(1)
+
+	svc := newUserServiceWithStore(db, mockCache)
+	newPass, err := svc.ResetUserPassword(context.Background(), u.ID, uuid.New().String())
+	require.NoError(t, err)
+	assert.Len(t, newPass, 16)
+
+	// Verify the password hash changed
+	updated, err := db.GetUserByID(u.ID)
+	require.NoError(t, err)
+	assert.NotEqual(t, "hash", updated.PasswordHash)
+}
+
+func TestResetUserPassword_ExternalUserRejected(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	u := makeTestHTTPAPIUser(t, db) // auth_source=http_api
+
+	svc := newUserServiceWithStore(db, mockCache)
+	_, err := svc.ResetUserPassword(context.Background(), u.ID, uuid.New().String())
+	assert.ErrorIs(t, err, ErrPasswordResetNotAllowed)
+}
+
+func TestDeleteUserAdmin_Success(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	u := makeTestUser(t, db)
+	actor := makeTestUser(t, db)
+
+	mockCache.EXPECT().Delete(gomock.Any(), "user:"+u.ID).Return(nil).Times(1)
+
+	svc := newUserServiceWithStore(db, mockCache)
+	err := svc.DeleteUserAdmin(context.Background(), u.ID, actor.ID)
+	require.NoError(t, err)
+
+	// Verify user is deleted
+	_, err = db.GetUserByID(u.ID)
+	require.Error(t, err)
+}
+
+func TestDeleteUserAdmin_CannotDeleteSelf(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	u := makeTestUser(t, db)
+
+	svc := newUserServiceWithStore(db, mockCache)
+	err := svc.DeleteUserAdmin(context.Background(), u.ID, u.ID)
+	assert.ErrorIs(t, err, ErrCannotDeleteSelf)
+}
+
+func TestDeleteUserAdmin_CannotDeleteLastAdmin(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	// The seeded admin is the only admin; create a second user as actor
+	admin, err := db.GetUserByUsername("admin")
+	require.NoError(t, err)
+
+	actor := makeTestUser(t, db)
+	// Promote actor to admin so they can attempt deletion
+	actor.Role = models.UserRoleAdmin
+	require.NoError(t, db.UpdateUser(actor))
+
+	svc := newUserServiceWithStore(db, mockCache)
+
+	// Deleting actor should succeed (2 admins exist)
+	mockCache.EXPECT().Delete(gomock.Any(), "user:"+actor.ID).Return(nil).Times(1)
+	err = svc.DeleteUserAdmin(context.Background(), actor.ID, admin.ID)
+	require.NoError(t, err)
+
+	// Now deleting the only remaining admin should fail
+	err = svc.DeleteUserAdmin(context.Background(), admin.ID, admin.ID)
+	require.ErrorIs(t, err, ErrCannotDeleteSelf) // self-delete guard fires first
+
+	// Create a non-admin actor to test the last-admin guard directly
+	actor2 := makeTestUser(t, db)
+	err = svc.DeleteUserAdmin(context.Background(), admin.ID, actor2.ID)
+	assert.ErrorIs(t, err, ErrCannotRemoveLastAdmin)
+}
+
+func TestAdminGetUserByID_NotFound(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	svc := newUserServiceWithStore(db, mockCache)
+	_, err := svc.AdminGetUserByID(uuid.New().String())
+	assert.ErrorIs(t, err, ErrUserNotFound)
+}
+
+func TestGetUserStats(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	u := makeTestUser(t, db)
+
+	svc := newUserServiceWithStore(db, mockCache)
+	stats, err := svc.GetUserStats(u.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), stats.ActiveTokenCount)
+	assert.Equal(t, int64(0), stats.OAuthConnectionCount)
+	assert.Equal(t, int64(0), stats.AuthorizationCount)
+}

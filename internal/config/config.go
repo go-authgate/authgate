@@ -73,6 +73,7 @@ type Config struct {
 	DBMaxIdleConns    int           // Maximum number of idle connections (default: 10)
 	DBConnMaxLifetime time.Duration // Maximum connection lifetime (default: 5 minutes)
 	DBConnMaxIdleTime time.Duration // Maximum connection idle time (default: 10 minutes)
+	DBLogLevel        string        // GORM log level: "silent", "error", "warn", "info" (default: "warn")
 
 	// Default Admin User
 	DefaultAdminPassword string // Default admin password (if empty, random password is generated)
@@ -264,6 +265,7 @@ func Load() *Config {
 		DBMaxIdleConns:           getEnvInt("DB_MAX_IDLE_CONNS", 10),
 		DBConnMaxLifetime:        getEnvDuration("DB_CONN_MAX_LIFETIME", 5*time.Minute),
 		DBConnMaxIdleTime:        getEnvDuration("DB_CONN_MAX_IDLE_TIME", 10*time.Minute),
+		DBLogLevel:               getEnv("DB_LOG_LEVEL", "warn"),
 
 		// Default Admin User
 		DefaultAdminPassword: getEnv("DEFAULT_ADMIN_PASSWORD", ""),

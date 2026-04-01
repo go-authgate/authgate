@@ -30,11 +30,17 @@ const (
 	EventTokenDisabled      EventType = "TOKEN_DISABLED"
 	EventTokenEnabled       EventType = "TOKEN_ENABLED"
 
-	// Admin operations
+	// Admin operations — client management
 	EventClientCreated           EventType = "CLIENT_CREATED"
 	EventClientUpdated           EventType = "CLIENT_UPDATED"
 	EventClientDeleted           EventType = "CLIENT_DELETED"
 	EventClientSecretRegenerated EventType = "CLIENT_SECRET_REGENERATED"
+
+	// Admin operations — user management
+	EventUserUpdated       EventType = "USER_UPDATED"
+	EventUserDeleted       EventType = "USER_DELETED"
+	EventUserRoleChanged   EventType = "USER_ROLE_CHANGED"
+	EventUserPasswordReset EventType = "USER_PASSWORD_RESET" //nolint:gosec // G101: false positive, event type constant
 
 	// Security events
 	EventRateLimitExceeded  EventType = "RATE_LIMIT_EXCEEDED"

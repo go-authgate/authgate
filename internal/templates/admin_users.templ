@@ -1,0 +1,217 @@
+package templates
+
+import "github.com/go-authgate/authgate/internal/models"
+
+// userFilterURL builds a URL preserving both role and auth_source filters.
+func userFilterURL(role, authSource string) string {
+	base := "/admin/users"
+	if role == "" && authSource == "" {
+		return base
+	}
+	sep := "?"
+	if role != "" {
+		base += sep + "role=" + role
+		sep = "&"
+	}
+	if authSource != "" {
+		base += sep + "auth_source=" + authSource
+	}
+	return base
+}
+
+templ AdminUsers(props UsersPageProps) {
+	@Layout("Users", LayoutAdminNavbar, &props.NavbarProps) {
+		<div class="main-content">
+			<div class="container">
+				<div class="card">
+					@Breadcrumb([]BreadcrumbItem{
+						{Label: "Admin", Href: "/admin/clients"},
+						{Label: "Users", Href: ""},
+					})
+					<!-- Page Header -->
+					<div class="admin-clients-header">
+						<h1 class="admin-clients-title">
+							<span class="admin-clients-title-icon">
+								<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+							</span>
+							<span>Users</span>
+						</h1>
+					</div>
+					@Alert(props.Success, AlertSuccess)
+					@SfToolbar() {
+						@SfSearchRow(SfSearchRowProps{
+							Action:      "/admin/users",
+							Search:      props.Search,
+							PageSize:    props.PageSize,
+							Placeholder: "Search by username, email, or name...",
+							ClearHref:   "/admin/users",
+						})
+						<div class="sf-filters-row">
+							<div class="sf-group">
+								<span class="sf-group-label">Role</span>
+								<div class="sf-segmented">
+									@SfFilterTab(userFilterURL("", props.AuthSourceFilter), "All", props.RoleFilter == "", "")
+									@SfFilterTab(userFilterURL(models.UserRoleAdmin, props.AuthSourceFilter), "Admin", props.RoleFilter == models.UserRoleAdmin, "dot-admin")
+									@SfFilterTab(userFilterURL(models.UserRoleUser, props.AuthSourceFilter), "User", props.RoleFilter == models.UserRoleUser, "dot-active")
+								</div>
+							</div>
+							<div class="sf-group">
+								<span class="sf-group-label">Auth Source</span>
+								<div class="sf-segmented">
+									@SfFilterTab(userFilterURL(props.RoleFilter, ""), "All", props.AuthSourceFilter == "", "")
+									@SfFilterTab(userFilterURL(props.RoleFilter, models.AuthSourceLocal), "Local", props.AuthSourceFilter == models.AuthSourceLocal, "dot-active")
+									@SfFilterTab(userFilterURL(props.RoleFilter, models.AuthSourceHTTPAPI), "External", props.AuthSourceFilter == models.AuthSourceHTTPAPI, "dot-pending")
+								</div>
+							</div>
+						</div>
+					}
+					if len(props.Users) > 0 {
+						<div class="admin-clients-table-wrapper">
+							<table class="admin-clients-table">
+								<caption class="sr-only">List of registered users</caption>
+								<thead>
+									<tr>
+										<th>
+											<div class="table-header-with-icon">
+												<span>Username</span>
+											</div>
+										</th>
+										<th>
+											<div class="table-header-with-icon">
+												<span>Email</span>
+											</div>
+										</th>
+										<th>
+											<div class="table-header-with-icon">
+												<span>Full Name</span>
+											</div>
+										</th>
+										<th>
+											<div class="table-header-with-icon">
+												<span>Role</span>
+											</div>
+										</th>
+										<th>
+											<div class="table-header-with-icon">
+												<span>Auth Source</span>
+											</div>
+										</th>
+										<th>
+											<div class="table-header-with-icon">
+												<span>Created</span>
+											</div>
+										</th>
+										<th class="col-actions">
+											<div class="table-header-with-icon">
+												<span>Actions</span>
+											</div>
+										</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, u := range props.Users {
+										@UserTableRow(u, props.CSRFToken)
+									}
+								</tbody>
+							</table>
+						</div>
+						@ClientsListPagination(props.Pagination, props.PageSize, props.Search, "/admin/users", "total users")
+					} else {
+						<div class="empty-state">
+							if props.Search != "" {
+								@EmptyStateSearch()
+							} else {
+								@EmptyStateUsers()
+							}
+							<h3 class="empty-title">
+								if props.Search != "" {
+									No users found
+								} else {
+									No Users Yet
+								}
+							</h3>
+							<p class="empty-text">
+								if props.Search != "" {
+									Try adjusting your search terms or clear the filter.
+								} else {
+									Users will appear here once they register or are created through authentication.
+								}
+							</p>
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ UserTableRow(u models.User, csrfToken string) {
+	<tr>
+		<td data-label="Username">
+			<strong class="client-name-title">{ u.Username }</strong>
+		</td>
+		<td data-label="Email">
+			<span style="font-size:var(--text-sm);color:var(--color-text-secondary);">{ u.Email }</span>
+		</td>
+		<td data-label="Full Name">
+			if u.FullName != "" {
+				<span>{ u.FullName }</span>
+			} else {
+				<span style="color:var(--color-text-tertiary);font-style:italic;">-</span>
+			}
+		</td>
+		<td data-label="Role">
+			@UserRoleBadge(u.Role)
+		</td>
+		<td data-label="Auth Source">
+			@UserAuthSourceBadge(u.AuthSource)
+		</td>
+		<td class="created-date-cell" data-label="Created">
+			<div class="date-display">
+				<span class="date-display-day">{ u.CreatedAt.Format("2006-01-02") }</span>
+				<span class="date-display-time">{ u.CreatedAt.Format("15:04") }</span>
+			</div>
+		</td>
+		<td data-label="Actions">
+			<div class="actions">
+				<a href={ templ.URL("/admin/users/" + u.ID) } class="btn btn-secondary btn-small" title="View user">
+					View
+				</a>
+				<a href={ templ.URL("/admin/users/" + u.ID + "/edit") } class="btn btn-secondary btn-small" title="Edit user">
+					Edit
+				</a>
+				<form
+					method="POST"
+					action={ templ.URL("/admin/users/" + u.ID + "/delete") }
+					data-confirm-title="Delete User?"
+					data-confirm-message={ "This will permanently delete user \"" + u.Username + "\" and revoke all their tokens. This action cannot be undone." }
+					data-confirm-style="danger"
+					data-confirm-label="Delete"
+				>
+					<input type="hidden" name="csrf_token" value={ csrfToken }/>
+					<button type="submit" class="btn btn-danger btn-small" title="Delete user">
+						Delete
+					</button>
+				</form>
+			</div>
+		</td>
+	</tr>
+}
+
+templ UserRoleBadge(role string) {
+	switch role {
+		case "admin":
+			<span class="status-badge" style="background:rgba(139,92,246,0.1);color:#7C3AED;border:1px solid rgba(139,92,246,0.3);">Admin</span>
+		default:
+			<span class="status-badge" style="background:rgba(59,130,246,0.1);color:#2563EB;border:1px solid rgba(59,130,246,0.3);">User</span>
+	}
+}
+
+templ UserAuthSourceBadge(authSource string) {
+	switch authSource {
+		case "http_api":
+			<span class="status-badge" style="background:rgba(245,158,11,0.1);color:#D97706;border:1px solid rgba(245,158,11,0.3);">External</span>
+		default:
+			<span class="status-badge status-active">Local</span>
+	}
+}

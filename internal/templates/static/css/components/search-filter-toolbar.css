@@ -230,6 +230,11 @@
   box-shadow: 0 0 0 2px rgba(0, 114, 255, 0.2);
 }
 
+.sf-dot.dot-admin {
+  background: #7C3AED;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+}
+
 /* ── Responsive ────────────────────────────── */
 
 @media (max-width: 768px) {

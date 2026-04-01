@@ -3,6 +3,7 @@ package util
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -62,6 +63,16 @@ func WriteCredentialsFile(dir, content string) (string, error) {
 	}
 
 	return filePath, nil
+}
+
+// GenerateRandomPassword generates a random password of specified length.
+// Uses base64url encoding and truncates to length printable characters.
+func GenerateRandomPassword(length int) (string, error) {
+	b, err := CryptoRandomBytes(length)
+	if err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(b)[:length], nil
 }
 
 // SHA256Hex returns the SHA-256 hash of s as a lowercase hex string.

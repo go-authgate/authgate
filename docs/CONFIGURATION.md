@@ -38,6 +38,9 @@ DATABASE_DSN=oauth.db            # Connection string (file path for SQLite, DSN 
 # DATABASE_DRIVER=postgres
 # DATABASE_DSN="host=localhost user=authgate password=secret dbname=authgate port=5432 sslmode=disable"
 
+# Database Log Level
+# DB_LOG_LEVEL=warn              # GORM log level: "silent", "error", "warn" (default), "info"
+
 # Default Admin User
 # Set a custom password for the default admin user created on first startup
 # If not set, a random 16-character password will be generated and written to authgate-credentials.txt

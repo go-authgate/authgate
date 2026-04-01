@@ -1,0 +1,88 @@
+package templates
+
+templ AdminUserForm(props UserFormPageProps) {
+	@Layout("Edit User", LayoutAdminNavbar, &props.NavbarProps) {
+		<div class="main-content">
+			<div class="admin-form-container">
+				<div class="card">
+					@Breadcrumb([]BreadcrumbItem{
+						{Label: "Admin", Href: "/admin/clients"},
+						{Label: "Users", Href: "/admin/users"},
+						{Label: props.TargetUser.Username, Href: "/admin/users/" + props.TargetUser.ID},
+						{Label: "Edit", Href: ""},
+					})
+					<div class="admin-form-header">
+						<h1 class="admin-form-title">Edit User</h1>
+					</div>
+					@Alert(props.Error, AlertError)
+					<form method="POST" action={ templ.URL("/admin/users/" + props.TargetUser.ID) } class="admin-form">
+						<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+						<!-- Username (read-only) -->
+						<div class="admin-form-group">
+							<label class="admin-form-label">Username</label>
+							<div class="admin-detail-value" style="padding:var(--space-4) var(--space-5);background:var(--color-bg-secondary);border:2px solid var(--color-border);border-radius:var(--radius-lg);font-family:var(--font-mono);">
+								{ props.TargetUser.Username }
+							</div>
+							<small class="admin-form-hint">Username cannot be changed</small>
+						</div>
+						<!-- Email -->
+						<div class="admin-form-group">
+							<label for="email" class="admin-form-label admin-form-label-required">Email</label>
+							<input
+								type="email"
+								id="email"
+								name="email"
+								class="admin-form-input"
+								value={ props.TargetUser.Email }
+								required
+							/>
+						</div>
+						<!-- Full Name -->
+						<div class="admin-form-group">
+							<label for="full_name" class="admin-form-label">Full Name</label>
+							<input
+								type="text"
+								id="full_name"
+								name="full_name"
+								class="admin-form-input"
+								value={ props.TargetUser.FullName }
+							/>
+						</div>
+						<!-- Role -->
+						<div class="admin-form-group">
+							<label for="role" class="admin-form-label admin-form-label-required">Role</label>
+							if props.IsSelf {
+								<select id="role" name="role" class="admin-form-select" disabled>
+									<option value="admin" selected?={ props.TargetUser.Role == "admin" }>Admin</option>
+									<option value="user" selected?={ props.TargetUser.Role == "user" }>User</option>
+								</select>
+								<!-- Send the current role as a hidden field since disabled selects are not submitted -->
+								<input type="hidden" name="role" value={ props.TargetUser.Role }/>
+								<small class="admin-form-hint">You cannot change your own role</small>
+							} else {
+								<select id="role" name="role" class="admin-form-select">
+									<option value="admin" selected?={ props.TargetUser.Role == "admin" }>Admin</option>
+									<option value="user" selected?={ props.TargetUser.Role == "user" }>User</option>
+								</select>
+							}
+						</div>
+						<!-- Auth Source (read-only) -->
+						<div class="admin-form-group">
+							<label class="admin-form-label">Auth Source</label>
+							<div class="admin-detail-value" style="padding:var(--space-4) var(--space-5);background:var(--color-bg-secondary);border:2px solid var(--color-border);border-radius:var(--radius-lg);">
+								@UserAuthSourceBadge(props.TargetUser.AuthSource)
+							</div>
+						</div>
+						<!-- Actions -->
+						<div class="admin-form-actions">
+							<button type="submit" class="admin-form-submit-btn">
+								Update User
+							</button>
+							<a href={ templ.URL("/admin/users/" + props.TargetUser.ID) } class="admin-form-cancel-btn">Cancel</a>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	}
+}
