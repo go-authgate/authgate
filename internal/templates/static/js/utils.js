@@ -23,11 +23,13 @@ function formatRelativeTime(timestamp) {
  */
 function copyToClipboard(text) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(function() {
+    return navigator.clipboard.writeText(text).then(function() {
       showNotification('Copied to clipboard!', 'success');
+      return true;
     }).catch(function(err) {
       console.error('Failed to copy:', err);
       showNotification('Failed to copy', 'error');
+      return false;
     });
   } else {
     var textarea = document.createElement('textarea');
@@ -37,15 +39,18 @@ function copyToClipboard(text) {
     document.body.appendChild(textarea);
     textarea.select();
 
+    var success = false;
     try {
       document.execCommand('copy');
       showNotification('Copied to clipboard!', 'success');
+      success = true;
     } catch (err) {
       console.error('Failed to copy:', err);
       showNotification('Failed to copy', 'error');
     }
 
     document.body.removeChild(textarea);
+    return Promise.resolve(success);
   }
 }
 
@@ -367,17 +372,17 @@ function initCopyableValues() {
     var value = btn.getAttribute('data-copy-value');
     if (!value) return;
 
-    copyToClipboard(value);
+    copyToClipboard(value).then(function(success) {
+      if (!success) return;
 
-    // Visual feedback: swap icons via CSS class
-    btn.classList.add('copyable-value-btn--copied');
+      btn.classList.add('copyable-value-btn--copied');
 
-    // Clear any existing timer on this button
-    if (btn._copyTimer) clearTimeout(btn._copyTimer);
+      if (btn._copyTimer) clearTimeout(btn._copyTimer);
 
-    btn._copyTimer = setTimeout(function() {
-      btn.classList.remove('copyable-value-btn--copied');
-    }, 1500);
+      btn._copyTimer = setTimeout(function() {
+        btn.classList.remove('copyable-value-btn--copied');
+      }, 1500);
+    });
   });
 }
 

@@ -32,7 +32,7 @@ templ UserAppCreated(props UserClientCreatedPageProps) {
 										<p style="margin:0 0 var(--space-2);color:var(--color-danger);font-weight:600;">
 											⚠️ This secret is shown only once. Copy it now.
 										</p>
-										@CopyableValue(props.PlainSecret, "Client Secret", CopyableValueDefault)
+										@CopyableValue(props.PlainSecret, "Client Secret", CopyableValueWrap)
 									</div>
 								</div>
 							</div>

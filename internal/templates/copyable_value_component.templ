@@ -6,11 +6,12 @@ type CopyableValueSize string
 const (
 	CopyableValueDefault CopyableValueSize = ""
 	CopyableValueCompact CopyableValueSize = "compact"
+	CopyableValueWrap    CopyableValueSize = "wrap"
 )
 
 // CopyableValue renders a monospaced value with an inline copy-to-clipboard button.
 templ CopyableValue(value string, label string, size CopyableValueSize) {
-	<span class={ "copyable-value", templ.KV("copyable-value--compact", size == CopyableValueCompact) }>
+	<span class={ "copyable-value", templ.KV("copyable-value--compact", size == CopyableValueCompact), templ.KV("copyable-value--wrap", size == CopyableValueWrap) }>
 		<code class="copyable-value-text">{ value }</code>
 		<button
 			type="button"
@@ -19,8 +20,8 @@ templ CopyableValue(value string, label string, size CopyableValueSize) {
 			aria-label={ "Copy " + label + " to clipboard" }
 			title={ "Copy " + label }
 		>
-			<svg class="copyable-icon copyable-icon-copy" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-			<svg class="copyable-icon copyable-icon-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+			<svg class="copyable-icon copyable-icon-copy" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+			<svg class="copyable-icon copyable-icon-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="20 6 9 17 4 12"></polyline></svg>
 		</button>
 	</span>
 }

@@ -24,6 +24,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
   user-select: all;
   /* Reset browser <code> defaults */
   background: none;
@@ -80,6 +81,14 @@
 
 .copyable-value-btn--copied .copyable-icon-check {
   display: block;
+}
+
+/* Wrap variant for full-length secrets */
+.copyable-value--wrap .copyable-value-text {
+  white-space: normal;
+  word-break: break-all;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 /* Compact variant for table rows */
