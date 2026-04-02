@@ -233,19 +233,19 @@ func (s *Store) CountUsersByRole(role string) (int64, error) {
 // authorizations) in a single database query using subqueries.
 func (s *Store) GetUserStatsByUserID(userID string) (int64, int64, int64, error) {
 	var result struct {
-		ActiveTokenCount     int64
-		OAuthConnectionCount int64
-		AuthorizationCount   int64
+		ActiveTokenCount int64 `gorm:"column:active_token_count"`
+		OAuthConnCount   int64 `gorm:"column:oauth_conn_count"`
+		AuthorizationCnt int64 `gorm:"column:authorization_count"`
 	}
 	err := s.db.Raw(`
 		SELECT
 			(SELECT COUNT(*) FROM access_tokens WHERE user_id = ? AND status = ?) AS active_token_count,
-			(SELECT COUNT(*) FROM oauth_connections WHERE user_id = ?) AS oauth_connection_count,
+			(SELECT COUNT(*) FROM oauth_connections WHERE user_id = ?) AS oauth_conn_count,
 			(SELECT COUNT(*) FROM user_authorizations WHERE user_id = ?) AS authorization_count
 	`, userID, models.TokenStatusActive, userID, userID).Scan(&result).Error
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	return result.ActiveTokenCount, result.OAuthConnectionCount, result.AuthorizationCount, nil
+	return result.ActiveTokenCount, result.OAuthConnCount, result.AuthorizationCnt, nil
 }
 
