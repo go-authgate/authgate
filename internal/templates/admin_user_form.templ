@@ -1,5 +1,7 @@
 package templates
 
+import "github.com/go-authgate/authgate/internal/models"
+
 templ AdminUserForm(props UserFormPageProps) {
 	@Layout("Edit User", LayoutAdminNavbar, &props.NavbarProps) {
 		<div class="main-content">
@@ -53,16 +55,16 @@ templ AdminUserForm(props UserFormPageProps) {
 							<label for="role" class="admin-form-label admin-form-label-required">Role</label>
 							if props.IsSelf {
 								<select id="role" name="role" class="admin-form-select" disabled>
-									<option value="admin" selected?={ props.TargetUser.Role == "admin" }>Admin</option>
-									<option value="user" selected?={ props.TargetUser.Role == "user" }>User</option>
+									<option value={ models.UserRoleAdmin } selected?={ props.TargetUser.Role == models.UserRoleAdmin }>Admin</option>
+									<option value={ models.UserRoleUser } selected?={ props.TargetUser.Role == models.UserRoleUser }>User</option>
 								</select>
 								<!-- Send the current role as a hidden field since disabled selects are not submitted -->
 								<input type="hidden" name="role" value={ props.TargetUser.Role }/>
 								<small class="admin-form-hint">You cannot change your own role</small>
 							} else {
 								<select id="role" name="role" class="admin-form-select">
-									<option value="admin" selected?={ props.TargetUser.Role == "admin" }>Admin</option>
-									<option value="user" selected?={ props.TargetUser.Role == "user" }>User</option>
+									<option value={ models.UserRoleAdmin } selected?={ props.TargetUser.Role == models.UserRoleAdmin }>Admin</option>
+									<option value={ models.UserRoleUser } selected?={ props.TargetUser.Role == models.UserRoleUser }>User</option>
 								</select>
 							}
 						</div>

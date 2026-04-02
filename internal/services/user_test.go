@@ -457,6 +457,25 @@ func TestUpdateUserProfile_EmailConflict(t *testing.T) {
 	assert.ErrorIs(t, err, ErrEmailConflict)
 }
 
+func TestUpdateUserProfile_CannotDemoteLastAdmin(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	// The seeded admin is the only admin; use a different user as actor.
+	admin, err := db.GetUserByUsername("admin")
+	require.NoError(t, err)
+	actor := makeTestUser(t, db)
+
+	svc := newUserServiceWithStore(db, mockCache)
+	err = svc.UpdateUserProfile(context.Background(), admin.ID, actor.ID, UpdateUserProfileRequest{
+		FullName: admin.FullName,
+		Email:    admin.Email,
+		Role:     models.UserRoleUser, // attempt to demote the only admin
+	})
+	assert.ErrorIs(t, err, ErrCannotRemoveLastAdmin)
+}
+
 func TestResetUserPassword_LocalSuccess(t *testing.T) {
 	db := setupTestStore(t)
 	ctrl := gomock.NewController(t)

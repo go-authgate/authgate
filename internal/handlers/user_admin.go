@@ -232,6 +232,16 @@ func (h *UserAdminHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
+	// Revoke all tokens so the user must re-authenticate with the new password.
+	if err := h.tokenService.RevokeAllUserTokens(targetUser.ID); err != nil {
+		renderErrorPage(
+			c,
+			http.StatusInternalServerError,
+			"Password reset but failed to revoke existing tokens",
+		)
+		return
+	}
+
 	c.Header("Cache-Control", "no-store, no-cache, must-revalidate, private")
 	c.Header("Pragma", "no-cache")
 
