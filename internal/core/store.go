@@ -19,9 +19,7 @@ type UserReader interface {
 	GetUsersByIDs(userIDs []string) (map[string]*models.User, error)
 	ListUsersPaginated(params types.PaginationParams) ([]models.User, types.PaginationResult, error)
 	CountUsersByRole(role string) (int64, error)
-	CountActiveTokensByUserID(userID string) (int64, error)
-	CountOAuthConnectionsByUserID(userID string) (int64, error)
-	CountUserAuthorizationsByUserID(userID string) (int64, error)
+	GetUserStatsByUserID(userID string) (activeTokens, oauthConnections, authorizations int64, err error)
 }
 
 // UserWriter groups user mutation operations.

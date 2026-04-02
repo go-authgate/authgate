@@ -229,35 +229,23 @@ func (s *Store) CountUsersByRole(role string) (int64, error) {
 	return count, nil
 }
 
-// CountActiveTokensByUserID returns the number of active tokens for a user.
-func (s *Store) CountActiveTokensByUserID(userID string) (int64, error) {
-	var count int64
-	if err := s.db.Model(&models.AccessToken{}).
-		Where("user_id = ? AND status = ?", userID, models.TokenStatusActive).
-		Count(&count).Error; err != nil {
-		return 0, err
+// GetUserStatsByUserID returns all user stats (active tokens, OAuth connections,
+// authorizations) in a single database query using subqueries.
+func (s *Store) GetUserStatsByUserID(userID string) (int64, int64, int64, error) {
+	var result struct {
+		ActiveTokenCount     int64
+		OAuthConnectionCount int64
+		AuthorizationCount   int64
 	}
-	return count, nil
+	err := s.db.Raw(`
+		SELECT
+			(SELECT COUNT(*) FROM access_tokens WHERE user_id = ? AND status = ?) AS active_token_count,
+			(SELECT COUNT(*) FROM oauth_connections WHERE user_id = ?) AS oauth_connection_count,
+			(SELECT COUNT(*) FROM user_authorizations WHERE user_id = ?) AS authorization_count
+	`, userID, models.TokenStatusActive, userID, userID).Scan(&result).Error
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	return result.ActiveTokenCount, result.OAuthConnectionCount, result.AuthorizationCount, nil
 }
 
-// CountOAuthConnectionsByUserID returns the number of OAuth connections for a user.
-func (s *Store) CountOAuthConnectionsByUserID(userID string) (int64, error) {
-	var count int64
-	if err := s.db.Model(&models.OAuthConnection{}).
-		Where("user_id = ?", userID).
-		Count(&count).Error; err != nil {
-		return 0, err
-	}
-	return count, nil
-}
-
-// CountUserAuthorizationsByUserID returns the number of app authorizations for a user.
-func (s *Store) CountUserAuthorizationsByUserID(userID string) (int64, error) {
-	var count int64
-	if err := s.db.Model(&models.UserAuthorization{}).
-		Where("user_id = ?", userID).
-		Count(&count).Error; err != nil {
-		return 0, err
-	}
-	return count, nil
-}

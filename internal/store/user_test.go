@@ -179,35 +179,16 @@ func TestCountUsersByRole(t *testing.T) {
 	})
 }
 
-func TestCountActiveTokensByUserID(t *testing.T) {
-	t.Run("zero when no tokens", func(t *testing.T) {
+func TestGetUserStatsByUserID(t *testing.T) {
+	t.Run("all zero when no related records", func(t *testing.T) {
 		store := createFreshStore(t, "sqlite", nil)
 		u := createTestUser(t, store, nil)
 
-		count, err := store.CountActiveTokensByUserID(u.ID)
+		tokens, connections, auths, err := store.GetUserStatsByUserID(u.ID)
 		require.NoError(t, err)
-		assert.Equal(t, int64(0), count)
+		assert.Equal(t, int64(0), tokens)
+		assert.Equal(t, int64(0), connections)
+		assert.Equal(t, int64(0), auths)
 	})
 }
 
-func TestCountOAuthConnectionsByUserID(t *testing.T) {
-	t.Run("zero when no connections", func(t *testing.T) {
-		store := createFreshStore(t, "sqlite", nil)
-		u := createTestUser(t, store, nil)
-
-		count, err := store.CountOAuthConnectionsByUserID(u.ID)
-		require.NoError(t, err)
-		assert.Equal(t, int64(0), count)
-	})
-}
-
-func TestCountUserAuthorizationsByUserID(t *testing.T) {
-	t.Run("zero when no authorizations", func(t *testing.T) {
-		store := createFreshStore(t, "sqlite", nil)
-		u := createTestUser(t, store, nil)
-
-		count, err := store.CountUserAuthorizationsByUserID(u.ID)
-		require.NoError(t, err)
-		assert.Equal(t, int64(0), count)
-	})
-}
