@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/store/types"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -229,35 +230,26 @@ func (s *Store) CountUsersByRole(role string) (int64, error) {
 	return count, nil
 }
 
-// CountActiveTokensByUserID returns the number of active tokens for a user.
-func (s *Store) CountActiveTokensByUserID(userID string) (int64, error) {
-	var count int64
-	if err := s.db.Model(&models.AccessToken{}).
-		Where("user_id = ? AND status = ?", userID, models.TokenStatusActive).
-		Count(&count).Error; err != nil {
-		return 0, err
+// GetUserStatsByUserID returns all user stats (active tokens, OAuth connections,
+// active authorizations) in a single database query using subqueries.
+func (s *Store) GetUserStatsByUserID(userID string) (types.UserStatsCounts, error) {
+	var result struct {
+		ActiveTokenCount         int64 `gorm:"column:active_token_count"`
+		OAuthConnCount           int64 `gorm:"column:oauth_conn_count"`
+		ActiveAuthorizationCount int64 `gorm:"column:active_authorization_count"`
 	}
-	return count, nil
-}
-
-// CountOAuthConnectionsByUserID returns the number of OAuth connections for a user.
-func (s *Store) CountOAuthConnectionsByUserID(userID string) (int64, error) {
-	var count int64
-	if err := s.db.Model(&models.OAuthConnection{}).
-		Where("user_id = ?", userID).
-		Count(&count).Error; err != nil {
-		return 0, err
+	err := s.db.Raw(`
+		SELECT
+			(SELECT COUNT(*) FROM access_tokens WHERE user_id = ? AND status = ?) AS active_token_count,
+			(SELECT COUNT(*) FROM oauth_connections WHERE user_id = ?) AS oauth_conn_count,
+			(SELECT COUNT(*) FROM user_authorizations WHERE user_id = ? AND is_active = ?) AS active_authorization_count
+	`, userID, models.TokenStatusActive, userID, userID, true).Scan(&result).Error
+	if err != nil {
+		return types.UserStatsCounts{}, err
 	}
-	return count, nil
-}
-
-// CountUserAuthorizationsByUserID returns the number of app authorizations for a user.
-func (s *Store) CountUserAuthorizationsByUserID(userID string) (int64, error) {
-	var count int64
-	if err := s.db.Model(&models.UserAuthorization{}).
-		Where("user_id = ?", userID).
-		Count(&count).Error; err != nil {
-		return 0, err
-	}
-	return count, nil
+	return types.UserStatsCounts{
+		ActiveTokenCount:         result.ActiveTokenCount,
+		OAuthConnectionCount:     result.OAuthConnCount,
+		ActiveAuthorizationCount: result.ActiveAuthorizationCount,
+	}, nil
 }

@@ -666,27 +666,17 @@ func (s *UserService) AdminGetUserByID(userID string) (*models.User, error) {
 	return user, nil
 }
 
-// GetUserStats returns aggregate counts for a user.
+// GetUserStats returns aggregate counts for a user in a single database query.
 func (s *UserService) GetUserStats(userID string) (UserStats, error) {
-	var stats UserStats
-	var err error
-
-	stats.ActiveTokenCount, err = s.store.CountActiveTokensByUserID(userID)
+	counts, err := s.store.GetUserStatsByUserID(userID)
 	if err != nil {
-		return stats, fmt.Errorf("count active tokens: %w", err)
+		return UserStats{}, fmt.Errorf("get user stats: %w", err)
 	}
-
-	stats.OAuthConnectionCount, err = s.store.CountOAuthConnectionsByUserID(userID)
-	if err != nil {
-		return stats, fmt.Errorf("count oauth connections: %w", err)
-	}
-
-	stats.AuthorizationCount, err = s.store.CountUserAuthorizationsByUserID(userID)
-	if err != nil {
-		return stats, fmt.Errorf("count authorizations: %w", err)
-	}
-
-	return stats, nil
+	return UserStats{
+		ActiveTokenCount:     counts.ActiveTokenCount,
+		OAuthConnectionCount: counts.OAuthConnectionCount,
+		AuthorizationCount:   counts.ActiveAuthorizationCount,
+	}, nil
 }
 
 // UpdateUserProfile updates a user's profile fields. Role changes are blocked

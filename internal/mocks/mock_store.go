@@ -44,51 +44,6 @@ func (m *MockUserReader) EXPECT() *MockUserReaderMockRecorder {
 	return m.recorder
 }
 
-// CountActiveTokensByUserID mocks base method.
-func (m *MockUserReader) CountActiveTokensByUserID(userID string) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountActiveTokensByUserID", userID)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CountActiveTokensByUserID indicates an expected call of CountActiveTokensByUserID.
-func (mr *MockUserReaderMockRecorder) CountActiveTokensByUserID(userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountActiveTokensByUserID", reflect.TypeOf((*MockUserReader)(nil).CountActiveTokensByUserID), userID)
-}
-
-// CountOAuthConnectionsByUserID mocks base method.
-func (m *MockUserReader) CountOAuthConnectionsByUserID(userID string) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountOAuthConnectionsByUserID", userID)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CountOAuthConnectionsByUserID indicates an expected call of CountOAuthConnectionsByUserID.
-func (mr *MockUserReaderMockRecorder) CountOAuthConnectionsByUserID(userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountOAuthConnectionsByUserID", reflect.TypeOf((*MockUserReader)(nil).CountOAuthConnectionsByUserID), userID)
-}
-
-// CountUserAuthorizationsByUserID mocks base method.
-func (m *MockUserReader) CountUserAuthorizationsByUserID(userID string) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountUserAuthorizationsByUserID", userID)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CountUserAuthorizationsByUserID indicates an expected call of CountUserAuthorizationsByUserID.
-func (mr *MockUserReaderMockRecorder) CountUserAuthorizationsByUserID(userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUserAuthorizationsByUserID", reflect.TypeOf((*MockUserReader)(nil).CountUserAuthorizationsByUserID), userID)
-}
-
 // CountUsersByRole mocks base method.
 func (m *MockUserReader) CountUsersByRole(role string) (int64, error) {
 	m.ctrl.T.Helper()
@@ -162,6 +117,21 @@ func (m *MockUserReader) GetUserByUsername(username string) (*models.User, error
 func (mr *MockUserReaderMockRecorder) GetUserByUsername(username any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserByUsername", reflect.TypeOf((*MockUserReader)(nil).GetUserByUsername), username)
+}
+
+// GetUserStatsByUserID mocks base method.
+func (m *MockUserReader) GetUserStatsByUserID(userID string) (types.UserStatsCounts, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserStatsByUserID", userID)
+	ret0, _ := ret[0].(types.UserStatsCounts)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserStatsByUserID indicates an expected call of GetUserStatsByUserID.
+func (mr *MockUserReaderMockRecorder) GetUserStatsByUserID(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserStatsByUserID", reflect.TypeOf((*MockUserReader)(nil).GetUserStatsByUserID), userID)
 }
 
 // GetUsersByIDs mocks base method.
@@ -1535,21 +1505,6 @@ func (mr *MockStoreMockRecorder) CountActiveTokensByClientID(clientID any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountActiveTokensByClientID", reflect.TypeOf((*MockStore)(nil).CountActiveTokensByClientID), clientID)
 }
 
-// CountActiveTokensByUserID mocks base method.
-func (m *MockStore) CountActiveTokensByUserID(userID string) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountActiveTokensByUserID", userID)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CountActiveTokensByUserID indicates an expected call of CountActiveTokensByUserID.
-func (mr *MockStoreMockRecorder) CountActiveTokensByUserID(userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountActiveTokensByUserID", reflect.TypeOf((*MockStore)(nil).CountActiveTokensByUserID), userID)
-}
-
 // CountClientsByStatus mocks base method.
 func (m *MockStore) CountClientsByStatus(status string) (int64, error) {
 	m.ctrl.T.Helper()
@@ -1563,21 +1518,6 @@ func (m *MockStore) CountClientsByStatus(status string) (int64, error) {
 func (mr *MockStoreMockRecorder) CountClientsByStatus(status any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountClientsByStatus", reflect.TypeOf((*MockStore)(nil).CountClientsByStatus), status)
-}
-
-// CountOAuthConnectionsByUserID mocks base method.
-func (m *MockStore) CountOAuthConnectionsByUserID(userID string) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountOAuthConnectionsByUserID", userID)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CountOAuthConnectionsByUserID indicates an expected call of CountOAuthConnectionsByUserID.
-func (mr *MockStoreMockRecorder) CountOAuthConnectionsByUserID(userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountOAuthConnectionsByUserID", reflect.TypeOf((*MockStore)(nil).CountOAuthConnectionsByUserID), userID)
 }
 
 // CountPendingDeviceCodes mocks base method.
@@ -1608,21 +1548,6 @@ func (m *MockStore) CountTotalDeviceCodes() (int64, error) {
 func (mr *MockStoreMockRecorder) CountTotalDeviceCodes() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountTotalDeviceCodes", reflect.TypeOf((*MockStore)(nil).CountTotalDeviceCodes))
-}
-
-// CountUserAuthorizationsByUserID mocks base method.
-func (m *MockStore) CountUserAuthorizationsByUserID(userID string) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountUserAuthorizationsByUserID", userID)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CountUserAuthorizationsByUserID indicates an expected call of CountUserAuthorizationsByUserID.
-func (mr *MockStoreMockRecorder) CountUserAuthorizationsByUserID(userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUserAuthorizationsByUserID", reflect.TypeOf((*MockStore)(nil).CountUserAuthorizationsByUserID), userID)
 }
 
 // CountUsersByRole mocks base method.
@@ -2255,6 +2180,21 @@ func (m *MockStore) GetUserByUsername(username string) (*models.User, error) {
 func (mr *MockStoreMockRecorder) GetUserByUsername(username any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserByUsername", reflect.TypeOf((*MockStore)(nil).GetUserByUsername), username)
+}
+
+// GetUserStatsByUserID mocks base method.
+func (m *MockStore) GetUserStatsByUserID(userID string) (types.UserStatsCounts, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserStatsByUserID", userID)
+	ret0, _ := ret[0].(types.UserStatsCounts)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserStatsByUserID indicates an expected call of GetUserStatsByUserID.
+func (mr *MockStoreMockRecorder) GetUserStatsByUserID(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserStatsByUserID", reflect.TypeOf((*MockStore)(nil).GetUserStatsByUserID), userID)
 }
 
 // GetUsersByIDs mocks base method.

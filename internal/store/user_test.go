@@ -179,35 +179,85 @@ func TestCountUsersByRole(t *testing.T) {
 	})
 }
 
-func TestCountActiveTokensByUserID(t *testing.T) {
-	t.Run("zero when no tokens", func(t *testing.T) {
+func TestGetUserStatsByUserID(t *testing.T) {
+	t.Run("all zero when no related records", func(t *testing.T) {
 		store := createFreshStore(t, "sqlite", nil)
 		u := createTestUser(t, store, nil)
 
-		count, err := store.CountActiveTokensByUserID(u.ID)
+		counts, err := store.GetUserStatsByUserID(u.ID)
 		require.NoError(t, err)
-		assert.Equal(t, int64(0), count)
+		assert.Equal(t, int64(0), counts.ActiveTokenCount)
+		assert.Equal(t, int64(0), counts.OAuthConnectionCount)
+		assert.Equal(t, int64(0), counts.ActiveAuthorizationCount)
 	})
-}
 
-func TestCountOAuthConnectionsByUserID(t *testing.T) {
-	t.Run("zero when no connections", func(t *testing.T) {
+	t.Run("counts related records correctly", func(t *testing.T) {
 		store := createFreshStore(t, "sqlite", nil)
 		u := createTestUser(t, store, nil)
+		app := createTestApp(t, store)
 
-		count, err := store.CountOAuthConnectionsByUserID(u.ID)
+		// 2 active tokens + 1 revoked (should only count active)
+		for range 2 {
+			tok := createTestToken(u.ID, app.ClientID)
+			require.NoError(t, store.CreateAccessToken(tok))
+		}
+		revoked := createTestToken(u.ID, app.ClientID)
+		revoked.Status = models.TokenStatusRevoked
+		require.NoError(t, store.CreateAccessToken(revoked))
+
+		// 1 OAuth connection
+		conn := &models.OAuthConnection{
+			ID:               uuid.New().String(),
+			UserID:           u.ID,
+			Provider:         "github",
+			ProviderUserID:   uuid.New().String(),
+			ProviderUsername: "testuser",
+		}
+		require.NoError(t, store.CreateOAuthConnection(conn))
+
+		// 2 active authorizations + 1 revoked (should only count active)
+		auth1UUID := uuid.New().String()
+		auth1 := &models.UserAuthorization{
+			UUID:          auth1UUID,
+			UserID:        u.ID,
+			ApplicationID: app.ID,
+			ClientID:      app.ClientID,
+			Scopes:        "read",
+		}
+		require.NoError(t, store.UpsertUserAuthorization(auth1))
+
+		app2 := createTestApp(t, store)
+		auth2 := &models.UserAuthorization{
+			UUID:          uuid.New().String(),
+			UserID:        u.ID,
+			ApplicationID: app2.ID,
+			ClientID:      app2.ClientID,
+			Scopes:        "read",
+		}
+		require.NoError(t, store.UpsertUserAuthorization(auth2))
+
+		app3 := createTestApp(t, store)
+		auth3UUID := uuid.New().String()
+		auth3 := &models.UserAuthorization{
+			UUID:          auth3UUID,
+			UserID:        u.ID,
+			ApplicationID: app3.ID,
+			ClientID:      app3.ClientID,
+			Scopes:        "read",
+		}
+		require.NoError(t, store.UpsertUserAuthorization(auth3))
+		_, err := store.RevokeUserAuthorization(auth3UUID, u.ID)
 		require.NoError(t, err)
-		assert.Equal(t, int64(0), count)
-	})
-}
 
-func TestCountUserAuthorizationsByUserID(t *testing.T) {
-	t.Run("zero when no authorizations", func(t *testing.T) {
-		store := createFreshStore(t, "sqlite", nil)
-		u := createTestUser(t, store, nil)
-
-		count, err := store.CountUserAuthorizationsByUserID(u.ID)
+		counts, err := store.GetUserStatsByUserID(u.ID)
 		require.NoError(t, err)
-		assert.Equal(t, int64(0), count)
+		assert.Equal(t, int64(2), counts.ActiveTokenCount, "should count only active tokens")
+		assert.Equal(t, int64(1), counts.OAuthConnectionCount, "should count OAuth connections")
+		assert.Equal(
+			t,
+			int64(2),
+			counts.ActiveAuthorizationCount,
+			"should count only active authorizations",
+		)
 	})
 }
