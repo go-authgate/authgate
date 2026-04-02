@@ -93,10 +93,18 @@ func (h *UserAdminHandler) ViewUser(c *gin.Context) {
 		return
 	}
 
-	// Check for query parameter success messages
+	// Retrieve flash messages
+	session := sessions.Default(c)
+	flashes := session.Flashes()
+	if err := session.Save(); err != nil {
+		c.Set("session_save_error", err)
+	}
+
 	var successMsg string
-	if c.Query("success") == "updated" {
-		successMsg = "User updated successfully."
+	if len(flashes) > 0 {
+		if msg, ok := flashes[0].(string); ok {
+			successMsg = msg
+		}
 	}
 
 	templates.RenderTempl(c, http.StatusOK, templates.AdminUserDetail(templates.UserDetailPageProps{
@@ -178,7 +186,13 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	c.Redirect(http.StatusFound, "/admin/users/"+targetUser.ID+"?success=updated")
+	session := sessions.Default(c)
+	session.AddFlash("User updated successfully.")
+	if err := session.Save(); err != nil {
+		c.Set("session_save_error", err)
+	}
+
+	c.Redirect(http.StatusFound, "/admin/users/"+targetUser.ID)
 }
 
 // ResetPassword generates a new random password and displays it once.
@@ -214,6 +228,9 @@ func (h *UserAdminHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
+	c.Header("Cache-Control", "no-store, no-cache, must-revalidate, private")
+	c.Header("Pragma", "no-cache")
+
 	templates.RenderTempl(
 		c,
 		http.StatusOK,
@@ -236,12 +253,6 @@ func (h *UserAdminHandler) DeleteUser(c *gin.Context) {
 
 	userID := c.Param("id")
 
-	// Revoke tokens via TokenService (invalidates token cache)
-	if err := h.tokenService.RevokeAllUserTokens(userID); err != nil {
-		renderErrorPage(c, http.StatusInternalServerError, "Failed to revoke user tokens")
-		return
-	}
-
 	if err := h.userService.DeleteUserAdmin(
 		c.Request.Context(),
 		userID,
@@ -254,6 +265,17 @@ func (h *UserAdminHandler) DeleteUser(c *gin.Context) {
 			msg = err.Error()
 		}
 		renderErrorPage(c, http.StatusBadRequest, msg)
+		return
+	}
+
+	// Revoke tokens after successful deletion (invalidates token cache).
+	// Orphaned tokens are harmless — validation will fail since the user no longer exists.
+	if err := h.tokenService.RevokeAllUserTokens(userID); err != nil {
+		renderErrorPage(
+			c,
+			http.StatusInternalServerError,
+			"User deleted but failed to revoke tokens",
+		)
 		return
 	}
 
