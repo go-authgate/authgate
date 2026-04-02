@@ -20,6 +20,7 @@ func (s *Store) DeleteExpiredDeviceCodes() error {
 // using scalar subselects. Works on both SQLite and PostgreSQL.
 func (s *Store) GetDashboardCounts() (DashboardCounts, error) {
 	var dc DashboardCounts
+	now := time.Now()
 	err := s.db.Raw(`
 		SELECT
 			(SELECT COUNT(*) FROM users) AS total_users,
@@ -33,8 +34,8 @@ func (s *Store) GetDashboardCounts() (DashboardCounts, error) {
 		models.UserRoleAdmin,
 		models.ClientStatusActive,
 		models.ClientStatusPending,
-		models.TokenStatusActive, time.Now(), models.TokenCategoryAccess,
-		models.TokenStatusActive, time.Now(), models.TokenCategoryRefresh,
+		models.TokenStatusActive, now, models.TokenCategoryAccess,
+		models.TokenStatusActive, now, models.TokenCategoryRefresh,
 	).Scan(&dc).Error
 	return dc, err
 }

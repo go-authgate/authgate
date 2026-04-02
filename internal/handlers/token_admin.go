@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"net/http"
-	"net/url"
 
 	"github.com/go-authgate/authgate/internal/middleware"
 	"github.com/go-authgate/authgate/internal/services"
@@ -13,6 +13,19 @@ import (
 )
 
 const adminTokensPath = "/admin/tokens"
+
+// tokenSuccessMessages maps success codes to human-readable messages.
+var tokenSuccessMessages = map[string]string{
+	"revoked":  "Token has been permanently revoked.",
+	"disabled": "Token has been disabled. It can be re-enabled later.",
+	"enabled":  "Token has been re-enabled.",
+}
+
+// tokenWarningMessages maps warning codes to human-readable messages.
+var tokenWarningMessages = map[string]string{
+	"cannot_disable": "Token cannot be disabled (only active tokens can be disabled).",
+	"cannot_enable":  "Token cannot be enabled (only disabled tokens can be re-enabled).",
+}
 
 type TokenAdminHandler struct {
 	tokenService *services.TokenService
@@ -46,17 +59,18 @@ func (h *TokenAdminHandler) ShowTokensPage(c *gin.Context) {
 		PageSize:       params.PageSize,
 		StatusFilter:   params.StatusFilter,
 		CategoryFilter: params.CategoryFilter,
-		Success:        c.Query("success"),
+		Success:        tokenSuccessMessages[c.Query("success")],
+		Warning:        tokenWarningMessages[c.Query("warning")],
 	}))
 }
 
 // tokenAction extracts tokenID + userID, calls the service method, and
-// redirects back to the token list with a success or error message.
+// redirects back to the token list with a success or warning code.
 func (h *TokenAdminHandler) tokenAction(
 	c *gin.Context,
 	action func(ctx context.Context, tokenID, userID string) error,
 	businessErr error,
-	businessMsg, successMsg string,
+	warningCode, successCode string,
 ) {
 	tokenID := c.Param("id")
 	if tokenID == "" {
@@ -67,9 +81,9 @@ func (h *TokenAdminHandler) tokenAction(
 	userID := getUserIDFromContext(c)
 
 	if err := action(c.Request.Context(), tokenID, userID); err != nil {
-		if businessErr != nil && err == businessErr {
+		if businessErr != nil && errors.Is(err, businessErr) {
 			c.Redirect(http.StatusFound,
-				adminTokensPath+"?success="+url.QueryEscape(businessMsg))
+				adminTokensPath+"?warning="+warningCode)
 			return
 		}
 		renderErrorPage(c, http.StatusInternalServerError, "Failed to update token")
@@ -77,27 +91,27 @@ func (h *TokenAdminHandler) tokenAction(
 	}
 
 	c.Redirect(http.StatusFound,
-		adminTokensPath+"?success="+url.QueryEscape(successMsg))
+		adminTokensPath+"?success="+successCode)
 }
 
 func (h *TokenAdminHandler) RevokeToken(c *gin.Context) {
 	h.tokenAction(c,
 		h.tokenService.RevokeTokenByID, nil, "",
-		"Token revoked successfully")
+		"revoked")
 }
 
 func (h *TokenAdminHandler) DisableToken(c *gin.Context) {
 	h.tokenAction(c,
 		h.tokenService.DisableToken,
 		services.ErrTokenCannotDisable,
-		"Token cannot be disabled (only active tokens can be disabled)",
-		"Token disabled successfully")
+		"cannot_disable",
+		"disabled")
 }
 
 func (h *TokenAdminHandler) EnableToken(c *gin.Context) {
 	h.tokenAction(c,
 		h.tokenService.EnableToken,
 		services.ErrTokenCannotEnable,
-		"Token cannot be enabled (only disabled tokens can be re-enabled)",
-		"Token enabled successfully")
+		"cannot_enable",
+		"enabled")
 }

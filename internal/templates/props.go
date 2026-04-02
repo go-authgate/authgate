@@ -400,6 +400,7 @@ type TokensPageProps struct {
 	StatusFilter   string
 	CategoryFilter string
 	Success        string
+	Warning        string
 }
 
 // AuditLogsPageProps contains properties for the audit logs page
