@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-authgate/authgate/internal/middleware"
 	"github.com/go-authgate/authgate/internal/services"
@@ -61,6 +62,7 @@ func (h *TokenAdminHandler) ShowTokensPage(c *gin.Context) {
 		CategoryFilter: params.CategoryFilter,
 		Success:        tokenSuccessMessages[c.Query("success")],
 		Warning:        tokenWarningMessages[c.Query("warning")],
+		Now:            time.Now(),
 	}))
 }
 
@@ -82,16 +84,18 @@ func (h *TokenAdminHandler) tokenAction(
 
 	if err := action(c.Request.Context(), tokenID, userID); err != nil {
 		if businessErr != nil && errors.Is(err, businessErr) {
-			c.Redirect(http.StatusFound,
-				adminTokensPath+"?warning="+warningCode)
+			q := c.Request.URL.Query()
+			q.Set("warning", warningCode)
+			c.Redirect(http.StatusFound, adminTokensPath+"?"+q.Encode())
 			return
 		}
 		renderErrorPage(c, http.StatusInternalServerError, "Failed to update token")
 		return
 	}
 
-	c.Redirect(http.StatusFound,
-		adminTokensPath+"?success="+successCode)
+	q := c.Request.URL.Query()
+	q.Set("success", successCode)
+	c.Redirect(http.StatusFound, adminTokensPath+"?"+q.Encode())
 }
 
 func (h *TokenAdminHandler) RevokeToken(c *gin.Context) {

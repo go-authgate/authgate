@@ -9,6 +9,14 @@ import (
 	"github.com/go-authgate/authgate/internal/services"
 )
 
+// tokenIDPrefix safely returns up to the first 8 characters of a token ID.
+func tokenIDPrefix(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
+}
+
 // tokenFilterURL builds a URL preserving both status and category filters.
 func tokenFilterURL(status, category string) string {
 	base := "/admin/tokens"
@@ -97,7 +105,7 @@ templ AdminTokens(props TokensPageProps) {
 								</thead>
 								<tbody>
 									for _, tok := range props.Tokens {
-										@TokenTableRow(tok, props.CSRFToken)
+										@TokenTableRow(tok, props.CSRFToken, props.Now)
 									}
 								</tbody>
 							</table>
@@ -125,10 +133,10 @@ templ AdminTokens(props TokensPageProps) {
 	}
 }
 
-templ TokenTableRow(tok services.TokenWithUser, csrfToken string) {
+templ TokenTableRow(tok services.TokenWithUser, csrfToken string, now time.Time) {
 	<tr>
 		<td data-label="Token ID">
-			@CopyableValue(tok.ID[:8], "Token ID prefix", CopyableValueCompact)
+			@CopyableValue(tokenIDPrefix(tok.ID), "Token ID prefix", CopyableValueCompact)
 		</td>
 		<td data-label="User">
 			<a href={ templ.URL("/admin/users/" + tok.UserID) } class="token-user-link">
@@ -160,7 +168,7 @@ templ TokenTableRow(tok services.TokenWithUser, csrfToken string) {
 			</div>
 		</td>
 		<td class="created-date-cell" data-label="Expires">
-			<div class={ "date-display", templ.KV("token-expired", tok.ExpiresAt.Before(time.Now())) }>
+			<div class={ "date-display", templ.KV("token-expired", tok.ExpiresAt.Before(now)) }>
 				<span class="date-display-day">{ tok.ExpiresAt.Format("2006-01-02") }</span>
 				<span class="date-display-time">{ tok.ExpiresAt.Format("15:04") }</span>
 			</div>

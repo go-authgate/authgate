@@ -401,6 +401,7 @@ type TokensPageProps struct {
 	CategoryFilter string
 	Success        string
 	Warning        string
+	Now            time.Time
 }
 
 // AuditLogsPageProps contains properties for the audit logs page

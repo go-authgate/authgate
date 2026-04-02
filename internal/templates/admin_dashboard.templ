@@ -41,7 +41,7 @@ templ AdminDashboard(props DashboardPageProps) {
 									{ pluralize(props.Stats.AdminUsers, "admin", "admins") }, { pluralize(props.Stats.RegularUsers, "user", "users") }
 								</div>
 							</div>
-							<a href="/admin/users" class="dashboard-metric-link" title="View Users">
+							<a href="/admin/users" class="dashboard-metric-link" title="View Users" aria-label="View Users">
 								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
 							</a>
 						</div>
@@ -56,7 +56,7 @@ templ AdminDashboard(props DashboardPageProps) {
 									{ fmt.Sprintf("%d", props.Stats.ActiveClients) } active, { fmt.Sprintf("%d", props.Stats.PendingClients) } pending
 								</div>
 							</div>
-							<a href="/admin/clients" class="dashboard-metric-link" title="View Clients">
+							<a href="/admin/clients" class="dashboard-metric-link" title="View Clients" aria-label="View Clients">
 								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
 							</a>
 						</div>
@@ -71,7 +71,7 @@ templ AdminDashboard(props DashboardPageProps) {
 									{ fmt.Sprintf("%d", props.Stats.ActiveRefreshTokens) } refresh tokens
 								</div>
 							</div>
-							<a href="/admin/tokens" class="dashboard-metric-link" title="View Tokens">
+							<a href="/admin/tokens" class="dashboard-metric-link" title="View Tokens" aria-label="View Tokens">
 								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
 							</a>
 						</div>
@@ -91,7 +91,7 @@ templ AdminDashboard(props DashboardPageProps) {
 								</div>
 							</div>
 							if props.Stats.PendingClients > 0 {
-								<a href="/admin/clients?status=pending" class="dashboard-metric-link" title="Review Pending">
+								<a href="/admin/clients?status=pending" class="dashboard-metric-link" title="Review Pending" aria-label="Review Pending">
 									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
 								</a>
 							}
