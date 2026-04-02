@@ -23,10 +23,16 @@ templ ClientStatusBadge(status string) {
 
 // buildClientPaginationURL builds a URL for pagination links.
 // baseURL is the base path without page/page_size params (e.g. "/apps", "/admin/clients").
-func buildClientPaginationURL(baseURL string, page, pageSize int, search string) string {
+// extraParams are appended as additional query parameters (e.g. filter state).
+func buildClientPaginationURL(baseURL string, page, pageSize int, search string, extraParams map[string]string) string {
 	u := fmt.Sprintf("%s?page=%d&page_size=%d", baseURL, page, pageSize)
 	if search != "" {
 		u += "&search=" + url.QueryEscape(search)
+	}
+	for _, k := range sortedKeys(extraParams) {
+		if extraParams[k] != "" {
+			u += "&" + url.QueryEscape(k) + "=" + url.QueryEscape(extraParams[k])
+		}
 	}
 	return u
 }
@@ -34,7 +40,8 @@ func buildClientPaginationURL(baseURL string, page, pageSize int, search string)
 // ClientsListPagination renders prev/next pagination shared by /apps and /admin/clients.
 // baseURL: base path for page links (e.g. "/apps", "/admin/clients").
 // countLabel: noun phrase after the count (e.g. "total apps", "total clients").
-templ ClientsListPagination(pagination store.PaginationResult, pageSize int, search, baseURL, countLabel string) {
+// extraParams: additional query params to preserve across page navigation (e.g. filters).
+templ ClientsListPagination(pagination store.PaginationResult, pageSize int, search, baseURL, countLabel string, extraParams map[string]string) {
 	<div class="pagination-container">
 		<div class="pagination-info">
 			<span>Showing</span>
@@ -43,7 +50,7 @@ templ ClientsListPagination(pagination store.PaginationResult, pageSize int, sea
 		</div>
 		<div class="pagination-controls">
 			if pagination.HasPrev {
-				<a href={ templ.URL(buildClientPaginationURL(baseURL, pagination.PrevPage, pageSize, search)) } class="pagination-button">
+				<a href={ templ.URL(buildClientPaginationURL(baseURL, pagination.PrevPage, pageSize, search, extraParams)) } class="pagination-button">
 					<span class="pagination-button-icon">←</span>
 					<span>Previous</span>
 				</a>
@@ -57,7 +64,7 @@ templ ClientsListPagination(pagination store.PaginationResult, pageSize int, sea
 				Page { fmt.Sprintf("%d", pagination.CurrentPage) } of { fmt.Sprintf("%d", pagination.TotalPages) }
 			</span>
 			if pagination.HasNext {
-				<a href={ templ.URL(buildClientPaginationURL(baseURL, pagination.NextPage, pageSize, search)) } class="pagination-button">
+				<a href={ templ.URL(buildClientPaginationURL(baseURL, pagination.NextPage, pageSize, search, extraParams)) } class="pagination-button">
 					<span>Next</span>
 					<span class="pagination-button-icon">→</span>
 				</a>

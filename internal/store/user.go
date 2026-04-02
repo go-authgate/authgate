@@ -171,3 +171,93 @@ func (s *Store) UpdateUser(user *models.User) error {
 func (s *Store) DeleteUser(id string) error {
 	return s.db.Delete(&models.User{}, "id = ?", id).Error
 }
+
+// ListUsersPaginated returns paginated users with search, role, and auth source filtering.
+func (s *Store) ListUsersPaginated(
+	params PaginationParams,
+) ([]models.User, PaginationResult, error) {
+	var users []models.User
+	var total int64
+
+	query := s.db.Model(&models.User{})
+
+	if params.Search != "" {
+		searchPattern := "%" + params.Search + "%"
+		query = query.Where(
+			"username LIKE ? OR email LIKE ? OR full_name LIKE ?",
+			searchPattern, searchPattern, searchPattern,
+		)
+	}
+
+	// StatusFilter is reused as role filter
+	if params.StatusFilter != "" {
+		query = query.Where("role = ?", params.StatusFilter)
+	}
+
+	// CategoryFilter is reused as auth_source filter
+	if params.CategoryFilter != "" {
+		query = query.Where("auth_source = ?", params.CategoryFilter)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, PaginationResult{}, err
+	}
+
+	pagination := CalculatePagination(total, params.Page, params.PageSize)
+
+	if err := query.Order("created_at DESC").
+		Limit(params.PageSize).
+		Offset(pagination.Offset()).
+		Omit("password_hash").
+		Find(&users).Error; err != nil {
+		return nil, PaginationResult{}, err
+	}
+
+	return users, pagination, nil
+}
+
+// CountUsersByRole returns the number of users with the given role.
+func (s *Store) CountUsersByRole(role string) (int64, error) {
+	var count int64
+	query := s.db.Model(&models.User{})
+	if role != "" {
+		query = query.Where("role = ?", role)
+	}
+	if err := query.Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// CountActiveTokensByUserID returns the number of active tokens for a user.
+func (s *Store) CountActiveTokensByUserID(userID string) (int64, error) {
+	var count int64
+	if err := s.db.Model(&models.AccessToken{}).
+		Where("user_id = ? AND status = ?", userID, models.TokenStatusActive).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// CountOAuthConnectionsByUserID returns the number of OAuth connections for a user.
+func (s *Store) CountOAuthConnectionsByUserID(userID string) (int64, error) {
+	var count int64
+	if err := s.db.Model(&models.OAuthConnection{}).
+		Where("user_id = ?", userID).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// CountUserAuthorizationsByUserID returns the number of app authorizations for a user.
+func (s *Store) CountUserAuthorizationsByUserID(userID string) (int64, error) {
+	var count int64
+	if err := s.db.Model(&models.UserAuthorization{}).
+		Where("user_id = ?", userID).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}

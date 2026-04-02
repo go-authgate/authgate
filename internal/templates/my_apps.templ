@@ -51,7 +51,7 @@ templ MyApps(props MyAppsPageProps) {
 								</tbody>
 							</table>
 						</div>
-						@ClientsListPagination(props.Pagination, props.PageSize, props.Search, "/apps", "total apps")
+						@ClientsListPagination(props.Pagination, props.PageSize, props.Search, "/apps", "total apps", nil)
 					} else {
 						<div class="empty-state">
 							if props.Search != "" {

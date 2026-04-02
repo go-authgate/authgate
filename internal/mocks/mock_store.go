@@ -44,6 +44,66 @@ func (m *MockUserReader) EXPECT() *MockUserReaderMockRecorder {
 	return m.recorder
 }
 
+// CountActiveTokensByUserID mocks base method.
+func (m *MockUserReader) CountActiveTokensByUserID(userID string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountActiveTokensByUserID", userID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountActiveTokensByUserID indicates an expected call of CountActiveTokensByUserID.
+func (mr *MockUserReaderMockRecorder) CountActiveTokensByUserID(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountActiveTokensByUserID", reflect.TypeOf((*MockUserReader)(nil).CountActiveTokensByUserID), userID)
+}
+
+// CountOAuthConnectionsByUserID mocks base method.
+func (m *MockUserReader) CountOAuthConnectionsByUserID(userID string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountOAuthConnectionsByUserID", userID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountOAuthConnectionsByUserID indicates an expected call of CountOAuthConnectionsByUserID.
+func (mr *MockUserReaderMockRecorder) CountOAuthConnectionsByUserID(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountOAuthConnectionsByUserID", reflect.TypeOf((*MockUserReader)(nil).CountOAuthConnectionsByUserID), userID)
+}
+
+// CountUserAuthorizationsByUserID mocks base method.
+func (m *MockUserReader) CountUserAuthorizationsByUserID(userID string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountUserAuthorizationsByUserID", userID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountUserAuthorizationsByUserID indicates an expected call of CountUserAuthorizationsByUserID.
+func (mr *MockUserReaderMockRecorder) CountUserAuthorizationsByUserID(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUserAuthorizationsByUserID", reflect.TypeOf((*MockUserReader)(nil).CountUserAuthorizationsByUserID), userID)
+}
+
+// CountUsersByRole mocks base method.
+func (m *MockUserReader) CountUsersByRole(role string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountUsersByRole", role)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountUsersByRole indicates an expected call of CountUsersByRole.
+func (mr *MockUserReaderMockRecorder) CountUsersByRole(role any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUsersByRole", reflect.TypeOf((*MockUserReader)(nil).CountUsersByRole), role)
+}
+
 // GetUserByEmail mocks base method.
 func (m *MockUserReader) GetUserByEmail(email string) (*models.User, error) {
 	m.ctrl.T.Helper()
@@ -117,6 +177,22 @@ func (m *MockUserReader) GetUsersByIDs(userIDs []string) (map[string]*models.Use
 func (mr *MockUserReaderMockRecorder) GetUsersByIDs(userIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsersByIDs", reflect.TypeOf((*MockUserReader)(nil).GetUsersByIDs), userIDs)
+}
+
+// ListUsersPaginated mocks base method.
+func (m *MockUserReader) ListUsersPaginated(params types.PaginationParams) ([]models.User, types.PaginationResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListUsersPaginated", params)
+	ret0, _ := ret[0].([]models.User)
+	ret1, _ := ret[1].(types.PaginationResult)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListUsersPaginated indicates an expected call of ListUsersPaginated.
+func (mr *MockUserReaderMockRecorder) ListUsersPaginated(params any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUsersPaginated", reflect.TypeOf((*MockUserReader)(nil).ListUsersPaginated), params)
 }
 
 // MockUserWriter is a mock of UserWriter interface.
@@ -969,6 +1045,20 @@ func (mr *MockUserAuthorizationStoreMockRecorder) RevokeAllUserAuthorizationsByC
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeAllUserAuthorizationsByClientID", reflect.TypeOf((*MockUserAuthorizationStore)(nil).RevokeAllUserAuthorizationsByClientID), clientID)
 }
 
+// RevokeAllUserAuthorizationsByUserID mocks base method.
+func (m *MockUserAuthorizationStore) RevokeAllUserAuthorizationsByUserID(userID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RevokeAllUserAuthorizationsByUserID", userID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RevokeAllUserAuthorizationsByUserID indicates an expected call of RevokeAllUserAuthorizationsByUserID.
+func (mr *MockUserAuthorizationStoreMockRecorder) RevokeAllUserAuthorizationsByUserID(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeAllUserAuthorizationsByUserID", reflect.TypeOf((*MockUserAuthorizationStore)(nil).RevokeAllUserAuthorizationsByUserID), userID)
+}
+
 // RevokeUserAuthorization mocks base method.
 func (m *MockUserAuthorizationStore) RevokeUserAuthorization(authUUID, userID string) (*models.UserAuthorization, error) {
 	m.ctrl.T.Helper()
@@ -1048,6 +1138,20 @@ func (m *MockOAuthConnectionStore) DeleteOAuthConnection(id string) error {
 func (mr *MockOAuthConnectionStoreMockRecorder) DeleteOAuthConnection(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOAuthConnection", reflect.TypeOf((*MockOAuthConnectionStore)(nil).DeleteOAuthConnection), id)
+}
+
+// DeleteOAuthConnectionsByUserID mocks base method.
+func (m *MockOAuthConnectionStore) DeleteOAuthConnectionsByUserID(userID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOAuthConnectionsByUserID", userID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteOAuthConnectionsByUserID indicates an expected call of DeleteOAuthConnectionsByUserID.
+func (mr *MockOAuthConnectionStoreMockRecorder) DeleteOAuthConnectionsByUserID(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOAuthConnectionsByUserID", reflect.TypeOf((*MockOAuthConnectionStore)(nil).DeleteOAuthConnectionsByUserID), userID)
 }
 
 // GetOAuthConnection mocks base method.
@@ -1431,6 +1535,21 @@ func (mr *MockStoreMockRecorder) CountActiveTokensByClientID(clientID any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountActiveTokensByClientID", reflect.TypeOf((*MockStore)(nil).CountActiveTokensByClientID), clientID)
 }
 
+// CountActiveTokensByUserID mocks base method.
+func (m *MockStore) CountActiveTokensByUserID(userID string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountActiveTokensByUserID", userID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountActiveTokensByUserID indicates an expected call of CountActiveTokensByUserID.
+func (mr *MockStoreMockRecorder) CountActiveTokensByUserID(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountActiveTokensByUserID", reflect.TypeOf((*MockStore)(nil).CountActiveTokensByUserID), userID)
+}
+
 // CountClientsByStatus mocks base method.
 func (m *MockStore) CountClientsByStatus(status string) (int64, error) {
 	m.ctrl.T.Helper()
@@ -1444,6 +1563,21 @@ func (m *MockStore) CountClientsByStatus(status string) (int64, error) {
 func (mr *MockStoreMockRecorder) CountClientsByStatus(status any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountClientsByStatus", reflect.TypeOf((*MockStore)(nil).CountClientsByStatus), status)
+}
+
+// CountOAuthConnectionsByUserID mocks base method.
+func (m *MockStore) CountOAuthConnectionsByUserID(userID string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountOAuthConnectionsByUserID", userID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountOAuthConnectionsByUserID indicates an expected call of CountOAuthConnectionsByUserID.
+func (mr *MockStoreMockRecorder) CountOAuthConnectionsByUserID(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountOAuthConnectionsByUserID", reflect.TypeOf((*MockStore)(nil).CountOAuthConnectionsByUserID), userID)
 }
 
 // CountPendingDeviceCodes mocks base method.
@@ -1474,6 +1608,36 @@ func (m *MockStore) CountTotalDeviceCodes() (int64, error) {
 func (mr *MockStoreMockRecorder) CountTotalDeviceCodes() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountTotalDeviceCodes", reflect.TypeOf((*MockStore)(nil).CountTotalDeviceCodes))
+}
+
+// CountUserAuthorizationsByUserID mocks base method.
+func (m *MockStore) CountUserAuthorizationsByUserID(userID string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountUserAuthorizationsByUserID", userID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountUserAuthorizationsByUserID indicates an expected call of CountUserAuthorizationsByUserID.
+func (mr *MockStoreMockRecorder) CountUserAuthorizationsByUserID(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUserAuthorizationsByUserID", reflect.TypeOf((*MockStore)(nil).CountUserAuthorizationsByUserID), userID)
+}
+
+// CountUsersByRole mocks base method.
+func (m *MockStore) CountUsersByRole(role string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountUsersByRole", role)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountUsersByRole indicates an expected call of CountUsersByRole.
+func (mr *MockStoreMockRecorder) CountUsersByRole(role any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUsersByRole", reflect.TypeOf((*MockStore)(nil).CountUsersByRole), role)
 }
 
 // CreateAccessToken mocks base method.
@@ -1656,6 +1820,20 @@ func (m *MockStore) DeleteOAuthConnection(id string) error {
 func (mr *MockStoreMockRecorder) DeleteOAuthConnection(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOAuthConnection", reflect.TypeOf((*MockStore)(nil).DeleteOAuthConnection), id)
+}
+
+// DeleteOAuthConnectionsByUserID mocks base method.
+func (m *MockStore) DeleteOAuthConnectionsByUserID(userID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOAuthConnectionsByUserID", userID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteOAuthConnectionsByUserID indicates an expected call of DeleteOAuthConnectionsByUserID.
+func (mr *MockStoreMockRecorder) DeleteOAuthConnectionsByUserID(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOAuthConnectionsByUserID", reflect.TypeOf((*MockStore)(nil).DeleteOAuthConnectionsByUserID), userID)
 }
 
 // DeleteOldAuditLogs mocks base method.
@@ -2155,6 +2333,22 @@ func (mr *MockStoreMockRecorder) ListUserAuthorizations(userID any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserAuthorizations", reflect.TypeOf((*MockStore)(nil).ListUserAuthorizations), userID)
 }
 
+// ListUsersPaginated mocks base method.
+func (m *MockStore) ListUsersPaginated(params types.PaginationParams) ([]models.User, types.PaginationResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListUsersPaginated", params)
+	ret0, _ := ret[0].([]models.User)
+	ret1, _ := ret[1].(types.PaginationResult)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListUsersPaginated indicates an expected call of ListUsersPaginated.
+func (mr *MockStoreMockRecorder) ListUsersPaginated(params any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUsersPaginated", reflect.TypeOf((*MockStore)(nil).ListUsersPaginated), params)
+}
+
 // MarkAuthorizationCodeUsed mocks base method.
 func (m *MockStore) MarkAuthorizationCodeUsed(id uint) error {
 	m.ctrl.T.Helper()
@@ -2196,6 +2390,20 @@ func (m *MockStore) RevokeAllUserAuthorizationsByClientID(clientID string) error
 func (mr *MockStoreMockRecorder) RevokeAllUserAuthorizationsByClientID(clientID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeAllUserAuthorizationsByClientID", reflect.TypeOf((*MockStore)(nil).RevokeAllUserAuthorizationsByClientID), clientID)
+}
+
+// RevokeAllUserAuthorizationsByUserID mocks base method.
+func (m *MockStore) RevokeAllUserAuthorizationsByUserID(userID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RevokeAllUserAuthorizationsByUserID", userID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RevokeAllUserAuthorizationsByUserID indicates an expected call of RevokeAllUserAuthorizationsByUserID.
+func (mr *MockStoreMockRecorder) RevokeAllUserAuthorizationsByUserID(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeAllUserAuthorizationsByUserID", reflect.TypeOf((*MockStore)(nil).RevokeAllUserAuthorizationsByUserID), userID)
 }
 
 // RevokeToken mocks base method.

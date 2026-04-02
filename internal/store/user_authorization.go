@@ -98,6 +98,17 @@ func (s *Store) RevokeAllUserAuthorizationsByClientID(clientID string) error {
 		}).Error
 }
 
+// RevokeAllUserAuthorizationsByUserID invalidates all active consent records for a user.
+func (s *Store) RevokeAllUserAuthorizationsByUserID(userID string) error {
+	now := time.Now()
+	return s.db.Model(&models.UserAuthorization{}).
+		Where("user_id = ? AND is_active = ?", userID, true).
+		Updates(map[string]any{
+			"is_active":  false,
+			"revoked_at": &now,
+		}).Error
+}
+
 // GetClientAuthorizations returns all active consent records for a client, ordered by grant date
 func (s *Store) GetClientAuthorizations(clientID string) ([]models.UserAuthorization, error) {
 	var auths []models.UserAuthorization

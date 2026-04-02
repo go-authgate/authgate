@@ -1,0 +1,150 @@
+package templates
+
+import (
+	"fmt"
+
+	"github.com/go-authgate/authgate/internal/models"
+)
+
+templ AdminUserDetail(props UserDetailPageProps) {
+	@Layout("User Details", LayoutAdminNavbar, &props.NavbarProps) {
+		<div class="main-content">
+			<div class="admin-form-container">
+				<div class="card">
+					@Breadcrumb([]BreadcrumbItem{
+						{Label: "Admin", Href: "/admin/clients"},
+						{Label: "Users", Href: "/admin/users"},
+						{Label: props.TargetUser.Username, Href: ""},
+					})
+					<div class="admin-form-header">
+						<h1 class="admin-form-title">User Details</h1>
+					</div>
+					<!-- Alerts -->
+					@Alert(props.Error, AlertError)
+					@Alert(props.Success, AlertSuccess)
+					<!-- User Info -->
+					<div class="admin-detail-section">
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">User ID</div>
+							<div class="admin-detail-value">
+								@CopyableValue(props.TargetUser.ID, "User ID", CopyableValueDefault)
+							</div>
+						</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Username</div>
+							<div class="admin-detail-value">{ props.TargetUser.Username }</div>
+						</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Email</div>
+							<div class="admin-detail-value">{ props.TargetUser.Email }</div>
+						</div>
+						if props.TargetUser.FullName != "" {
+							<div class="admin-detail-row">
+								<div class="admin-detail-label">Full Name</div>
+								<div class="admin-detail-value">{ props.TargetUser.FullName }</div>
+							</div>
+						}
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Role</div>
+							<div class="admin-detail-value">
+								@UserRoleBadge(props.TargetUser.Role)
+							</div>
+						</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Auth Source</div>
+							<div class="admin-detail-value">
+								@UserAuthSourceBadge(props.TargetUser.AuthSource)
+							</div>
+						</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Created At</div>
+							<div class="admin-detail-value">{ props.TargetUser.CreatedAt.Format("2006-01-02 15:04:05") }</div>
+						</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Updated At</div>
+							<div class="admin-detail-value">{ props.TargetUser.UpdatedAt.Format("2006-01-02 15:04:05") }</div>
+						</div>
+					</div>
+					<!-- Stats -->
+					<div class="admin-user-stats">
+						<div class="admin-user-stat-card">
+							<div class="admin-user-stat-value">{ fmt.Sprintf("%d", props.ActiveTokenCount) }</div>
+							<div class="admin-user-stat-label">Active Tokens</div>
+						</div>
+						<div class="admin-user-stat-card">
+							<div class="admin-user-stat-value">{ fmt.Sprintf("%d", props.OAuthConnectionCount) }</div>
+							<div class="admin-user-stat-label">OAuth Connections</div>
+						</div>
+						<div class="admin-user-stat-card">
+							<div class="admin-user-stat-value">{ fmt.Sprintf("%d", props.AuthorizationCount) }</div>
+							<div class="admin-user-stat-label">Authorized Apps</div>
+						</div>
+					</div>
+					<!-- Standard Actions -->
+					<div class="admin-action-buttons">
+						<a href={ templ.URL("/admin/users/" + props.TargetUser.ID + "/edit") } class="admin-action-btn primary">
+							Edit User
+						</a>
+						if props.TargetUser.AuthSource == models.AuthSourceLocal {
+							<form method="POST" action={ templ.URL("/admin/users/" + props.TargetUser.ID + "/reset-password") } class="form-inline">
+								<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+								<button
+									type="submit"
+									class="admin-action-btn secondary"
+									data-confirm-title="Reset Password?"
+									data-confirm-message={ "This will generate a new random password for \"" + props.TargetUser.Username + "\". The current password will be invalidated." }
+									data-confirm-style="warning"
+									data-confirm-label="Reset Password"
+								>
+									Reset Password
+								</button>
+							</form>
+						}
+						<a href="/admin/users" class="admin-action-btn secondary">
+							&larr; Back to List
+						</a>
+					</div>
+					<!-- Danger Zone -->
+					<div class="admin-danger-zone">
+						<div class="admin-danger-zone-header">
+							<h3 class="admin-danger-zone-title">Danger Zone</h3>
+							<p class="admin-danger-zone-desc">
+								Deleting a user is permanent and cannot be undone. All tokens will be revoked.
+							</p>
+						</div>
+						<div class="admin-danger-zone-body">
+							<div class="admin-danger-item">
+								<div class="admin-danger-item-info">
+									<strong>Delete User</strong>
+									<span>
+										Permanently remove this user and revoke all their active tokens.
+										if props.ActiveTokenCount > 0 {
+											Currently <strong>{ fmt.Sprintf("%d", props.ActiveTokenCount) }</strong> active token(s).
+										}
+									</span>
+								</div>
+								<form
+									method="POST"
+									action={ templ.URL("/admin/users/" + props.TargetUser.ID + "/delete") }
+									class="form-inline"
+								>
+									<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+									<button
+										type="submit"
+										class="admin-action-btn danger"
+										data-confirm-title="Delete User?"
+										data-confirm-message={ "This will permanently delete user \"" + props.TargetUser.Username + "\" and revoke all their tokens. This cannot be undone." }
+										data-confirm-style="danger"
+										data-confirm-label="Delete User"
+									>
+										Delete User
+									</button>
+								</form>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	}
+}

@@ -101,7 +101,7 @@ templ AdminClients(props ClientsPageProps) {
 								</tbody>
 							</table>
 						</div>
-						@ClientsListPagination(props.Pagination, props.PageSize, props.Search, "/admin/clients", "total clients")
+						@ClientsListPagination(props.Pagination, props.PageSize, props.Search, "/admin/clients", "total clients", nil)
 					} else {
 						<div class="empty-state">
 							if props.Search != "" {

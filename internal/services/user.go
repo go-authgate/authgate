@@ -13,9 +13,12 @@ import (
 	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/store"
+	storeTypes "github.com/go-authgate/authgate/internal/store/types"
+	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/appleboy/com/random"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
@@ -35,6 +38,13 @@ var (
 	ErrOAuthEmailNotVerified     = errors.New(
 		"OAuth email not verified and auto-registration is disabled",
 	)
+	ErrCannotDeleteSelf        = errors.New("cannot delete your own account")
+	ErrCannotChangeOwnRole     = errors.New("cannot change your own role")
+	ErrCannotRemoveLastAdmin   = errors.New("cannot remove the last admin user")
+	ErrPasswordResetNotAllowed = errors.New("password reset only available for local auth users")
+	ErrInvalidRole             = errors.New("role must be admin or user")
+	ErrEmailRequired           = errors.New("email is required")
+	ErrEmailConflict           = errors.New("email already in use by another user")
 )
 
 type UserService struct {
@@ -618,4 +628,311 @@ func sanitizeUsername(username string) string {
 		}
 		return -1
 	}, username))
+}
+
+// ── Admin User Management ──────────────────────────────────────────────
+
+// UserStats contains aggregate counts for a user's related entities.
+type UserStats struct {
+	ActiveTokenCount     int64
+	OAuthConnectionCount int64
+	AuthorizationCount   int64
+}
+
+// UpdateUserProfileRequest carries the fields an admin can edit.
+type UpdateUserProfileRequest struct {
+	FullName string
+	Email    string
+	Role     string
+}
+
+// ListUsersPaginated returns a paginated list of users.
+func (s *UserService) ListUsersPaginated(
+	params storeTypes.PaginationParams,
+) ([]models.User, storeTypes.PaginationResult, error) {
+	return s.store.ListUsersPaginated(params)
+}
+
+// AdminGetUserByID fetches a user directly from the store (no cache) so that
+// auth_source and other mutable fields are always fresh.
+func (s *UserService) AdminGetUserByID(userID string) (*models.User, error) {
+	user, err := s.store.GetUserByID(userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+	return user, nil
+}
+
+// GetUserStats returns aggregate counts for a user.
+func (s *UserService) GetUserStats(userID string) (UserStats, error) {
+	var stats UserStats
+	var err error
+
+	stats.ActiveTokenCount, err = s.store.CountActiveTokensByUserID(userID)
+	if err != nil {
+		return stats, fmt.Errorf("count active tokens: %w", err)
+	}
+
+	stats.OAuthConnectionCount, err = s.store.CountOAuthConnectionsByUserID(userID)
+	if err != nil {
+		return stats, fmt.Errorf("count oauth connections: %w", err)
+	}
+
+	stats.AuthorizationCount, err = s.store.CountUserAuthorizationsByUserID(userID)
+	if err != nil {
+		return stats, fmt.Errorf("count authorizations: %w", err)
+	}
+
+	return stats, nil
+}
+
+// UpdateUserProfile updates a user's profile fields. Role changes are blocked
+// when actorUserID == userID to prevent admins from demoting themselves.
+func (s *UserService) UpdateUserProfile(
+	ctx context.Context,
+	userID, actorUserID string,
+	req UpdateUserProfileRequest,
+) error {
+	user, err := s.AdminGetUserByID(userID)
+	if err != nil {
+		return err
+	}
+
+	// Validate role
+	if req.Role != "" && req.Role != models.UserRoleAdmin && req.Role != models.UserRoleUser {
+		return ErrInvalidRole
+	}
+
+	// Prevent self role change
+	if req.Role != "" && req.Role != user.Role && actorUserID == userID {
+		return ErrCannotChangeOwnRole
+	}
+
+	// Validate email
+	if req.Email == "" {
+		return ErrEmailRequired
+	}
+
+	// Check email conflict
+	if req.Email != user.Email {
+		existing, lookupErr := s.store.GetUserByEmail(req.Email)
+		if lookupErr != nil {
+			if !errors.Is(lookupErr, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("failed to check email uniqueness: %w", lookupErr)
+			}
+		} else if existing.ID != userID {
+			return ErrEmailConflict
+		}
+	}
+
+	// Prevent removing the last admin
+	if req.Role != "" && user.Role == models.UserRoleAdmin && req.Role != models.UserRoleAdmin {
+		adminCount, err := s.store.CountUsersByRole(models.UserRoleAdmin)
+		if err != nil {
+			return fmt.Errorf("failed to count admins: %w", err)
+		}
+		if adminCount <= 1 {
+			return ErrCannotRemoveLastAdmin
+		}
+	}
+
+	oldRole := user.Role
+	user.FullName = req.FullName
+	user.Email = req.Email
+	if req.Role != "" {
+		user.Role = req.Role
+	}
+
+	if err := s.store.UpdateUser(user); err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	s.InvalidateUserCache(userID)
+
+	// Audit logging
+	if s.auditService != nil {
+		s.auditService.Log(ctx, AuditLogEntry{
+			EventType:    models.EventUserUpdated,
+			Severity:     models.SeverityInfo,
+			ActorUserID:  actorUserID,
+			ResourceType: models.ResourceUser,
+			ResourceID:   userID,
+			ResourceName: user.Username,
+			Action:       "User profile updated by admin",
+			Details: models.AuditDetails{
+				"email":     req.Email,
+				"full_name": req.FullName,
+				"role":      req.Role,
+			},
+			Success: true,
+		})
+
+		if req.Role != "" && oldRole != req.Role {
+			s.auditService.Log(ctx, AuditLogEntry{
+				EventType:    models.EventUserRoleChanged,
+				Severity:     models.SeverityWarning,
+				ActorUserID:  actorUserID,
+				ResourceType: models.ResourceUser,
+				ResourceID:   userID,
+				ResourceName: user.Username,
+				Action:       "User role changed by admin",
+				Details: models.AuditDetails{
+					"old_role": oldRole,
+					"new_role": req.Role,
+				},
+				Success: true,
+			})
+		}
+	}
+
+	return nil
+}
+
+// ResetUserPassword generates a new random password for a local-auth user.
+// Returns the plaintext password (to be shown once) or an error.
+func (s *UserService) ResetUserPassword(
+	ctx context.Context,
+	userID, actorUserID string,
+) (string, error) {
+	user, err := s.AdminGetUserByID(userID)
+	if err != nil {
+		return "", err
+	}
+
+	if user.AuthSource != models.AuthSourceLocal {
+		return "", ErrPasswordResetNotAllowed
+	}
+
+	newPassword, err := util.GenerateRandomPassword(16)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate password: %w", err)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	user.PasswordHash = string(hash)
+	if err := s.store.UpdateUser(user); err != nil {
+		return "", fmt.Errorf("failed to update user password: %w", err)
+	}
+
+	s.InvalidateUserCache(userID)
+
+	if s.auditService != nil {
+		s.auditService.Log(ctx, AuditLogEntry{
+			EventType:    models.EventUserPasswordReset,
+			Severity:     models.SeverityWarning,
+			ActorUserID:  actorUserID,
+			ResourceType: models.ResourceUser,
+			ResourceID:   userID,
+			ResourceName: user.Username,
+			Action:       "User password reset by admin",
+			Success:      true,
+		})
+	}
+
+	return newPassword, nil
+}
+
+// ValidateDeleteUser checks whether the user can be deleted without performing
+// the deletion. The caller can use this to run pre-deletion side effects (e.g.
+// token revocation) before committing the delete.
+func (s *UserService) ValidateDeleteUser(userID, actorUserID string) error {
+	if actorUserID == userID {
+		return ErrCannotDeleteSelf
+	}
+
+	user, err := s.AdminGetUserByID(userID)
+	if err != nil {
+		return err
+	}
+
+	if user.Role == models.UserRoleAdmin {
+		adminCount, countErr := s.store.CountUsersByRole(models.UserRoleAdmin)
+		if countErr != nil {
+			return fmt.Errorf("failed to count admins: %w", countErr)
+		}
+		if adminCount <= 1 {
+			return ErrCannotRemoveLastAdmin
+		}
+	}
+
+	return nil
+}
+
+// DeleteUserAdmin deletes a user and cleans up related data. Callers must
+// revoke tokens via TokenService before calling this method to ensure token
+// cache invalidation. Guards are re-checked for safety.
+func (s *UserService) DeleteUserAdmin(
+	ctx context.Context,
+	userID, actorUserID string,
+) error {
+	if actorUserID == userID {
+		return ErrCannotDeleteSelf
+	}
+
+	user, err := s.AdminGetUserByID(userID)
+	if err != nil {
+		return err
+	}
+
+	// Re-check last-admin guard (defense in depth against races).
+	if user.Role == models.UserRoleAdmin {
+		adminCount, countErr := s.store.CountUsersByRole(models.UserRoleAdmin)
+		if countErr != nil {
+			return fmt.Errorf("failed to count admins: %w", countErr)
+		}
+		if adminCount <= 1 {
+			return ErrCannotRemoveLastAdmin
+		}
+	}
+
+	// Clean up user-related data inside a transaction for atomicity.
+	if err := s.store.RunInTransaction(func(tx core.Store) error {
+		if err := tx.DeleteOAuthConnectionsByUserID(userID); err != nil {
+			return fmt.Errorf("delete OAuth connections: %w", err)
+		}
+		if err := tx.RevokeAllUserAuthorizationsByUserID(userID); err != nil {
+			return fmt.Errorf("revoke authorizations: %w", err)
+		}
+		if err := tx.DeleteUser(userID); err != nil {
+			return fmt.Errorf("delete user: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	s.InvalidateUserCache(userID)
+
+	if s.auditService != nil {
+		s.auditService.Log(ctx, AuditLogEntry{
+			EventType:    models.EventUserDeleted,
+			Severity:     models.SeverityWarning,
+			ActorUserID:  actorUserID,
+			ResourceType: models.ResourceUser,
+			ResourceID:   userID,
+			ResourceName: user.Username,
+			Action:       "User deleted by admin",
+			Details: models.AuditDetails{
+				"username":    user.Username,
+				"email":       user.Email,
+				"role":        user.Role,
+				"auth_source": user.AuthSource,
+			},
+			Success: true,
+		})
+	}
+
+	return nil
+}
+
+// CountUsersByRole returns the number of users with the given role.
+func (s *UserService) CountUsersByRole(role string) (int64, error) {
+	return s.store.CountUsersByRole(role)
 }

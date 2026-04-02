@@ -27,6 +27,7 @@ type handlerSet struct {
 	registration  *handlers.RegistrationHandler
 	docs          *handlers.DocsHandler
 	jwks          *handlers.JWKSHandler
+	userAdmin     *handlers.UserAdminHandler
 	userService   *services.UserService
 }
 
@@ -95,6 +96,7 @@ func initializeHandlers(deps handlerDeps) handlerSet {
 		),
 		docs:        handlers.NewDocsHandler(deps.templatesFS),
 		jwks:        jwksHandler,
+		userAdmin:   handlers.NewUserAdminHandler(deps.services.user, deps.services.token),
 		userService: deps.services.user,
 	}
 }

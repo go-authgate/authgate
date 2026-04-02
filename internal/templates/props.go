@@ -338,6 +338,50 @@ type ClientFormFieldsProps struct {
 	ScopePresetsOnly      bool   // Restrict scopes to preset chips only (user form)
 }
 
+// UsersPageProps contains properties for the admin users list page
+type UsersPageProps struct {
+	BaseProps
+	NavbarProps
+	User             *models.User
+	Users            []models.User
+	Pagination       store.PaginationResult
+	Search           string
+	PageSize         int
+	Success          string
+	RoleFilter       string // "admin", "user", or "" for all
+	AuthSourceFilter string // "local", "http_api", or "" for all
+}
+
+// UserDetailPageProps contains properties for the admin user detail page
+type UserDetailPageProps struct {
+	BaseProps
+	NavbarProps
+	TargetUser           *models.User
+	ActiveTokenCount     int64
+	OAuthConnectionCount int64
+	AuthorizationCount   int64
+	Success              string
+	Error                string
+}
+
+// UserFormPageProps contains properties for the admin user edit form
+type UserFormPageProps struct {
+	BaseProps
+	NavbarProps
+	TargetUser *models.User
+	Error      string
+	IsSelf     bool // true if editing own account (disable role change)
+}
+
+// UserPasswordResetPageProps contains properties for the password reset result page
+type UserPasswordResetPageProps struct {
+	BaseProps
+	NavbarProps
+	TargetUser  *models.User
+	NewPassword string
+	Warning     string // non-fatal warning (e.g. token revocation failure)
+}
+
 // AuditLogsPageProps contains properties for the audit logs page
 type AuditLogsPageProps struct {
 	BaseProps

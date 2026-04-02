@@ -309,6 +309,14 @@ func setupAllRoutes(
 		admin.POST("/clients/:id/approve", h.client.ApproveClient)
 		admin.POST("/clients/:id/reject", h.client.RejectClient)
 
+		// User management routes
+		admin.GET("/users", h.userAdmin.ShowUsersPage)
+		admin.GET("/users/:id", h.userAdmin.ViewUser)
+		admin.GET("/users/:id/edit", h.userAdmin.ShowEditUserPage)
+		admin.POST("/users/:id", h.userAdmin.UpdateUser)
+		admin.POST("/users/:id/reset-password", h.userAdmin.ResetPassword)
+		admin.POST("/users/:id/delete", h.userAdmin.DeleteUser)
+
 		// Audit log routes (HTML pages)
 		admin.GET("/audit", h.audit.ShowAuditLogsPage)
 		admin.GET("/audit/export", h.audit.ExportAuditLogs)

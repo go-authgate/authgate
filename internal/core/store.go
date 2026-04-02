@@ -17,6 +17,11 @@ type UserReader interface {
 	GetUserByEmail(email string) (*models.User, error)
 	GetUserByExternalID(externalID, authSource string) (*models.User, error)
 	GetUsersByIDs(userIDs []string) (map[string]*models.User, error)
+	ListUsersPaginated(params types.PaginationParams) ([]models.User, types.PaginationResult, error)
+	CountUsersByRole(role string) (int64, error)
+	CountActiveTokensByUserID(userID string) (int64, error)
+	CountOAuthConnectionsByUserID(userID string) (int64, error)
+	CountUserAuthorizationsByUserID(userID string) (int64, error)
 }
 
 // UserWriter groups user mutation operations.
@@ -116,6 +121,7 @@ type UserAuthorizationStore interface {
 	ListUserAuthorizations(userID string) ([]models.UserAuthorization, error)
 	GetClientAuthorizations(clientID string) ([]models.UserAuthorization, error)
 	RevokeAllUserAuthorizationsByClientID(clientID string) error
+	RevokeAllUserAuthorizationsByUserID(userID string) error
 }
 
 // ── OAuth Connection ────────────────────────────────────────────────────
@@ -128,6 +134,7 @@ type OAuthConnectionStore interface {
 	GetOAuthConnectionsByUserID(userID string) ([]models.OAuthConnection, error)
 	UpdateOAuthConnection(conn *models.OAuthConnection) error
 	DeleteOAuthConnection(id string) error
+	DeleteOAuthConnectionsByUserID(userID string) error
 }
 
 // ── Audit Log ───────────────────────────────────────────────────────────
