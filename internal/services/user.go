@@ -668,14 +668,14 @@ func (s *UserService) AdminGetUserByID(userID string) (*models.User, error) {
 
 // GetUserStats returns aggregate counts for a user in a single database query.
 func (s *UserService) GetUserStats(userID string) (UserStats, error) {
-	tokens, connections, auths, err := s.store.GetUserStatsByUserID(userID)
+	counts, err := s.store.GetUserStatsByUserID(userID)
 	if err != nil {
 		return UserStats{}, fmt.Errorf("get user stats: %w", err)
 	}
 	return UserStats{
-		ActiveTokenCount:     tokens,
-		OAuthConnectionCount: connections,
-		AuthorizationCount:   auths,
+		ActiveTokenCount:     counts.ActiveTokenCount,
+		OAuthConnectionCount: counts.OAuthConnectionCount,
+		AuthorizationCount:   counts.ActiveAuthorizationCount,
 	}, nil
 }
 

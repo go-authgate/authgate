@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/store/types"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -230,22 +231,26 @@ func (s *Store) CountUsersByRole(role string) (int64, error) {
 }
 
 // GetUserStatsByUserID returns all user stats (active tokens, OAuth connections,
-// authorizations) in a single database query using subqueries.
-func (s *Store) GetUserStatsByUserID(userID string) (int64, int64, int64, error) {
+// active authorizations) in a single database query using subqueries.
+func (s *Store) GetUserStatsByUserID(userID string) (types.UserStatsCounts, error) {
 	var result struct {
-		ActiveTokenCount int64 `gorm:"column:active_token_count"`
-		OAuthConnCount   int64 `gorm:"column:oauth_conn_count"`
-		AuthorizationCount int64 `gorm:"column:authorization_count"`
+		ActiveTokenCount         int64 `gorm:"column:active_token_count"`
+		OAuthConnCount           int64 `gorm:"column:oauth_conn_count"`
+		ActiveAuthorizationCount int64 `gorm:"column:active_authorization_count"`
 	}
 	err := s.db.Raw(`
 		SELECT
 			(SELECT COUNT(*) FROM access_tokens WHERE user_id = ? AND status = ?) AS active_token_count,
 			(SELECT COUNT(*) FROM oauth_connections WHERE user_id = ?) AS oauth_conn_count,
-			(SELECT COUNT(*) FROM user_authorizations WHERE user_id = ? AND is_active = ?) AS authorization_count
+			(SELECT COUNT(*) FROM user_authorizations WHERE user_id = ? AND is_active = ?) AS active_authorization_count
 	`, userID, models.TokenStatusActive, userID, userID, true).Scan(&result).Error
 	if err != nil {
-		return 0, 0, 0, err
+		return types.UserStatsCounts{}, err
 	}
-	return result.ActiveTokenCount, result.OAuthConnCount, result.AuthorizationCount, nil
+	return types.UserStatsCounts{
+		ActiveTokenCount:         result.ActiveTokenCount,
+		OAuthConnectionCount:     result.OAuthConnCount,
+		ActiveAuthorizationCount: result.ActiveAuthorizationCount,
+	}, nil
 }
 

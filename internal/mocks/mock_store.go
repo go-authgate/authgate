@@ -120,14 +120,12 @@ func (mr *MockUserReaderMockRecorder) GetUserByUsername(username any) *gomock.Ca
 }
 
 // GetUserStatsByUserID mocks base method.
-func (m *MockUserReader) GetUserStatsByUserID(userID string) (int64, int64, int64, error) {
+func (m *MockUserReader) GetUserStatsByUserID(userID string) (types.UserStatsCounts, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetUserStatsByUserID", userID)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(int64)
-	ret2, _ := ret[2].(int64)
-	ret3, _ := ret[3].(error)
-	return ret0, ret1, ret2, ret3
+	ret0, _ := ret[0].(types.UserStatsCounts)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // GetUserStatsByUserID indicates an expected call of GetUserStatsByUserID.
@@ -2185,14 +2183,12 @@ func (mr *MockStoreMockRecorder) GetUserByUsername(username any) *gomock.Call {
 }
 
 // GetUserStatsByUserID mocks base method.
-func (m *MockStore) GetUserStatsByUserID(userID string) (int64, int64, int64, error) {
+func (m *MockStore) GetUserStatsByUserID(userID string) (types.UserStatsCounts, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetUserStatsByUserID", userID)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(int64)
-	ret2, _ := ret[2].(int64)
-	ret3, _ := ret[3].(error)
-	return ret0, ret1, ret2, ret3
+	ret0, _ := ret[0].(types.UserStatsCounts)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // GetUserStatsByUserID indicates an expected call of GetUserStatsByUserID.

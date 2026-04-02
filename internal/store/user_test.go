@@ -184,11 +184,11 @@ func TestGetUserStatsByUserID(t *testing.T) {
 		store := createFreshStore(t, "sqlite", nil)
 		u := createTestUser(t, store, nil)
 
-		tokens, connections, auths, err := store.GetUserStatsByUserID(u.ID)
+		counts, err := store.GetUserStatsByUserID(u.ID)
 		require.NoError(t, err)
-		assert.Equal(t, int64(0), tokens)
-		assert.Equal(t, int64(0), connections)
-		assert.Equal(t, int64(0), auths)
+		assert.Equal(t, int64(0), counts.ActiveTokenCount)
+		assert.Equal(t, int64(0), counts.OAuthConnectionCount)
+		assert.Equal(t, int64(0), counts.ActiveAuthorizationCount)
 	})
 
 	t.Run("counts related records correctly", func(t *testing.T) {
@@ -249,11 +249,11 @@ func TestGetUserStatsByUserID(t *testing.T) {
 		_, err := store.RevokeUserAuthorization(auth3UUID, u.ID)
 		require.NoError(t, err)
 
-		tokens, connections, auths, err := store.GetUserStatsByUserID(u.ID)
+		counts, err := store.GetUserStatsByUserID(u.ID)
 		require.NoError(t, err)
-		assert.Equal(t, int64(2), tokens, "should count only active tokens")
-		assert.Equal(t, int64(1), connections, "should count OAuth connections")
-		assert.Equal(t, int64(2), auths, "should count only active authorizations")
+		assert.Equal(t, int64(2), counts.ActiveTokenCount, "should count only active tokens")
+		assert.Equal(t, int64(1), counts.OAuthConnectionCount, "should count OAuth connections")
+		assert.Equal(t, int64(2), counts.ActiveAuthorizationCount, "should count only active authorizations")
 	})
 }
 
