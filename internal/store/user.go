@@ -241,8 +241,8 @@ func (s *Store) GetUserStatsByUserID(userID string) (int64, int64, int64, error)
 		SELECT
 			(SELECT COUNT(*) FROM access_tokens WHERE user_id = ? AND status = ?) AS active_token_count,
 			(SELECT COUNT(*) FROM oauth_connections WHERE user_id = ?) AS oauth_conn_count,
-			(SELECT COUNT(*) FROM user_authorizations WHERE user_id = ?) AS authorization_count
-	`, userID, models.TokenStatusActive, userID, userID).Scan(&result).Error
+			(SELECT COUNT(*) FROM user_authorizations WHERE user_id = ? AND is_active = ?) AS authorization_count
+	`, userID, models.TokenStatusActive, userID, userID, true).Scan(&result).Error
 	if err != nil {
 		return 0, 0, 0, err
 	}

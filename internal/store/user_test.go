@@ -215,9 +215,10 @@ func TestGetUserStatsByUserID(t *testing.T) {
 		}
 		require.NoError(t, store.CreateOAuthConnection(conn))
 
-		// 2 user authorizations (need distinct apps)
+		// 2 active authorizations + 1 revoked (should only count active)
+		auth1UUID := uuid.New().String()
 		auth1 := &models.UserAuthorization{
-			UUID:          uuid.New().String(),
+			UUID:          auth1UUID,
 			UserID:        u.ID,
 			ApplicationID: app.ID,
 			ClientID:      app.ClientID,
@@ -235,11 +236,24 @@ func TestGetUserStatsByUserID(t *testing.T) {
 		}
 		require.NoError(t, store.UpsertUserAuthorization(auth2))
 
+		app3 := createTestApp(t, store)
+		auth3UUID := uuid.New().String()
+		auth3 := &models.UserAuthorization{
+			UUID:          auth3UUID,
+			UserID:        u.ID,
+			ApplicationID: app3.ID,
+			ClientID:      app3.ClientID,
+			Scopes:        "read",
+		}
+		require.NoError(t, store.UpsertUserAuthorization(auth3))
+		_, err := store.RevokeUserAuthorization(auth3UUID, u.ID)
+		require.NoError(t, err)
+
 		tokens, connections, auths, err := store.GetUserStatsByUserID(u.ID)
 		require.NoError(t, err)
 		assert.Equal(t, int64(2), tokens, "should count only active tokens")
 		assert.Equal(t, int64(1), connections, "should count OAuth connections")
-		assert.Equal(t, int64(2), auths, "should count user authorizations")
+		assert.Equal(t, int64(2), auths, "should count only active authorizations")
 	})
 }
 
