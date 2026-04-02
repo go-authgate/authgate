@@ -279,13 +279,15 @@ func (h *UserAdminHandler) DeleteUser(c *gin.Context) {
 	// Validate before any side effects so guards (self-delete, last-admin)
 	// reject the request without touching tokens.
 	if err := h.userService.ValidateDeleteUser(userID, currentUser.ID); err != nil {
-		msg := "Failed to delete user"
-		if errors.Is(err, services.ErrCannotDeleteSelf) ||
-			errors.Is(err, services.ErrCannotRemoveLastAdmin) ||
-			errors.Is(err, services.ErrUserNotFound) {
-			msg = err.Error()
+		switch {
+		case errors.Is(err, services.ErrUserNotFound):
+			renderErrorPage(c, http.StatusNotFound, err.Error())
+		case errors.Is(err, services.ErrCannotDeleteSelf),
+			errors.Is(err, services.ErrCannotRemoveLastAdmin):
+			renderErrorPage(c, http.StatusBadRequest, err.Error())
+		default:
+			renderErrorPage(c, http.StatusInternalServerError, "Failed to delete user")
 		}
-		renderErrorPage(c, http.StatusBadRequest, msg)
 		return
 	}
 
