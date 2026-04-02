@@ -31,25 +31,3 @@
 .token-expired .date-display-time {
   color: var(--color-error);
 }
-
-/* Category filter dots — override both background and box-shadow
-   so the glow color stays consistent with the dot color. */
-.sf-dot.dot-access {
-  background: #2563EB;
-  box-shadow: none;
-}
-
-.sf-dot.dot-refresh {
-  background: #7C3AED;
-  box-shadow: none;
-}
-
-[data-theme="dark"] .sf-dot.dot-access {
-  background: #2563EB;
-  box-shadow: none;
-}
-
-[data-theme="dark"] .sf-dot.dot-refresh {
-  background: #7C3AED;
-  box-shadow: none;
-}
