@@ -33,6 +33,6 @@ func (h *DashboardHandler) ShowDashboard(c *gin.Context) {
 	templates.RenderTempl(c, http.StatusOK, templates.AdminDashboard(templates.DashboardPageProps{
 		BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
 		NavbarProps: buildNavbarProps(c, user, "dashboard"),
-		Stats:       stats,
+		Stats:       *stats,
 	}))
 }

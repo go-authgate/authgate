@@ -386,7 +386,7 @@ type UserPasswordResetPageProps struct {
 type DashboardPageProps struct {
 	BaseProps
 	NavbarProps
-	Stats *services.DashboardStats
+	Stats services.DashboardStats
 }
 
 // TokensPageProps contains properties for the admin tokens page

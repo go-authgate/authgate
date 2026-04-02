@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/middleware"
+	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/templates"
 
@@ -14,6 +15,18 @@ import (
 )
 
 const adminTokensPath = "/admin/tokens"
+
+var (
+	validTokenStatuses = map[string]bool{
+		models.TokenStatusActive:   true,
+		models.TokenStatusDisabled: true,
+		models.TokenStatusRevoked:  true,
+	}
+	validTokenCategories = map[string]bool{
+		models.TokenCategoryAccess:  true,
+		models.TokenCategoryRefresh: true,
+	}
+)
 
 // tokenSuccessMessages maps success codes to human-readable messages.
 var tokenSuccessMessages = map[string]string{

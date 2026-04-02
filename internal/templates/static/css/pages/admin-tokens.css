@@ -2,44 +2,54 @@
 
 .token-user-link,
 .token-client-link {
-    color: var(--color-primary);
-    text-decoration: none;
-    font-weight: 500;
-    font-size: var(--text-sm);
-    transition: color var(--transition-fast);
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: var(--text-sm);
+  transition: color var(--transition-fast);
 }
 
 .token-user-link:hover,
 .token-client-link:hover {
-    color: var(--color-primary-dark);
-    text-decoration: underline;
+  color: var(--color-primary-dark);
+  text-decoration: underline;
 }
 
 .token-scopes {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--color-text-secondary);
-    max-width: 150px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    display: inline-block;
-    vertical-align: middle;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .token-expired .date-display-day,
 .token-expired .date-display-time {
-    color: var(--color-error);
+  color: var(--color-error);
 }
 
 /* Category filter dots — override both background and box-shadow
    so the glow color stays consistent with the dot color. */
 .sf-dot.dot-access {
-    background: #2563EB;
-    box-shadow: none;
+  background: #2563EB;
+  box-shadow: none;
 }
 
 .sf-dot.dot-refresh {
-    background: #7C3AED;
-    box-shadow: none;
+  background: #7C3AED;
+  box-shadow: none;
+}
+
+[data-theme="dark"] .sf-dot.dot-access {
+  background: #2563EB;
+  box-shadow: none;
+}
+
+[data-theme="dark"] .sf-dot.dot-refresh {
+  background: #7C3AED;
+  box-shadow: none;
 }
