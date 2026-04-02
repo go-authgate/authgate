@@ -253,4 +253,3 @@ func (s *Store) GetUserStatsByUserID(userID string) (types.UserStatsCounts, erro
 		ActiveAuthorizationCount: result.ActiveAuthorizationCount,
 	}, nil
 }
-

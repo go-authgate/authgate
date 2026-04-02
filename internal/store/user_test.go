@@ -253,7 +253,11 @@ func TestGetUserStatsByUserID(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, int64(2), counts.ActiveTokenCount, "should count only active tokens")
 		assert.Equal(t, int64(1), counts.OAuthConnectionCount, "should count OAuth connections")
-		assert.Equal(t, int64(2), counts.ActiveAuthorizationCount, "should count only active authorizations")
+		assert.Equal(
+			t,
+			int64(2),
+			counts.ActiveAuthorizationCount,
+			"should count only active authorizations",
+		)
 	})
 }
-
