@@ -21,7 +21,12 @@ type countingCache[T any] struct {
 	count int
 }
 
-func (c *countingCache[T]) GetWithFetch(ctx context.Context, key string, ttl time.Duration, fetchFunc func(context.Context, string) (T, error)) (T, error) {
+func (c *countingCache[T]) GetWithFetch(
+	ctx context.Context,
+	key string,
+	ttl time.Duration,
+	fetchFunc func(context.Context, string) (T, error),
+) (T, error) {
 	return c.Cache.GetWithFetch(ctx, key, ttl, func(ctx context.Context, k string) (T, error) {
 		c.count++
 		return fetchFunc(ctx, k)
