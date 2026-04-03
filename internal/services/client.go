@@ -467,9 +467,13 @@ func (s *ClientService) GetClient(
 			if storeErr != nil {
 				return models.OAuthApplication{}, &fetchErr{cause: storeErr}
 			}
-			// Strip secret material before caching (defense-in-depth)
+			// Strip secret material before caching (defense-in-depth).
+			// Deep-copy slice fields so the cached entry's backing arrays
+			// are not shared with the returned value (prevents callers from
+			// accidentally corrupting cached data via in-place mutations).
 			cached := *c
 			cached.ClientSecret = ""
+			cached.RedirectURIs = append(models.StringArray(nil), c.RedirectURIs...)
 			return cached, nil
 		},
 	)
