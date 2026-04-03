@@ -474,7 +474,6 @@ func (s *ClientService) GetClient(clientID string) (*models.OAuthApplication, er
 		func(ctx context.Context, _ string) (models.OAuthApplication, error) {
 			c, storeErr := s.store.GetClient(clientID)
 			if storeErr != nil {
-				// Wrap so GetClient can tell this apart from a cache-backend error.
 				return models.OAuthApplication{}, &clientFetchErr{cause: storeErr}
 			}
 			// Strip secret material before caching (defense-in-depth)
