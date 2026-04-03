@@ -437,6 +437,100 @@ func TestClientCountCacheValidation(t *testing.T) {
 }
 
 // ============================================================
+// Client Cache config
+// ============================================================
+
+func TestClientCacheValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		modify      func(*Config)
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "valid memory",
+			modify:      func(_ *Config) {},
+			expectError: false,
+		},
+		{
+			name: "valid redis with redis address",
+			modify: func(c *Config) {
+				c.ClientCacheType = CacheTypeRedis
+				c.RedisAddr = "localhost:6379"
+			},
+			expectError: false,
+		},
+		{
+			name: "valid redis-aside with redis address and client TTL",
+			modify: func(c *Config) {
+				c.ClientCacheType = CacheTypeRedisAside
+				c.RedisAddr = "localhost:6379"
+				c.ClientCacheClientTTL = 30 * time.Second
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid cache type",
+			modify: func(c *Config) {
+				c.ClientCacheType = "memcached"
+			},
+			expectError: true,
+			errorMsg:    `invalid CLIENT_CACHE_TYPE value: "memcached"`,
+		},
+		{
+			name: "redis without redis address",
+			modify: func(c *Config) {
+				c.ClientCacheType = CacheTypeRedis
+				c.RedisAddr = ""
+			},
+			expectError: true,
+			errorMsg:    `CLIENT_CACHE_TYPE="redis" requires REDIS_ADDR`,
+		},
+		{
+			name: "redis-aside without redis address",
+			modify: func(c *Config) {
+				c.ClientCacheType = CacheTypeRedisAside
+				c.RedisAddr = ""
+			},
+			expectError: true,
+			errorMsg:    `CLIENT_CACHE_TYPE="redis-aside" requires REDIS_ADDR`,
+		},
+		{
+			name: "zero TTL",
+			modify: func(c *Config) {
+				c.ClientCacheTTL = -1
+			},
+			expectError: true,
+			errorMsg:    "CLIENT_CACHE_TTL must be a positive duration",
+		},
+		{
+			name: "redis-aside with zero client TTL",
+			modify: func(c *Config) {
+				c.ClientCacheType = CacheTypeRedisAside
+				c.RedisAddr = "localhost:6379"
+				c.ClientCacheClientTTL = 0
+			},
+			expectError: true,
+			errorMsg:    `CLIENT_CACHE_CLIENT_TTL must be a positive duration when CLIENT_CACHE_TYPE="redis-aside"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validBaseConfig()
+			tt.modify(&cfg)
+			err := cfg.Validate()
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// ============================================================
 // JWT Expiration config
 // ============================================================
 
