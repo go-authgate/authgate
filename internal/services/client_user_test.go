@@ -142,7 +142,7 @@ func TestUserUpdateClient_OwnerCanUpdate(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	updated, err := svc.GetClient(resp.ClientID)
+	updated, err := svc.GetClient(context.Background(), resp.ClientID)
 	require.NoError(t, err)
 	assert.Equal(t, "My App Updated", updated.ClientName)
 }
@@ -234,7 +234,7 @@ func TestUserUpdateClient_CCFlowConfidentialClient(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	updated, err := svc.GetClient(resp.ClientID)
+	updated, err := svc.GetClient(context.Background(), resp.ClientID)
 	require.NoError(t, err)
 	assert.True(t, updated.EnableClientCredentialsFlow)
 	assert.Contains(t, updated.GrantTypes, "client_credentials")
@@ -298,7 +298,7 @@ func TestUserUpdateClient_CCOnlyConfidentialClient(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	updated, err := svc.GetClient(resp.ClientID)
+	updated, err := svc.GetClient(context.Background(), resp.ClientID)
 	require.NoError(t, err)
 	assert.True(t, updated.EnableClientCredentialsFlow)
 	assert.False(t, updated.EnableDeviceFlow)
@@ -389,7 +389,7 @@ func TestApproveClient_SetsActiveStatus(t *testing.T) {
 
 	require.NoError(t, svc.ApproveClient(context.Background(), resp.ClientID, adminID))
 
-	approved, err := svc.GetClient(resp.ClientID)
+	approved, err := svc.GetClient(context.Background(), resp.ClientID)
 	require.NoError(t, err)
 	assert.Equal(t, models.ClientStatusActive, approved.Status)
 	assert.True(t, approved.IsActive())
@@ -411,7 +411,7 @@ func TestRejectClient_SetsInactiveStatus(t *testing.T) {
 
 	require.NoError(t, svc.RejectClient(context.Background(), resp.ClientID, adminID))
 
-	rejected, err := svc.GetClient(resp.ClientID)
+	rejected, err := svc.GetClient(context.Background(), resp.ClientID)
 	require.NoError(t, err)
 	assert.Equal(t, models.ClientStatusInactive, rejected.Status)
 	assert.False(t, rejected.IsActive())

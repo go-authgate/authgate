@@ -58,7 +58,7 @@ func (s *DeviceService) GenerateDeviceCode(
 	clientID, scope string,
 ) (*models.DeviceCode, error) {
 	// Validate client
-	client, err := s.clientService.GetClient(clientID)
+	client, err := s.clientService.GetClient(ctx, clientID)
 	if err != nil {
 		return nil, ErrInvalidClient
 	}
@@ -247,7 +247,7 @@ func (s *DeviceService) GetClientByUserCode(
 		return nil, nil, err
 	}
 
-	client, err := s.clientService.GetClient(dc.ClientID)
+	client, err := s.clientService.GetClient(context.Background(), dc.ClientID)
 	if err != nil {
 		return nil, nil, err
 	}

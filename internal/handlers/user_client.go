@@ -139,7 +139,7 @@ func (h *UserClientHandler) ShowAppPage(c *gin.Context) {
 	userID := getUserIDFromContext(c)
 	userModel := getUserFromContext(c)
 
-	client, err := h.clientService.GetClient(clientID)
+	client, err := h.clientService.GetClient(c.Request.Context(), clientID)
 	if err != nil {
 		renderErrorPage(c, http.StatusNotFound, "App not found")
 		return
@@ -176,7 +176,7 @@ func (h *UserClientHandler) ShowEditAppPage(c *gin.Context) {
 	userID := getUserIDFromContext(c)
 	userModel := getUserFromContext(c)
 
-	client, err := h.clientService.GetClient(clientID)
+	client, err := h.clientService.GetClient(c.Request.Context(), clientID)
 	if err != nil {
 		renderErrorPage(c, http.StatusNotFound, "App not found")
 		return
@@ -223,7 +223,7 @@ func (h *UserClientHandler) UpdateApp(c *gin.Context) {
 			return
 		}
 
-		client, _ := h.clientService.GetClient(clientID)
+		client, _ := h.clientService.GetClient(c.Request.Context(), clientID)
 		clientData := &templates.ClientDisplay{
 			ClientName:                  req.ClientName,
 			Description:                 req.Description,
@@ -275,7 +275,7 @@ func (h *UserClientHandler) RegenerateAppSecret(c *gin.Context) {
 	userModel := getUserFromContext(c)
 
 	// Ownership check
-	client, err := h.clientService.GetClient(clientID)
+	client, err := h.clientService.GetClient(c.Request.Context(), clientID)
 	if err != nil {
 		renderErrorPage(c, http.StatusNotFound, "App not found")
 		return

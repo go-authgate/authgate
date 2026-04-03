@@ -524,7 +524,7 @@ func TestUpdateClient_GrantTypesReflectFlags(t *testing.T) {
 	err = svc.UpdateClient(context.Background(), resp.ClientID, userID, updateReq)
 	require.NoError(t, err)
 
-	updated, err := svc.GetClient(resp.ClientID)
+	updated, err := svc.GetClient(context.Background(), resp.ClientID)
 	require.NoError(t, err)
 	assert.False(t, updated.EnableDeviceFlow)
 	assert.True(t, updated.EnableAuthCodeFlow)
@@ -657,7 +657,7 @@ func TestGetClient_SecretStripped(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.ClientSecret)
 
-	client, err := svc.GetClient(resp.ClientID)
+	client, err := svc.GetClient(context.Background(), resp.ClientID)
 	require.NoError(t, err)
 	assert.Empty(t, client.ClientSecret, "GetClient must strip ClientSecret from cached copy")
 }
@@ -677,11 +677,11 @@ func TestGetClient_CacheHit(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = svc.GetClient(resp.ClientID)
+	_, err = svc.GetClient(context.Background(), resp.ClientID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, spy.count, "first call should fetch from DB")
 
-	_, err = svc.GetClient(resp.ClientID)
+	_, err = svc.GetClient(context.Background(), resp.ClientID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, spy.count, "second call should hit cache, not DB")
 }
@@ -699,7 +699,7 @@ func TestGetClient_CacheInvalidationOnUpdate(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = svc.GetClient(resp.ClientID)
+	_, err = svc.GetClient(context.Background(), resp.ClientID)
 	require.NoError(t, err)
 
 	err = svc.UpdateClient(context.Background(), resp.ClientID, userID, UpdateClientRequest{
@@ -709,7 +709,7 @@ func TestGetClient_CacheInvalidationOnUpdate(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	client, err := svc.GetClient(resp.ClientID)
+	client, err := svc.GetClient(context.Background(), resp.ClientID)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated Name", client.ClientName, "UpdateClient should invalidate cache")
 }
@@ -728,14 +728,14 @@ func TestGetClient_CacheInvalidationOnRegenerateSecret(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = svc.GetClient(resp.ClientID)
+	_, err = svc.GetClient(context.Background(), resp.ClientID)
 	require.NoError(t, err)
 
 	_, err = svc.RegenerateSecret(context.Background(), resp.ClientID, userID)
 	require.NoError(t, err)
 
 	// Cache should be invalidated; GetClient should succeed (refetch from DB)
-	client, err := svc.GetClient(resp.ClientID)
+	client, err := svc.GetClient(context.Background(), resp.ClientID)
 	require.NoError(t, err)
 	assert.Equal(t, resp.ClientID, client.ClientID)
 }

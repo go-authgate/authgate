@@ -85,7 +85,7 @@ func (s *AuthorizationService) ValidateAuthorizationRequest(
 	}
 
 	// 2. Client must exist and be active
-	client, err := s.clientService.GetClient(clientID)
+	client, err := s.clientService.GetClient(context.Background(), clientID)
 	if err != nil {
 		return nil, ErrUnauthorizedClient
 	}
@@ -233,7 +233,7 @@ func (s *AuthorizationService) ExchangeCode(
 	}
 
 	// Client authentication (needs secret for confidential clients)
-	client, err := s.clientService.GetClientWithSecret(clientID)
+	client, err := s.clientService.GetClientWithSecret(ctx, clientID)
 	if err != nil {
 		return nil, ErrUnauthorizedClient
 	}

@@ -468,9 +468,12 @@ func (s *ClientService) ListClientsPaginatedWithCreator(
 // Use GetClientWithSecret for flows that need secret verification.
 // On cache backend errors (e.g. Redis unavailable), falls back to direct DB lookup
 // so that valid OAuth flows are not rejected due to cache infrastructure issues.
-func (s *ClientService) GetClient(clientID string) (*models.OAuthApplication, error) {
+func (s *ClientService) GetClient(
+	ctx context.Context,
+	clientID string,
+) (*models.OAuthApplication, error) {
 	client, err := s.clientCache.GetWithFetch(
-		context.Background(), clientID, s.clientCacheTTL,
+		ctx, clientID, s.clientCacheTTL,
 		func(ctx context.Context, _ string) (models.OAuthApplication, error) {
 			c, storeErr := s.store.GetClient(clientID)
 			if storeErr != nil {
@@ -495,7 +498,7 @@ func (s *ClientService) GetClient(clientID string) (*models.OAuthApplication, er
 	}
 	// Corrupted cache entry — delete it so the next request re-populates it.
 	if errors.Is(err, cache.ErrInvalidValue) {
-		if delErr := s.clientCache.Delete(context.Background(), clientID); delErr != nil {
+		if delErr := s.clientCache.Delete(ctx, clientID); delErr != nil {
 			log.Printf(
 				"[ClientCache] Failed to evict corrupted entry for client=%s: %v",
 				clientID,
@@ -518,7 +521,10 @@ func (s *ClientService) GetClient(clientID string) (*models.OAuthApplication, er
 
 // GetClientWithSecret returns an OAuth client by client_id without caching.
 // Use this for flows that need to verify the client secret (e.g., confidential client auth).
-func (s *ClientService) GetClientWithSecret(clientID string) (*models.OAuthApplication, error) {
+func (s *ClientService) GetClientWithSecret(
+	ctx context.Context,
+	clientID string,
+) (*models.OAuthApplication, error) {
 	client, err := s.store.GetClient(clientID)
 	if err != nil {
 		return nil, ErrClientNotFound
@@ -574,8 +580,11 @@ func (s *ClientService) RegenerateSecret(
 	return newSecret, nil
 }
 
-func (s *ClientService) VerifyClientSecret(clientID, clientSecret string) error {
-	client, err := s.GetClientWithSecret(clientID)
+func (s *ClientService) VerifyClientSecret(
+	ctx context.Context,
+	clientID, clientSecret string,
+) error {
+	client, err := s.GetClientWithSecret(ctx, clientID)
 	if err != nil {
 		return ErrClientNotFound
 	}
