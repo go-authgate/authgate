@@ -19,6 +19,14 @@ func doWithSingleflight[T any](
 	sf *singleflight.Group,
 	fn func(sharedCtx context.Context) (T, error),
 ) (T, error) {
+	// Avoid enqueueing singleflight work for a context that is already done.
+	select {
+	case <-ctx.Done():
+		var zero T
+		return zero, ctx.Err()
+	default:
+	}
+
 	resultCh := sf.DoChan(key, func() (any, error) {
 		result, err := fn(context.WithoutCancel(ctx))
 		return result, err

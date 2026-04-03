@@ -34,6 +34,8 @@ type MemoryCache[T any] struct {
 // An optional cleanup interval controls how often the background reaper
 // evicts expired entries (default: 5 minutes). Pass a non-positive value
 // to disable the reaper entirely and rely on lazy expiration in Get.
+// When the reaper is enabled, callers must call Close to stop the background
+// goroutine and release resources.
 func NewMemoryCache[T any](cleanupInterval ...time.Duration) *MemoryCache[T] {
 	interval := 5 * time.Minute
 	enableReaper := true
