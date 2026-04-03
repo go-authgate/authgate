@@ -25,8 +25,8 @@ func (s *TokenService) IssueClientCredentialsToken(
 	ctx context.Context,
 	clientID, clientSecret, requestedScopes string,
 ) (*models.AccessToken, error) {
-	// 1. Look up client and verify it is active
-	client, err := s.store.GetClient(clientID)
+	// 1. Look up client (uncached — needs secret for authentication)
+	client, err := s.clientService.GetClientWithSecret(clientID)
 	if err != nil || !client.IsActive() {
 		return nil, ErrInvalidClientCredentials
 	}
@@ -129,7 +129,7 @@ func (s *TokenService) IssueClientCredentialsToken(
 // AuthenticateClient verifies client credentials (client_id + client_secret).
 // Returns nil on success, or an error if the client is not found, inactive, or the secret is invalid.
 func (s *TokenService) AuthenticateClient(clientID, clientSecret string) error {
-	client, err := s.store.GetClient(clientID)
+	client, err := s.clientService.GetClientWithSecret(clientID)
 	if err != nil {
 		return ErrInvalidClientCredentials
 	}

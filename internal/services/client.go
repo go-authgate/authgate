@@ -89,10 +89,12 @@ func validateRedirectURIs(uris []string) error {
 }
 
 type ClientService struct {
-	store         core.Store
-	auditService  *AuditService
-	countCache    core.Cache[int64]
-	countCacheTTL time.Duration
+	store          core.Store
+	auditService   *AuditService
+	countCache     core.Cache[int64]
+	countCacheTTL  time.Duration
+	clientCache    core.Cache[models.OAuthApplication]
+	clientCacheTTL time.Duration
 }
 
 func NewClientService(
@@ -100,6 +102,8 @@ func NewClientService(
 	auditService *AuditService,
 	countCache core.Cache[int64],
 	countCacheTTL time.Duration,
+	clientCache core.Cache[models.OAuthApplication],
+	clientCacheTTL time.Duration,
 ) *ClientService {
 	if countCache == nil {
 		countCache = cache.NewMemoryCache[int64]()
@@ -107,11 +111,19 @@ func NewClientService(
 	if countCacheTTL <= 0 {
 		countCacheTTL = time.Hour
 	}
+	if clientCache == nil {
+		clientCache = cache.NewMemoryCache[models.OAuthApplication]()
+	}
+	if clientCacheTTL <= 0 {
+		clientCacheTTL = 5 * time.Minute
+	}
 	return &ClientService{
-		store:         s,
-		auditService:  auditService,
-		countCache:    countCache,
-		countCacheTTL: countCacheTTL,
+		store:          s,
+		auditService:   auditService,
+		countCache:     countCache,
+		countCacheTTL:  countCacheTTL,
+		clientCache:    clientCache,
+		clientCacheTTL: clientCacheTTL,
 	}
 }
 
@@ -228,6 +240,8 @@ func (s *ClientService) CreateClient(
 		return nil, err
 	}
 
+	s.invalidateClientCache(ctx, clientID)
+
 	// A new pending client changes the count; invalidate the cache.
 	if clientStatus == models.ClientStatusPending {
 		s.invalidatePendingCount(ctx)
@@ -324,6 +338,8 @@ func (s *ClientService) UpdateClient(
 		return err
 	}
 
+	s.invalidateClientCache(ctx, clientID)
+
 	if pendingCountAffected {
 		s.invalidatePendingCount(ctx)
 	}
@@ -364,6 +380,8 @@ func (s *ClientService) DeleteClient(ctx context.Context, clientID, actorUserID 
 	if err != nil {
 		return err
 	}
+
+	s.invalidateClientCache(ctx, clientID)
 
 	if wasPending {
 		s.invalidatePendingCount(ctx)
@@ -437,12 +455,44 @@ func (s *ClientService) ListClientsPaginatedWithCreator(
 	return result, pagination, nil
 }
 
+// GetClient returns a cached OAuth client by client_id.
+// The returned copy has ClientSecret cleared for defense-in-depth.
+// Use GetClientWithSecret for flows that need secret verification.
 func (s *ClientService) GetClient(clientID string) (*models.OAuthApplication, error) {
+	client, err := s.clientCache.GetWithFetch(
+		context.Background(), clientID, s.clientCacheTTL,
+		func(ctx context.Context, key string) (models.OAuthApplication, error) {
+			c, err := s.store.GetClient(key)
+			if err != nil {
+				return models.OAuthApplication{}, err
+			}
+			// Strip secret material before caching (defense-in-depth)
+			cached := *c
+			cached.ClientSecret = ""
+			return cached, nil
+		},
+	)
+	if err != nil {
+		return nil, ErrClientNotFound
+	}
+	return &client, nil
+}
+
+// GetClientWithSecret returns an OAuth client by client_id without caching.
+// Use this for flows that need to verify the client secret (e.g., confidential client auth).
+func (s *ClientService) GetClientWithSecret(clientID string) (*models.OAuthApplication, error) {
 	client, err := s.store.GetClient(clientID)
 	if err != nil {
 		return nil, ErrClientNotFound
 	}
 	return client, nil
+}
+
+// invalidateClientCache removes a client from cache by its client_id.
+func (s *ClientService) invalidateClientCache(ctx context.Context, clientID string) {
+	if err := s.clientCache.Delete(ctx, clientID); err != nil {
+		log.Printf("[ClientCache] Failed to invalidate cache for client=%s: %v", clientID, err)
+	}
 }
 
 func (s *ClientService) RegenerateSecret(
@@ -463,6 +513,8 @@ func (s *ClientService) RegenerateSecret(
 	if err := s.store.UpdateClient(client); err != nil {
 		return "", err
 	}
+
+	s.invalidateClientCache(ctx, clientID)
 
 	// Log secret regeneration
 	if s.auditService != nil {
@@ -485,7 +537,7 @@ func (s *ClientService) RegenerateSecret(
 }
 
 func (s *ClientService) VerifyClientSecret(clientID, clientSecret string) error {
-	client, err := s.store.GetClient(clientID)
+	client, err := s.GetClientWithSecret(clientID)
 	if err != nil {
 		return ErrClientNotFound
 	}
@@ -527,6 +579,7 @@ func (s *ClientService) ApproveClient(
 		return err
 	}
 
+	s.invalidateClientCache(ctx, clientID)
 	s.invalidatePendingCount(ctx)
 
 	if s.auditService != nil {
@@ -572,6 +625,7 @@ func (s *ClientService) RejectClient(
 		return err
 	}
 
+	s.invalidateClientCache(ctx, clientID)
 	s.invalidatePendingCount(ctx)
 
 	if s.auditService != nil {

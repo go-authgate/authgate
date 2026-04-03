@@ -51,6 +51,7 @@ type TokenService struct {
 	auditService  *AuditService
 	metrics       core.Recorder
 	tokenCache    core.Cache[models.AccessToken]
+	clientService *ClientService
 }
 
 func NewTokenService(
@@ -61,6 +62,7 @@ func NewTokenService(
 	auditService *AuditService,
 	m core.Recorder,
 	tokenCache core.Cache[models.AccessToken],
+	clientService *ClientService,
 ) *TokenService {
 	return &TokenService{
 		store:         s,
@@ -70,6 +72,7 @@ func NewTokenService(
 		auditService:  auditService,
 		metrics:       m,
 		tokenCache:    tokenCache,
+		clientService: clientService,
 	}
 }
 

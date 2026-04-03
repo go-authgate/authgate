@@ -25,7 +25,13 @@ func setupTestService(t *testing.T) (*DeviceService, *models.OAuthApplication) {
 
 	st, err := store.New(context.Background(), "sqlite", ":memory:", cfg)
 	require.NoError(t, err)
-	service := NewDeviceService(st, cfg, nil, metrics.NewNoopMetrics())
+	service := NewDeviceService(
+		st,
+		cfg,
+		nil,
+		metrics.NewNoopMetrics(),
+		NewClientService(st, nil, nil, 0, nil, 0),
+	)
 
 	// Create test client
 	client := &models.OAuthApplication{

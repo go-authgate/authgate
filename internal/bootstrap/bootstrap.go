@@ -33,6 +33,8 @@ type Application struct {
 	UserCacheCloser        func() error
 	ClientCountCache       core.Cache[int64]
 	ClientCountCacheCloser func() error
+	ClientCache            core.Cache[models.OAuthApplication]
+	ClientCacheCloser      func() error
 	TokenCache             core.Cache[models.AccessToken]
 	TokenCacheCloser       func() error
 	RateLimitRedisClient   *redis.Client
@@ -116,6 +118,12 @@ func (app *Application) initializeInfrastructure(ctx context.Context) error {
 		return err
 	}
 
+	// Client Cache (caches OAuth client lookups by client_id)
+	app.ClientCache, app.ClientCacheCloser, err = initializeClientCache(ctx, app.Config)
+	if err != nil {
+		return err
+	}
+
 	// Token Cache
 	app.TokenCache, app.TokenCacheCloser, err = initializeTokenCache(ctx, app.Config)
 	if err != nil {
@@ -151,6 +159,7 @@ func (app *Application) initializeBusinessLayer() {
 		app.MetricsRecorder,
 		app.UserCache,
 		app.ClientCountCache,
+		app.ClientCache,
 		app.TokenProvider,
 		app.TokenCache,
 	)
@@ -203,6 +212,7 @@ func (app *Application) startWithGracefulShutdown() {
 	addCacheCleanupJob(m, app.MetricsCache, app.Config)
 	addUserCacheCleanupJob(m, app.UserCache, app.Config)
 	addClientCountCacheCleanupJob(m, app.ClientCountCache, app.Config)
+	addClientCacheCleanupJob(m, app.ClientCache, app.Config)
 	addTokenCacheCleanupJob(m, app.TokenCache, app.Config)
 	addDatabaseShutdownJob(m, app.DB, app.Config)
 	addAuditLogCleanupJob(m, app.Config, app.AuditService)

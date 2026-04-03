@@ -15,7 +15,7 @@ import (
 
 func TestListClientsPaginatedWithCreator(t *testing.T) {
 	s := setupTestStore(t)
-	clientService := NewClientService(s, nil, nil, 0)
+	clientService := NewClientService(s, nil, nil, 0, nil, 0)
 
 	// Create test users
 	user1 := &models.User{
@@ -245,7 +245,7 @@ func TestGetUsersByIDs(t *testing.T) {
 
 func TestCreateClient_AuthCodeFlowEnabled(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0)
+	svc := NewClientService(s, nil, nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	req := CreateClientRequest{
@@ -269,7 +269,7 @@ func TestCreateClient_AuthCodeFlowEnabled(t *testing.T) {
 
 func TestCreateClient_PublicClientType(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0)
+	svc := NewClientService(s, nil, nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	req := CreateClientRequest{
@@ -290,7 +290,7 @@ func TestCreateClient_PublicClientType(t *testing.T) {
 
 func TestCreateClient_DefaultClientType(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0)
+	svc := NewClientService(s, nil, nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	req := CreateClientRequest{
@@ -309,7 +309,7 @@ func TestCreateClient_DefaultClientType(t *testing.T) {
 
 func TestCreateClient_DefaultScope(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0)
+	svc := NewClientService(s, nil, nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	req := CreateClientRequest{
@@ -329,7 +329,7 @@ func TestCreateClient_OnlyAuthCodeFlow(t *testing.T) {
 	// When only auth code flow is enabled, the service should not force device flow on.
 	// The result depends on how the service handles the "neither enabled" default case.
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0)
+	svc := NewClientService(s, nil, nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	req := CreateClientRequest{
@@ -354,7 +354,7 @@ func TestCreateClient_OnlyAuthCodeFlow(t *testing.T) {
 
 func TestCreateClient_NameRequired(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0)
+	svc := NewClientService(s, nil, nil, 0, nil, 0)
 
 	req := CreateClientRequest{
 		ClientName: "", // Empty name
@@ -367,7 +367,7 @@ func TestCreateClient_NameRequired(t *testing.T) {
 
 func TestCreateClient_AuthCodeFlowRequiresRedirectURI(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0)
+	svc := NewClientService(s, nil, nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	req := CreateClientRequest{
@@ -384,7 +384,7 @@ func TestCreateClient_AuthCodeFlowRequiresRedirectURI(t *testing.T) {
 
 func TestCreateClient_DeviceFlowOnlyNoRedirectURIRequired(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0)
+	svc := NewClientService(s, nil, nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	req := CreateClientRequest{
@@ -403,7 +403,7 @@ func TestCreateClient_DeviceFlowOnlyNoRedirectURIRequired(t *testing.T) {
 
 func TestUpdateClient_AuthCodeFlowRequiresRedirectURI(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0)
+	svc := NewClientService(s, nil, nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	// Create a valid client first
@@ -430,7 +430,7 @@ func TestUpdateClient_AuthCodeFlowRequiresRedirectURI(t *testing.T) {
 
 func TestUpdateClient_AuthCodeFlowWithRedirectURISucceeds(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0)
+	svc := NewClientService(s, nil, nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	createReq := CreateClientRequest{
@@ -456,7 +456,7 @@ func TestUpdateClient_AuthCodeFlowWithRedirectURISucceeds(t *testing.T) {
 
 func TestUpdateClient_BothGrantTypesDisabledRejected(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0)
+	svc := NewClientService(s, nil, nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	createReq := CreateClientRequest{
@@ -481,7 +481,7 @@ func TestUpdateClient_BothGrantTypesDisabledRejected(t *testing.T) {
 
 func TestUpdateClient_GrantTypesReflectFlags(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0)
+	svc := NewClientService(s, nil, nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	createReq := CreateClientRequest{
@@ -582,7 +582,7 @@ func TestValidateRedirectURIs(t *testing.T) {
 
 func TestCreateClient_InvalidRedirectURIRejected(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0)
+	svc := NewClientService(s, nil, nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	req := CreateClientRequest{
@@ -599,7 +599,7 @@ func TestCreateClient_InvalidRedirectURIRejected(t *testing.T) {
 
 func TestUpdateClient_InvalidRedirectURIRejected(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0)
+	svc := NewClientService(s, nil, nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	createReq := CreateClientRequest{

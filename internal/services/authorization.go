@@ -51,10 +51,11 @@ type AuthorizationRequest struct {
 
 // AuthorizationService manages the OAuth 2.0 Authorization Code Flow (RFC 6749)
 type AuthorizationService struct {
-	store        core.Store
-	config       *config.Config
-	auditService *AuditService
-	tokenService *TokenService
+	store         core.Store
+	config        *config.Config
+	auditService  *AuditService
+	tokenService  *TokenService
+	clientService *ClientService
 }
 
 func NewAuthorizationService(
@@ -62,12 +63,14 @@ func NewAuthorizationService(
 	cfg *config.Config,
 	auditService *AuditService,
 	tokenService *TokenService,
+	clientService *ClientService,
 ) *AuthorizationService {
 	return &AuthorizationService{
-		store:        s,
-		config:       cfg,
-		auditService: auditService,
-		tokenService: tokenService,
+		store:         s,
+		config:        cfg,
+		auditService:  auditService,
+		tokenService:  tokenService,
+		clientService: clientService,
 	}
 }
 
@@ -82,7 +85,7 @@ func (s *AuthorizationService) ValidateAuthorizationRequest(
 	}
 
 	// 2. Client must exist and be active
-	client, err := s.store.GetClient(clientID)
+	client, err := s.clientService.GetClient(clientID)
 	if err != nil {
 		return nil, ErrUnauthorizedClient
 	}
@@ -229,8 +232,8 @@ func (s *AuthorizationService) ExchangeCode(
 		return nil, ErrInvalidRedirectURI
 	}
 
-	// Client authentication
-	client, err := s.store.GetClient(clientID)
+	// Client authentication (needs secret for confidential clients)
+	client, err := s.clientService.GetClientWithSecret(clientID)
 	if err != nil {
 		return nil, ErrUnauthorizedClient
 	}

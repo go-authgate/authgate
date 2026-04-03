@@ -131,6 +131,20 @@ func initializeTokenCache(
 	})
 }
 
+// initializeClientCache initializes the OAuth client cache (always enabled, defaults to memory)
+func initializeClientCache(
+	ctx context.Context,
+	cfg *config.Config,
+) (core.Cache[models.OAuthApplication], func() error, error) {
+	return initializeCache[models.OAuthApplication](ctx, cfg, cacheOpts{
+		cacheType:   cfg.ClientCacheType,
+		keyPrefix:   "authgate:clients:",
+		clientTTL:   cfg.ClientCacheClientTTL,
+		sizePerConn: cfg.ClientCacheSizePerConn,
+		label:       "Client",
+	})
+}
+
 // initializeUserCache initializes the user cache (always enabled, defaults to memory)
 func initializeUserCache(
 	ctx context.Context,

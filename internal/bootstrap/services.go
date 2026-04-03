@@ -27,6 +27,7 @@ func initializeServices(
 	prometheusMetrics core.Recorder,
 	userCache core.Cache[models.User],
 	clientCountCache core.Cache[int64],
+	clientCache core.Cache[models.OAuthApplication],
 	tokenProvider core.TokenProvider,
 	tokenCache core.Cache[models.AccessToken],
 ) serviceSet {
@@ -45,7 +46,18 @@ func initializeServices(
 		userCache,
 		cfg.UserCacheTTL,
 	)
-	deviceService := services.NewDeviceService(db, cfg, auditService, prometheusMetrics)
+	clientService := services.NewClientService(
+		db, auditService,
+		clientCountCache, cfg.ClientCountCacheTTL,
+		clientCache, cfg.ClientCacheTTL,
+	)
+	deviceService := services.NewDeviceService(
+		db,
+		cfg,
+		auditService,
+		prometheusMetrics,
+		clientService,
+	)
 	tokenService := services.NewTokenService(
 		db,
 		cfg,
@@ -54,11 +66,15 @@ func initializeServices(
 		auditService,
 		prometheusMetrics,
 		tokenCache,
+		clientService,
 	)
-	clientService := services.NewClientService(
-		db, auditService, clientCountCache, cfg.ClientCountCacheTTL,
+	authorizationService := services.NewAuthorizationService(
+		db,
+		cfg,
+		auditService,
+		tokenService,
+		clientService,
 	)
-	authorizationService := services.NewAuthorizationService(db, cfg, auditService, tokenService)
 	dashboardService := services.NewDashboardService(db, auditService)
 
 	return serviceSet{

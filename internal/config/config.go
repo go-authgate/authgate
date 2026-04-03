@@ -185,6 +185,12 @@ type Config struct {
 	ClientCountCacheClientTTL   time.Duration // CLIENT_COUNT_CACHE_CLIENT_TTL for redis-aside (default: 10m)
 	ClientCountCacheSizePerConn int           // CLIENT_COUNT_CACHE_SIZE_PER_CONN for redis-aside in MB (default: 32MB)
 
+	// Client Cache settings (caches OAuth client lookups by client_id)
+	ClientCacheType        string        // CLIENT_CACHE_TYPE: memory|redis|redis-aside (default: memory)
+	ClientCacheTTL         time.Duration // CLIENT_CACHE_TTL: cache lifetime (default: 5m)
+	ClientCacheClientTTL   time.Duration // CLIENT_CACHE_CLIENT_TTL for redis-aside client-side TTL (default: 30s)
+	ClientCacheSizePerConn int           // CLIENT_CACHE_SIZE_PER_CONN: client-side cache size per connection in MB for redis-aside (default: 32MB)
+
 	// Token Cache settings (reduces DB queries for token verification)
 	TokenCacheEnabled     bool          // TOKEN_CACHE_ENABLED: enable token verification cache (default: false)
 	TokenCacheType        string        // TOKEN_CACHE_TYPE: memory|redis|redis-aside (default: memory)
@@ -388,6 +394,12 @@ func Load() *Config {
 			"CLIENT_COUNT_CACHE_SIZE_PER_CONN",
 			32,
 		), // 32MB default
+
+		// Client Cache settings
+		ClientCacheType:        getEnv("CLIENT_CACHE_TYPE", CacheTypeMemory),
+		ClientCacheTTL:         getEnvDuration("CLIENT_CACHE_TTL", 5*time.Minute),
+		ClientCacheClientTTL:   getEnvDuration("CLIENT_CACHE_CLIENT_TTL", 30*time.Second),
+		ClientCacheSizePerConn: getEnvInt("CLIENT_CACHE_SIZE_PER_CONN", 32), // 32MB default
 
 		// Token Cache settings
 		TokenCacheEnabled:     getEnvBool("TOKEN_CACHE_ENABLED", false),
@@ -595,6 +607,24 @@ func (c *Config) Validate() error {
 		return fmt.Errorf(
 			"CLIENT_COUNT_CACHE_TTL must be a positive duration (got %s)",
 			c.ClientCountCacheTTL,
+		)
+	}
+
+	// Client Cache validation
+	if err := validateCacheType("CLIENT_CACHE_TYPE", c.ClientCacheType, c.RedisAddr); err != nil {
+		return err
+	}
+	if c.ClientCacheTTL <= 0 {
+		return fmt.Errorf(
+			"CLIENT_CACHE_TTL must be a positive duration (got %s)",
+			c.ClientCacheTTL,
+		)
+	}
+	if c.ClientCacheType == CacheTypeRedisAside && c.ClientCacheClientTTL <= 0 {
+		return fmt.Errorf(
+			"CLIENT_CACHE_CLIENT_TTL must be a positive duration when CLIENT_CACHE_TYPE=%q (got %s)",
+			CacheTypeRedisAside,
+			c.ClientCacheClientTTL,
 		)
 	}
 

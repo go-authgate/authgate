@@ -20,6 +20,8 @@ func validBaseConfig() Config {
 		UserCacheTTL:         5 * time.Minute,
 		ClientCountCacheType: CacheTypeMemory,
 		ClientCountCacheTTL:  time.Minute,
+		ClientCacheType:      CacheTypeMemory,
+		ClientCacheTTL:       5 * time.Minute,
 	}
 }
 

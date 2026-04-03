@@ -55,6 +55,7 @@ func newCCTokenService(t *testing.T) (*TokenService, *store.Store) {
 	}
 	localProvider, err := token.NewLocalTokenProvider(cfg)
 	require.NoError(t, err)
+	clientService := NewClientService(s, nil, nil, 0, nil, 0)
 	svc := NewTokenService(
 		s,
 		cfg,
@@ -63,6 +64,7 @@ func newCCTokenService(t *testing.T) (*TokenService, *store.Store) {
 		nil,
 		metrics.NewNoopMetrics(),
 		cache.NewNoopCache[models.AccessToken](),
+		clientService,
 	)
 	return svc, s
 }

@@ -38,7 +38,7 @@ func (s *TokenService) ExchangeDeviceCode(
 	}
 
 	// Check if client is active
-	client, err := s.store.GetClient(clientID)
+	client, err := s.clientService.GetClient(clientID)
 	if err != nil {
 		s.metrics.RecordOAuthDeviceCodeValidation("invalid")
 		return nil, nil, ErrAccessDenied

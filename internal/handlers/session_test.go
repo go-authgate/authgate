@@ -40,10 +40,11 @@ func setupSessionServices(t *testing.T) (*store.Store, *services.TokenService) {
 	localProvider, err := token.NewLocalTokenProvider(cfg)
 	require.NoError(t, err)
 	auditSvc := services.NewAuditService(s, false, 0)
-	deviceSvc := services.NewDeviceService(s, cfg, auditSvc, metrics.NewNoopMetrics())
+	clientSvc := services.NewClientService(s, auditSvc, nil, 0, nil, 0)
+	deviceSvc := services.NewDeviceService(s, cfg, auditSvc, metrics.NewNoopMetrics(), clientSvc)
 	tokenSvc := services.NewTokenService(
 		s, cfg, deviceSvc, localProvider, auditSvc, metrics.NewNoopMetrics(),
-		cache.NewNoopCache[models.AccessToken](),
+		cache.NewNoopCache[models.AccessToken](), clientSvc,
 	)
 
 	return s, tokenSvc

@@ -29,10 +29,11 @@ var (
 )
 
 type DeviceService struct {
-	store        core.Store
-	config       *config.Config
-	auditService *AuditService
-	metrics      core.Recorder
+	store         core.Store
+	config        *config.Config
+	auditService  *AuditService
+	metrics       core.Recorder
+	clientService *ClientService
 }
 
 func NewDeviceService(
@@ -40,12 +41,14 @@ func NewDeviceService(
 	cfg *config.Config,
 	auditService *AuditService,
 	m core.Recorder,
+	clientService *ClientService,
 ) *DeviceService {
 	return &DeviceService{
-		store:        s,
-		config:       cfg,
-		auditService: auditService,
-		metrics:      m,
+		store:         s,
+		config:        cfg,
+		auditService:  auditService,
+		metrics:       m,
+		clientService: clientService,
 	}
 }
 
@@ -55,7 +58,7 @@ func (s *DeviceService) GenerateDeviceCode(
 	clientID, scope string,
 ) (*models.DeviceCode, error) {
 	// Validate client
-	client, err := s.store.GetClient(clientID)
+	client, err := s.clientService.GetClient(clientID)
 	if err != nil {
 		return nil, ErrInvalidClient
 	}
@@ -244,7 +247,7 @@ func (s *DeviceService) GetClientByUserCode(
 		return nil, nil, err
 	}
 
-	client, err := s.store.GetClient(dc.ClientID)
+	client, err := s.clientService.GetClient(dc.ClientID)
 	if err != nil {
 		return nil, nil, err
 	}

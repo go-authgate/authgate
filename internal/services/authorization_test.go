@@ -31,7 +31,7 @@ func createTestAuthorizationService(t *testing.T) *AuthorizationService {
 		PKCERequired:       false,
 		ConsentRemember:    true,
 	}
-	return NewAuthorizationService(s, cfg, nil, nil)
+	return NewAuthorizationService(s, cfg, nil, nil, NewClientService(s, nil, nil, 0, nil, 0))
 }
 
 // createAuthCodeFlowClient creates a test client with auth code flow enabled.
