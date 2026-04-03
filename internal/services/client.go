@@ -459,6 +459,8 @@ func (s *ClientService) ListClientsPaginatedWithCreator(
 // GetClient returns a cached OAuth client by client_id.
 // The returned copy has ClientSecret cleared for defense-in-depth.
 // Use GetClientWithSecret for flows that need secret verification.
+// On cache backend errors (e.g. Redis unavailable), falls back to direct DB lookup
+// so that valid OAuth flows are not rejected due to cache infrastructure issues.
 func (s *ClientService) GetClient(clientID string) (*models.OAuthApplication, error) {
 	client, err := s.clientCache.GetWithFetch(
 		context.Background(), clientID, s.clientCacheTTL,
@@ -476,9 +478,6 @@ func (s *ClientService) GetClient(clientID string) (*models.OAuthApplication, er
 	if err == nil {
 		return &client, nil
 	}
-	// Distinguish genuine "not found" from cache infrastructure errors.
-	// On cache backend failure, fall back to a direct store lookup so valid
-	// OAuth flows are not rejected due to Redis/rueidisaside outages.
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrClientNotFound
 	}
