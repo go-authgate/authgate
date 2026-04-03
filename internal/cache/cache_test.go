@@ -354,7 +354,10 @@ func TestMemoryCache_Reaper(t *testing.T) {
 		}
 		select {
 		case <-timer.C:
-			t.Fatalf("expected 1 item after reaper eviction and key2 to survive, got len=%d", c.Len())
+			t.Fatalf(
+				"expected 1 item after reaper eviction and key2 to survive, got len=%d",
+				c.Len(),
+			)
 		case <-ticker.C:
 		}
 	}
