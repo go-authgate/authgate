@@ -68,6 +68,9 @@ func NewUserService(
 	userCache core.Cache[models.User],
 	userCacheTTL time.Duration,
 ) *UserService {
+	if auditService == nil {
+		auditService = NewNoopAuditService()
+	}
 	return &UserService{
 		store:             s,
 		localProvider:     localProvider,

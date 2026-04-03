@@ -62,6 +62,9 @@ func NewTokenService(
 	m core.Recorder,
 	tokenCache core.Cache[models.AccessToken],
 ) *TokenService {
+	if auditService == nil {
+		auditService = NewNoopAuditService()
+	}
 	return &TokenService{
 		store:         s,
 		config:        cfg,

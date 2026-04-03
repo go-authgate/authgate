@@ -63,6 +63,9 @@ func NewAuthorizationService(
 	auditService core.AuditLogger,
 	tokenService *TokenService,
 ) *AuthorizationService {
+	if auditService == nil {
+		auditService = NewNoopAuditService()
+	}
 	return &AuthorizationService{
 		store:        s,
 		config:       cfg,

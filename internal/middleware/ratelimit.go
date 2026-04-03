@@ -47,6 +47,10 @@ type RateLimitConfig struct {
 
 // NewRateLimiter creates a new rate limiter with configurable store backend
 func NewRateLimiter(config RateLimitConfig) (gin.HandlerFunc, error) {
+	if config.AuditService == nil {
+		return nil, errors.New("AuditService is required in RateLimitConfig")
+	}
+
 	// Create rate from requests per minute
 	rate := limiter.Rate{
 		Period: 1 * time.Minute,
@@ -91,10 +95,14 @@ func NewRateLimiter(config RateLimitConfig) (gin.HandlerFunc, error) {
 		// Extract user info if available
 		var actorUserID, actorUsername string
 		if userID, exists := c.Get("user_id"); exists {
-			actorUserID = userID.(string)
+			if val, ok := userID.(string); ok {
+				actorUserID = val
+			}
 		}
 		if username, exists := c.Get("username"); exists {
-			actorUsername = username.(string)
+			if val, ok := username.(string); ok {
+				actorUsername = val
+			}
 		}
 
 		config.AuditService.Log(c.Request.Context(), core.AuditLogEntry{

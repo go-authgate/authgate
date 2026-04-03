@@ -101,6 +101,9 @@ func NewClientService(
 	countCache core.Cache[int64],
 	countCacheTTL time.Duration,
 ) *ClientService {
+	if auditService == nil {
+		auditService = NewNoopAuditService()
+	}
 	if countCache == nil {
 		countCache = cache.NewMemoryCache[int64]()
 	}
