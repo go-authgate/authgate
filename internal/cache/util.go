@@ -9,8 +9,10 @@ import (
 )
 
 // doWithSingleflight runs fn under singleflight deduplication.
-// The shared fetch runs in a context detached from all callers so neither
-// cancellation nor any individual caller's deadline can abort the shared work.
+// context.WithoutCancel strips both cancellation and deadline from the caller's
+// context so that no single caller's timeout or cancel can abort the shared
+// fetch for other waiters. The fetch duration is bounded by the underlying
+// resource (e.g., database driver timeouts and connection pool limits).
 func doWithSingleflight[T any](
 	ctx context.Context,
 	key string,
@@ -30,7 +32,12 @@ func doWithSingleflight[T any](
 			var zero T
 			return zero, res.Err
 		}
-		return res.Val.(T), nil
+		val, ok := res.Val.(T)
+		if !ok {
+			var zero T
+			return zero, fmt.Errorf("cache: singleflight returned unexpected type %T", res.Val)
+		}
+		return val, nil
 	}
 }
 
