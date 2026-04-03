@@ -15,6 +15,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// authzSuccessMessages maps success query parameter keys to user-facing messages.
+var authzSuccessMessages = map[string]string{
+	"revoked": "Application access has been revoked successfully.",
+}
+
+// authzErrorMessages maps error query parameter keys to user-facing messages.
+var authzErrorMessages = map[string]string{
+	"not_found":    "Authorization not found.",
+	"server_error": "An error occurred while processing your request. Please try again.",
+}
+
 // AuthorizationHandler manages the OAuth 2.0 Authorization Code Flow consent pages
 // and the user's authorized-applications management UI.
 type AuthorizationHandler struct {
@@ -269,8 +280,8 @@ func (h *AuthorizationHandler) ListAuthorizations(c *gin.Context) {
 			BaseProps:      templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
 			NavbarProps:    buildNavbarProps(c, userModel, "authorizations"),
 			Authorizations: displayAuths,
-			Success:        c.Query("success"),
-			Error:          c.Query("error"),
+			Success:        authzSuccessMessages[c.Query("success")],
+			Error:          authzErrorMessages[c.Query("error")],
 		}),
 	)
 }

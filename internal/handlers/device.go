@@ -178,7 +178,7 @@ func (h *DeviceHandler) DevicePage(c *gin.Context) {
 		Username:    user.Username,
 		UserCode:    userCode,
 		ClientName:  clientName,
-		Error:       c.Query("error"),
+		Error:       "",
 	}))
 }
 

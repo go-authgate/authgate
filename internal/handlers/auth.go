@@ -26,6 +26,12 @@ const (
 	SessionFingerprint  = middleware.SessionFingerprint
 )
 
+// loginErrorMessages maps error query parameter keys to user-facing messages.
+var loginErrorMessages = map[string]string{
+	"session_timeout": "Your session has expired due to inactivity. Please sign in again.",
+	"session_invalid": "Your session is invalid or may have been accessed from a different device. Please sign in again.",
+}
+
 // buildOAuthProviderList converts the OAuth providers map into template-friendly display objects.
 func buildOAuthProviderList(providers map[string]*auth.OAuthProvider) []templates.OAuthProvider {
 	result := make([]templates.OAuthProvider, 0, len(providers))
@@ -90,18 +96,7 @@ func (h *AuthHandler) LoginPageWithOAuth(
 		redirectTo = ""
 	}
 
-	// Prepare error message
-	errorMsg := ""
-	if errorParam := c.Query("error"); errorParam != "" {
-		switch errorParam {
-		case "session_timeout":
-			errorMsg = "Your session has expired due to inactivity. Please sign in again."
-		case "session_invalid":
-			errorMsg = "Your session is invalid or may have been accessed from a different device. Please sign in again."
-		default:
-			errorMsg = errorParam
-		}
-	}
+	errorMsg := loginErrorMessages[c.Query("error")]
 
 	templates.RenderTempl(c, http.StatusOK, templates.LoginPage(templates.LoginPageProps{
 		BaseProps:         templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
