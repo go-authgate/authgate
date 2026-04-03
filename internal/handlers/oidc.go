@@ -124,6 +124,7 @@ func (h *OIDCHandler) Discovery(c *gin.Context) {
 		meta.JwksURI = h.issuerURL + "/.well-known/jwks.json"
 	}
 
+	c.Header("Cache-Control", "public, max-age=3600")
 	c.JSON(http.StatusOK, meta)
 }
 
