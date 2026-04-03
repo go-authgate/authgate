@@ -84,16 +84,15 @@ func (r *RueidisCache[T]) GetWithFetch(
 	ttl time.Duration,
 	fetchFunc func(ctx context.Context, key string) (T, error),
 ) (T, error) {
-	// Fast path: return cached value if present
 	if value, err := r.Get(ctx, key); err == nil {
 		return value, nil
 	}
 
 	// Cache miss: use singleflight to deduplicate concurrent fetches.
-	// Use a non-canceling context for the shared work so one caller's
+	// Run shared work under a non-canceling context so one caller's
 	// cancellation does not fail all waiters for the same key.
-	sharedCtx := context.WithoutCancel(ctx)
 	resultCh := r.sf.DoChan(key, func() (any, error) {
+		sharedCtx := context.WithoutCancel(ctx)
 		// Re-check cache under singleflight (another goroutine may have populated it)
 		if value, err := r.Get(sharedCtx, key); err == nil {
 			return value, nil

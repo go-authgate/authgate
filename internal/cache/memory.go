@@ -124,17 +124,15 @@ func (m *MemoryCache[T]) GetWithFetch(
 	ttl time.Duration,
 	fetchFunc func(ctx context.Context, key string) (T, error),
 ) (T, error) {
-	// Fast path: return cached value if present
 	if value, err := m.Get(ctx, key); err == nil {
 		return value, nil
 	}
 
 	// Cache miss: use singleflight to deduplicate concurrent fetches.
-	// Run the shared work under a non-canceling context so one caller's
+	// Run shared work under a non-canceling context so one caller's
 	// cancellation does not abort the fetch for all other callers.
 	resultCh := m.sf.DoChan(key, func() (any, error) {
 		sharedCtx := context.WithoutCancel(ctx)
-
 		// Re-check cache under singleflight (another goroutine may have populated it)
 		if value, err := m.Get(sharedCtx, key); err == nil {
 			return value, nil
@@ -186,7 +184,7 @@ func (m *MemoryCache[T]) evictExpired() {
 	}
 }
 
-// Len returns the number of items in the cache (for testing).
+// Len returns the number of items currently in the cache.
 func (m *MemoryCache[T]) Len() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
