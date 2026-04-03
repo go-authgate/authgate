@@ -221,6 +221,13 @@ templ ClientFormCommonFields(props ClientFormFieldsProps) {
 	<!-- Scopes -->
 	<div class="admin-form-group">
 		<label for="scopeTextInput" class="admin-form-label">Scopes</label>
+		if props.ScopePresetsOnly {
+			<div class="admin-info-notice">
+				For security, user-registered apps may only request standard scopes
+				(<code>openid</code>, <code>email</code>, <code>profile</code>, <code>offline_access</code>).
+				Contact an administrator if your app requires custom scopes.
+			</div>
+		}
 		if props.Client != nil {
 			<input type="hidden" id="scopes" name="scopes" value={ props.Client.Scopes }/>
 		} else {
