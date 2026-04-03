@@ -31,7 +31,7 @@ var (
 type DeviceService struct {
 	store         core.Store
 	config        *config.Config
-	auditService  *AuditService
+	auditService  core.AuditLogger
 	metrics       core.Recorder
 	clientService *ClientService
 }
@@ -39,10 +39,13 @@ type DeviceService struct {
 func NewDeviceService(
 	s core.Store,
 	cfg *config.Config,
-	auditService *AuditService,
+	auditService core.AuditLogger,
 	m core.Recorder,
 	clientService *ClientService,
 ) *DeviceService {
+	if auditService == nil {
+		auditService = NewNoopAuditService()
+	}
 	return &DeviceService{
 		store:         s,
 		config:        cfg,
@@ -113,21 +116,19 @@ func (s *DeviceService) GenerateDeviceCode(
 	s.metrics.RecordOAuthDeviceCodeGenerated(true)
 
 	// Log device code generation
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventDeviceCodeGenerated,
-			Severity:     models.SeverityInfo,
-			ResourceType: models.ResourceDeviceCode,
-			ResourceID:   deviceCode.DeviceCodeID,
-			Action:       "Device code generated",
-			Details: models.AuditDetails{
-				"client_id": clientID,
-				"scopes":    scope,
-				"user_code": deviceCode.UserCode,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventDeviceCodeGenerated,
+		Severity:     models.SeverityInfo,
+		ResourceType: models.ResourceDeviceCode,
+		ResourceID:   deviceCode.DeviceCodeID,
+		Action:       "Device code generated",
+		Details: models.AuditDetails{
+			"client_id": clientID,
+			"scopes":    scope,
+			"user_code": deviceCode.UserCode,
+		},
+		Success: true,
+	})
 
 	return deviceCode, nil
 }
@@ -217,23 +218,21 @@ func (s *DeviceService) AuthorizeDeviceCode(
 	s.metrics.RecordOAuthDeviceCodeAuthorized(authDuration)
 
 	// Log device code authorization
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:     models.EventDeviceCodeAuthorized,
-			Severity:      models.SeverityInfo,
-			ActorUserID:   userID,
-			ActorUsername: username,
-			ResourceType:  models.ResourceDeviceCode,
-			ResourceID:    dc.DeviceCodeID,
-			Action:        "Device code authorized by user",
-			Details: models.AuditDetails{
-				"client_id": dc.ClientID,
-				"scopes":    dc.Scopes,
-				"user_code": dc.UserCode,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:     models.EventDeviceCodeAuthorized,
+		Severity:      models.SeverityInfo,
+		ActorUserID:   userID,
+		ActorUsername: username,
+		ResourceType:  models.ResourceDeviceCode,
+		ResourceID:    dc.DeviceCodeID,
+		Action:        "Device code authorized by user",
+		Details: models.AuditDetails{
+			"client_id": dc.ClientID,
+			"scopes":    dc.Scopes,
+			"user_code": dc.UserCode,
+		},
+		Success: true,
+	})
 
 	return nil
 }

@@ -20,8 +20,14 @@ import (
 
 func createTestTokenService(t *testing.T, s *store.Store, cfg *config.Config) *TokenService {
 	t.Helper()
-	clientService := NewClientService(s, nil, nil, 0, nil, 0)
-	deviceService := NewDeviceService(s, cfg, nil, metrics.NewNoopMetrics(), clientService)
+	clientService := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
+	deviceService := NewDeviceService(
+		s,
+		cfg,
+		NewNoopAuditService(),
+		metrics.NewNoopMetrics(),
+		clientService,
+	)
 	localProvider, err := token.NewLocalTokenProvider(cfg)
 	require.NoError(t, err)
 	return NewTokenService(
@@ -29,7 +35,7 @@ func createTestTokenService(t *testing.T, s *store.Store, cfg *config.Config) *T
 		cfg,
 		deviceService,
 		localProvider,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
 		cache.NewNoopCache[models.AccessToken](),
 		clientService,
@@ -44,9 +50,9 @@ func createAuthorizedDeviceCode(t *testing.T, s *store.Store, clientID string) *
 	deviceService := NewDeviceService(
 		s,
 		cfg,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
-		NewClientService(s, nil, nil, 0, nil, 0),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
 	)
 
 	// Generate device code
@@ -168,9 +174,9 @@ func TestExchangeDeviceCode_NotAuthorized(t *testing.T) {
 	deviceService := NewDeviceService(
 		s,
 		cfg,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
-		NewClientService(s, nil, nil, 0, nil, 0),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
 	)
 
 	// Create an active client and device code but don't authorize it
@@ -204,9 +210,9 @@ func TestExchangeDeviceCode_ExpiredCode(t *testing.T) {
 	deviceService := NewDeviceService(
 		s,
 		cfg,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
-		NewClientService(s, nil, nil, 0, nil, 0),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
 	)
 
 	// Create an active client and device code (it will be expired)
@@ -425,9 +431,9 @@ func TestGetUserTokens_Success(t *testing.T) {
 	deviceService := NewDeviceService(
 		s,
 		cfg,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
-		NewClientService(s, nil, nil, 0, nil, 0),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
 	)
 
 	// Create an active client
@@ -487,9 +493,9 @@ func TestRevokeAllUserTokens_Success(t *testing.T) {
 	deviceService := NewDeviceService(
 		s,
 		cfg,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
-		NewClientService(s, nil, nil, 0, nil, 0),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
 	)
 
 	// Create an active client
@@ -544,9 +550,9 @@ func TestGetUserTokensWithClient_Success(t *testing.T) {
 	deviceService := NewDeviceService(
 		s,
 		cfg,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
-		NewClientService(s, nil, nil, 0, nil, 0),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
 	)
 
 	// Create an active client
@@ -595,9 +601,9 @@ func TestGetUserTokensWithClient_MultipleClients(t *testing.T) {
 	deviceService := NewDeviceService(
 		s,
 		cfg,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
-		NewClientService(s, nil, nil, 0, nil, 0),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
 	)
 
 	// Create two different clients

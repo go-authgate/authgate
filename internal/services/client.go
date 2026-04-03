@@ -98,7 +98,7 @@ func validateRedirectURIs(uris []string) error {
 
 type ClientService struct {
 	store          core.Store
-	auditService   *AuditService
+	auditService   core.AuditLogger
 	countCache     core.Cache[int64]
 	countCacheTTL  time.Duration
 	clientCache    core.Cache[models.OAuthApplication]
@@ -107,12 +107,15 @@ type ClientService struct {
 
 func NewClientService(
 	s core.Store,
-	auditService *AuditService,
+	auditService core.AuditLogger,
 	countCache core.Cache[int64],
 	countCacheTTL time.Duration,
 	clientCache core.Cache[models.OAuthApplication],
 	clientCacheTTL time.Duration,
 ) *ClientService {
+	if auditService == nil {
+		auditService = NewNoopAuditService()
+	}
 	if countCache == nil {
 		countCache = cache.NewMemoryCache[int64]()
 	}
@@ -256,23 +259,21 @@ func (s *ClientService) CreateClient(
 	}
 
 	// Log client creation
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventClientCreated,
-			Severity:     models.SeverityInfo,
-			ActorUserID:  req.CreatedBy,
-			ResourceType: models.ResourceClient,
-			ResourceID:   clientID,
-			ResourceName: client.ClientName,
-			Action:       "OAuth client created",
-			Details: models.AuditDetails{
-				"client_name": client.ClientName,
-				"grant_types": client.GrantTypes,
-				"scopes":      client.Scopes,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventClientCreated,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  req.CreatedBy,
+		ResourceType: models.ResourceClient,
+		ResourceID:   clientID,
+		ResourceName: client.ClientName,
+		Action:       "OAuth client created",
+		Details: models.AuditDetails{
+			"client_name": client.ClientName,
+			"grant_types": client.GrantTypes,
+			"scopes":      client.Scopes,
+		},
+		Success: true,
+	})
 
 	return &ClientResponse{
 		OAuthApplication:  client,
@@ -353,24 +354,22 @@ func (s *ClientService) UpdateClient(
 	}
 
 	// Log client update
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventClientUpdated,
-			Severity:     models.SeverityInfo,
-			ActorUserID:  actorUserID,
-			ResourceType: models.ResourceClient,
-			ResourceID:   clientID,
-			ResourceName: client.ClientName,
-			Action:       "OAuth client updated",
-			Details: models.AuditDetails{
-				"client_name": client.ClientName,
-				"status":      client.Status,
-				"grant_types": client.GrantTypes,
-				"scopes":      client.Scopes,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventClientUpdated,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  actorUserID,
+		ResourceType: models.ResourceClient,
+		ResourceID:   clientID,
+		ResourceName: client.ClientName,
+		Action:       "OAuth client updated",
+		Details: models.AuditDetails{
+			"client_name": client.ClientName,
+			"status":      client.Status,
+			"grant_types": client.GrantTypes,
+			"scopes":      client.Scopes,
+		},
+		Success: true,
+	})
 
 	return nil
 }
@@ -396,21 +395,19 @@ func (s *ClientService) DeleteClient(ctx context.Context, clientID, actorUserID 
 	}
 
 	// Log client deletion
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventClientDeleted,
-			Severity:     models.SeverityWarning,
-			ActorUserID:  actorUserID,
-			ResourceType: models.ResourceClient,
-			ResourceID:   clientID,
-			ResourceName: client.ClientName,
-			Action:       "OAuth client deleted",
-			Details: models.AuditDetails{
-				"client_name": client.ClientName,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventClientDeleted,
+		Severity:     models.SeverityWarning,
+		ActorUserID:  actorUserID,
+		ResourceType: models.ResourceClient,
+		ResourceID:   clientID,
+		ResourceName: client.ClientName,
+		Action:       "OAuth client deleted",
+		Details: models.AuditDetails{
+			"client_name": client.ClientName,
+		},
+		Success: true,
+	})
 
 	return nil
 }
@@ -561,21 +558,19 @@ func (s *ClientService) RegenerateSecret(
 	s.invalidateClientCache(ctx, clientID)
 
 	// Log secret regeneration
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventClientSecretRegenerated,
-			Severity:     models.SeverityWarning,
-			ActorUserID:  actorUserID,
-			ResourceType: models.ResourceClient,
-			ResourceID:   clientID,
-			ResourceName: client.ClientName,
-			Action:       "OAuth client secret regenerated",
-			Details: models.AuditDetails{
-				"client_name": client.ClientName,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventClientSecretRegenerated,
+		Severity:     models.SeverityWarning,
+		ActorUserID:  actorUserID,
+		ResourceType: models.ResourceClient,
+		ResourceID:   clientID,
+		ResourceName: client.ClientName,
+		Action:       "OAuth client secret regenerated",
+		Details: models.AuditDetails{
+			"client_name": client.ClientName,
+		},
+		Success: true,
+	})
 
 	return newSecret, nil
 }
@@ -629,21 +624,19 @@ func (s *ClientService) ApproveClient(
 	s.invalidateClientCache(ctx, clientID)
 	s.invalidatePendingCount(ctx)
 
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventClientApproved,
-			Severity:     models.SeverityInfo,
-			ActorUserID:  adminUserID,
-			ResourceType: models.ResourceClient,
-			ResourceID:   clientID,
-			ResourceName: client.ClientName,
-			Action:       "OAuth client approved",
-			Details: models.AuditDetails{
-				"client_name": client.ClientName,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventClientApproved,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  adminUserID,
+		ResourceType: models.ResourceClient,
+		ResourceID:   clientID,
+		ResourceName: client.ClientName,
+		Action:       "OAuth client approved",
+		Details: models.AuditDetails{
+			"client_name": client.ClientName,
+		},
+		Success: true,
+	})
 
 	return nil
 }
@@ -675,21 +668,19 @@ func (s *ClientService) RejectClient(
 	s.invalidateClientCache(ctx, clientID)
 	s.invalidatePendingCount(ctx)
 
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventClientRejected,
-			Severity:     models.SeverityInfo,
-			ActorUserID:  adminUserID,
-			ResourceType: models.ResourceClient,
-			ResourceID:   clientID,
-			ResourceName: client.ClientName,
-			Action:       "OAuth client rejected",
-			Details: models.AuditDetails{
-				"client_name": client.ClientName,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventClientRejected,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  adminUserID,
+		ResourceType: models.ResourceClient,
+		ResourceID:   clientID,
+		ResourceName: client.ClientName,
+		Action:       "OAuth client rejected",
+		Details: models.AuditDetails{
+			"client_name": client.ClientName,
+		},
+		Success: true,
+	})
 
 	return nil
 }

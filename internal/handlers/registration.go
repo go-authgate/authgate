@@ -17,14 +17,14 @@ import (
 // RegistrationHandler handles Dynamic Client Registration (RFC 7591).
 type RegistrationHandler struct {
 	clientService *services.ClientService
-	auditService  *services.AuditService
+	auditService  core.AuditLogger
 	config        *config.Config
 }
 
 // NewRegistrationHandler creates a new RegistrationHandler.
 func NewRegistrationHandler(
 	cs *services.ClientService,
-	auditSvc *services.AuditService,
+	auditSvc core.AuditLogger,
 	cfg *config.Config,
 ) *RegistrationHandler {
 	return &RegistrationHandler{
@@ -197,26 +197,24 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 
 	// 9. Log dynamic registration audit event
 	app := resp.OAuthApplication
-	if h.auditService != nil {
-		h.auditService.Log(c.Request.Context(), services.AuditLogEntry{
-			EventType:    models.EventClientRegistered,
-			Severity:     models.SeverityInfo,
-			ResourceType: models.ResourceClient,
-			ResourceID:   app.ClientID,
-			ResourceName: app.ClientName,
-			Action:       "OAuth client registered via dynamic registration (RFC 7591)",
-			Details: models.AuditDetails{
-				"client_name":   app.ClientName,
-				"grant_types":   app.GrantTypes,
-				"scopes":        app.Scopes,
-				"client_type":   app.ClientType,
-				"client_uri":    req.ClientURI,
-				"redirect_uris": app.RedirectURIs,
-				"source_ip":     c.ClientIP(),
-			},
-			Success: true,
-		})
-	}
+	h.auditService.Log(c.Request.Context(), core.AuditLogEntry{
+		EventType:    models.EventClientRegistered,
+		Severity:     models.SeverityInfo,
+		ResourceType: models.ResourceClient,
+		ResourceID:   app.ClientID,
+		ResourceName: app.ClientName,
+		Action:       "OAuth client registered via dynamic registration (RFC 7591)",
+		Details: models.AuditDetails{
+			"client_name":   app.ClientName,
+			"grant_types":   app.GrantTypes,
+			"scopes":        app.Scopes,
+			"client_type":   app.ClientType,
+			"client_uri":    req.ClientURI,
+			"redirect_uris": app.RedirectURIs,
+			"source_ip":     c.ClientIP(),
+		},
+		Success: true,
+	})
 
 	// 10. Build RFC 7591 §3.2.1 response
 	grantTypes := buildResponseGrantTypes(app)

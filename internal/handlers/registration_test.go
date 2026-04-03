@@ -45,7 +45,7 @@ func setupRegistrationTestEnvWithOpts(t *testing.T, opts registrationTestOpts) *
 	s, err := store.New(context.Background(), "sqlite", ":memory:", &config.Config{})
 	require.NoError(t, err)
 
-	auditSvc := services.NewAuditService(s, false, 0)
+	auditSvc := services.NewNoopAuditService()
 	clientSvc := services.NewClientService(s, auditSvc, nil, 0, nil, 0)
 	handler := NewRegistrationHandler(clientSvc, auditSvc, cfg)
 

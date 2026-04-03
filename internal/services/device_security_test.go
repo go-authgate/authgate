@@ -28,9 +28,9 @@ func setupTestService(t *testing.T) (*DeviceService, *models.OAuthApplication) {
 	service := NewDeviceService(
 		st,
 		cfg,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
-		NewClientService(st, nil, nil, 0, nil, 0),
+		NewClientService(st, NewNoopAuditService(), nil, 0, nil, 0),
 	)
 
 	// Create test client

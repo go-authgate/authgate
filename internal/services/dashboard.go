@@ -18,13 +18,16 @@ type DashboardStats struct {
 
 type DashboardService struct {
 	store        core.Store
-	auditService *AuditService
+	auditService core.AuditLogger
 }
 
 func NewDashboardService(
 	s core.Store,
-	auditService *AuditService,
+	auditService core.AuditLogger,
 ) *DashboardService {
+	if auditService == nil {
+		auditService = NewNoopAuditService()
+	}
 	return &DashboardService{
 		store:        s,
 		auditService: auditService,

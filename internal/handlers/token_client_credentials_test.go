@@ -44,7 +44,7 @@ func setupCCTestEnv(t *testing.T) (*gin.Engine, *store.Store) {
 
 	localProvider, err := token.NewLocalTokenProvider(cfg)
 	require.NoError(t, err)
-	auditSvc := services.NewAuditService(s, false, 0)
+	auditSvc := services.NewNoopAuditService()
 	clientSvc := services.NewClientService(s, auditSvc, nil, 0, nil, 0)
 	deviceSvc := services.NewDeviceService(s, cfg, auditSvc, metrics.NewNoopMetrics(), clientSvc)
 	tokenSvc := services.NewTokenService(

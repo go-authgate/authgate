@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
-	"github.com/go-authgate/authgate/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -42,11 +42,15 @@ type RateLimitConfig struct {
 	RedisClient *redis.Client // Required for Redis store: shared go-redis client
 
 	// Audit settings
-	AuditService *services.AuditService // Optional: audit service for logging rate limit events
+	AuditService core.AuditLogger // Required: audit service for logging rate limit events
 }
 
 // NewRateLimiter creates a new rate limiter with configurable store backend
 func NewRateLimiter(config RateLimitConfig) (gin.HandlerFunc, error) {
+	if config.AuditService == nil {
+		return nil, errors.New("AuditService is required in RateLimitConfig")
+	}
+
 	// Create rate from requests per minute
 	rate := limiter.Rate{
 		Period: 1 * time.Minute,
@@ -88,33 +92,35 @@ func NewRateLimiter(config RateLimitConfig) (gin.HandlerFunc, error) {
 	// Create Gin middleware with custom limit reached handler
 	middleware := mgin.NewMiddleware(instance, mgin.WithLimitReachedHandler(func(c *gin.Context) {
 		// Log rate limit exceeded event
-		if config.AuditService != nil {
-			// Extract user info if available
-			var actorUserID, actorUsername string
-			if userID, exists := c.Get("user_id"); exists {
-				actorUserID = userID.(string)
+		// Extract user info if available
+		var actorUserID, actorUsername string
+		if userID, exists := c.Get("user_id"); exists {
+			if val, ok := userID.(string); ok {
+				actorUserID = val
 			}
-			if username, exists := c.Get("username"); exists {
-				actorUsername = username.(string)
-			}
-
-			config.AuditService.Log(c.Request.Context(), services.AuditLogEntry{
-				EventType:     models.EventRateLimitExceeded,
-				Severity:      models.SeverityWarning,
-				ActorUserID:   actorUserID,
-				ActorUsername: actorUsername,
-				Action:        "Rate limit exceeded",
-				Details: models.AuditDetails{
-					"endpoint":            c.Request.URL.Path,
-					"requests_per_minute": config.RequestsPerMinute,
-				},
-				Success:       false,
-				ErrorMessage:  "Too many requests",
-				RequestPath:   c.Request.URL.Path,
-				RequestMethod: c.Request.Method,
-				UserAgent:     c.Request.UserAgent(),
-			})
 		}
+		if username, exists := c.Get("username"); exists {
+			if val, ok := username.(string); ok {
+				actorUsername = val
+			}
+		}
+
+		config.AuditService.Log(c.Request.Context(), core.AuditLogEntry{
+			EventType:     models.EventRateLimitExceeded,
+			Severity:      models.SeverityWarning,
+			ActorUserID:   actorUserID,
+			ActorUsername: actorUsername,
+			Action:        "Rate limit exceeded",
+			Details: models.AuditDetails{
+				"endpoint":            c.Request.URL.Path,
+				"requests_per_minute": config.RequestsPerMinute,
+			},
+			Success:       false,
+			ErrorMessage:  "Too many requests",
+			RequestPath:   c.Request.URL.Path,
+			RequestMethod: c.Request.Method,
+			UserAgent:     c.Request.UserAgent(),
+		})
 
 		// Check if the request accepts HTML (browser request)
 		acceptHeader := c.GetHeader("Accept")

@@ -146,6 +146,7 @@ func TestDiscovery_ReturnsCorrectMetadata(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "public, max-age=3600", w.Header().Get("Cache-Control"))
 
 	var meta map[string]any
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &meta))

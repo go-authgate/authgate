@@ -15,8 +15,7 @@ import (
 func TestDashboardService_GetDashboardStats(t *testing.T) {
 	db := setupTestStore(t)
 
-	auditService := NewAuditService(db, true, 1000)
-	t.Cleanup(func() { auditService.Shutdown(context.Background()) })
+	auditService := NewNoopAuditService()
 
 	dashboardService := NewDashboardService(db, auditService)
 

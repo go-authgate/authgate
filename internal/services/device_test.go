@@ -61,9 +61,9 @@ func TestGenerateDeviceCode_ActiveClient(t *testing.T) {
 	deviceService := NewDeviceService(
 		s,
 		cfg,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
-		NewClientService(s, nil, nil, 0, nil, 0),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
 	)
 
 	// Create an active client
@@ -91,9 +91,9 @@ func TestGenerateDeviceCode_InactiveClient(t *testing.T) {
 	deviceService := NewDeviceService(
 		s,
 		cfg,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
-		NewClientService(s, nil, nil, 0, nil, 0),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
 	)
 
 	// Create an inactive client
@@ -122,9 +122,9 @@ func TestGenerateDeviceCode_InvalidClient(t *testing.T) {
 	deviceService := NewDeviceService(
 		s,
 		cfg,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
-		NewClientService(s, nil, nil, 0, nil, 0),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
 	)
 
 	// Try to generate device code with non-existent client
@@ -149,9 +149,9 @@ func TestGenerateDeviceCode_DeviceFlowDisabled(t *testing.T) {
 	deviceService := NewDeviceService(
 		s,
 		cfg,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
-		NewClientService(s, nil, nil, 0, nil, 0),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
 	)
 
 	// Create a client first (with default values)
@@ -200,9 +200,9 @@ func TestAuthorizeDeviceCode_Success(t *testing.T) {
 	deviceService := NewDeviceService(
 		s,
 		cfg,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
-		NewClientService(s, nil, nil, 0, nil, 0),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
 	)
 
 	// Create an active client and device code
@@ -234,9 +234,9 @@ func TestAuthorizeDeviceCode_InvalidUserCode(t *testing.T) {
 	deviceService := NewDeviceService(
 		s,
 		cfg,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
-		NewClientService(s, nil, nil, 0, nil, 0),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
 	)
 
 	// Try to authorize with invalid user code
@@ -261,9 +261,9 @@ func TestGetClientByUserCode_Success(t *testing.T) {
 	deviceService := NewDeviceService(
 		s,
 		cfg,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
-		NewClientService(s, nil, nil, 0, nil, 0),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
 	)
 
 	// Create an active client and device code
@@ -291,9 +291,9 @@ func TestUserCodeNormalization(t *testing.T) {
 	deviceService := NewDeviceService(
 		s,
 		cfg,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
-		NewClientService(s, nil, nil, 0, nil, 0),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
 	)
 
 	// Create an active client and device code

@@ -15,7 +15,6 @@ import (
 	"github.com/go-authgate/authgate/internal/handlers"
 	"github.com/go-authgate/authgate/internal/metrics"
 	"github.com/go-authgate/authgate/internal/middleware"
-	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/store"
 
 	"github.com/gin-contrib/sessions"
@@ -33,7 +32,7 @@ func setupRouter(
 	db *store.Store,
 	h handlerSet,
 	prometheusMetrics core.Recorder,
-	auditService *services.AuditService,
+	auditService core.AuditLogger,
 	rateLimitRedisClient *redis.Client,
 	templatesFS embed.FS,
 	oauthProviders map[string]*auth.OAuthProvider,

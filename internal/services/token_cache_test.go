@@ -41,14 +41,20 @@ func newCachedTokenServiceWithConfig(
 	memCache := cache.NewMemoryCache[models.AccessToken]()
 	localProvider, err := token.NewLocalTokenProvider(cfg)
 	require.NoError(t, err)
-	clientService := NewClientService(s, nil, nil, 0, nil, 0)
-	deviceService := NewDeviceService(s, cfg, nil, metrics.NewNoopMetrics(), clientService)
+	clientService := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
+	deviceService := NewDeviceService(
+		s,
+		cfg,
+		NewNoopAuditService(),
+		metrics.NewNoopMetrics(),
+		clientService,
+	)
 	svc := NewTokenService(
 		s,
 		cfg,
 		deviceService,
 		localProvider,
-		nil,
+		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
 		memCache,
 		clientService,
@@ -180,10 +186,16 @@ func TestValidateToken_NoopCache(t *testing.T) {
 	}
 	localProvider, err := token.NewLocalTokenProvider(cfg)
 	require.NoError(t, err)
-	clientService := NewClientService(s, nil, nil, 0, nil, 0)
-	deviceService := NewDeviceService(s, cfg, nil, metrics.NewNoopMetrics(), clientService)
+	clientService := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
+	deviceService := NewDeviceService(
+		s,
+		cfg,
+		NewNoopAuditService(),
+		metrics.NewNoopMetrics(),
+		clientService,
+	)
 	svc := NewTokenService(
-		s, cfg, deviceService, localProvider, nil, metrics.NewNoopMetrics(),
+		s, cfg, deviceService, localProvider, NewNoopAuditService(), metrics.NewNoopMetrics(),
 		cache.NewNoopCache[models.AccessToken](), clientService,
 	)
 

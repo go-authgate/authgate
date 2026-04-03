@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -139,7 +140,7 @@ func TestSetupRateLimitingMemory(t *testing.T) {
 		TokenRateLimit:        20,
 		DeviceVerifyRateLimit: 10,
 	}
-	limiters := setupRateLimiting(cfg, nil, nil)
+	limiters := setupRateLimiting(cfg, services.NewNoopAuditService(), nil)
 	require.NotNil(t, limiters.login)
 	require.NotNil(t, limiters.deviceCode)
 	require.NotNil(t, limiters.token)

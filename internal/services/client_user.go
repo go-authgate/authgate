@@ -106,23 +106,21 @@ func (s *ClientService) UserUpdateClient(
 
 	s.invalidateClientCache(ctx, clientID)
 
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventClientUpdated,
-			Severity:     models.SeverityInfo,
-			ActorUserID:  actorUserID,
-			ResourceType: models.ResourceClient,
-			ResourceID:   clientID,
-			ResourceName: client.ClientName,
-			Action:       "OAuth client updated by owner",
-			Details: models.AuditDetails{
-				"client_name": client.ClientName,
-				"grant_types": client.GrantTypes,
-				"scopes":      client.Scopes,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventClientUpdated,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  actorUserID,
+		ResourceType: models.ResourceClient,
+		ResourceID:   clientID,
+		ResourceName: client.ClientName,
+		Action:       "OAuth client updated by owner",
+		Details: models.AuditDetails{
+			"client_name": client.ClientName,
+			"grant_types": client.GrantTypes,
+			"scopes":      client.Scopes,
+		},
+		Success: true,
+	})
 
 	return nil
 }
@@ -158,21 +156,19 @@ func (s *ClientService) UserDeleteClient(
 		s.invalidatePendingCount(ctx)
 	}
 
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventClientDeleted,
-			Severity:     models.SeverityWarning,
-			ActorUserID:  actorUserID,
-			ResourceType: models.ResourceClient,
-			ResourceID:   clientID,
-			ResourceName: client.ClientName,
-			Action:       "OAuth client deleted by owner",
-			Details: models.AuditDetails{
-				"client_name": client.ClientName,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventClientDeleted,
+		Severity:     models.SeverityWarning,
+		ActorUserID:  actorUserID,
+		ResourceType: models.ResourceClient,
+		ResourceID:   clientID,
+		ResourceName: client.ClientName,
+		Action:       "OAuth client deleted by owner",
+		Details: models.AuditDetails{
+			"client_name": client.ClientName,
+		},
+		Success: true,
+	})
 
 	return nil
 }

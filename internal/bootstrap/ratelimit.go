@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/middleware"
-	"github.com/go-authgate/authgate/internal/services"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -24,7 +24,7 @@ type rateLimitMiddlewares struct {
 // Accepts an optional go-redis client
 func setupRateLimiting(
 	cfg *config.Config,
-	auditService *services.AuditService,
+	auditService core.AuditLogger,
 	redisClient *redis.Client,
 ) rateLimitMiddlewares {
 	// Return no-op middlewares when rate limiting is disabled
@@ -50,7 +50,7 @@ func setupRateLimiting(
 // Accepts an optional go-redis client
 func createRateLimiters(
 	cfg *config.Config,
-	auditService *services.AuditService,
+	auditService core.AuditLogger,
 	redisClient *redis.Client,
 ) rateLimitMiddlewares {
 	log.Printf("Rate limiting enabled (store: %s)", cfg.RateLimitStore)

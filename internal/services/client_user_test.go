@@ -19,7 +19,7 @@ import (
 
 func TestCreateClient_CCFlowConfidentialSuccess(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
@@ -37,7 +37,7 @@ func TestCreateClient_CCFlowConfidentialSuccess(t *testing.T) {
 
 func TestCreateClient_CCFlowPublicRejected(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	_, err := svc.CreateClient(context.Background(), CreateClientRequest{
@@ -57,7 +57,7 @@ func TestCreateClient_CCFlowPublicRejected(t *testing.T) {
 
 func TestCreateClient_AdminCreated_IsActive(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
@@ -73,7 +73,7 @@ func TestCreateClient_AdminCreated_IsActive(t *testing.T) {
 
 func TestCreateClient_UserCreated_IsPendingAndInactive(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
@@ -93,7 +93,7 @@ func TestCreateClient_UserCreated_IsPendingAndInactive(t *testing.T) {
 
 func TestUserUpdateClient_OwnershipEnforced(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	ownerID := uuid.New().String()
 	otherID := uuid.New().String()
 
@@ -119,7 +119,7 @@ func TestUserUpdateClient_OwnershipEnforced(t *testing.T) {
 
 func TestUserUpdateClient_OwnerCanUpdate(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	ownerID := uuid.New().String()
 
 	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
@@ -153,7 +153,7 @@ func TestUserUpdateClient_OwnerCanUpdate(t *testing.T) {
 
 func TestUserUpdateClient_InvalidScopeRejected(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	ownerID := uuid.New().String()
 
 	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
@@ -179,7 +179,7 @@ func TestUserUpdateClient_InvalidScopeRejected(t *testing.T) {
 
 func TestUserUpdateClient_AllowedScopesAccepted(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	ownerID := uuid.New().String()
 
 	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
@@ -209,7 +209,7 @@ func TestUserUpdateClient_AllowedScopesAccepted(t *testing.T) {
 
 func TestUserUpdateClient_CCFlowConfidentialClient(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	ownerID := uuid.New().String()
 
 	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
@@ -242,7 +242,7 @@ func TestUserUpdateClient_CCFlowConfidentialClient(t *testing.T) {
 
 func TestUserUpdateClient_CCFlowPublicClientRejected(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	ownerID := uuid.New().String()
 
 	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
@@ -270,7 +270,7 @@ func TestUserUpdateClient_CCFlowPublicClientRejected(t *testing.T) {
 
 func TestUserUpdateClient_CCOnlyConfidentialClient(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	ownerID := uuid.New().String()
 
 	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
@@ -312,7 +312,7 @@ func TestUserUpdateClient_CCOnlyConfidentialClient(t *testing.T) {
 
 func TestUserDeleteClient_OwnershipEnforced(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	ownerID := uuid.New().String()
 	otherID := uuid.New().String()
 
@@ -330,7 +330,7 @@ func TestUserDeleteClient_OwnershipEnforced(t *testing.T) {
 
 func TestUserDeleteClient_ActiveClientBlocked(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	ownerID := uuid.New().String()
 	adminID := uuid.New().String()
 
@@ -351,7 +351,7 @@ func TestUserDeleteClient_ActiveClientBlocked(t *testing.T) {
 
 func TestUserDeleteClient_PendingClientAllowed(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	ownerID := uuid.New().String()
 
 	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
@@ -373,7 +373,7 @@ func TestUserDeleteClient_PendingClientAllowed(t *testing.T) {
 
 func TestApproveClient_SetsActiveStatus(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	ownerID := uuid.New().String()
 	adminID := uuid.New().String()
 
@@ -397,7 +397,7 @@ func TestApproveClient_SetsActiveStatus(t *testing.T) {
 
 func TestRejectClient_SetsInactiveStatus(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	ownerID := uuid.New().String()
 	adminID := uuid.New().String()
 
@@ -423,7 +423,7 @@ func TestRejectClient_SetsInactiveStatus(t *testing.T) {
 
 func TestCountPendingClients(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	ownerID := uuid.New().String()
 	adminID := uuid.New().String()
 
@@ -465,7 +465,7 @@ func TestCountPendingClients(t *testing.T) {
 func TestCountPendingClients_CacheInvalidation(t *testing.T) {
 	s := setupTestStore(t)
 	ctx := context.Background()
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	ownerID := uuid.New().String()
 	adminID := uuid.New().String()
 
@@ -501,7 +501,7 @@ func TestCountPendingClients_CacheInvalidation(t *testing.T) {
 
 func TestListClientsByUser(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	user1ID := uuid.New().String()
 	user2ID := uuid.New().String()
 

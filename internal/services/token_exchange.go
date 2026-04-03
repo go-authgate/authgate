@@ -78,39 +78,37 @@ func (s *TokenService) ExchangeDeviceCode(
 	_ = s.store.DeleteDeviceCodeByID(dc.ID)
 
 	// Log token issuance
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventAccessTokenIssued,
-			Severity:     models.SeverityInfo,
-			ActorUserID:  accessToken.UserID,
-			ResourceType: models.ResourceToken,
-			ResourceID:   accessToken.ID,
-			Action:       "Access token issued via device code exchange",
-			Details: models.AuditDetails{
-				"client_id":        accessToken.ClientID,
-				"scopes":           accessToken.Scopes,
-				"token_provider":   providerName,
-				"refresh_token_id": refreshToken.ID,
-			},
-			Success: true,
-		})
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventAccessTokenIssued,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  accessToken.UserID,
+		ResourceType: models.ResourceToken,
+		ResourceID:   accessToken.ID,
+		Action:       "Access token issued via device code exchange",
+		Details: models.AuditDetails{
+			"client_id":        accessToken.ClientID,
+			"scopes":           accessToken.Scopes,
+			"token_provider":   providerName,
+			"refresh_token_id": refreshToken.ID,
+		},
+		Success: true,
+	})
 
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventRefreshTokenIssued,
-			Severity:     models.SeverityInfo,
-			ActorUserID:  refreshToken.UserID,
-			ResourceType: models.ResourceToken,
-			ResourceID:   refreshToken.ID,
-			Action:       "Refresh token issued via device code exchange",
-			Details: models.AuditDetails{
-				"client_id":       refreshToken.ClientID,
-				"scopes":          refreshToken.Scopes,
-				"token_provider":  providerName,
-				"access_token_id": accessToken.ID,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventRefreshTokenIssued,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  refreshToken.UserID,
+		ResourceType: models.ResourceToken,
+		ResourceID:   refreshToken.ID,
+		Action:       "Refresh token issued via device code exchange",
+		Details: models.AuditDetails{
+			"client_id":       refreshToken.ClientID,
+			"scopes":          refreshToken.Scopes,
+			"token_provider":  providerName,
+			"access_token_id": accessToken.ID,
+		},
+		Success: true,
+	})
 
 	return accessToken, refreshToken, nil
 }
@@ -178,23 +176,21 @@ func (s *TokenService) ExchangeAuthorizationCode(
 
 			if generated, err := idp.GenerateIDToken(params); err == nil {
 				idToken = generated
-				if s.auditService != nil {
-					s.auditService.Log(ctx, AuditLogEntry{
-						EventType:    models.EventIDTokenIssued,
-						Severity:     models.SeverityInfo,
-						ActorUserID:  authCode.UserID,
-						ResourceType: models.ResourceToken,
-						ResourceID:   accessToken.ID,
-						Action:       "ID token issued via authorization code exchange",
-						Details: models.AuditDetails{
-							"client_id":       authCode.ClientID,
-							"scopes":          authCode.Scopes,
-							"token_provider":  providerName,
-							"access_token_id": accessToken.ID,
-						},
-						Success: true,
-					})
-				}
+				s.auditService.Log(ctx, core.AuditLogEntry{
+					EventType:    models.EventIDTokenIssued,
+					Severity:     models.SeverityInfo,
+					ActorUserID:  authCode.UserID,
+					ResourceType: models.ResourceToken,
+					ResourceID:   accessToken.ID,
+					Action:       "ID token issued via authorization code exchange",
+					Details: models.AuditDetails{
+						"client_id":       authCode.ClientID,
+						"scopes":          authCode.Scopes,
+						"token_provider":  providerName,
+						"access_token_id": accessToken.ID,
+					},
+					Success: true,
+				})
 			} else {
 				log.Printf("[Token] ID token generation failed: %v", err)
 			}
@@ -207,38 +203,36 @@ func (s *TokenService) ExchangeAuthorizationCode(
 	s.metrics.RecordTokenIssued("refresh", "authorization_code", duration, providerName)
 
 	// Audit
-	if s.auditService != nil {
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventAccessTokenIssued,
-			Severity:     models.SeverityInfo,
-			ActorUserID:  accessToken.UserID,
-			ResourceType: models.ResourceToken,
-			ResourceID:   accessToken.ID,
-			Action:       "Access token issued via authorization code exchange",
-			Details: models.AuditDetails{
-				"client_id":        accessToken.ClientID,
-				"scopes":           accessToken.Scopes,
-				"token_provider":   providerName,
-				"refresh_token_id": refreshToken.ID,
-			},
-			Success: true,
-		})
-		s.auditService.Log(ctx, AuditLogEntry{
-			EventType:    models.EventRefreshTokenIssued,
-			Severity:     models.SeverityInfo,
-			ActorUserID:  refreshToken.UserID,
-			ResourceType: models.ResourceToken,
-			ResourceID:   refreshToken.ID,
-			Action:       "Refresh token issued via authorization code exchange",
-			Details: models.AuditDetails{
-				"client_id":       refreshToken.ClientID,
-				"scopes":          refreshToken.Scopes,
-				"token_provider":  providerName,
-				"access_token_id": accessToken.ID,
-			},
-			Success: true,
-		})
-	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventAccessTokenIssued,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  accessToken.UserID,
+		ResourceType: models.ResourceToken,
+		ResourceID:   accessToken.ID,
+		Action:       "Access token issued via authorization code exchange",
+		Details: models.AuditDetails{
+			"client_id":        accessToken.ClientID,
+			"scopes":           accessToken.Scopes,
+			"token_provider":   providerName,
+			"refresh_token_id": refreshToken.ID,
+		},
+		Success: true,
+	})
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventRefreshTokenIssued,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  refreshToken.UserID,
+		ResourceType: models.ResourceToken,
+		ResourceID:   refreshToken.ID,
+		Action:       "Refresh token issued via authorization code exchange",
+		Details: models.AuditDetails{
+			"client_id":       refreshToken.ClientID,
+			"scopes":          refreshToken.Scopes,
+			"token_provider":  providerName,
+			"access_token_id": accessToken.ID,
+		},
+		Success: true,
+	})
 
 	return accessToken, refreshToken, idToken, nil
 }

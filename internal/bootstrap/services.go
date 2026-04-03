@@ -23,7 +23,7 @@ type serviceSet struct {
 func initializeServices(
 	cfg *config.Config,
 	db *store.Store,
-	auditService *services.AuditService,
+	auditService core.AuditLogger,
 	prometheusMetrics core.Recorder,
 	userCache core.Cache[models.User],
 	clientCountCache core.Cache[int64],

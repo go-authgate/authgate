@@ -36,7 +36,7 @@ func setupDeviceTestEnv(t *testing.T) (*gin.Engine, *store.Store) {
 	s, err := store.New(context.Background(), "sqlite", ":memory:", &config.Config{})
 	require.NoError(t, err)
 
-	auditSvc := services.NewAuditService(s, false, 0)
+	auditSvc := services.NewNoopAuditService()
 	clientSvc := services.NewClientService(s, auditSvc, nil, 0, nil, 0)
 	deviceSvc := services.NewDeviceService(s, cfg, auditSvc, metrics.NewNoopMetrics(), clientSvc)
 	userSvc := services.NewUserService(s, nil, nil, "local", false, auditSvc, nil, 0)
