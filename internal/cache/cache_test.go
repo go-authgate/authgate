@@ -291,3 +291,39 @@ func TestMemoryCache_GetWithFetch_Expiration(t *testing.T) {
 		t.Errorf("expected 2 fetches after expiry, got %d", fetchCount)
 	}
 }
+
+func TestMemoryCache_Reaper(t *testing.T) {
+	// Short interval so the reaper fires within the test.
+	c := NewMemoryCache[int64](20 * time.Millisecond)
+	defer c.Close()
+	ctx := context.Background()
+
+	// Key1 expires before the reaper fires; key2 should survive.
+	_ = c.Set(ctx, "key1", 1, 5*time.Millisecond)
+	_ = c.Set(ctx, "key2", 2, time.Minute)
+
+	// Wait for at least one reaper tick.
+	time.Sleep(60 * time.Millisecond)
+
+	if got := c.Len(); got != 1 {
+		t.Errorf("expected 1 item after reaper eviction, got %d", got)
+	}
+	if _, err := c.Get(ctx, "key2"); err != nil {
+		t.Errorf("key2 should survive reaper: %v", err)
+	}
+}
+
+func TestMemoryCache_NoReaper(t *testing.T) {
+	// Zero interval disables the reaper; expired items stay until lazily evicted.
+	c := NewMemoryCache[int64](0)
+	defer c.Close()
+	ctx := context.Background()
+
+	_ = c.Set(ctx, "key", 1, 5*time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
+
+	// Lazy eviction on Get should still report miss.
+	if _, err := c.Get(ctx, "key"); err != ErrCacheMiss {
+		t.Errorf("expected ErrCacheMiss on expired key, got %v", err)
+	}
+}

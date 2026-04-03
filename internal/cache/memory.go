@@ -31,18 +31,26 @@ type MemoryCache[T any] struct {
 }
 
 // NewMemoryCache creates a new memory cache instance.
-// An optional cleanup interval may be provided (default: 5 minutes).
-// A background goroutine periodically evicts expired entries.
+// An optional cleanup interval controls how often the background reaper
+// evicts expired entries (default: 5 minutes). Pass a non-positive value
+// to disable the reaper entirely and rely on lazy expiration in Get.
 func NewMemoryCache[T any](cleanupInterval ...time.Duration) *MemoryCache[T] {
 	interval := 5 * time.Minute
-	if len(cleanupInterval) > 0 && cleanupInterval[0] > 0 {
-		interval = cleanupInterval[0]
+	enableReaper := true
+	if len(cleanupInterval) > 0 {
+		if cleanupInterval[0] > 0 {
+			interval = cleanupInterval[0]
+		} else {
+			enableReaper = false
+		}
 	}
 	m := &MemoryCache[T]{
 		items: make(map[string]cacheItem[T]),
 		stop:  make(chan struct{}),
 	}
-	go m.reaper(interval)
+	if enableReaper {
+		go m.reaper(interval)
+	}
 	return m
 }
 
