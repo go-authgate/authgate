@@ -57,6 +57,49 @@ func TestOauthErrorCode_DefaultsToInvalidRequest(t *testing.T) {
 }
 
 // ============================================================
+// authzSuccessMessages / authzErrorMessages
+// ============================================================
+
+func TestAuthzSuccessMessages_KnownKeys(t *testing.T) {
+	assert.Equal(
+		t,
+		"Application access has been revoked successfully.",
+		authzSuccessMessages["revoked"],
+	)
+}
+
+func TestAuthzErrorMessages_KnownKeys(t *testing.T) {
+	assert.Equal(t, "Authorization not found.", authzErrorMessages["not_found"])
+	assert.Equal(
+		t,
+		"An error occurred while processing your request. Please try again.",
+		authzErrorMessages["server_error"],
+	)
+}
+
+func TestAuthzMessages_UnknownKeyReturnsEmpty(t *testing.T) {
+	injections := []string{
+		"arbitrary_text",
+		"<script>alert(1)</script>",
+		"",
+	}
+	for _, key := range injections {
+		assert.Empty(
+			t,
+			authzSuccessMessages[key],
+			"unknown success key %q must return empty string",
+			key,
+		)
+		assert.Empty(
+			t,
+			authzErrorMessages[key],
+			"unknown error key %q must return empty string",
+			key,
+		)
+	}
+}
+
+// ============================================================
 // util.IsScopeSubset (formerly scopesAreCovered)
 // ============================================================
 

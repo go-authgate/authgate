@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -213,4 +214,26 @@ func TestDeviceCodeRequest_DefaultScope(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.NotEmpty(t, resp["device_code"])
 	assert.NotEmpty(t, resp["user_code"])
+}
+
+func TestDeviceCodeErrorMessage(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"not found", services.ErrUserCodeNotFound, "User code not found"},
+		{"expired", services.ErrDeviceCodeExpired, "Code has expired, please request a new one"},
+		{
+			"already authorized",
+			services.ErrDeviceCodeAlreadyAuthorized,
+			"This code has already been authorized",
+		},
+		{"unknown error", errors.New("unexpected failure"), "Invalid or expired code"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, deviceCodeErrorMessage(tc.err))
+		})
+	}
 }
