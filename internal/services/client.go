@@ -251,8 +251,6 @@ func (s *ClientService) CreateClient(
 		return nil, err
 	}
 
-	s.invalidateClientCache(ctx, clientID)
-
 	// A new pending client changes the count; invalidate the cache.
 	if clientStatus == models.ClientStatusPending {
 		s.invalidatePendingCount(ctx)
@@ -524,7 +522,10 @@ func (s *ClientService) GetClientWithSecret(
 ) (*models.OAuthApplication, error) {
 	client, err := s.store.GetClient(clientID)
 	if err != nil {
-		return nil, ErrClientNotFound
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrClientNotFound
+		}
+		return nil, err
 	}
 	return client, nil
 }
