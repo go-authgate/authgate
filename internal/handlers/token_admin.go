@@ -12,6 +12,7 @@ import (
 	"github.com/go-authgate/authgate/internal/templates"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 const adminTokensPath = "/admin/tokens"
@@ -94,12 +95,20 @@ func (h *TokenAdminHandler) tokenAction(
 	}
 
 	userID := getUserIDFromContext(c)
+	if userID == "" {
+		renderErrorPage(c, http.StatusUnauthorized, "User not authenticated")
+		return
+	}
 
 	if err := action(c.Request.Context(), tokenID, userID); err != nil {
 		if businessErr != nil && errors.Is(err, businessErr) {
 			q := c.Request.URL.Query()
 			q.Set("warning", warningCode)
 			c.Redirect(http.StatusFound, adminTokensPath+"?"+q.Encode())
+			return
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			renderErrorPage(c, http.StatusNotFound, "Token not found")
 			return
 		}
 		renderErrorPage(c, http.StatusInternalServerError, "Failed to update token")
