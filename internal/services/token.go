@@ -104,7 +104,15 @@ func (s *TokenService) getAccessTokenByHash(
 	// Corrupted cache entry — delete it so the next request re-populates it.
 	if errors.Is(err, cache.ErrInvalidValue) {
 		if delErr := s.tokenCache.Delete(ctx, hash); delErr != nil {
-			log.Printf("[TokenCache] Failed to evict corrupted entry for hash=%s: %v", hash, delErr)
+			hashPrefix := hash
+			if len(hashPrefix) > 8 {
+				hashPrefix = hashPrefix[:8]
+			}
+			log.Printf(
+				"[TokenCache] Failed to evict corrupted entry for hash=%s...: %v",
+				hashPrefix,
+				delErr,
+			)
 		}
 	}
 	log.Printf("[TokenCache] cache lookup failed, falling back to DB: %v", err)
