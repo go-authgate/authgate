@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-authgate/authgate/internal/core"
@@ -93,26 +94,28 @@ func (i *InstrumentedCache[T]) Health(ctx context.Context) error {
 // Wraps fetchFunc to detect whether it was called (miss) or not (hit), without
 // calling underlying.Get() a second time. This preserves optimizations in the
 // underlying implementation (e.g., stampede protection in RueidisAsideCache).
+// Uses atomic.Bool because singleflight may set fetchCalled from a shared
+// goroutine while the caller returns early on context cancellation.
 func (i *InstrumentedCache[T]) GetWithFetch(
 	ctx context.Context,
 	key string,
 	ttl time.Duration,
 	fetchFunc func(ctx context.Context, key string) (T, error),
 ) (T, error) {
-	fetchCalled := false
+	var fetchCalled atomic.Bool
 	wrapped := func(ctx context.Context, key string) (T, error) {
-		fetchCalled = true
+		fetchCalled.Store(true)
 		return fetchFunc(ctx, key)
 	}
 
 	value, err := i.underlying.GetWithFetch(ctx, key, ttl, wrapped)
-	switch {
-	case err != nil && !errors.Is(err, ErrCacheMiss):
-		i.errFetch.Inc()
-	case fetchCalled:
+	if fetchCalled.Load() {
 		i.missCounter.Inc()
-	default:
+	} else {
 		i.hitCounter.Inc()
+	}
+	if err != nil && !errors.Is(err, ErrCacheMiss) {
+		i.errFetch.Inc()
 	}
 	return value, err
 }

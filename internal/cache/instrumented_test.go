@@ -167,7 +167,10 @@ func TestInstrumentedCache_GetWithFetch_FetchError(t *testing.T) {
 		t.Fatalf("Expected fetch error, got %v", err)
 	}
 
-	// fetch was called (miss) but the error came from the fetch function, not the cache
+	// fetch was called → miss recorded; error also recorded separately
+	if v := testutil.ToFloat64(ic.missCounter); v != 1 {
+		t.Errorf("Expected 1 miss, got %f", v)
+	}
 	if v := testutil.ToFloat64(ic.errFetch); v != 1 {
 		t.Errorf("Expected 1 fetch error, got %f", v)
 	}

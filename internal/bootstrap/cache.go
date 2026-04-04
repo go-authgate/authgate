@@ -91,7 +91,7 @@ func initializeCache[T any](
 	// Wrap with instrumentation if metrics are enabled
 	if cfg.MetricsEnabled {
 		instrumentedCache := cache.NewInstrumentedCache(underlyingCache, opts.cacheName)
-		return instrumentedCache, closeFunc, nil
+		return instrumentedCache, instrumentedCache.Close, nil
 	}
 
 	return underlyingCache, closeFunc, nil
