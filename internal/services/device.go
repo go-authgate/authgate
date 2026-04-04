@@ -29,10 +29,11 @@ var (
 )
 
 type DeviceService struct {
-	store        core.Store
-	config       *config.Config
-	auditService core.AuditLogger
-	metrics      core.Recorder
+	store         core.Store
+	config        *config.Config
+	auditService  core.AuditLogger
+	metrics       core.Recorder
+	clientService *ClientService
 }
 
 func NewDeviceService(
@@ -40,15 +41,17 @@ func NewDeviceService(
 	cfg *config.Config,
 	auditService core.AuditLogger,
 	m core.Recorder,
+	clientService *ClientService,
 ) *DeviceService {
 	if auditService == nil {
 		auditService = NewNoopAuditService()
 	}
 	return &DeviceService{
-		store:        s,
-		config:       cfg,
-		auditService: auditService,
-		metrics:      m,
+		store:         s,
+		config:        cfg,
+		auditService:  auditService,
+		metrics:       m,
+		clientService: clientService,
 	}
 }
 
@@ -58,7 +61,7 @@ func (s *DeviceService) GenerateDeviceCode(
 	clientID, scope string,
 ) (*models.DeviceCode, error) {
 	// Validate client
-	client, err := s.store.GetClient(clientID)
+	client, err := s.clientService.GetClient(ctx, clientID)
 	if err != nil {
 		return nil, ErrInvalidClient
 	}
@@ -236,6 +239,7 @@ func (s *DeviceService) AuthorizeDeviceCode(
 
 // GetClientByUserCode retrieves the OAuth client and device code associated with a user code
 func (s *DeviceService) GetClientByUserCode(
+	ctx context.Context,
 	userCode string,
 ) (*models.OAuthApplication, *models.DeviceCode, error) {
 	dc, err := s.GetDeviceCodeByUserCode(userCode)
@@ -243,7 +247,7 @@ func (s *DeviceService) GetClientByUserCode(
 		return nil, nil, err
 	}
 
-	client, err := s.store.GetClient(dc.ClientID)
+	client, err := s.clientService.GetClient(ctx, dc.ClientID)
 	if err != nil {
 		return nil, nil, err
 	}

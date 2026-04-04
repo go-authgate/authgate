@@ -3,7 +3,9 @@ package services
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/store"
@@ -13,9 +15,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// countingCache wraps a Cache and counts how many times the fetchFunc is invoked.
+type countingCache[T any] struct {
+	core.Cache[T]
+	count int
+}
+
+func (c *countingCache[T]) GetWithFetch(
+	ctx context.Context,
+	key string,
+	ttl time.Duration,
+	fetchFunc func(context.Context, string) (T, error),
+) (T, error) {
+	return c.Cache.GetWithFetch(ctx, key, ttl, func(ctx context.Context, k string) (T, error) {
+		c.count++
+		return fetchFunc(ctx, k)
+	})
+}
+
 func TestListClientsPaginatedWithCreator(t *testing.T) {
 	s := setupTestStore(t)
-	clientService := NewClientService(s, NewNoopAuditService(), nil, 0)
+	clientService := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 
 	// Create test users
 	user1 := &models.User{
@@ -245,7 +265,7 @@ func TestGetUsersByIDs(t *testing.T) {
 
 func TestCreateClient_AuthCodeFlowEnabled(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, NewNoopAuditService(), nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	req := CreateClientRequest{
@@ -269,7 +289,7 @@ func TestCreateClient_AuthCodeFlowEnabled(t *testing.T) {
 
 func TestCreateClient_PublicClientType(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, NewNoopAuditService(), nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	req := CreateClientRequest{
@@ -290,7 +310,7 @@ func TestCreateClient_PublicClientType(t *testing.T) {
 
 func TestCreateClient_DefaultClientType(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, NewNoopAuditService(), nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	req := CreateClientRequest{
@@ -309,7 +329,7 @@ func TestCreateClient_DefaultClientType(t *testing.T) {
 
 func TestCreateClient_DefaultScope(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, NewNoopAuditService(), nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	req := CreateClientRequest{
@@ -329,7 +349,7 @@ func TestCreateClient_OnlyAuthCodeFlow(t *testing.T) {
 	// When only auth code flow is enabled, the service should not force device flow on.
 	// The result depends on how the service handles the "neither enabled" default case.
 	s := setupTestStore(t)
-	svc := NewClientService(s, NewNoopAuditService(), nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	req := CreateClientRequest{
@@ -354,7 +374,7 @@ func TestCreateClient_OnlyAuthCodeFlow(t *testing.T) {
 
 func TestCreateClient_NameRequired(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, NewNoopAuditService(), nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 
 	req := CreateClientRequest{
 		ClientName: "", // Empty name
@@ -367,7 +387,7 @@ func TestCreateClient_NameRequired(t *testing.T) {
 
 func TestCreateClient_AuthCodeFlowRequiresRedirectURI(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, NewNoopAuditService(), nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	req := CreateClientRequest{
@@ -384,7 +404,7 @@ func TestCreateClient_AuthCodeFlowRequiresRedirectURI(t *testing.T) {
 
 func TestCreateClient_DeviceFlowOnlyNoRedirectURIRequired(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, NewNoopAuditService(), nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	req := CreateClientRequest{
@@ -403,7 +423,7 @@ func TestCreateClient_DeviceFlowOnlyNoRedirectURIRequired(t *testing.T) {
 
 func TestUpdateClient_AuthCodeFlowRequiresRedirectURI(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, NewNoopAuditService(), nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	// Create a valid client first
@@ -430,7 +450,7 @@ func TestUpdateClient_AuthCodeFlowRequiresRedirectURI(t *testing.T) {
 
 func TestUpdateClient_AuthCodeFlowWithRedirectURISucceeds(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, NewNoopAuditService(), nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	createReq := CreateClientRequest{
@@ -456,7 +476,7 @@ func TestUpdateClient_AuthCodeFlowWithRedirectURISucceeds(t *testing.T) {
 
 func TestUpdateClient_BothGrantTypesDisabledRejected(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, NewNoopAuditService(), nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	createReq := CreateClientRequest{
@@ -481,7 +501,7 @@ func TestUpdateClient_BothGrantTypesDisabledRejected(t *testing.T) {
 
 func TestUpdateClient_GrantTypesReflectFlags(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, NewNoopAuditService(), nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	createReq := CreateClientRequest{
@@ -504,7 +524,7 @@ func TestUpdateClient_GrantTypesReflectFlags(t *testing.T) {
 	err = svc.UpdateClient(context.Background(), resp.ClientID, userID, updateReq)
 	require.NoError(t, err)
 
-	updated, err := svc.GetClient(resp.ClientID)
+	updated, err := svc.GetClient(context.Background(), resp.ClientID)
 	require.NoError(t, err)
 	assert.False(t, updated.EnableDeviceFlow)
 	assert.True(t, updated.EnableAuthCodeFlow)
@@ -582,7 +602,7 @@ func TestValidateRedirectURIs(t *testing.T) {
 
 func TestCreateClient_InvalidRedirectURIRejected(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, NewNoopAuditService(), nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	req := CreateClientRequest{
@@ -599,7 +619,7 @@ func TestCreateClient_InvalidRedirectURIRejected(t *testing.T) {
 
 func TestUpdateClient_InvalidRedirectURIRejected(t *testing.T) {
 	s := setupTestStore(t)
-	svc := NewClientService(s, NewNoopAuditService(), nil, 0)
+	svc := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
 	userID := uuid.New().String()
 
 	createReq := CreateClientRequest{
@@ -620,4 +640,102 @@ func TestUpdateClient_InvalidRedirectURIRejected(t *testing.T) {
 
 	err = svc.UpdateClient(context.Background(), resp.ClientID, userID, updateReq)
 	assert.ErrorIs(t, err, ErrInvalidRedirectURI)
+}
+
+func TestGetClient_SecretStripped(t *testing.T) {
+	s := setupTestStore(t)
+	svc := NewClientService(s, nil, nil, 0, nil, 0)
+	userID := uuid.New().String()
+
+	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
+		ClientName:       "Secret Test Client",
+		UserID:           userID,
+		CreatedBy:        userID,
+		EnableDeviceFlow: true,
+		ClientType:       "confidential",
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.ClientSecret)
+
+	client, err := svc.GetClient(context.Background(), resp.ClientID)
+	require.NoError(t, err)
+	assert.Empty(t, client.ClientSecret, "GetClient must strip ClientSecret from cached copy")
+}
+
+func TestGetClient_CacheHit(t *testing.T) {
+	s := setupTestStore(t)
+	inner := cache.NewMemoryCache[models.OAuthApplication]()
+	spy := &countingCache[models.OAuthApplication]{Cache: inner}
+	svc := NewClientService(s, nil, nil, 0, spy, 5*time.Minute)
+	userID := uuid.New().String()
+
+	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
+		ClientName:       "Cache Hit Client",
+		UserID:           userID,
+		CreatedBy:        userID,
+		EnableDeviceFlow: true,
+	})
+	require.NoError(t, err)
+
+	_, err = svc.GetClient(context.Background(), resp.ClientID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, spy.count, "first call should fetch from DB")
+
+	_, err = svc.GetClient(context.Background(), resp.ClientID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, spy.count, "second call should hit cache, not DB")
+}
+
+func TestGetClient_CacheInvalidationOnUpdate(t *testing.T) {
+	s := setupTestStore(t)
+	svc := NewClientService(s, nil, nil, 0, nil, 5*time.Minute)
+	userID := uuid.New().String()
+
+	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
+		ClientName:       "Original Name",
+		UserID:           userID,
+		CreatedBy:        userID,
+		EnableDeviceFlow: true,
+	})
+	require.NoError(t, err)
+
+	_, err = svc.GetClient(context.Background(), resp.ClientID)
+	require.NoError(t, err)
+
+	err = svc.UpdateClient(context.Background(), resp.ClientID, userID, UpdateClientRequest{
+		ClientName:       "Updated Name",
+		Status:           models.ClientStatusActive,
+		EnableDeviceFlow: true,
+	})
+	require.NoError(t, err)
+
+	client, err := svc.GetClient(context.Background(), resp.ClientID)
+	require.NoError(t, err)
+	assert.Equal(t, "Updated Name", client.ClientName, "UpdateClient should invalidate cache")
+}
+
+func TestGetClient_CacheInvalidationOnRegenerateSecret(t *testing.T) {
+	s := setupTestStore(t)
+	svc := NewClientService(s, nil, nil, 0, nil, 5*time.Minute)
+	userID := uuid.New().String()
+
+	resp, err := svc.CreateClient(context.Background(), CreateClientRequest{
+		ClientName:       "Regen Secret Client",
+		UserID:           userID,
+		CreatedBy:        userID,
+		EnableDeviceFlow: true,
+		ClientType:       "confidential",
+	})
+	require.NoError(t, err)
+
+	_, err = svc.GetClient(context.Background(), resp.ClientID)
+	require.NoError(t, err)
+
+	_, err = svc.RegenerateSecret(context.Background(), resp.ClientID, userID)
+	require.NoError(t, err)
+
+	// Cache should be invalidated; GetClient should succeed (refetch from DB)
+	client, err := svc.GetClient(context.Background(), resp.ClientID)
+	require.NoError(t, err)
+	assert.Equal(t, resp.ClientID, client.ClientID)
 }

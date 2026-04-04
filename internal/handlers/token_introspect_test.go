@@ -46,12 +46,13 @@ func setupIntrospectTestEnv(t *testing.T) (*gin.Engine, *store.Store, *services.
 	localProvider, err := token.NewLocalTokenProvider(cfg)
 	require.NoError(t, err)
 	auditSvc := services.NewNoopAuditService()
-	deviceSvc := services.NewDeviceService(s, cfg, auditSvc, metrics.NewNoopMetrics())
+	clientSvc := services.NewClientService(s, auditSvc, nil, 0, nil, 0)
+	deviceSvc := services.NewDeviceService(s, cfg, auditSvc, metrics.NewNoopMetrics(), clientSvc)
 	tokenSvc := services.NewTokenService(
 		s, cfg, deviceSvc, localProvider, auditSvc, metrics.NewNoopMetrics(),
-		cache.NewNoopCache[models.AccessToken](),
+		cache.NewNoopCache[models.AccessToken](), clientSvc,
 	)
-	authzSvc := services.NewAuthorizationService(s, cfg, auditSvc, tokenSvc)
+	authzSvc := services.NewAuthorizationService(s, cfg, auditSvc, tokenSvc, clientSvc)
 	handler := NewTokenHandler(tokenSvc, authzSvc, cfg)
 
 	r := gin.New()

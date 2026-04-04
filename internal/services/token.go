@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 // TokenWithClient combines token and client information for display
@@ -51,6 +51,7 @@ type TokenService struct {
 	auditService  core.AuditLogger
 	metrics       core.Recorder
 	tokenCache    core.Cache[models.AccessToken]
+	clientService *ClientService
 }
 
 func NewTokenService(
@@ -61,6 +62,7 @@ func NewTokenService(
 	auditService core.AuditLogger,
 	m core.Recorder,
 	tokenCache core.Cache[models.AccessToken],
+	clientService *ClientService,
 ) *TokenService {
 	if auditService == nil {
 		auditService = NewNoopAuditService()
@@ -73,6 +75,7 @@ func NewTokenService(
 		auditService:  auditService,
 		metrics:       m,
 		tokenCache:    tokenCache,
+		clientService: clientService,
 	}
 }
 
@@ -84,10 +87,10 @@ func (s *TokenService) getAccessTokenByHash(
 	hash string,
 ) (*models.AccessToken, error) {
 	tok, err := s.tokenCache.GetWithFetch(ctx, hash, s.config.TokenCacheTTL,
-		func(ctx context.Context, key string) (models.AccessToken, error) {
-			t, err := s.store.GetAccessTokenByHash(key)
-			if err != nil {
-				return models.AccessToken{}, err
+		func(ctx context.Context, _ string) (models.AccessToken, error) {
+			t, storeErr := s.store.GetAccessTokenByHash(hash)
+			if storeErr != nil {
+				return models.AccessToken{}, &fetchErr{cause: storeErr}
 			}
 			return *t, nil
 		},
@@ -95,10 +98,24 @@ func (s *TokenService) getAccessTokenByHash(
 	if err == nil {
 		return &tok, nil
 	}
-	// If the fetch function itself returned a DB error (e.g. record not found),
-	// propagate it. Otherwise, the cache backend failed — fall back to DB.
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, err
+	// Store error from fetchFunc — the DB was reached, no need to retry.
+	var fe *fetchErr
+	if errors.As(err, &fe) {
+		return nil, fe.cause
+	}
+	// Corrupted cache entry — delete it so the next request re-populates it.
+	if errors.Is(err, cache.ErrInvalidValue) {
+		if delErr := s.tokenCache.Delete(ctx, hash); delErr != nil {
+			hashPrefix := hash
+			if len(hashPrefix) > 8 {
+				hashPrefix = hashPrefix[:8]
+			}
+			log.Printf(
+				"[TokenCache] Failed to evict corrupted entry for hash=%s...: %v",
+				hashPrefix,
+				delErr,
+			)
+		}
 	}
 	log.Printf("[TokenCache] cache lookup failed, falling back to DB: %v", err)
 	return s.store.GetAccessTokenByHash(hash)

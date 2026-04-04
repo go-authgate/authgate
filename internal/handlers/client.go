@@ -194,7 +194,7 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 func (h *ClientHandler) ShowEditClientPage(c *gin.Context) {
 	clientID := c.Param("id")
 
-	client, err := h.clientService.GetClient(clientID)
+	client, err := h.clientService.GetClient(c.Request.Context(), clientID)
 	if err != nil {
 		renderErrorPage(c, http.StatusNotFound, "Client not found")
 		return
@@ -234,7 +234,7 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 	userID := getUserIDFromContext(c)
 	err := h.clientService.UpdateClient(c.Request.Context(), clientID, userID, req)
 	if err != nil {
-		client, _ := h.clientService.GetClient(clientID)
+		client, _ := h.clientService.GetClient(c.Request.Context(), clientID)
 
 		userModel := getUserFromContext(c)
 
@@ -316,7 +316,7 @@ func (h *ClientHandler) RegenerateSecret(c *gin.Context) {
 		return
 	}
 
-	client, _ := h.clientService.GetClient(clientID)
+	client, _ := h.clientService.GetClient(c.Request.Context(), clientID)
 	userModel := getUserFromContext(c)
 
 	templates.RenderTempl(
@@ -335,7 +335,7 @@ func (h *ClientHandler) RegenerateSecret(c *gin.Context) {
 func (h *ClientHandler) ViewClient(c *gin.Context) {
 	clientID := c.Param("id")
 
-	client, err := h.clientService.GetClient(clientID)
+	client, err := h.clientService.GetClient(c.Request.Context(), clientID)
 	if err != nil {
 		renderErrorPage(c, http.StatusNotFound, "Client not found")
 		return
@@ -409,7 +409,7 @@ func (h *ClientHandler) RejectClient(c *gin.Context) {
 func (h *ClientHandler) ListClientAuthorizations(c *gin.Context) {
 	clientID := c.Param("id")
 
-	client, err := h.clientService.GetClient(clientID)
+	client, err := h.clientService.GetClient(c.Request.Context(), clientID)
 	if err != nil {
 		renderErrorPage(c, http.StatusNotFound, "Client not found")
 		return
@@ -463,7 +463,7 @@ func (h *ClientHandler) RevokeAllTokens(c *gin.Context) {
 	)
 	if err != nil {
 		userModel := getUserFromContext(c)
-		client, _ := h.clientService.GetClient(clientID)
+		client, _ := h.clientService.GetClient(c.Request.Context(), clientID)
 		activeTokenCount, _ := h.clientService.CountActiveTokens(clientID)
 
 		templates.RenderTempl(

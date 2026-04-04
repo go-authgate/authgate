@@ -264,6 +264,18 @@ func addClientCountCacheCleanupJob(
 	addNamedCacheShutdownJob(m, "client count cache", clientCountCache.Close, cfg.CacheCloseTimeout)
 }
 
+// addClientCacheCleanupJob adds OAuth client cache cleanup on shutdown
+func addClientCacheCleanupJob(
+	m *graceful.Manager,
+	clientCache core.Cache[models.OAuthApplication],
+	cfg *config.Config,
+) {
+	if clientCache == nil {
+		return
+	}
+	addNamedCacheShutdownJob(m, "client cache", clientCache.Close, cfg.CacheCloseTimeout)
+}
+
 // addTokenCacheCleanupJob adds token cache cleanup on shutdown
 func addTokenCacheCleanupJob(
 	m *graceful.Manager,

@@ -16,6 +16,7 @@ import (
 	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 const pendingClientsCountCacheKey = "clients:pending_count"
@@ -89,10 +90,12 @@ func validateRedirectURIs(uris []string) error {
 }
 
 type ClientService struct {
-	store         core.Store
-	auditService  core.AuditLogger
-	countCache    core.Cache[int64]
-	countCacheTTL time.Duration
+	store          core.Store
+	auditService   core.AuditLogger
+	countCache     core.Cache[int64]
+	countCacheTTL  time.Duration
+	clientCache    core.Cache[models.OAuthApplication]
+	clientCacheTTL time.Duration
 }
 
 func NewClientService(
@@ -100,6 +103,8 @@ func NewClientService(
 	auditService core.AuditLogger,
 	countCache core.Cache[int64],
 	countCacheTTL time.Duration,
+	clientCache core.Cache[models.OAuthApplication],
+	clientCacheTTL time.Duration,
 ) *ClientService {
 	if auditService == nil {
 		auditService = NewNoopAuditService()
@@ -110,11 +115,19 @@ func NewClientService(
 	if countCacheTTL <= 0 {
 		countCacheTTL = time.Hour
 	}
+	if clientCache == nil {
+		clientCache = cache.NewMemoryCache[models.OAuthApplication]()
+	}
+	if clientCacheTTL <= 0 {
+		clientCacheTTL = 5 * time.Minute
+	}
 	return &ClientService{
-		store:         s,
-		auditService:  auditService,
-		countCache:    countCache,
-		countCacheTTL: countCacheTTL,
+		store:          s,
+		auditService:   auditService,
+		countCache:     countCache,
+		countCacheTTL:  countCacheTTL,
+		clientCache:    clientCache,
+		clientCacheTTL: clientCacheTTL,
 	}
 }
 
@@ -325,6 +338,8 @@ func (s *ClientService) UpdateClient(
 		return err
 	}
 
+	s.invalidateClientCache(ctx, clientID)
+
 	if pendingCountAffected {
 		s.invalidatePendingCount(ctx)
 	}
@@ -363,6 +378,8 @@ func (s *ClientService) DeleteClient(ctx context.Context, clientID, actorUserID 
 	if err != nil {
 		return err
 	}
+
+	s.invalidateClientCache(ctx, clientID)
 
 	if wasPending {
 		s.invalidatePendingCount(ctx)
@@ -434,12 +451,87 @@ func (s *ClientService) ListClientsPaginatedWithCreator(
 	return result, pagination, nil
 }
 
-func (s *ClientService) GetClient(clientID string) (*models.OAuthApplication, error) {
+// GetClient returns a cached OAuth client by client_id.
+// The returned copy has ClientSecret cleared for defense-in-depth.
+// Use GetClientWithSecret for flows that need secret verification.
+// On cache backend errors (e.g. Redis unavailable), falls back to direct DB lookup
+// so that valid OAuth flows are not rejected due to cache infrastructure issues.
+func (s *ClientService) GetClient(
+	ctx context.Context,
+	clientID string,
+) (*models.OAuthApplication, error) {
+	client, err := s.clientCache.GetWithFetch(
+		ctx, clientID, s.clientCacheTTL,
+		func(ctx context.Context, _ string) (models.OAuthApplication, error) {
+			c, storeErr := s.store.GetClient(clientID)
+			if storeErr != nil {
+				return models.OAuthApplication{}, &fetchErr{cause: storeErr}
+			}
+			// Strip secret material before caching (defense-in-depth).
+			// Deep-copy slice fields so the cached entry's backing arrays
+			// are not shared with the returned value (prevents callers from
+			// accidentally corrupting cached data via in-place mutations).
+			cached := *c
+			cached.ClientSecret = ""
+			cached.RedirectURIs = append(models.StringArray(nil), c.RedirectURIs...)
+			return cached, nil
+		},
+	)
+	if err == nil {
+		return &client, nil
+	}
+	// Store error from fetchFunc — the DB was reached, no need to retry.
+	var fe *fetchErr
+	if errors.As(err, &fe) {
+		if errors.Is(fe.cause, gorm.ErrRecordNotFound) {
+			return nil, ErrClientNotFound
+		}
+		return nil, fe.cause
+	}
+	// Corrupted cache entry — delete it so the next request re-populates it.
+	if errors.Is(err, cache.ErrInvalidValue) {
+		if delErr := s.clientCache.Delete(ctx, clientID); delErr != nil {
+			log.Printf(
+				"[ClientCache] Failed to evict corrupted entry for client=%s: %v",
+				clientID,
+				delErr,
+			)
+		}
+	}
+	// Cache backend failure — fall back to direct DB lookup.
+	log.Printf("[ClientCache] cache lookup failed, falling back to DB: %v", err)
+	c, storeErr := s.store.GetClient(clientID)
+	if storeErr != nil {
+		if errors.Is(storeErr, gorm.ErrRecordNotFound) {
+			return nil, ErrClientNotFound
+		}
+		return nil, storeErr
+	}
+	c.ClientSecret = ""
+	return c, nil
+}
+
+// GetClientWithSecret returns an OAuth client by client_id without caching.
+// Use this for flows that need to verify the client secret (e.g., confidential client auth).
+func (s *ClientService) GetClientWithSecret(
+	ctx context.Context,
+	clientID string,
+) (*models.OAuthApplication, error) {
 	client, err := s.store.GetClient(clientID)
 	if err != nil {
-		return nil, ErrClientNotFound
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrClientNotFound
+		}
+		return nil, err
 	}
 	return client, nil
+}
+
+// invalidateClientCache removes a client from cache by its client_id.
+func (s *ClientService) invalidateClientCache(ctx context.Context, clientID string) {
+	if err := s.clientCache.Delete(ctx, clientID); err != nil {
+		log.Printf("[ClientCache] Failed to invalidate cache for client=%s: %v", clientID, err)
+	}
 }
 
 func (s *ClientService) RegenerateSecret(
@@ -461,6 +553,8 @@ func (s *ClientService) RegenerateSecret(
 		return "", err
 	}
 
+	s.invalidateClientCache(ctx, clientID)
+
 	// Log secret regeneration
 	s.auditService.Log(ctx, core.AuditLogEntry{
 		EventType:    models.EventClientSecretRegenerated,
@@ -479,8 +573,11 @@ func (s *ClientService) RegenerateSecret(
 	return newSecret, nil
 }
 
-func (s *ClientService) VerifyClientSecret(clientID, clientSecret string) error {
-	client, err := s.store.GetClient(clientID)
+func (s *ClientService) VerifyClientSecret(
+	ctx context.Context,
+	clientID, clientSecret string,
+) error {
+	client, err := s.GetClientWithSecret(ctx, clientID)
 	if err != nil {
 		return ErrClientNotFound
 	}
@@ -522,6 +619,7 @@ func (s *ClientService) ApproveClient(
 		return err
 	}
 
+	s.invalidateClientCache(ctx, clientID)
 	s.invalidatePendingCount(ctx)
 
 	s.auditService.Log(ctx, core.AuditLogEntry{
@@ -565,6 +663,7 @@ func (s *ClientService) RejectClient(
 		return err
 	}
 
+	s.invalidateClientCache(ctx, clientID)
 	s.invalidatePendingCount(ctx)
 
 	s.auditService.Log(ctx, core.AuditLogEntry{

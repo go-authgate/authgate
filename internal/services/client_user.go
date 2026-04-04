@@ -104,6 +104,8 @@ func (s *ClientService) UserUpdateClient(
 		return err
 	}
 
+	s.invalidateClientCache(ctx, clientID)
+
 	s.auditService.Log(ctx, core.AuditLogEntry{
 		EventType:    models.EventClientUpdated,
 		Severity:     models.SeverityInfo,
@@ -147,6 +149,8 @@ func (s *ClientService) UserDeleteClient(
 	if err := s.store.DeleteClient(clientID); err != nil {
 		return err
 	}
+
+	s.invalidateClientCache(ctx, clientID)
 
 	if wasPending {
 		s.invalidatePendingCount(ctx)

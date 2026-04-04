@@ -304,7 +304,11 @@ func (h *TokenHandler) Introspect(c *gin.Context) {
 	}
 
 	// Verify client credentials
-	if err := h.tokenService.AuthenticateClient(clientID, clientSecret); err != nil {
+	if err := h.tokenService.AuthenticateClient(
+		c.Request.Context(),
+		clientID,
+		clientSecret,
+	); err != nil {
 		c.Header("WWW-Authenticate", `Basic realm="authgate"`)
 		respondOAuthError(
 			c,

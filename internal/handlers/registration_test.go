@@ -46,7 +46,7 @@ func setupRegistrationTestEnvWithOpts(t *testing.T, opts registrationTestOpts) *
 	require.NoError(t, err)
 
 	auditSvc := services.NewNoopAuditService()
-	clientSvc := services.NewClientService(s, auditSvc, nil, 0)
+	clientSvc := services.NewClientService(s, auditSvc, nil, 0, nil, 0)
 	handler := NewRegistrationHandler(clientSvc, auditSvc, cfg)
 
 	r := gin.New()

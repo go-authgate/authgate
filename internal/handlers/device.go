@@ -166,7 +166,7 @@ func (h *DeviceHandler) DevicePage(c *gin.Context) {
 
 	clientName := ""
 	if userCode != "" {
-		client, _, err := h.deviceService.GetClientByUserCode(userCode)
+		client, _, err := h.deviceService.GetClientByUserCode(c.Request.Context(), userCode)
 		if err == nil {
 			clientName = client.ClientName
 		}
@@ -204,7 +204,7 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 	}
 
 	// Get client and device code before authorizing
-	client, dc, err := h.deviceService.GetClientByUserCode(userCode)
+	client, dc, err := h.deviceService.GetClientByUserCode(c.Request.Context(), userCode)
 	if err != nil {
 		renderDeviceErrorPage(
 			c,

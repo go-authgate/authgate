@@ -20,7 +20,14 @@ import (
 
 func createTestTokenService(t *testing.T, s *store.Store, cfg *config.Config) *TokenService {
 	t.Helper()
-	deviceService := NewDeviceService(s, cfg, NewNoopAuditService(), metrics.NewNoopMetrics())
+	clientService := NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0)
+	deviceService := NewDeviceService(
+		s,
+		cfg,
+		NewNoopAuditService(),
+		metrics.NewNoopMetrics(),
+		clientService,
+	)
 	localProvider, err := token.NewLocalTokenProvider(cfg)
 	require.NoError(t, err)
 	return NewTokenService(
@@ -31,6 +38,7 @@ func createTestTokenService(t *testing.T, s *store.Store, cfg *config.Config) *T
 		NewNoopAuditService(),
 		metrics.NewNoopMetrics(),
 		cache.NewNoopCache[models.AccessToken](),
+		clientService,
 	)
 }
 
@@ -39,7 +47,13 @@ func createAuthorizedDeviceCode(t *testing.T, s *store.Store, clientID string) *
 		DeviceCodeExpiration: 30 * time.Minute,
 		PollingInterval:      5,
 	}
-	deviceService := NewDeviceService(s, cfg, NewNoopAuditService(), metrics.NewNoopMetrics())
+	deviceService := NewDeviceService(
+		s,
+		cfg,
+		NewNoopAuditService(),
+		metrics.NewNoopMetrics(),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
+	)
 
 	// Generate device code
 	dc, err := deviceService.GenerateDeviceCode(context.Background(), clientID, "read write")
@@ -157,7 +171,13 @@ func TestExchangeDeviceCode_NotAuthorized(t *testing.T) {
 		BaseURL:              "http://localhost:8080",
 	}
 	tokenService := createTestTokenService(t, s, cfg)
-	deviceService := NewDeviceService(s, cfg, NewNoopAuditService(), metrics.NewNoopMetrics())
+	deviceService := NewDeviceService(
+		s,
+		cfg,
+		NewNoopAuditService(),
+		metrics.NewNoopMetrics(),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
+	)
 
 	// Create an active client and device code but don't authorize it
 	client := createTestClient(t, s, true)
@@ -187,7 +207,13 @@ func TestExchangeDeviceCode_ExpiredCode(t *testing.T) {
 		BaseURL:              "http://localhost:8080",
 	}
 	tokenService := createTestTokenService(t, s, cfg)
-	deviceService := NewDeviceService(s, cfg, NewNoopAuditService(), metrics.NewNoopMetrics())
+	deviceService := NewDeviceService(
+		s,
+		cfg,
+		NewNoopAuditService(),
+		metrics.NewNoopMetrics(),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
+	)
 
 	// Create an active client and device code (it will be expired)
 	client := createTestClient(t, s, true)
@@ -402,7 +428,13 @@ func TestGetUserTokens_Success(t *testing.T) {
 		BaseURL:              "http://localhost:8080",
 	}
 	tokenService := createTestTokenService(t, s, cfg)
-	deviceService := NewDeviceService(s, cfg, NewNoopAuditService(), metrics.NewNoopMetrics())
+	deviceService := NewDeviceService(
+		s,
+		cfg,
+		NewNoopAuditService(),
+		metrics.NewNoopMetrics(),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
+	)
 
 	// Create an active client
 	client := createTestClient(t, s, true)
@@ -458,7 +490,13 @@ func TestRevokeAllUserTokens_Success(t *testing.T) {
 		BaseURL:              "http://localhost:8080",
 	}
 	tokenService := createTestTokenService(t, s, cfg)
-	deviceService := NewDeviceService(s, cfg, NewNoopAuditService(), metrics.NewNoopMetrics())
+	deviceService := NewDeviceService(
+		s,
+		cfg,
+		NewNoopAuditService(),
+		metrics.NewNoopMetrics(),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
+	)
 
 	// Create an active client
 	client := createTestClient(t, s, true)
@@ -509,7 +547,13 @@ func TestGetUserTokensWithClient_Success(t *testing.T) {
 		BaseURL:              "http://localhost:8080",
 	}
 	tokenService := createTestTokenService(t, s, cfg)
-	deviceService := NewDeviceService(s, cfg, NewNoopAuditService(), metrics.NewNoopMetrics())
+	deviceService := NewDeviceService(
+		s,
+		cfg,
+		NewNoopAuditService(),
+		metrics.NewNoopMetrics(),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
+	)
 
 	// Create an active client
 	client := createTestClient(t, s, true)
@@ -554,7 +598,13 @@ func TestGetUserTokensWithClient_MultipleClients(t *testing.T) {
 		BaseURL:              "http://localhost:8080",
 	}
 	tokenService := createTestTokenService(t, s, cfg)
-	deviceService := NewDeviceService(s, cfg, NewNoopAuditService(), metrics.NewNoopMetrics())
+	deviceService := NewDeviceService(
+		s,
+		cfg,
+		NewNoopAuditService(),
+		metrics.NewNoopMetrics(),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
+	)
 
 	// Create two different clients
 	client1 := createTestClient(t, s, true)

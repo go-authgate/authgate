@@ -37,9 +37,10 @@ func setupDeviceTestEnv(t *testing.T) (*gin.Engine, *store.Store) {
 	require.NoError(t, err)
 
 	auditSvc := services.NewNoopAuditService()
-	deviceSvc := services.NewDeviceService(s, cfg, auditSvc, metrics.NewNoopMetrics())
+	clientSvc := services.NewClientService(s, auditSvc, nil, 0, nil, 0)
+	deviceSvc := services.NewDeviceService(s, cfg, auditSvc, metrics.NewNoopMetrics(), clientSvc)
 	userSvc := services.NewUserService(s, nil, nil, "local", false, auditSvc, nil, 0)
-	authzSvc := services.NewAuthorizationService(s, cfg, auditSvc, nil)
+	authzSvc := services.NewAuthorizationService(s, cfg, auditSvc, nil, clientSvc)
 	handler := NewDeviceHandler(deviceSvc, userSvc, authzSvc, cfg)
 
 	r := gin.New()

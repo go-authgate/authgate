@@ -67,6 +67,7 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 
 	// Validate the authorization request parameters
 	req, err := h.authorizationService.ValidateAuthorizationRequest(
+		c.Request.Context(),
 		clientID, redirectURI, responseType, scope, codeChallenge, codeChallengeMethod, nonce,
 	)
 	if err != nil {
@@ -141,6 +142,7 @@ func (h *AuthorizationHandler) HandleAuthorize(c *gin.Context) {
 
 	// Re-validate request on POST to prevent parameter tampering
 	req, err := h.authorizationService.ValidateAuthorizationRequest(
+		c.Request.Context(),
 		clientID, redirectURI, "code", scope, codeChallenge, codeChallengeMethod, nonce,
 	)
 	if err != nil {
