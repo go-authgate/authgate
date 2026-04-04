@@ -12,6 +12,8 @@ This guide covers all configuration options for AuthGate, including environment 
 - [Service-to-Service Authentication](#service-to-service-authentication)
 - [HTTP Retry with Exponential Backoff](#http-retry-with-exponential-backoff)
 - [User Cache](#user-cache)
+- [Client Cache](#client-cache)
+- [Token Cache](#token-cache)
 - [Rate Limiting](#rate-limiting)
 - [CORS (Cross-Origin Resource Sharing)](#cors-cross-origin-resource-sharing)
 
@@ -719,6 +721,151 @@ USER_CACHE_SIZE_PER_CONN=32  # Adjust based on available memory per pod
 ```
 
 > **Note**: `redis-aside` uses RESP3 client-side caching for automatic invalidation across all pods and requires **Redis >= 7.0**. If you are running an older Redis version, use `USER_CACHE_TYPE=redis` instead. Memory usage per pod is `USER_CACHE_SIZE_PER_CONN × ~10 connections` (default ~320MB). Adjust `USER_CACHE_SIZE_PER_CONN` if memory is constrained.
+
+---
+
+## Client Cache
+
+Every OAuth flow (device code, authorization code, token exchange, client credentials) queries the `OAuthApplication` record to validate the client. Caching these lookups reduces database pressure on busy deployments.
+
+The cache is always enabled with no feature flag required. Mutations (create, update, delete, secret regeneration, approve/reject) always invalidate the cache entry immediately.
+
+### How It Works
+
+The cache uses a **cache-aside pattern**:
+
+1. On the first request for a client ID, the DB is queried and the result is stored in cache with a TTL
+2. Client secrets are **stripped before caching** (defense-in-depth — secrets are never stored in the cache backend)
+3. Cache entries are invalidated immediately on any write operation (create, update, delete, secret rotation)
+
+### Cache Backends
+
+| Backend     | Env value          | Use case                                                                          |
+| ----------- | ------------------ | --------------------------------------------------------------------------------- |
+| Memory      | `memory` (default) | Single-instance, zero external dependencies                                       |
+| Redis       | `redis`            | 2–5 pods, shared cache across instances                                           |
+| Redis-aside | `redis-aside`      | 5+ pods, client-side caching with stampede protection — **requires Redis >= 7.0** |
+
+### Configuration
+
+```bash
+# Cache backend: memory (default), redis, or redis-aside
+CLIENT_CACHE_TYPE=memory
+
+# How long a cached client record is valid (default: 5m); must be > 0
+# Mutations always invalidate immediately, so this is only a fallback TTL.
+CLIENT_CACHE_TTL=5m
+
+# Client-side TTL for redis-aside mode only (default: 30s); must be > 0
+CLIENT_CACHE_CLIENT_TTL=30s
+
+# Client-side cache size per connection in MB for redis-aside mode only (default: 32MB)
+# Total memory per pod = cache_size × connections (~10 based on GOMAXPROCS) → default ~320MB
+CLIENT_CACHE_SIZE_PER_CONN=32
+```
+
+Redis-based backends also require the shared Redis settings:
+
+```bash
+REDIS_ADDR=localhost:6379
+REDIS_PASSWORD=
+REDIS_DB=0
+```
+
+### Multi-Pod Recommendation
+
+```bash
+# 2–5 pods: Redis shared cache
+CLIENT_CACHE_TYPE=redis
+REDIS_ADDR=redis-service:6379
+
+# 5+ pods or DDoS protection: redis-aside with client-side caching
+CLIENT_CACHE_TYPE=redis-aside
+REDIS_ADDR=redis-service:6379
+CLIENT_CACHE_CLIENT_TTL=30s
+CLIENT_CACHE_SIZE_PER_CONN=32  # Adjust based on available memory per pod
+```
+
+> **Note**: `redis-aside` uses RESP3 client-side caching for automatic invalidation across all pods and requires **Redis >= 7.0**. Memory usage per pod is `CLIENT_CACHE_SIZE_PER_CONN × ~10 connections` (default ~320MB).
+
+---
+
+## Token Cache
+
+`/oauth/tokeninfo` and every request protected by token-based auth call `GetAccessTokenByHash`, which hits the database on every validation. The token cache absorbs these lookups, reducing DB load significantly on high-traffic deployments.
+
+The token cache is **disabled by default** (`TOKEN_CACHE_ENABLED=false`). Enable it for production deployments with significant token validation traffic.
+
+### How It Works
+
+The cache uses a **cache-aside pattern**:
+
+1. On the first validation of a token hash, the DB is queried and the result is stored in cache with a TTL
+2. Subsequent validations within the TTL window are served from cache
+3. Token revocation, rotation, and status changes always **explicitly invalidate** the cache entry — the TTL is a fallback only
+
+### Cache Backends
+
+| Backend     | Env value          | Use case                                                                          |
+| ----------- | ------------------ | --------------------------------------------------------------------------------- |
+| Memory      | `memory` (default) | Single-instance, zero external dependencies                                       |
+| Redis       | `redis`            | 2–5 pods, shared cache across instances                                           |
+| Redis-aside | `redis-aside`      | 5+ pods, client-side caching with RESP3 real-time invalidation — **requires Redis >= 7.0** |
+
+### Configuration
+
+```bash
+# Enable token verification cache (default: false)
+TOKEN_CACHE_ENABLED=false
+
+# Cache backend: memory (default), redis, or redis-aside
+TOKEN_CACHE_TYPE=memory
+
+# Cache lifetime (default: 10h — matches JWT_EXPIRATION)
+# Revocation uses explicit cache invalidation; this TTL is a fallback for rare missed invalidations.
+TOKEN_CACHE_TTL=10h
+
+# Client-side TTL for redis-aside mode only (default: 1h)
+# RESP3 handles real-time invalidation; this TTL is a safety net for missed notifications.
+TOKEN_CACHE_CLIENT_TTL=1h
+
+# Client-side cache size per connection in MB for redis-aside mode only (default: 32MB)
+# Total memory per pod = cache_size × connections (~10 based on GOMAXPROCS) → default ~320MB
+TOKEN_CACHE_SIZE_PER_CONN=32
+```
+
+Redis-based backends also require the shared Redis settings:
+
+```bash
+REDIS_ADDR=localhost:6379
+REDIS_PASSWORD=
+REDIS_DB=0
+```
+
+### TTL Trade-offs
+
+| Setting                   | Behaviour                                                                           |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| `TOKEN_CACHE_TTL=10h`     | Default — matches JWT expiry; cached tokens expire naturally alongside JWT          |
+| `TOKEN_CACHE_CLIENT_TTL=1h` | redis-aside client-side TTL; RESP3 invalidation fires immediately on revocation  |
+
+### Multi-Pod Recommendation
+
+```bash
+# Enable with Redis for multi-pod deployments
+TOKEN_CACHE_ENABLED=true
+TOKEN_CACHE_TYPE=redis
+REDIS_ADDR=redis-service:6379
+
+# Or redis-aside for real-time invalidation across all pods (requires Redis >= 7.0)
+TOKEN_CACHE_ENABLED=true
+TOKEN_CACHE_TYPE=redis-aside
+REDIS_ADDR=redis-service:6379
+TOKEN_CACHE_CLIENT_TTL=1h
+TOKEN_CACHE_SIZE_PER_CONN=32
+```
+
+> **Note**: `redis-aside` uses RESP3 client-side caching with **real-time invalidation** — when a token is revoked, all pods drop their client-side cache entry immediately via RESP3 push notifications. This requires **Redis >= 7.0**. Memory usage per pod is `TOKEN_CACHE_SIZE_PER_CONN × ~10 connections` (default ~320MB).
 
 ---
 
