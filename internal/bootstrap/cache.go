@@ -27,6 +27,7 @@ func initializeMetrics(cfg *config.Config) core.Recorder {
 // cacheOpts holds the parameters needed to initialise any typed cache.
 type cacheOpts struct {
 	cacheType   string
+	cacheName   string // Prometheus label for metrics (e.g. "token", "client")
 	keyPrefix   string
 	clientTTL   time.Duration
 	sizePerConn int
@@ -34,7 +35,7 @@ type cacheOpts struct {
 }
 
 // initializeCache is a generic helper that creates a typed cache according to
-// the supplied cacheOpts. All three cache-init call-sites delegate to this.
+// the supplied cacheOpts. All cache-init call-sites delegate to this.
 func initializeCache[T any](
 	ctx context.Context,
 	cfg *config.Config,
@@ -42,6 +43,9 @@ func initializeCache[T any](
 ) (core.Cache[T], func() error, error) {
 	ctx, cancel := context.WithTimeout(ctx, cfg.CacheInitTimeout)
 	defer cancel()
+
+	var underlyingCache core.Cache[T]
+	var closeFunc func() error
 
 	switch opts.cacheType {
 	case config.CacheTypeRedisAside:
@@ -61,7 +65,8 @@ func initializeCache[T any](
 			"%s cache: redis-aside (addr=%s, db=%d, client_ttl=%s, cache_size_per_conn=%dMB)",
 			opts.label, cfg.RedisAddr, cfg.RedisDB, opts.clientTTL, opts.sizePerConn,
 		)
-		return c, c.Close, nil
+		underlyingCache = c
+		closeFunc = c.Close
 
 	case config.CacheTypeRedis:
 		c, err := cache.NewRueidisCache[T](
@@ -73,13 +78,23 @@ func initializeCache[T any](
 			return nil, nil, fmt.Errorf("failed to initialize redis %s cache: %w", opts.label, err)
 		}
 		log.Printf("%s cache: redis (addr=%s, db=%d)", opts.label, cfg.RedisAddr, cfg.RedisDB)
-		return c, c.Close, nil
+		underlyingCache = c
+		closeFunc = c.Close
 
 	default: // memory
 		c := cache.NewMemoryCache[T]()
 		log.Printf("%s cache: memory (single instance only)", opts.label)
-		return c, c.Close, nil
+		underlyingCache = c
+		closeFunc = c.Close
 	}
+
+	// Wrap with instrumentation if metrics are enabled
+	if cfg.MetricsEnabled {
+		instrumentedCache := cache.NewInstrumentedCache(underlyingCache, opts.cacheName)
+		return instrumentedCache, instrumentedCache.Close, nil
+	}
+
+	return underlyingCache, closeFunc, nil
 }
 
 // initializeMetricsCache initializes the metrics cache based on configuration
@@ -92,6 +107,7 @@ func initializeMetricsCache(
 	}
 	return initializeCache[int64](ctx, cfg, cacheOpts{
 		cacheType:   cfg.MetricsCacheType,
+		cacheName:   "metrics",
 		keyPrefix:   "authgate:metrics:",
 		clientTTL:   cfg.MetricsCacheClientTTL,
 		sizePerConn: cfg.MetricsCacheSizePerConn,
@@ -106,6 +122,7 @@ func initializeClientCountCache(
 ) (core.Cache[int64], func() error, error) {
 	return initializeCache[int64](ctx, cfg, cacheOpts{
 		cacheType:   cfg.ClientCountCacheType,
+		cacheName:   "client_count",
 		keyPrefix:   "authgate:client-count:",
 		clientTTL:   cfg.ClientCountCacheClientTTL,
 		sizePerConn: cfg.ClientCountCacheSizePerConn,
@@ -124,6 +141,7 @@ func initializeTokenCache(
 	}
 	return initializeCache[models.AccessToken](ctx, cfg, cacheOpts{
 		cacheType:   cfg.TokenCacheType,
+		cacheName:   "token",
 		keyPrefix:   "authgate:tokens:",
 		clientTTL:   cfg.TokenCacheClientTTL,
 		sizePerConn: cfg.TokenCacheSizePerConn,
@@ -138,6 +156,7 @@ func initializeClientCache(
 ) (core.Cache[models.OAuthApplication], func() error, error) {
 	return initializeCache[models.OAuthApplication](ctx, cfg, cacheOpts{
 		cacheType:   cfg.ClientCacheType,
+		cacheName:   "client",
 		keyPrefix:   "authgate:clients:",
 		clientTTL:   cfg.ClientCacheClientTTL,
 		sizePerConn: cfg.ClientCacheSizePerConn,
@@ -152,6 +171,7 @@ func initializeUserCache(
 ) (core.Cache[models.User], func() error, error) {
 	return initializeCache[models.User](ctx, cfg, cacheOpts{
 		cacheType:   cfg.UserCacheType,
+		cacheName:   "user",
 		keyPrefix:   "authgate:users:",
 		clientTTL:   cfg.UserCacheClientTTL,
 		sizePerConn: cfg.UserCacheSizePerConn,
