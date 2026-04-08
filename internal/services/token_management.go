@@ -40,19 +40,22 @@ func (s *TokenService) RevokeTokenByID(ctx context.Context, tokenID, actorUserID
 		return err
 	}
 
+	actorUsername := s.resolveUsername(actorUserID)
+
 	err = s.store.RevokeToken(tokenID)
 	if err != nil {
 		// Log revocation failure
 		s.auditService.Log(ctx, core.AuditLogEntry{
-			EventType:    models.EventTokenRevoked,
-			Severity:     models.SeverityError,
-			ActorUserID:  actorUserID,
-			ResourceType: models.ResourceToken,
-			ResourceID:   tokenID,
-			Action:       "Token revocation failed",
-			Details:      models.AuditDetails{"token_category": tok.TokenCategory},
-			Success:      false,
-			ErrorMessage: err.Error(),
+			EventType:     models.EventTokenRevoked,
+			Severity:      models.SeverityError,
+			ActorUserID:   actorUserID,
+			ActorUsername: actorUsername,
+			ResourceType:  models.ResourceToken,
+			ResourceID:    tokenID,
+			Action:        "Token revocation failed",
+			Details:       models.AuditDetails{"token_category": tok.TokenCategory},
+			Success:       false,
+			ErrorMessage:  err.Error(),
 		})
 		return err
 	}
@@ -64,12 +67,13 @@ func (s *TokenService) RevokeTokenByID(ctx context.Context, tokenID, actorUserID
 
 	// Log token revocation
 	s.auditService.Log(ctx, core.AuditLogEntry{
-		EventType:    models.EventTokenRevoked,
-		Severity:     models.SeverityInfo,
-		ActorUserID:  actorUserID,
-		ResourceType: models.ResourceToken,
-		ResourceID:   tokenID,
-		Action:       "Token revoked",
+		EventType:     models.EventTokenRevoked,
+		Severity:      models.SeverityInfo,
+		ActorUserID:   actorUserID,
+		ActorUsername: actorUsername,
+		ResourceType:  models.ResourceToken,
+		ResourceID:    tokenID,
+		Action:        "Token revoked",
 		Details: models.AuditDetails{
 			"token_category": tok.TokenCategory,
 			"client_id":      tok.ClientID,
@@ -131,19 +135,22 @@ func (s *TokenService) updateTokenStatusWithAudit(
 		}
 	}
 
+	actorUsername := s.resolveUsername(actorUserID)
+
 	err = s.store.UpdateTokenStatus(tokenID, newStatus)
 	if err != nil {
 		// Log failure
 		s.auditService.Log(ctx, core.AuditLogEntry{
-			EventType:    eventType,
-			Severity:     models.SeverityError,
-			ActorUserID:  actorUserID,
-			ResourceType: models.ResourceToken,
-			ResourceID:   tokenID,
-			Action:       actionFailed,
-			Details:      models.AuditDetails{"token_category": tok.TokenCategory},
-			Success:      false,
-			ErrorMessage: err.Error(),
+			EventType:     eventType,
+			Severity:      models.SeverityError,
+			ActorUserID:   actorUserID,
+			ActorUsername: actorUsername,
+			ResourceType:  models.ResourceToken,
+			ResourceID:    tokenID,
+			Action:        actionFailed,
+			Details:       models.AuditDetails{"token_category": tok.TokenCategory},
+			Success:       false,
+			ErrorMessage:  err.Error(),
 		})
 		return err
 	}
@@ -152,12 +159,13 @@ func (s *TokenService) updateTokenStatusWithAudit(
 
 	// Log success
 	s.auditService.Log(ctx, core.AuditLogEntry{
-		EventType:    eventType,
-		Severity:     models.SeverityInfo,
-		ActorUserID:  actorUserID,
-		ResourceType: models.ResourceToken,
-		ResourceID:   tokenID,
-		Action:       actionSuccess,
+		EventType:     eventType,
+		Severity:      models.SeverityInfo,
+		ActorUserID:   actorUserID,
+		ActorUsername: actorUsername,
+		ResourceType:  models.ResourceToken,
+		ResourceID:    tokenID,
+		Action:        actionSuccess,
 		Details: models.AuditDetails{
 			"token_category": tok.TokenCategory,
 			"client_id":      tok.ClientID,

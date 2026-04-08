@@ -146,7 +146,7 @@ func SessionFingerprintMiddleware(enabled, includeIP bool) gin.HandlerFunc {
 
 			if storedFingerprint != nil {
 				// Get current fingerprint
-				clientIP := c.GetString(ContextKeyClientIP) // Set by IPMiddleware
+				clientIP := c.GetString(ContextKeyClientIP) // Set by RequestContextMiddleware
 				userAgent := c.Request.UserAgent()
 				currentFingerprint := GenerateFingerprint(clientIP, userAgent, includeIP)
 

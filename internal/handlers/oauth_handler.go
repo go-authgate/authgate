@@ -230,7 +230,7 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 
 	// Set session fingerprint if enabled
 	if h.sessionFingerprintEnabled {
-		clientIP := c.GetString(middleware.ContextKeyClientIP) // Set by IPMiddleware
+		clientIP := c.GetString(middleware.ContextKeyClientIP) // Set by RequestContextMiddleware
 		userAgent := c.Request.UserAgent()
 		fingerprint := middleware.GenerateFingerprint(
 			clientIP,

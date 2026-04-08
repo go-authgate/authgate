@@ -44,7 +44,7 @@ func setupRouter(
 	// Setup middleware
 	r.Use(metrics.HTTPMetricsMiddleware(prometheusMetrics))
 	r.Use(gin.Logger(), gin.Recovery())
-	r.Use(middleware.IPMiddleware())
+	r.Use(middleware.RequestContextMiddleware())
 	r.Use(middleware.SecurityHeaders(strings.HasPrefix(cfg.BaseURL, "https://")))
 
 	// Setup session middleware

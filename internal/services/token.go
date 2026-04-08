@@ -79,6 +79,16 @@ func NewTokenService(
 	}
 }
 
+// resolveUsername looks up the username for a given userID.
+// Returns empty string on error (best-effort for audit logging).
+func (s *TokenService) resolveUsername(userID string) string {
+	user, err := s.store.GetUserByID(userID)
+	if err != nil {
+		return ""
+	}
+	return user.Username
+}
+
 // getAccessTokenByHash looks up a token, using cache if available.
 // On cache backend errors (e.g. Redis unavailable), falls back to direct DB lookup
 // so that valid tokens are not rejected due to cache infrastructure issues.

@@ -14,6 +14,8 @@ import (
 	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 // Compile-time interface check.
@@ -35,6 +37,9 @@ type AuditService struct {
 	// Graceful shutdown
 	wg         sync.WaitGroup
 	shutdownCh chan struct{}
+
+	// Prometheus counter for dropped events
+	eventsDropped prometheus.Counter
 }
 
 // NewAuditService creates a new audit service
@@ -49,6 +54,12 @@ func NewAuditService(s core.Store, bufferSize int) *AuditService {
 		logChan:     make(chan *models.AuditLog, bufferSize),
 		batchBuffer: make([]*models.AuditLog, 0, 100),
 		shutdownCh:  make(chan struct{}),
+		eventsDropped: promauto.NewCounter(prometheus.CounterOpts{
+			Namespace: "authgate",
+			Subsystem: "audit",
+			Name:      "events_dropped_total",
+			Help:      "Total number of audit log events dropped due to a full buffer.",
+		}),
 	}
 
 	service.batchTicker = time.NewTicker(1 * time.Second)
@@ -73,9 +84,16 @@ func (s *AuditService) worker() {
 			s.flushBatch()
 
 		case <-s.shutdownCh:
-			// Flush remaining logs before shutdown
-			s.flushBatch()
-			return
+			// Drain remaining events from logChan before shutdown
+			for {
+				select {
+				case entry := <-s.logChan:
+					s.addToBatch(entry)
+				default:
+					s.flushBatch()
+					return
+				}
+			}
 		}
 	}
 }
@@ -132,6 +150,15 @@ func (s *AuditService) buildAuditLog(
 	if entry.ActorUserID == "" {
 		entry.ActorUserID = models.GetUserIDFromContext(ctx)
 	}
+	if entry.UserAgent == "" {
+		entry.UserAgent = util.GetUserAgentFromContext(ctx)
+	}
+	if entry.RequestPath == "" {
+		entry.RequestPath = util.GetRequestPathFromContext(ctx)
+	}
+	if entry.RequestMethod == "" {
+		entry.RequestMethod = util.GetRequestMethodFromContext(ctx)
+	}
 	entry.Details = maskSensitiveDetails(entry.Details)
 
 	now := time.Now()
@@ -164,6 +191,7 @@ func (s *AuditService) Log(ctx context.Context, entry core.AuditLogEntry) {
 	case s.logChan <- auditLog:
 	default:
 		log.Printf("WARNING: Audit log buffer full, dropping event: %s", entry.Action)
+		s.eventsDropped.Inc()
 	}
 }
 

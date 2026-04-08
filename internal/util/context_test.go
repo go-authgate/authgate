@@ -81,6 +81,35 @@ func TestGetIPFromContext(t *testing.T) {
 	}
 }
 
+func TestSetRequestMetadataContext(t *testing.T) {
+	ctx := context.Background()
+	ctx = SetRequestMetadataContext(ctx, "Mozilla/5.0", "/oauth/token", "POST")
+
+	assert.Equal(t, "Mozilla/5.0", GetUserAgentFromContext(ctx))
+	assert.Equal(t, "/oauth/token", GetRequestPathFromContext(ctx))
+	assert.Equal(t, "POST", GetRequestMethodFromContext(ctx))
+}
+
+func TestGetRequestMetadataFromContext_Empty(t *testing.T) {
+	ctx := context.Background()
+
+	assert.Empty(t, GetUserAgentFromContext(ctx))
+	assert.Empty(t, GetRequestPathFromContext(ctx))
+	assert.Empty(t, GetRequestMethodFromContext(ctx))
+}
+
+func TestRequestMetadataContextChaining(t *testing.T) {
+	ctx := context.Background()
+	ctx = SetIPContext(ctx, "10.0.0.1")
+	ctx = SetRequestMetadataContext(ctx, "curl/7.68", "/api/v1", "GET")
+
+	// All values should coexist
+	assert.Equal(t, "10.0.0.1", GetIPFromContext(ctx))
+	assert.Equal(t, "curl/7.68", GetUserAgentFromContext(ctx))
+	assert.Equal(t, "/api/v1", GetRequestPathFromContext(ctx))
+	assert.Equal(t, "GET", GetRequestMethodFromContext(ctx))
+}
+
 func TestIPContextChaining(t *testing.T) {
 	type testKey int
 	const testKeyOther testKey = 0

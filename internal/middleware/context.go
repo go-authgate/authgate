@@ -8,15 +8,24 @@ import (
 // ContextKeyClientIP is the gin context key for the client IP address.
 const ContextKeyClientIP = "client_ip"
 
-// IPMiddleware extracts client IP and stores it in the context
-func IPMiddleware() gin.HandlerFunc {
+// RequestContextMiddleware extracts client IP and HTTP request metadata
+// (User-Agent, path, method) and stores them in the request context for
+// downstream services (e.g. audit logging).
+func RequestContextMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		clientIP := c.ClientIP()
 		// Gin's ClientIP() handles X-Forwarded-For and other headers
 		c.Set(ContextKeyClientIP, clientIP)
 
-		// Also store in request context for services layer
-		c.Request = c.Request.WithContext(util.SetIPContext(c.Request.Context(), clientIP))
+		// Store IP and request metadata in request context for services layer
+		ctx := util.SetIPContext(c.Request.Context(), clientIP)
+		ctx = util.SetRequestMetadataContext(
+			ctx,
+			c.Request.UserAgent(),
+			c.Request.URL.Path,
+			c.Request.Method,
+		)
+		c.Request = c.Request.WithContext(ctx)
 
 		c.Next()
 	}

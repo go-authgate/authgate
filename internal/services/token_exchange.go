@@ -78,13 +78,16 @@ func (s *TokenService) ExchangeDeviceCode(
 	_ = s.store.DeleteDeviceCodeByID(dc.ID)
 
 	// Log token issuance
+	actorUsername := s.resolveUsername(accessToken.UserID)
+
 	s.auditService.Log(ctx, core.AuditLogEntry{
-		EventType:    models.EventAccessTokenIssued,
-		Severity:     models.SeverityInfo,
-		ActorUserID:  accessToken.UserID,
-		ResourceType: models.ResourceToken,
-		ResourceID:   accessToken.ID,
-		Action:       "Access token issued via device code exchange",
+		EventType:     models.EventAccessTokenIssued,
+		Severity:      models.SeverityInfo,
+		ActorUserID:   accessToken.UserID,
+		ActorUsername: actorUsername,
+		ResourceType:  models.ResourceToken,
+		ResourceID:    accessToken.ID,
+		Action:        "Access token issued via device code exchange",
 		Details: models.AuditDetails{
 			"client_id":        accessToken.ClientID,
 			"scopes":           accessToken.Scopes,
@@ -95,12 +98,13 @@ func (s *TokenService) ExchangeDeviceCode(
 	})
 
 	s.auditService.Log(ctx, core.AuditLogEntry{
-		EventType:    models.EventRefreshTokenIssued,
-		Severity:     models.SeverityInfo,
-		ActorUserID:  refreshToken.UserID,
-		ResourceType: models.ResourceToken,
-		ResourceID:   refreshToken.ID,
-		Action:       "Refresh token issued via device code exchange",
+		EventType:     models.EventRefreshTokenIssued,
+		Severity:      models.SeverityInfo,
+		ActorUserID:   refreshToken.UserID,
+		ActorUsername: actorUsername,
+		ResourceType:  models.ResourceToken,
+		ResourceID:    refreshToken.ID,
+		Action:        "Refresh token issued via device code exchange",
 		Details: models.AuditDetails{
 			"client_id":       refreshToken.ClientID,
 			"scopes":          refreshToken.Scopes,
@@ -137,6 +141,13 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		return nil, nil, "", err
 	}
 
+	// Fetch user once for both audit logging (username) and ID token profile claims.
+	actorUser, actorUserErr := s.store.GetUserByID(authCode.UserID)
+	actorUsername := ""
+	if actorUserErr == nil {
+		actorUsername = actorUser.Username
+	}
+
 	// Generate OIDC ID Token when openid scope was granted (OIDC Core 1.0 §3.1.3.3).
 	// ID tokens are not stored in the database; they are short-lived and non-revocable.
 	// ID token generation is only supported when the provider implements IDTokenProvider.
@@ -153,36 +164,37 @@ func (s *TokenService) ExchangeAuthorizationCode(
 				AtHash:   token.ComputeAtHash(accessToken.RawToken),
 			}
 
-			// Fetch user profile for scope-gated claims
-			if user, err := s.store.GetUserByID(authCode.UserID); err == nil {
+			// Populate scope-gated claims from the user fetched above
+			if actorUserErr == nil {
 				if scopeSet["profile"] {
-					params.Name = user.FullName
-					params.PreferredUsername = user.Username
-					params.Picture = user.AvatarURL
-					updatedAt := user.UpdatedAt
+					params.Name = actorUser.FullName
+					params.PreferredUsername = actorUser.Username
+					params.Picture = actorUser.AvatarURL
+					updatedAt := actorUser.UpdatedAt
 					params.UpdatedAt = &updatedAt
 				}
 				if scopeSet["email"] {
-					params.Email = user.Email
+					params.Email = actorUser.Email
 					params.EmailVerified = false // AuthGate does not verify email addresses
 				}
 			} else if scopeSet["profile"] || scopeSet["email"] {
 				log.Printf(
 					"[Token] ID token: failed to fetch user profile for user_id=%s, profile/email claims will be omitted: %v",
 					authCode.UserID,
-					err,
+					actorUserErr,
 				)
 			}
 
 			if generated, err := idp.GenerateIDToken(params); err == nil {
 				idToken = generated
 				s.auditService.Log(ctx, core.AuditLogEntry{
-					EventType:    models.EventIDTokenIssued,
-					Severity:     models.SeverityInfo,
-					ActorUserID:  authCode.UserID,
-					ResourceType: models.ResourceToken,
-					ResourceID:   accessToken.ID,
-					Action:       "ID token issued via authorization code exchange",
+					EventType:     models.EventIDTokenIssued,
+					Severity:      models.SeverityInfo,
+					ActorUserID:   authCode.UserID,
+					ActorUsername: actorUsername,
+					ResourceType:  models.ResourceToken,
+					ResourceID:    accessToken.ID,
+					Action:        "ID token issued via authorization code exchange",
 					Details: models.AuditDetails{
 						"client_id":       authCode.ClientID,
 						"scopes":          authCode.Scopes,
@@ -204,12 +216,13 @@ func (s *TokenService) ExchangeAuthorizationCode(
 
 	// Audit
 	s.auditService.Log(ctx, core.AuditLogEntry{
-		EventType:    models.EventAccessTokenIssued,
-		Severity:     models.SeverityInfo,
-		ActorUserID:  accessToken.UserID,
-		ResourceType: models.ResourceToken,
-		ResourceID:   accessToken.ID,
-		Action:       "Access token issued via authorization code exchange",
+		EventType:     models.EventAccessTokenIssued,
+		Severity:      models.SeverityInfo,
+		ActorUserID:   accessToken.UserID,
+		ActorUsername: actorUsername,
+		ResourceType:  models.ResourceToken,
+		ResourceID:    accessToken.ID,
+		Action:        "Access token issued via authorization code exchange",
 		Details: models.AuditDetails{
 			"client_id":        accessToken.ClientID,
 			"scopes":           accessToken.Scopes,
@@ -219,12 +232,13 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		Success: true,
 	})
 	s.auditService.Log(ctx, core.AuditLogEntry{
-		EventType:    models.EventRefreshTokenIssued,
-		Severity:     models.SeverityInfo,
-		ActorUserID:  refreshToken.UserID,
-		ResourceType: models.ResourceToken,
-		ResourceID:   refreshToken.ID,
-		Action:       "Refresh token issued via authorization code exchange",
+		EventType:     models.EventRefreshTokenIssued,
+		Severity:      models.SeverityInfo,
+		ActorUserID:   refreshToken.UserID,
+		ActorUsername: actorUsername,
+		ResourceType:  models.ResourceToken,
+		ResourceID:    refreshToken.ID,
+		Action:        "Refresh token issued via authorization code exchange",
 		Details: models.AuditDetails{
 			"client_id":       refreshToken.ClientID,
 			"scopes":          refreshToken.Scopes,
