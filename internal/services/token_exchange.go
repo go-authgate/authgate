@@ -141,8 +141,11 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		return nil, nil, "", err
 	}
 
-	// Resolve username from context (set by auth middleware) or DB fallback.
-	actorUsername := s.resolveUsername(ctx, authCode.UserID)
+	// Resolve actor username for audit logging. Prefer request context (set by
+	// auth middleware); fall back to DB only when context is empty. The user
+	// object fetched for ID-token profile claims below is reused so that the
+	// sessionless /oauth/token path never issues two GetUserByID calls.
+	actorUsername := models.GetUsernameFromContext(ctx)
 
 	// Generate OIDC ID Token when openid scope was granted (OIDC Core 1.0 §3.1.3.3).
 	// ID tokens are not stored in the database; they are short-lived and non-revocable.
@@ -163,6 +166,11 @@ func (s *TokenService) ExchangeAuthorizationCode(
 			// Fetch user profile only when scope-gated claims are needed
 			if scopeSet["profile"] || scopeSet["email"] {
 				if user, err := s.store.GetUserByID(authCode.UserID); err == nil {
+					// Reuse the fetched user for actorUsername so we don't
+					// need a separate DB call via resolveUsername.
+					if actorUsername == "" {
+						actorUsername = user.Username
+					}
 					if scopeSet["profile"] {
 						params.Name = user.FullName
 						params.PreferredUsername = user.Username
@@ -205,6 +213,12 @@ func (s *TokenService) ExchangeAuthorizationCode(
 				log.Printf("[Token] ID token generation failed: %v", err)
 			}
 		}
+	}
+
+	// Fall back to DB lookup only when context had no user and the ID-token
+	// profile/email path above did not already populate actorUsername.
+	if actorUsername == "" {
+		actorUsername = s.resolveUsername(ctx, authCode.UserID)
 	}
 
 	// Metrics
