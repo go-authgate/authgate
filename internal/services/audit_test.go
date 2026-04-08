@@ -2,10 +2,13 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
+	storetypes "github.com/go-authgate/authgate/internal/store/types"
 	"github.com/go-authgate/authgate/internal/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -147,24 +150,42 @@ func TestBuildAuditLog_EnrichesUserFromContext(t *testing.T) {
 }
 
 func TestShutdown_DrainsLogChan(t *testing.T) {
-	// Build the service manually so we can use a real store and avoid nil panics.
+	// Construct the service struct directly (without starting the worker)
+	// so we can populate the channel deterministically before the drain runs.
 	s := setupTestStore(t)
-	svc := NewAuditService(s, 100)
+	svc := &AuditService{
+		store:         s,
+		bufferSize:    100,
+		logChan:       make(chan *models.AuditLog, 100),
+		batchBuffer:   make([]*models.AuditLog, 0, 100),
+		shutdownCh:    make(chan struct{}),
+		eventsDropped: getAuditEventsDroppedCounter(),
+	}
 
-	// Directly enqueue entries into logChan (bypass Log to avoid buildAuditLog)
-	for i := range 5 {
+	// Populate the channel before the worker starts
+	const numEntries = 5
+	for i := range numEntries {
 		svc.logChan <- &models.AuditLog{
-			ID:        "drain-test-" + string(rune('0'+i)),
+			ID:        fmt.Sprintf("drain-test-%d", i),
 			EventType: models.EventAccessTokenIssued,
 			Severity:  models.SeverityInfo,
 			Action:    "drain-test",
 		}
 	}
 
-	// Shutdown should drain all entries without losing them
+	// Now start the worker and immediately shut down
+	svc.batchTicker = time.NewTicker(1 * time.Second)
+	svc.wg.Add(1)
+	go svc.worker()
+
 	err := svc.Shutdown(context.Background())
 	require.NoError(t, err)
 
-	// logChan should be empty after shutdown
-	assert.Empty(t, svc.logChan)
+	// Verify entries were persisted to the store
+	logs, _, err := s.GetAuditLogsPaginated(
+		storetypes.PaginationParams{Page: 1, PageSize: 10},
+		storetypes.AuditLogFilters{},
+	)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(logs), numEntries, "all drain-test entries should be persisted")
 }

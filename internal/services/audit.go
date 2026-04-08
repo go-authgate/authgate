@@ -21,6 +21,26 @@ import (
 // Compile-time interface check.
 var _ core.AuditLogger = (*AuditService)(nil)
 
+// auditEventsDropped is a singleton counter registered once via sync.Once
+// to avoid duplicate-registration panics when multiple AuditService
+// instances are created (e.g. in tests).
+var (
+	auditEventsDropped     prometheus.Counter
+	auditEventsDroppedOnce sync.Once
+)
+
+func getAuditEventsDroppedCounter() prometheus.Counter {
+	auditEventsDroppedOnce.Do(func() {
+		auditEventsDropped = promauto.NewCounter(prometheus.CounterOpts{
+			Namespace: "authgate",
+			Subsystem: "audit",
+			Name:      "events_dropped_total",
+			Help:      "Total number of audit log events dropped due to a full buffer.",
+		})
+	})
+	return auditEventsDropped
+}
+
 // AuditService handles audit logging operations
 type AuditService struct {
 	store      core.Store
@@ -49,17 +69,12 @@ func NewAuditService(s core.Store, bufferSize int) *AuditService {
 	}
 
 	service := &AuditService{
-		store:       s,
-		bufferSize:  bufferSize,
-		logChan:     make(chan *models.AuditLog, bufferSize),
-		batchBuffer: make([]*models.AuditLog, 0, 100),
-		shutdownCh:  make(chan struct{}),
-		eventsDropped: promauto.NewCounter(prometheus.CounterOpts{
-			Namespace: "authgate",
-			Subsystem: "audit",
-			Name:      "events_dropped_total",
-			Help:      "Total number of audit log events dropped due to a full buffer.",
-		}),
+		store:         s,
+		bufferSize:    bufferSize,
+		logChan:       make(chan *models.AuditLog, bufferSize),
+		batchBuffer:   make([]*models.AuditLog, 0, 100),
+		shutdownCh:    make(chan struct{}),
+		eventsDropped: getAuditEventsDroppedCounter(),
 	}
 
 	service.batchTicker = time.NewTicker(1 * time.Second)

@@ -78,7 +78,7 @@ func (s *TokenService) ExchangeDeviceCode(
 	_ = s.store.DeleteDeviceCodeByID(dc.ID)
 
 	// Log token issuance
-	actorUsername := s.resolveUsername(accessToken.UserID)
+	actorUsername := s.resolveUsername(ctx, accessToken.UserID)
 
 	s.auditService.Log(ctx, core.AuditLogEntry{
 		EventType:     models.EventAccessTokenIssued,
@@ -141,12 +141,8 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		return nil, nil, "", err
 	}
 
-	// Fetch user once for both audit logging (username) and ID token profile claims.
-	actorUser, actorUserErr := s.store.GetUserByID(authCode.UserID)
-	actorUsername := ""
-	if actorUserErr == nil {
-		actorUsername = actorUser.Username
-	}
+	// Resolve username from context (set by auth middleware) or DB fallback.
+	actorUsername := s.resolveUsername(ctx, authCode.UserID)
 
 	// Generate OIDC ID Token when openid scope was granted (OIDC Core 1.0 §3.1.3.3).
 	// ID tokens are not stored in the database; they are short-lived and non-revocable.
@@ -164,25 +160,27 @@ func (s *TokenService) ExchangeAuthorizationCode(
 				AtHash:   token.ComputeAtHash(accessToken.RawToken),
 			}
 
-			// Populate scope-gated claims from the user fetched above
-			if actorUserErr == nil {
-				if scopeSet["profile"] {
-					params.Name = actorUser.FullName
-					params.PreferredUsername = actorUser.Username
-					params.Picture = actorUser.AvatarURL
-					updatedAt := actorUser.UpdatedAt
-					params.UpdatedAt = &updatedAt
+			// Fetch user profile only when scope-gated claims are needed
+			if scopeSet["profile"] || scopeSet["email"] {
+				if user, err := s.store.GetUserByID(authCode.UserID); err == nil {
+					if scopeSet["profile"] {
+						params.Name = user.FullName
+						params.PreferredUsername = user.Username
+						params.Picture = user.AvatarURL
+						updatedAt := user.UpdatedAt
+						params.UpdatedAt = &updatedAt
+					}
+					if scopeSet["email"] {
+						params.Email = user.Email
+						params.EmailVerified = false // AuthGate does not verify email addresses
+					}
+				} else {
+					log.Printf(
+						"[Token] ID token: failed to fetch user profile for user_id=%s, profile/email claims will be omitted: %v",
+						authCode.UserID,
+						err,
+					)
 				}
-				if scopeSet["email"] {
-					params.Email = actorUser.Email
-					params.EmailVerified = false // AuthGate does not verify email addresses
-				}
-			} else if scopeSet["profile"] || scopeSet["email"] {
-				log.Printf(
-					"[Token] ID token: failed to fetch user profile for user_id=%s, profile/email claims will be omitted: %v",
-					authCode.UserID,
-					actorUserErr,
-				)
 			}
 
 			if generated, err := idp.GenerateIDToken(params); err == nil {

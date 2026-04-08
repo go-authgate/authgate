@@ -53,7 +53,7 @@ func (s *TokenService) revokeTokenFamilyWithAudit(
 	}
 
 	// Audit log — CRITICAL severity because this indicates potential token theft
-	actorUsername := s.resolveUsername(reusedToken.UserID)
+	actorUsername := s.resolveUsername(ctx, reusedToken.UserID)
 
 	_ = s.auditService.LogSync(ctx, core.AuditLogEntry{
 		EventType:     models.EventSuspiciousActivity,
@@ -208,7 +208,7 @@ func (s *TokenService) RefreshAccessToken(
 	s.metrics.RecordTokenRefresh(true)
 
 	// Log token refresh
-	actorUsername := s.resolveUsername(newAccessToken.UserID)
+	actorUsername := s.resolveUsername(ctx, newAccessToken.UserID)
 	providerName := s.tokenProvider.Name()
 	details := models.AuditDetails{
 		"client_id":           newAccessToken.ClientID,

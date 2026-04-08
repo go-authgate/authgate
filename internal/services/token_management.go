@@ -40,7 +40,7 @@ func (s *TokenService) RevokeTokenByID(ctx context.Context, tokenID, actorUserID
 		return err
 	}
 
-	actorUsername := s.resolveUsername(actorUserID)
+	actorUsername := s.resolveUsername(ctx, actorUserID)
 
 	err = s.store.RevokeToken(tokenID)
 	if err != nil {
@@ -135,7 +135,7 @@ func (s *TokenService) updateTokenStatusWithAudit(
 		}
 	}
 
-	actorUsername := s.resolveUsername(actorUserID)
+	actorUsername := s.resolveUsername(ctx, actorUserID)
 
 	err = s.store.UpdateTokenStatus(tokenID, newStatus)
 	if err != nil {

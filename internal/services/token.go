@@ -79,9 +79,14 @@ func NewTokenService(
 	}
 }
 
-// resolveUsername looks up the username for a given userID.
-// Returns empty string on error (best-effort for audit logging).
-func (s *TokenService) resolveUsername(userID string) string {
+// resolveUsername returns the username for a given userID.
+// It first checks the request context (populated by auth middleware for
+// authenticated routes), falling back to a DB lookup only when the context
+// does not carry the user. Returns empty string on error (best-effort).
+func (s *TokenService) resolveUsername(ctx context.Context, userID string) string {
+	if username := models.GetUsernameFromContext(ctx); username != "" {
+		return username
+	}
 	user, err := s.store.GetUserByID(userID)
 	if err != nil {
 		return ""
