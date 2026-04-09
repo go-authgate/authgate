@@ -13,6 +13,7 @@ import (
 
 	"github.com/appleboy/graceful"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -142,6 +143,9 @@ func (app *Application) initializeInfrastructure(ctx context.Context) error {
 // initializeBusinessLayer sets up services
 func (app *Application) initializeBusinessLayer() {
 	// Audit service (required by other services)
+	if app.Config.MetricsEnabled {
+		services.SetAuditMetricsRegisterer(prometheus.DefaultRegisterer)
+	}
 	if app.Config.EnableAuditLogging {
 		app.AuditService = services.NewAuditService(
 			app.DB,

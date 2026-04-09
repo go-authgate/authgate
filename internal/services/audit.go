@@ -15,7 +15,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 // Compile-time interface check.
@@ -24,19 +23,47 @@ var _ core.AuditLogger = (*AuditService)(nil)
 // auditEventsDropped is a singleton counter registered once via sync.Once
 // to avoid duplicate-registration panics when multiple AuditService
 // instances are created (e.g. in tests).
+//
+// The counter is only registered with Prometheus when a registerer is
+// explicitly provided via SetAuditMetricsRegisterer, so deployments with
+// metrics disabled do not leak collectors from the services layer.
 var (
-	auditEventsDropped     prometheus.Counter
-	auditEventsDroppedOnce sync.Once
+	auditEventsDropped           prometheus.Counter
+	auditEventsDroppedOnce       sync.Once
+	auditEventsDroppedRegisterer prometheus.Registerer
 )
+
+// SetAuditMetricsRegisterer configures the Prometheus registerer used by the
+// audit service. It must be called before any AuditService is created in order
+// for the dropped-events counter to be registered with Prometheus.
+func SetAuditMetricsRegisterer(registerer prometheus.Registerer) {
+	auditEventsDroppedRegisterer = registerer
+}
 
 func getAuditEventsDroppedCounter() prometheus.Counter {
 	auditEventsDroppedOnce.Do(func() {
-		auditEventsDropped = promauto.NewCounter(prometheus.CounterOpts{
+		opts := prometheus.CounterOpts{
 			Namespace: "authgate",
 			Subsystem: "audit",
 			Name:      "events_dropped_total",
 			Help:      "Total number of audit log events dropped due to a full buffer.",
-		})
+		}
+		counter := prometheus.NewCounter(opts)
+
+		if auditEventsDroppedRegisterer != nil {
+			if err := auditEventsDroppedRegisterer.Register(counter); err != nil {
+				if existing, ok := err.(prometheus.AlreadyRegisteredError); ok {
+					if c, ok := existing.ExistingCollector.(prometheus.Counter); ok {
+						auditEventsDropped = c
+						return
+					}
+				}
+				log.Printf("failed to register audit dropped-events counter: %v", err)
+			}
+		}
+		// When no registerer is set, the counter still works in-memory but
+		// is not exposed via the Prometheus /metrics endpoint.
+		auditEventsDropped = counter
 	})
 	return auditEventsDropped
 }
@@ -175,6 +202,11 @@ func (s *AuditService) buildAuditLog(
 		entry.RequestMethod = util.GetRequestMethodFromContext(ctx)
 	}
 	entry.Details = maskSensitiveDetails(entry.Details)
+
+	// Truncate fields to match database column size limits.
+	entry.UserAgent = util.TruncateString(entry.UserAgent, 500)
+	entry.RequestPath = util.TruncateString(entry.RequestPath, 500)
+	entry.RequestMethod = util.TruncateString(entry.RequestMethod, 10)
 
 	now := time.Now()
 	return &models.AuditLog{
