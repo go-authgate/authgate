@@ -158,7 +158,6 @@ func TestShutdown_DrainsLogChan(t *testing.T) {
 		bufferSize:    100,
 		logChan:       make(chan *models.AuditLog, 100),
 		batchBuffer:   make([]*models.AuditLog, 0, 100),
-		shutdownCh:    make(chan struct{}),
 		eventsDropped: getAuditEventsDroppedCounter(),
 	}
 

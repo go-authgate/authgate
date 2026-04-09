@@ -83,9 +83,9 @@ type AuditService struct {
 	batchTicker *time.Ticker
 
 	// Graceful shutdown
-	wg         sync.WaitGroup
-	shutdownCh chan struct{}
-	stopped    atomic.Bool
+	wg      sync.WaitGroup
+	sendMu  sync.RWMutex // coordinates Log() senders with Shutdown()
+	stopped atomic.Bool
 
 	// Prometheus counter for dropped events
 	eventsDropped prometheus.Counter
@@ -102,7 +102,6 @@ func NewAuditService(s core.Store, bufferSize int) *AuditService {
 		bufferSize:    bufferSize,
 		logChan:       make(chan *models.AuditLog, bufferSize),
 		batchBuffer:   make([]*models.AuditLog, 0, 100),
-		shutdownCh:    make(chan struct{}),
 		eventsDropped: getAuditEventsDroppedCounter(),
 	}
 
@@ -114,33 +113,25 @@ func NewAuditService(s core.Store, bufferSize int) *AuditService {
 	return service
 }
 
-// worker is the background goroutine that processes audit logs
+// worker is the background goroutine that processes audit logs.
+// It drains logChan until the channel is closed by Shutdown, then
+// flushes any remaining batch and exits.
 func (s *AuditService) worker() {
 	defer s.wg.Done()
 
 	for {
 		select {
-		case log := <-s.logChan:
-			s.addToBatch(log)
+		case entry, ok := <-s.logChan:
+			if !ok {
+				// Channel closed by Shutdown — flush remaining batch.
+				s.flushBatch()
+				return
+			}
+			s.addToBatch(entry)
 
 		case <-s.batchTicker.C:
 			// Flush batch every second
 			s.flushBatch()
-
-		case <-s.shutdownCh:
-			// Drain all queued entries that were accepted before shutdown
-			// completed. Use a non-blocking receive loop rather than a
-			// len() snapshot so entries enqueued concurrently after the
-			// snapshot are still flushed.
-			for {
-				select {
-				case entry := <-s.logChan:
-					s.addToBatch(entry)
-				default:
-					s.flushBatch()
-					return
-				}
-			}
 		}
 	}
 }
@@ -246,7 +237,12 @@ func (s *AuditService) buildAuditLog(
 
 // Log records an audit log entry asynchronously.
 // Events submitted after Shutdown has been called are dropped.
+// The RWMutex ensures all in-flight sends complete before Shutdown
+// closes logChan, eliminating the send-on-closed-channel race.
 func (s *AuditService) Log(ctx context.Context, entry core.AuditLogEntry) {
+	s.sendMu.RLock()
+	defer s.sendMu.RUnlock()
+
 	if s.stopped.Load() {
 		log.Printf("WARNING: Audit service stopped, dropping event: %s", entry.Action)
 		s.eventsDropped.Inc()
@@ -287,15 +283,18 @@ func (s *AuditService) GetAuditLogStats(startTime, endTime time.Time) (store.Aud
 
 // Shutdown gracefully shuts down the audit service
 func (s *AuditService) Shutdown(ctx context.Context) error {
-	// Reject new events before draining the channel so nothing is
-	// enqueued after the worker exits.
+	// 1. Reject new events so future Log() calls return immediately.
 	s.stopped.Store(true)
+
+	// 2. Wait for all in-flight Log() calls to finish, then close
+	//    logChan. The exclusive lock ensures no sender is mid-send
+	//    when the channel is closed.
+	s.sendMu.Lock()
+	close(s.logChan)
+	s.sendMu.Unlock()
 
 	// Stop ticker
 	s.batchTicker.Stop()
-
-	// Signal worker to stop
-	close(s.shutdownCh)
 
 	// Wait for worker to finish with timeout
 	done := make(chan struct{})
