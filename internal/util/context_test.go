@@ -90,7 +90,7 @@ func TestSetRequestMetadataContext(t *testing.T) {
 	assert.Equal(t, "POST", GetRequestMethodFromContext(ctx))
 }
 
-func TestGetRequestMetadataFromContext_Empty(t *testing.T) {
+func TestRequestMetadataContext_Empty(t *testing.T) {
 	ctx := context.Background()
 
 	assert.Empty(t, GetUserAgentFromContext(ctx))
