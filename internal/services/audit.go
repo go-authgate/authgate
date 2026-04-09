@@ -43,11 +43,11 @@ func SetAuditMetricsRegisterer(registerer prometheus.Registerer) {
 
 func getAuditEventsDroppedCounter() prometheus.Counter {
 	auditEventsDroppedOnce.Do(func() {
+		// Use a single fully-prefixed Name (no Namespace/Subsystem) to
+		// match the convention used by metrics in internal/metrics.
 		opts := prometheus.CounterOpts{
-			Namespace: "authgate",
-			Subsystem: "audit",
-			Name:      "events_dropped_total",
-			Help:      "Total number of audit log events dropped due to a full buffer.",
+			Name: "audit_events_dropped_total",
+			Help: "Total number of audit log events dropped due to a full buffer.",
 		}
 		counter := prometheus.NewCounter(opts)
 
@@ -182,8 +182,14 @@ func (s *AuditService) buildAuditLog(
 	if entry.ActorIP == "" {
 		entry.ActorIP = util.GetIPFromContext(ctx)
 	}
+	// Fill ActorUsername from context only when the entry's ActorUserID is
+	// empty or matches the context user — otherwise the username could be
+	// misattributed to a different principal than ActorUserID identifies.
 	if entry.ActorUsername == "" {
-		entry.ActorUsername = models.GetUsernameFromContext(ctx)
+		ctxUserID := models.GetUserIDFromContext(ctx)
+		if entry.ActorUserID == "" || entry.ActorUserID == ctxUserID {
+			entry.ActorUsername = models.GetUsernameFromContext(ctx)
+		}
 	}
 	if entry.ActorUserID == "" {
 		entry.ActorUserID = models.GetUserIDFromContext(ctx)

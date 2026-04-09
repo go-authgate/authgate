@@ -83,8 +83,13 @@ func NewTokenService(
 // It first checks the request context (populated by auth middleware for
 // authenticated routes) and uses it only when the context user ID matches
 // the requested userID, falling back to a DB lookup otherwise.
-// Returns empty string on error (best-effort).
+// Returns empty string on error or when audit logging is disabled (noop).
 func (s *TokenService) resolveUsername(ctx context.Context, userID string) string {
+	// Skip lookup entirely when audit logging is disabled — the result
+	// would be discarded by the noop logger anyway.
+	if _, isNoop := s.auditService.(*NoopAuditService); isNoop {
+		return ""
+	}
 	if models.GetUserIDFromContext(ctx) == userID {
 		if username := models.GetUsernameFromContext(ctx); username != "" {
 			return username
