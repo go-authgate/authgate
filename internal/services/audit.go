@@ -209,6 +209,16 @@ func (s *AuditService) buildAuditLog(
 			entry.ActorUsername = models.GetUsernameFromContext(ctx)
 		}
 	}
+	// Fall back to a DB lookup when context did not provide a username and
+	// the actor is a real user (not a synthetic machine identity from the
+	// client_credentials grant, which uses a "client:<clientID>" format and
+	// has no corresponding user row).
+	if entry.ActorUsername == "" && entry.ActorUserID != "" &&
+		!strings.HasPrefix(entry.ActorUserID, "client:") {
+		if user, err := s.store.GetUserByID(entry.ActorUserID); err == nil {
+			entry.ActorUsername = user.Username
+		}
+	}
 	if entry.ActorUserID == "" {
 		entry.ActorUserID = models.GetUserIDFromContext(ctx)
 	}

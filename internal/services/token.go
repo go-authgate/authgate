@@ -79,29 +79,6 @@ func NewTokenService(
 	}
 }
 
-// resolveUsername returns the username for a given userID.
-// It first checks the request context (populated by auth middleware for
-// authenticated routes) and uses it only when the context user ID matches
-// the requested userID, falling back to a DB lookup otherwise.
-// Returns empty string on error or when audit logging is disabled (noop).
-func (s *TokenService) resolveUsername(ctx context.Context, userID string) string {
-	// Skip lookup entirely when audit logging is disabled — the result
-	// would be discarded by the noop logger anyway.
-	if _, isNoop := s.auditService.(*NoopAuditService); isNoop {
-		return ""
-	}
-	if models.GetUserIDFromContext(ctx) == userID {
-		if username := models.GetUsernameFromContext(ctx); username != "" {
-			return username
-		}
-	}
-	user, err := s.store.GetUserByID(userID)
-	if err != nil {
-		return ""
-	}
-	return user.Username
-}
-
 // getAccessTokenByHash looks up a token, using cache if available.
 // On cache backend errors (e.g. Redis unavailable), falls back to direct DB lookup
 // so that valid tokens are not rejected due to cache infrastructure issues.

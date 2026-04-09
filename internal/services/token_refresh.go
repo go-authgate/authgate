@@ -52,17 +52,15 @@ func (s *TokenService) revokeTokenFamilyWithAudit(
 		s.metrics.RecordTokenRevoked("family", "replay_detection")
 	}
 
-	// Audit log — CRITICAL severity because this indicates potential token theft
-	actorUsername := s.resolveUsername(ctx, reusedToken.UserID)
-
+	// Audit log — CRITICAL severity because this indicates potential token theft.
+	// ActorUsername is auto-resolved by buildAuditLog.
 	_ = s.auditService.LogSync(ctx, core.AuditLogEntry{
-		EventType:     models.EventSuspiciousActivity,
-		Severity:      models.SeverityCritical,
-		ActorUserID:   reusedToken.UserID,
-		ActorUsername: actorUsername,
-		ResourceType:  models.ResourceToken,
-		ResourceID:    reusedToken.ID,
-		Action:        "Refresh token reuse detected — token family revoked",
+		EventType:    models.EventSuspiciousActivity,
+		Severity:     models.SeverityCritical,
+		ActorUserID:  reusedToken.UserID,
+		ResourceType: models.ResourceToken,
+		ResourceID:   reusedToken.ID,
+		Action:       "Refresh token reuse detected — token family revoked",
 		Details: models.AuditDetails{
 			"family_id":       familyID,
 			"reused_token_id": reusedToken.ID,
@@ -207,8 +205,7 @@ func (s *TokenService) RefreshAccessToken(
 	// Record successful refresh
 	s.metrics.RecordTokenRefresh(true)
 
-	// Log token refresh
-	actorUsername := s.resolveUsername(ctx, newAccessToken.UserID)
+	// Log token refresh — ActorUsername is auto-resolved by buildAuditLog.
 	providerName := s.tokenProvider.Name()
 	details := models.AuditDetails{
 		"client_id":           newAccessToken.ClientID,
@@ -224,15 +221,14 @@ func (s *TokenService) RefreshAccessToken(
 	}
 
 	s.auditService.Log(ctx, core.AuditLogEntry{
-		EventType:     models.EventTokenRefreshed,
-		Severity:      models.SeverityInfo,
-		ActorUserID:   newAccessToken.UserID,
-		ActorUsername: actorUsername,
-		ResourceType:  models.ResourceToken,
-		ResourceID:    newAccessToken.ID,
-		Action:        "Access token refreshed",
-		Details:       details,
-		Success:       true,
+		EventType:    models.EventTokenRefreshed,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  newAccessToken.UserID,
+		ResourceType: models.ResourceToken,
+		ResourceID:   newAccessToken.ID,
+		Action:       "Access token refreshed",
+		Details:      details,
+		Success:      true,
 	})
 
 	return newAccessToken, newRefreshToken, nil

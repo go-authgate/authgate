@@ -149,6 +149,55 @@ func TestBuildAuditLog_EnrichesUserFromContext(t *testing.T) {
 	assert.Equal(t, "testuser", result.ActorUsername)
 }
 
+func TestBuildAuditLog_FillsActorUsernameFromDBFallback(t *testing.T) {
+	// When context has no user but the entry's ActorUserID points to a real
+	// user, buildAuditLog should resolve the username via a DB lookup.
+	s := setupTestStore(t)
+	user := &models.User{
+		ID:           "fallback-user-id",
+		Username:     "fallback-user",
+		Email:        "fallback@example.com",
+		PasswordHash: "x",
+		AuthSource:   models.AuthSourceLocal,
+	}
+	require.NoError(t, s.CreateUser(user))
+
+	svc := &AuditService{store: s}
+
+	entry := core.AuditLogEntry{
+		EventType:   models.EventAccessTokenIssued,
+		Severity:    models.SeverityInfo,
+		ActorUserID: user.ID,
+		Action:      "test",
+		Success:     true,
+	}
+
+	result := svc.buildAuditLog(context.Background(), entry)
+
+	assert.Equal(t, user.ID, result.ActorUserID)
+	assert.Equal(t, "fallback-user", result.ActorUsername)
+}
+
+func TestBuildAuditLog_SkipsDBLookupForMachineIdentity(t *testing.T) {
+	// Synthetic machine identities (client_credentials grant) use the
+	// "client:<clientID>" format and have no user row, so buildAuditLog
+	// must not attempt a DB lookup. A nil store would panic if a query ran.
+	svc := &AuditService{}
+
+	entry := core.AuditLogEntry{
+		EventType:   models.EventClientCredentialsTokenIssued,
+		Severity:    models.SeverityInfo,
+		ActorUserID: "client:test-client-id",
+		Action:      "test",
+		Success:     true,
+	}
+
+	result := svc.buildAuditLog(context.Background(), entry)
+
+	assert.Equal(t, "client:test-client-id", result.ActorUserID)
+	assert.Empty(t, result.ActorUsername)
+}
+
 func TestShutdown_DrainsLogChan(t *testing.T) {
 	// Construct the service struct directly (without starting the worker)
 	// so we can populate the channel deterministically before the drain runs.
