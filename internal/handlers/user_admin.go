@@ -327,13 +327,24 @@ func (h *UserAdminHandler) CreateUser(c *gin.Context) {
 		currentUser.ID,
 	)
 	if err != nil {
+		// Distinguish user-facing validation errors from internal failures
+		status := http.StatusBadRequest
+		errMsg := err.Error()
+		if !errors.Is(err, services.ErrUsernameRequired) &&
+			!errors.Is(err, services.ErrEmailRequired) &&
+			!errors.Is(err, services.ErrInvalidRole) &&
+			!errors.Is(err, services.ErrUsernameConflict) &&
+			!errors.Is(err, services.ErrEmailConflict) {
+			status = http.StatusInternalServerError
+			errMsg = "An internal error occurred. Please try again."
+		}
 		templates.RenderTempl(
 			c,
-			http.StatusBadRequest,
+			status,
 			templates.AdminUserCreate(templates.UserCreatePageProps{
 				BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
 				NavbarProps: buildNavbarProps(c, currentUser, "users"),
-				Error:       err.Error(),
+				Error:       errMsg,
 				Username:    req.Username,
 				Email:       req.Email,
 				FullName:    req.FullName,
@@ -518,6 +529,16 @@ func (h *UserAdminHandler) toggleUserActive(c *gin.Context, active bool) {
 	}
 
 	userID := c.Param("id")
+
+	// Validate first so we don't revoke tokens if the operation will be rejected.
+	if err := h.userService.ValidateSetUserActiveStatus(
+		userID,
+		currentUser.ID,
+		active,
+	); err != nil {
+		renderErrorPage(c, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	// When disabling, revoke all tokens BEFORE changing status to close the
 	// window where a disabled user's tokens could still be valid.

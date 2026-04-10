@@ -1,6 +1,9 @@
 package templates
 
-import "fmt"
+import (
+	"fmt"
+	"net/url"
+)
 
 templ AdminUserAuthorizations(props UserAuthorizationsPageProps) {
 	@Layout("User Authorizations", LayoutAdminNavbar, &props.NavbarProps) {
@@ -46,7 +49,7 @@ templ AdminUserAuthorizations(props UserAuthorizationsPageProps) {
 									for _, auth := range props.Authorizations {
 										<tr>
 											<td data-label="Application">
-												<a href={ templ.URL("/admin/clients?search=" + auth.ClientName) } class="client-name-link" style="font-weight:600;">
+												<a href={ templ.URL("/admin/clients?search=" + url.QueryEscape(auth.ClientName)) } class="client-name-link" style="font-weight:600;">
 													{ auth.ClientName }
 												</a>
 												<span style="display:block;font-family:var(--font-mono);font-size:var(--text-xs);color:var(--color-text-tertiary);">{ auth.ClientID }</span>

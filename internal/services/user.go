@@ -45,8 +45,9 @@ var (
 	ErrInvalidRole             = errors.New("role must be admin or user")
 	ErrEmailRequired           = errors.New("email is required")
 	ErrEmailConflict           = errors.New("email already in use by another user")
+	ErrAccountDisabled         = errors.New("account is disabled")
 	ErrUsernameRequired        = errors.New("username is required")
-	ErrCannotDisableSelf       = errors.New("cannot disable your own account")
+	ErrCannotDisableSelf       = errors.New("cannot change your own active status")
 	ErrUserAlreadyActive       = errors.New("user is already active")
 	ErrUserAlreadyDisabled     = errors.New("user is already disabled")
 )
@@ -94,8 +95,11 @@ func (s *UserService) Authenticate(
 	// First, try to find existing user
 	existingUser, err := s.store.GetUserByUsername(username)
 
-	// If user exists, authenticate based on their auth_source
+	// If user exists, check active status then authenticate based on auth_source
 	if err == nil {
+		if !existingUser.IsActive {
+			return nil, ErrAccountDisabled
+		}
 		return s.authenticateExistingUser(ctx, existingUser, password)
 	}
 
@@ -949,11 +953,15 @@ func (s *UserService) CreateUserAdmin(
 	// Check username uniqueness
 	if _, err := s.store.GetUserByUsername(req.Username); err == nil {
 		return nil, "", ErrUsernameConflict
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, "", fmt.Errorf("failed to check username uniqueness: %w", err)
 	}
 
 	// Check email uniqueness
 	if _, err := s.store.GetUserByEmail(req.Email); err == nil {
 		return nil, "", ErrEmailConflict
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, "", fmt.Errorf("failed to check email uniqueness: %w", err)
 	}
 
 	// Generate password if not provided
@@ -1020,7 +1028,10 @@ func (s *UserService) DeleteUserOAuthConnection(
 	// Verify the connection belongs to this user with a single indexed query
 	target, err := s.store.GetOAuthConnectionByUserAndID(userID, connectionID)
 	if err != nil {
-		return errors.New("OAuth connection not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("OAuth connection not found")
+		}
+		return fmt.Errorf("failed to look up OAuth connection: %w", err)
 	}
 
 	if err := s.store.DeleteOAuthConnection(connectionID); err != nil {
@@ -1047,6 +1058,42 @@ func (s *UserService) DeleteUserOAuthConnection(
 }
 
 // ── Admin Disable/Enable User ─────────────────────────────────────────
+
+// ValidateSetUserActiveStatus checks whether the active status change is
+// allowed without performing it. Callers can use this to run pre-change
+// side effects (e.g. token revocation) before committing the update.
+func (s *UserService) ValidateSetUserActiveStatus(
+	userID, actorUserID string,
+	isActive bool,
+) error {
+	if actorUserID == userID {
+		return ErrCannotDisableSelf
+	}
+
+	user, err := s.AdminGetUserByID(userID)
+	if err != nil {
+		return err
+	}
+
+	if isActive && user.IsActive {
+		return ErrUserAlreadyActive
+	}
+	if !isActive && !user.IsActive {
+		return ErrUserAlreadyDisabled
+	}
+
+	if !isActive && user.Role == models.UserRoleAdmin {
+		adminCount, countErr := s.store.CountUsersByRole(models.UserRoleAdmin)
+		if countErr != nil {
+			return fmt.Errorf("failed to count admins: %w", countErr)
+		}
+		if adminCount <= 1 {
+			return ErrCannotRemoveLastAdmin
+		}
+	}
+
+	return nil
+}
 
 // SetUserActiveStatus enables or disables a user account.
 func (s *UserService) SetUserActiveStatus(

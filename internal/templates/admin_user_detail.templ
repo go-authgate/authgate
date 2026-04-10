@@ -2,6 +2,7 @@ package templates
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/go-authgate/authgate/internal/models"
 )
@@ -73,7 +74,7 @@ templ AdminUserDetail(props UserDetailPageProps) {
 					</div>
 					<!-- Stats (clickable) -->
 					<div class="admin-user-stats">
-						<a href={ templ.URL("/admin/tokens?search=" + props.TargetUser.Username) } class="admin-user-stat-card admin-user-stat-card-link" title="View active tokens">
+						<a href={ templ.URL("/admin/tokens?search=" + url.QueryEscape(props.TargetUser.Username)) } class="admin-user-stat-card admin-user-stat-card-link" title="View active tokens">
 							<div class="admin-user-stat-value">{ fmt.Sprintf("%d", props.ActiveTokenCount) }</div>
 							<div class="admin-user-stat-label">Active Tokens</div>
 						</a>
