@@ -47,7 +47,7 @@ var (
 	ErrEmailConflict           = errors.New("email already in use by another user")
 	ErrAccountDisabled         = errors.New("account is disabled")
 	ErrUsernameRequired        = errors.New("username is required")
-	ErrCannotDisableSelf       = errors.New("cannot change your own active status")
+	ErrCannotChangeOwnStatus   = errors.New("cannot change your own active status")
 	ErrUserAlreadyActive       = errors.New("user is already active")
 	ErrUserAlreadyDisabled     = errors.New("user is already disabled")
 	ErrOAuthConnectionNotFound = errors.New("OAuth connection not found")
@@ -946,6 +946,7 @@ func (s *UserService) CreateUserAdmin(
 	// Validate and sanitize required fields
 	req.Username = sanitizeUsername(strings.TrimSpace(req.Username))
 	req.Email = strings.TrimSpace(req.Email)
+	req.FullName = strings.TrimSpace(req.FullName)
 	if req.Username == "" {
 		return nil, "", ErrUsernameRequired
 	}
@@ -1083,7 +1084,7 @@ func (s *UserService) ValidateSetUserActiveStatus(
 	isActive bool,
 ) error {
 	if actorUserID == userID {
-		return ErrCannotDisableSelf
+		return ErrCannotChangeOwnStatus
 	}
 
 	user, err := s.AdminGetUserByID(userID)
@@ -1112,17 +1113,12 @@ func (s *UserService) ValidateSetUserActiveStatus(
 }
 
 // SetUserActiveStatus enables or disables a user account.
+// The handler must call ValidateSetUserActiveStatus beforehand.
 func (s *UserService) SetUserActiveStatus(
 	ctx context.Context,
 	userID, actorUserID string,
 	isActive bool,
 ) error {
-	// Re-validate for defense-in-depth (handler calls ValidateSetUserActiveStatus
-	// separately so it can skip token revocation on validation failure).
-	if err := s.ValidateSetUserActiveStatus(userID, actorUserID, isActive); err != nil {
-		return err
-	}
-
 	user, err := s.AdminGetUserByID(userID)
 	if err != nil {
 		return err

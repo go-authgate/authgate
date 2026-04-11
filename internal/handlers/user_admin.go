@@ -3,7 +3,6 @@ package handlers
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -315,9 +314,9 @@ func (h *UserAdminHandler) CreateUser(c *gin.Context) {
 	}
 
 	req := services.CreateUserRequest{
-		Username: strings.TrimSpace(c.PostForm("username")),
-		Email:    strings.TrimSpace(c.PostForm("email")),
-		FullName: strings.TrimSpace(c.PostForm("full_name")),
+		Username: c.PostForm("username"),
+		Email:    c.PostForm("email"),
+		FullName: c.PostForm("full_name"),
 		Role:     c.PostForm("role"),
 		Password: c.PostForm("password"),
 	}
@@ -460,18 +459,7 @@ func (h *UserAdminHandler) ShowUserAuthorizations(c *gin.Context) {
 		return
 	}
 
-	// Convert to display models
-	displayAuths := make([]templates.AuthorizationDisplay, 0, len(auths))
-	for _, a := range auths {
-		displayAuths = append(displayAuths, templates.AuthorizationDisplay{
-			UUID:       a.UUID,
-			ClientID:   a.ClientID,
-			ClientName: a.ClientName,
-			Scopes:     a.Scopes,
-			GrantedAt:  a.GrantedAt,
-			IsActive:   a.IsActive,
-		})
-	}
+	displayAuths := toAuthorizationDisplaySlice(auths)
 
 	templates.RenderTempl(
 		c,
@@ -546,7 +534,7 @@ func (h *UserAdminHandler) toggleUserActive(c *gin.Context, active bool) {
 		active,
 	); err != nil {
 		switch {
-		case errors.Is(err, services.ErrCannotDisableSelf),
+		case errors.Is(err, services.ErrCannotChangeOwnStatus),
 			errors.Is(err, services.ErrUserAlreadyActive),
 			errors.Is(err, services.ErrUserAlreadyDisabled),
 			errors.Is(err, services.ErrCannotRemoveLastAdmin):

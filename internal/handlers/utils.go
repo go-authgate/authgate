@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/store"
 	"github.com/go-authgate/authgate/internal/templates"
 
@@ -163,4 +164,23 @@ func toPointerSlice[T any](s []T) []*T {
 		ptrs[i] = &s[i]
 	}
 	return ptrs
+}
+
+// toAuthorizationDisplaySlice converts service-layer authorization details
+// to template display models.
+func toAuthorizationDisplaySlice(
+	auths []services.UserAuthorizationWithClient,
+) []templates.AuthorizationDisplay {
+	display := make([]templates.AuthorizationDisplay, 0, len(auths))
+	for _, a := range auths {
+		display = append(display, templates.AuthorizationDisplay{
+			UUID:       a.UUID,
+			ClientID:   a.ClientID,
+			ClientName: a.ClientName,
+			Scopes:     a.Scopes,
+			GrantedAt:  a.GrantedAt,
+			IsActive:   a.IsActive,
+		})
+	}
+	return display
 }

@@ -253,18 +253,7 @@ func (h *AuthorizationHandler) ListAuthorizations(c *gin.Context) {
 		return
 	}
 
-	// Build display models
-	displayAuths := make([]templates.AuthorizationDisplay, 0, len(auths))
-	for _, a := range auths {
-		displayAuths = append(displayAuths, templates.AuthorizationDisplay{
-			UUID:       a.UUID,
-			ClientID:   a.ClientID,
-			ClientName: a.ClientName,
-			Scopes:     a.Scopes,
-			GrantedAt:  a.GrantedAt,
-			IsActive:   a.IsActive,
-		})
-	}
+	displayAuths := toAuthorizationDisplaySlice(auths)
 
 	userModel := getUserFromContext(c)
 	if userModel == nil {

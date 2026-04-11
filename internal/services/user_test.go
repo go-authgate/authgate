@@ -737,7 +737,7 @@ func TestSetUserActiveStatus_EnableUser(t *testing.T) {
 	assert.True(t, updated.IsActive)
 }
 
-func TestSetUserActiveStatus_CannotDisableSelf(t *testing.T) {
+func TestValidateSetUserActiveStatus_CannotDisableSelf(t *testing.T) {
 	db := setupTestStore(t)
 	ctrl := gomock.NewController(t)
 	mockCache := mocks.NewMockCache[models.User](ctrl)
@@ -745,26 +745,25 @@ func TestSetUserActiveStatus_CannotDisableSelf(t *testing.T) {
 	u := makeTestUser(t, db)
 	svc := newUserServiceWithStore(db, mockCache)
 
-	err := svc.SetUserActiveStatus(context.Background(), u.ID, u.ID, false)
-	assert.ErrorIs(t, err, ErrCannotDisableSelf)
+	err := svc.ValidateSetUserActiveStatus(u.ID, u.ID, false)
+	assert.ErrorIs(t, err, ErrCannotChangeOwnStatus)
 }
 
-func TestSetUserActiveStatus_AlreadyDisabled(t *testing.T) {
+func TestValidateSetUserActiveStatus_AlreadyDisabled(t *testing.T) {
 	db := setupTestStore(t)
 	ctrl := gomock.NewController(t)
 	mockCache := mocks.NewMockCache[models.User](ctrl)
-	mockCache.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	u := makeTestUser(t, db)
 	u.IsActive = false
 	require.NoError(t, db.UpdateUser(u))
 
 	svc := newUserServiceWithStore(db, mockCache)
-	err := svc.SetUserActiveStatus(context.Background(), u.ID, "other-actor", false)
+	err := svc.ValidateSetUserActiveStatus(u.ID, "other-actor", false)
 	assert.ErrorIs(t, err, ErrUserAlreadyDisabled)
 }
 
-func TestSetUserActiveStatus_AlreadyActive(t *testing.T) {
+func TestValidateSetUserActiveStatus_AlreadyActive(t *testing.T) {
 	db := setupTestStore(t)
 	ctrl := gomock.NewController(t)
 	mockCache := mocks.NewMockCache[models.User](ctrl)
@@ -772,7 +771,7 @@ func TestSetUserActiveStatus_AlreadyActive(t *testing.T) {
 	u := makeTestUser(t, db)
 	svc := newUserServiceWithStore(db, mockCache)
 
-	err := svc.SetUserActiveStatus(context.Background(), u.ID, "other-actor", true)
+	err := svc.ValidateSetUserActiveStatus(u.ID, "other-actor", true)
 	assert.ErrorIs(t, err, ErrUserAlreadyActive)
 }
 
