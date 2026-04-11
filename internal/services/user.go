@@ -347,6 +347,9 @@ func (s *UserService) AuthenticateWithOAuth(
 	// 2. Check if user exists with same email
 	user, err := s.store.GetUserByEmail(oauthUserInfo.Email)
 	if err == nil {
+		if !user.IsActive {
+			return nil, ErrAccountDisabled
+		}
 		// Only auto-link when the provider has verified the email address.
 		// Without this check, an attacker who controls an OAuth account with
 		// a victim's email could take over the victim's AuthGate account.
@@ -398,6 +401,10 @@ func (s *UserService) updateOAuthConnectionAndGetUser(
 	user, err := s.store.GetUserByID(connection.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("user not found for OAuth connection: %w", err)
+	}
+
+	if !user.IsActive {
+		return nil, ErrAccountDisabled
 	}
 
 	// Sync avatar and name if changed
@@ -994,6 +1001,10 @@ func (s *UserService) CreateUserAdmin(
 
 	if err := s.store.CreateUser(user); err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			errText := strings.ToLower(err.Error())
+			if strings.Contains(errText, "email") {
+				return nil, "", ErrEmailConflict
+			}
 			return nil, "", ErrUsernameConflict
 		}
 		return nil, "", fmt.Errorf("failed to create user: %w", err)

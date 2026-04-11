@@ -501,7 +501,11 @@ func (h *UserAdminHandler) RevokeUserAuthorization(c *gin.Context) {
 		authUUID,
 		userID,
 	); err != nil {
-		renderErrorPage(c, http.StatusBadRequest, err.Error())
+		if errors.Is(err, services.ErrAuthorizationNotFound) {
+			renderErrorPage(c, http.StatusNotFound, err.Error())
+		} else {
+			renderErrorPage(c, http.StatusInternalServerError, "Failed to revoke authorization")
+		}
 		return
 	}
 
@@ -540,7 +544,21 @@ func (h *UserAdminHandler) toggleUserActive(c *gin.Context, active bool) {
 		currentUser.ID,
 		active,
 	); err != nil {
-		renderErrorPage(c, http.StatusBadRequest, err.Error())
+		switch {
+		case errors.Is(err, services.ErrCannotDisableSelf),
+			errors.Is(err, services.ErrUserAlreadyActive),
+			errors.Is(err, services.ErrUserAlreadyDisabled),
+			errors.Is(err, services.ErrCannotRemoveLastAdmin):
+			renderErrorPage(c, http.StatusBadRequest, err.Error())
+		case errors.Is(err, services.ErrUserNotFound):
+			renderErrorPage(c, http.StatusNotFound, "User not found")
+		default:
+			renderErrorPage(
+				c,
+				http.StatusInternalServerError,
+				"Failed to validate user status change",
+			)
+		}
 		return
 	}
 
@@ -563,7 +581,7 @@ func (h *UserAdminHandler) toggleUserActive(c *gin.Context, active bool) {
 		currentUser.ID,
 		active,
 	); err != nil {
-		renderErrorPage(c, http.StatusBadRequest, err.Error())
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to update user status")
 		return
 	}
 

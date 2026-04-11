@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"go.uber.org/mock/gomock"
+	"golang.org/x/oauth2"
 
+	"github.com/go-authgate/authgate/internal/auth"
 	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/mocks"
 	"github.com/go-authgate/authgate/internal/models"
@@ -842,4 +844,69 @@ func TestDeleteUserOAuthConnection_WrongUser(t *testing.T) {
 	conns, err := db.GetOAuthConnectionsByUserID(u1.ID)
 	require.NoError(t, err)
 	assert.Len(t, conns, 1)
+}
+
+// ── AuthenticateWithOAuth disabled user tests ──────────────────────────
+
+func TestAuthenticateWithOAuth_DisabledUserWithExistingConnection(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	// Create a disabled user
+	u := makeTestUser(t, db)
+	u.IsActive = false
+	require.NoError(t, db.UpdateUser(u))
+
+	// Create an OAuth connection for the disabled user
+	conn := &models.OAuthConnection{
+		ID:               uuid.New().String(),
+		UserID:           u.ID,
+		Provider:         "github",
+		ProviderUserID:   "gh-disabled-" + uuid.New().String()[:8],
+		ProviderUsername: "disableduser",
+		ProviderEmail:    u.Email,
+	}
+	require.NoError(t, db.CreateOAuthConnection(conn))
+
+	svc := newUserServiceWithStore(db, mockCache)
+
+	_, err := svc.AuthenticateWithOAuth(
+		context.Background(),
+		"github",
+		&auth.OAuthUserInfo{
+			ProviderUserID: conn.ProviderUserID,
+			Email:          u.Email,
+			Username:       "disableduser",
+			EmailVerified:  true,
+		},
+		&oauth2.Token{AccessToken: "tok"},
+	)
+	require.ErrorIs(t, err, ErrAccountDisabled)
+}
+
+func TestAuthenticateWithOAuth_DisabledUserByEmail(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	// Create a disabled user (no OAuth connection)
+	u := makeTestUser(t, db)
+	u.IsActive = false
+	require.NoError(t, db.UpdateUser(u))
+
+	svc := newUserServiceWithStore(db, mockCache)
+
+	_, err := svc.AuthenticateWithOAuth(
+		context.Background(),
+		"github",
+		&auth.OAuthUserInfo{
+			ProviderUserID: "gh-new-" + uuid.New().String()[:8],
+			Email:          u.Email,
+			Username:       "newuser",
+			EmailVerified:  true,
+		},
+		&oauth2.Token{AccessToken: "tok"},
+	)
+	require.ErrorIs(t, err, ErrAccountDisabled)
 }
