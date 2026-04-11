@@ -813,8 +813,7 @@ func TestDeleteUserOAuthConnection_NotFound(t *testing.T) {
 	svc := newUserServiceWithStore(db, mockCache)
 
 	err := svc.DeleteUserOAuthConnection(context.Background(), u.ID, "nonexistent", "actor-id")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
+	require.ErrorIs(t, err, ErrOAuthConnectionNotFound)
 }
 
 func TestDeleteUserOAuthConnection_WrongUser(t *testing.T) {
@@ -837,8 +836,7 @@ func TestDeleteUserOAuthConnection_WrongUser(t *testing.T) {
 	svc := newUserServiceWithStore(db, mockCache)
 	// Attempt to delete u1's connection using u2's ID
 	err := svc.DeleteUserOAuthConnection(context.Background(), u2.ID, conn.ID, "actor-id")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
+	require.ErrorIs(t, err, ErrOAuthConnectionNotFound)
 
 	// Verify the connection still exists
 	conns, err := db.GetOAuthConnectionsByUserID(u1.ID)
