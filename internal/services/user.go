@@ -1001,8 +1001,8 @@ func (s *UserService) CreateUserAdmin(
 
 	if err := s.store.CreateUser(user); err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			errText := strings.ToLower(err.Error())
-			if strings.Contains(errText, "email") {
+			// Re-query to determine which unique constraint was violated (race condition).
+			if _, emailErr := s.store.GetUserByEmail(req.Email); emailErr == nil {
 				return nil, "", ErrEmailConflict
 			}
 			return nil, "", ErrUsernameConflict

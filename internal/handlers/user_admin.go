@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -314,9 +315,9 @@ func (h *UserAdminHandler) CreateUser(c *gin.Context) {
 	}
 
 	req := services.CreateUserRequest{
-		Username: c.PostForm("username"),
-		Email:    c.PostForm("email"),
-		FullName: c.PostForm("full_name"),
+		Username: strings.TrimSpace(c.PostForm("username")),
+		Email:    strings.TrimSpace(c.PostForm("email")),
+		FullName: strings.TrimSpace(c.PostForm("full_name")),
 		Role:     c.PostForm("role"),
 		Password: c.PostForm("password"),
 	}
