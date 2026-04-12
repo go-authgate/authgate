@@ -96,18 +96,25 @@ func (f *JWKSFetcher) GetWithRefresh(ctx context.Context, uri, kid string) (*uti
 
 // canRefreshNow returns true if uri has not been force-refreshed within
 // jwksRefreshCooldown, and marks it as refreshed. Concurrent callers for the
-// same uri collapse into a single refresh per cooldown window.
+// same uri collapse into a single refresh per cooldown window via CAS.
 func (f *JWKSFetcher) canRefreshNow(uri string) bool {
-	now := time.Now()
-	prev, loaded := f.lastRefresh.LoadOrStore(uri, now)
-	if !loaded {
-		return true
+	for {
+		now := time.Now()
+		prev, loaded := f.lastRefresh.LoadOrStore(uri, now)
+		if !loaded {
+			return true
+		}
+		prevTime := prev.(time.Time)
+		if now.Sub(prevTime) < jwksRefreshCooldown {
+			return false
+		}
+		// CompareAndSwap guarantees only one concurrent caller wins the
+		// post-cooldown refresh decision; losers retry the loop and fall
+		// back into the cooldown branch.
+		if f.lastRefresh.CompareAndSwap(uri, prevTime, now) {
+			return true
+		}
 	}
-	if now.Sub(prev.(time.Time)) < jwksRefreshCooldown {
-		return false
-	}
-	f.lastRefresh.Store(uri, now)
-	return true
 }
 
 func (f *JWKSFetcher) getCached(ctx context.Context, uri string) (*util.JWKSet, error) {

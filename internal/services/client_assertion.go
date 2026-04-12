@@ -49,6 +49,7 @@ var (
 	ErrAssertionLifetimeTooLong     = errors.New("client_assertion lifetime exceeds server maximum")
 	ErrAssertionMissingJTI          = errors.New("client_assertion is missing jti")
 	ErrAssertionJTIReplay           = errors.New("client_assertion jti was already used")
+	ErrAssertionJTICacheUnavailable = errors.New("client_assertion jti replay cache unavailable")
 	ErrAssertionMissingRequiredTime = errors.New("client_assertion is missing required time claims")
 )
 
@@ -257,6 +258,11 @@ func (v *ClientAssertionVerifier) validateTimeClaims(claims jwt.MapClaims) error
 			return ErrAssertionNotYetValid
 		}
 	}
+	// exp must be strictly after iat: a zero or negative lifetime is
+	// nonsensical and would otherwise pass the MaxLifetime bound below.
+	if !exp.After(iat) {
+		return ErrAssertionLifetimeTooLong
+	}
 	if exp.Sub(iat) > v.cfg.MaxLifetime {
 		return ErrAssertionLifetimeTooLong
 	}
@@ -334,9 +340,11 @@ func (v *ClientAssertionVerifier) checkJTIReplay(
 		// expected — the jti has not been seen; fall through to record it.
 	default:
 		// Backend error (e.g. Redis unavailable). Fail closed so we do not
-		// silently accept replays while the cache is degraded.
+		// silently accept replays while the cache is degraded. Use a
+		// distinct error so audit logs don't misreport a cache outage as
+		// a replay attempt.
 		log.Printf("[ClientAssertion] jti cache lookup failed: %v", err)
-		return ErrAssertionJTIReplay
+		return ErrAssertionJTICacheUnavailable
 	}
 	// TTL = remaining assertion lifetime + clock skew. If exp is absent,
 	// fall back to MaxLifetime (defensive).
@@ -349,9 +357,10 @@ func (v *ClientAssertionVerifier) checkJTIReplay(
 	}
 	if err := v.jtiCache.Set(ctx, key, true, ttl); err != nil {
 		// Set failure after a miss: reject the assertion rather than
-		// silently skipping replay tracking.
+		// silently skipping replay tracking. Use the dedicated cache-
+		// unavailable error so audit logs are accurate.
 		log.Printf("[ClientAssertion] failed to record jti %s: %v", jti, err)
-		return ErrAssertionJTIReplay
+		return ErrAssertionJTICacheUnavailable
 	}
 	return nil
 }
