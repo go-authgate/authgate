@@ -15,6 +15,7 @@ func (s *Store) GetDashboardCounts() (DashboardCounts, error) {
 		SELECT
 			(SELECT COUNT(*) FROM users) AS total_users,
 			(SELECT COUNT(*) FROM users WHERE role = ?) AS admin_users,
+			(SELECT COUNT(*) FROM users WHERE is_active = ?) AS disabled_users,
 			(SELECT COUNT(*) FROM oauth_applications) AS total_clients,
 			(SELECT COUNT(*) FROM oauth_applications WHERE status = ?) AS active_clients,
 			(SELECT COUNT(*) FROM oauth_applications WHERE status = ?) AS pending_clients,
@@ -22,6 +23,7 @@ func (s *Store) GetDashboardCounts() (DashboardCounts, error) {
 			(SELECT COUNT(*) FROM access_tokens WHERE status = ? AND expires_at > ? AND token_category = ?) AS active_refresh_tokens
 	`,
 		models.UserRoleAdmin,
+		false,
 		models.ClientStatusActive,
 		models.ClientStatusPending,
 		models.TokenStatusActive, now, models.TokenCategoryAccess,

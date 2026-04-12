@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"go.uber.org/mock/gomock"
+	"golang.org/x/oauth2"
 
+	"github.com/go-authgate/authgate/internal/auth"
 	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/mocks"
 	"github.com/go-authgate/authgate/internal/models"
@@ -40,6 +42,7 @@ func makeTestUser(t *testing.T, db *store.Store) *models.User {
 		PasswordHash: "hash",
 		Role:         "user",
 		AuthSource:   AuthModeLocal,
+		IsActive:     true,
 	}
 	require.NoError(t, db.CreateUser(u))
 	return u
@@ -604,4 +607,303 @@ func TestGetUserStats(t *testing.T) {
 	assert.Equal(t, int64(0), stats.ActiveTokenCount)
 	assert.Equal(t, int64(0), stats.OAuthConnectionCount)
 	assert.Equal(t, int64(0), stats.AuthorizationCount)
+}
+
+// ── CreateUserAdmin tests ─────────────────────────────────────────────
+
+func TestCreateUserAdmin_Success(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	svc := newUserServiceWithStore(db, mockCache)
+
+	user, password, err := svc.CreateUserAdmin(context.Background(), CreateUserRequest{
+		Username: "newuser",
+		Email:    "new@example.com",
+		FullName: "New User",
+	}, "actor-id")
+	require.NoError(t, err)
+	assert.Equal(t, "newuser", user.Username)
+	assert.Equal(t, "new@example.com", user.Email)
+	assert.Equal(t, models.UserRoleUser, user.Role)
+	assert.True(t, user.IsActive)
+	assert.NotEmpty(t, password)
+}
+
+func TestCreateUserAdmin_UsernameRequired(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	svc := newUserServiceWithStore(db, mockCache)
+
+	_, _, err := svc.CreateUserAdmin(context.Background(), CreateUserRequest{
+		Email: "test@example.com",
+	}, "actor-id")
+	assert.ErrorIs(t, err, ErrUsernameRequired)
+}
+
+func TestCreateUserAdmin_DuplicateUsername(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	u := makeTestUser(t, db)
+	svc := newUserServiceWithStore(db, mockCache)
+
+	_, _, err := svc.CreateUserAdmin(context.Background(), CreateUserRequest{
+		Username: u.Username,
+		Email:    "unique@example.com",
+	}, "actor-id")
+	assert.ErrorIs(t, err, ErrUsernameConflict)
+}
+
+func TestCreateUserAdmin_DuplicateEmail(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	u := makeTestUser(t, db)
+	svc := newUserServiceWithStore(db, mockCache)
+
+	_, _, err := svc.CreateUserAdmin(context.Background(), CreateUserRequest{
+		Username: "uniqueuser",
+		Email:    u.Email,
+	}, "actor-id")
+	assert.ErrorIs(t, err, ErrEmailConflict)
+}
+
+func TestCreateUserAdmin_InvalidRole(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	svc := newUserServiceWithStore(db, mockCache)
+
+	_, _, err := svc.CreateUserAdmin(context.Background(), CreateUserRequest{
+		Username: "newuser",
+		Email:    "new@example.com",
+		Role:     "superadmin",
+	}, "actor-id")
+	assert.ErrorIs(t, err, ErrInvalidRole)
+}
+
+func TestCreateUserAdmin_SanitizesUsername(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	svc := newUserServiceWithStore(db, mockCache)
+
+	user, _, err := svc.CreateUserAdmin(context.Background(), CreateUserRequest{
+		Username: "John Doe!@#",
+		Email:    "john@example.com",
+	}, "actor-id")
+	require.NoError(t, err)
+	assert.Equal(t, "johndoe", user.Username)
+}
+
+// ── SetUserActiveStatus tests ─────────────────────────────────────────
+
+func TestSetUserActiveStatus_DisableUser(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	mockCache.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	u := makeTestUser(t, db)
+	svc := newUserServiceWithStore(db, mockCache)
+
+	err := svc.SetUserActiveStatus(context.Background(), u.ID, "other-actor", false)
+	require.NoError(t, err)
+
+	updated, err := svc.AdminGetUserByID(u.ID)
+	require.NoError(t, err)
+	assert.False(t, updated.IsActive)
+}
+
+func TestSetUserActiveStatus_EnableUser(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+	mockCache.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	u := makeTestUser(t, db)
+	// First disable
+	u.IsActive = false
+	require.NoError(t, db.UpdateUser(u))
+
+	svc := newUserServiceWithStore(db, mockCache)
+	err := svc.SetUserActiveStatus(context.Background(), u.ID, "other-actor", true)
+	require.NoError(t, err)
+
+	updated, err := svc.AdminGetUserByID(u.ID)
+	require.NoError(t, err)
+	assert.True(t, updated.IsActive)
+}
+
+func TestValidateSetUserActiveStatus_CannotDisableSelf(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	u := makeTestUser(t, db)
+	svc := newUserServiceWithStore(db, mockCache)
+
+	err := svc.ValidateSetUserActiveStatus(u.ID, u.ID, false)
+	assert.ErrorIs(t, err, ErrCannotChangeOwnStatus)
+}
+
+func TestValidateSetUserActiveStatus_AlreadyDisabled(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	u := makeTestUser(t, db)
+	u.IsActive = false
+	require.NoError(t, db.UpdateUser(u))
+
+	svc := newUserServiceWithStore(db, mockCache)
+	err := svc.ValidateSetUserActiveStatus(u.ID, "other-actor", false)
+	assert.ErrorIs(t, err, ErrUserAlreadyDisabled)
+}
+
+func TestValidateSetUserActiveStatus_AlreadyActive(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	u := makeTestUser(t, db)
+	svc := newUserServiceWithStore(db, mockCache)
+
+	err := svc.ValidateSetUserActiveStatus(u.ID, "other-actor", true)
+	assert.ErrorIs(t, err, ErrUserAlreadyActive)
+}
+
+// ── DeleteUserOAuthConnection tests ───────────────────────────────────
+
+func TestDeleteUserOAuthConnection_Success(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	u := makeTestUser(t, db)
+	conn := &models.OAuthConnection{
+		ID:               uuid.New().String(),
+		UserID:           u.ID,
+		Provider:         "github",
+		ProviderUserID:   "gh-123",
+		ProviderUsername: "ghuser",
+		ProviderEmail:    "gh@example.com",
+	}
+	require.NoError(t, db.CreateOAuthConnection(conn))
+
+	svc := newUserServiceWithStore(db, mockCache)
+	err := svc.DeleteUserOAuthConnection(context.Background(), u.ID, conn.ID, "actor-id")
+	require.NoError(t, err)
+
+	// Verify it's deleted
+	conns, err := db.GetOAuthConnectionsByUserID(u.ID)
+	require.NoError(t, err)
+	assert.Empty(t, conns)
+}
+
+func TestDeleteUserOAuthConnection_NotFound(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	u := makeTestUser(t, db)
+	svc := newUserServiceWithStore(db, mockCache)
+
+	err := svc.DeleteUserOAuthConnection(context.Background(), u.ID, "nonexistent", "actor-id")
+	require.ErrorIs(t, err, ErrOAuthConnectionNotFound)
+}
+
+func TestDeleteUserOAuthConnection_WrongUser(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	u1 := makeTestUser(t, db)
+	u2 := makeTestUser(t, db)
+	conn := &models.OAuthConnection{
+		ID:               uuid.New().String(),
+		UserID:           u1.ID,
+		Provider:         "github",
+		ProviderUserID:   "gh-456",
+		ProviderUsername: "ghuser2",
+		ProviderEmail:    "gh2@example.com",
+	}
+	require.NoError(t, db.CreateOAuthConnection(conn))
+
+	svc := newUserServiceWithStore(db, mockCache)
+	// Attempt to delete u1's connection using u2's ID
+	err := svc.DeleteUserOAuthConnection(context.Background(), u2.ID, conn.ID, "actor-id")
+	require.ErrorIs(t, err, ErrOAuthConnectionNotFound)
+
+	// Verify the connection still exists
+	conns, err := db.GetOAuthConnectionsByUserID(u1.ID)
+	require.NoError(t, err)
+	assert.Len(t, conns, 1)
+}
+
+// ── AuthenticateWithOAuth disabled user tests ──────────────────────────
+
+func TestAuthenticateWithOAuth_DisabledUserWithExistingConnection(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	// Create a disabled user
+	u := makeTestUser(t, db)
+	u.IsActive = false
+	require.NoError(t, db.UpdateUser(u))
+
+	// Create an OAuth connection for the disabled user
+	conn := &models.OAuthConnection{
+		ID:               uuid.New().String(),
+		UserID:           u.ID,
+		Provider:         "github",
+		ProviderUserID:   "gh-disabled-" + uuid.New().String()[:8],
+		ProviderUsername: "disableduser",
+		ProviderEmail:    u.Email,
+	}
+	require.NoError(t, db.CreateOAuthConnection(conn))
+
+	svc := newUserServiceWithStore(db, mockCache)
+
+	_, err := svc.AuthenticateWithOAuth(
+		context.Background(),
+		"github",
+		&auth.OAuthUserInfo{
+			ProviderUserID: conn.ProviderUserID,
+			Email:          u.Email,
+			Username:       "disableduser",
+			EmailVerified:  true,
+		},
+		&oauth2.Token{AccessToken: "tok"},
+	)
+	require.ErrorIs(t, err, ErrAccountDisabled)
+}
+
+func TestAuthenticateWithOAuth_DisabledUserByEmail(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	// Create a disabled user (no OAuth connection)
+	u := makeTestUser(t, db)
+	u.IsActive = false
+	require.NoError(t, db.UpdateUser(u))
+
+	svc := newUserServiceWithStore(db, mockCache)
+
+	_, err := svc.AuthenticateWithOAuth(
+		context.Background(),
+		"github",
+		&auth.OAuthUserInfo{
+			ProviderUserID: "gh-new-" + uuid.New().String()[:8],
+			Email:          u.Email,
+			Username:       "newuser",
+			EmailVerified:  true,
+		},
+		&oauth2.Token{AccessToken: "tok"},
+	)
+	require.ErrorIs(t, err, ErrAccountDisabled)
 }

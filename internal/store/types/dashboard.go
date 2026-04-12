@@ -5,6 +5,7 @@ package types
 type DashboardCounts struct {
 	TotalUsers          int64 `gorm:"column:total_users"`
 	AdminUsers          int64 `gorm:"column:admin_users"`
+	DisabledUsers       int64 `gorm:"column:disabled_users"`
 	TotalClients        int64 `gorm:"column:total_clients"`
 	ActiveClients       int64 `gorm:"column:active_clients"`
 	PendingClients      int64 `gorm:"column:pending_clients"`

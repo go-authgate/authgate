@@ -24,6 +24,7 @@ type User struct {
 	Role         string `gorm:"not null;default:'user'"` // "admin" or "user"
 	FullName     string // User full name
 	AvatarURL    string // User avatar URL (from OAuth or manual)
+	IsActive     bool   `gorm:"not null;default:true"` // false = disabled by admin
 
 	// External authentication support
 	ExternalID string `gorm:"index"`           // External user ID (e.g., from HTTP API)

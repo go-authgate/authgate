@@ -10,7 +10,6 @@ import (
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/templates"
 
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
@@ -71,20 +70,7 @@ func (h *ClientHandler) ShowClientsPage(c *gin.Context) {
 		return
 	}
 
-	// Get flash messages from session
-	session := sessions.Default(c)
-	flashes := session.Flashes()
-	if err := session.Save(); err != nil {
-		// Log error but continue - flash message is not critical
-		c.Set("session_save_error", err)
-	}
-
-	var successMsg string
-	if len(flashes) > 0 {
-		if msg, ok := flashes[0].(string); ok {
-			successMsg = msg
-		}
-	}
+	successMsg := getFlashMessage(c)
 
 	userModel := getUserFromContext(c)
 
@@ -286,15 +272,7 @@ func (h *ClientHandler) DeleteClient(c *gin.Context) {
 		return
 	}
 
-	// Store success message in session flash
-	session := sessions.Default(c)
-	session.AddFlash("Client deleted successfully")
-	if err := session.Save(); err != nil {
-		renderErrorPage(c, http.StatusInternalServerError, "Failed to save session: "+err.Error())
-		return
-	}
-
-	c.Redirect(http.StatusFound, "/admin/clients")
+	flashAndRedirect(c, "Client deleted successfully", "/admin/clients")
 }
 
 // RegenerateSecret handles POST /admin/clients/:id/regenerate-secret to regenerate the client secret

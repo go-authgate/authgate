@@ -38,6 +38,11 @@ templ AdminDashboard(props DashboardPageProps) {
 								<div class="dashboard-metric-label">Total Users</div>
 								<div class="dashboard-metric-detail">
 									{ pluralize(props.Stats.AdminUsers, "admin", "admins") }, { pluralize(props.Stats.RegularUsers, "user", "users") }
+									if props.Stats.DisabledUsers > 0 {
+										<span style="color:var(--color-error);margin-left:var(--space-1);">
+											({ fmt.Sprintf("%d", props.Stats.DisabledUsers) } disabled)
+										</span>
+									}
 								</div>
 							</div>
 							<a href="/admin/users" class="dashboard-metric-link" title="View Users" aria-label="View Users">

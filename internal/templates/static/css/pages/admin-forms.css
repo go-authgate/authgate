@@ -659,6 +659,27 @@
   transform: translateY(-2px);
 }
 
+a.admin-user-stat-card-link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  display: block;
+}
+
+a.admin-user-stat-card-link:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-lg);
+}
+
+a.admin-user-stat-card-link:hover .admin-user-stat-value {
+  color: var(--color-primary);
+}
+
+a.admin-user-stat-card-link:hover .admin-user-stat-label {
+  color: var(--color-primary);
+}
+
 .admin-user-stat-value {
   font-size: var(--text-3xl);
   font-weight: 800;

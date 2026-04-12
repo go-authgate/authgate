@@ -40,6 +40,10 @@ templ AdminUsers(props UsersPageProps) {
 							</span>
 							<span>Users</span>
 						</h1>
+						<a href="/admin/users/new" class="btn btn-primary">
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+							Create User
+						</a>
 					</div>
 					@Alert(props.Success, AlertSuccess)
 					@SfToolbar() {
@@ -102,6 +106,11 @@ templ AdminUsers(props UsersPageProps) {
 										<th>
 											<div class="table-header-with-icon">
 												<span>Auth Source</span>
+											</div>
+										</th>
+										<th>
+											<div class="table-header-with-icon">
+												<span>Status</span>
 											</div>
 										</th>
 										<th>
@@ -176,6 +185,9 @@ templ UserTableRow(u models.User, csrfToken string) {
 		</td>
 		<td data-label="Auth Source">
 			@UserAuthSourceBadge(u.AuthSource)
+		</td>
+		<td data-label="Status">
+			@UserStatusBadge(u.IsActive)
 		</td>
 		<td class="created-date-cell" data-label="Created">
 			<div class="date-display">

@@ -1,0 +1,103 @@
+package templates
+
+import (
+	"fmt"
+	"net/url"
+)
+
+templ AdminUserAuthorizations(props UserAuthorizationsPageProps) {
+	@Layout("User Authorizations", LayoutAdminNavbar, &props.NavbarProps) {
+		<div class="main-content">
+			<div class="admin-form-container" style="max-width:1000px;">
+				<div class="card">
+					@Breadcrumb([]BreadcrumbItem{
+						{Label: "Admin", Href: "/admin"},
+						{Label: "Users", Href: "/admin/users"},
+						{Label: props.TargetUser.Username, Href: "/admin/users/" + props.TargetUser.ID},
+						{Label: "Authorized Apps", Href: ""},
+					})
+					<div class="admin-form-header">
+						<h1 class="admin-form-title">Authorized Apps</h1>
+						<p style="font-size:var(--text-sm);color:var(--color-text-secondary);margin-top:var(--space-2);">
+							Applications that <strong>{ props.TargetUser.Username }</strong> has granted access to
+						</p>
+					</div>
+					@Alert(props.Error, AlertError)
+					@Alert(props.Success, AlertSuccess)
+					if len(props.Authorizations) > 0 {
+						<!-- Summary bar -->
+						<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-6);padding-bottom:var(--space-4);border-bottom:2px solid var(--color-border);">
+							<span style="font-family:var(--font-mono);font-size:var(--text-sm);font-weight:600;color:var(--color-text-primary);">
+								{ fmt.Sprintf("%d", len(props.Authorizations)) } authorized app(s)
+							</span>
+							<a href={ templ.URL("/admin/users/" + props.TargetUser.ID) } class="admin-action-btn secondary" style="padding:var(--space-2) var(--space-4);font-size:var(--text-sm);">
+								&larr; Back to User
+							</a>
+						</div>
+						<!-- Table -->
+						<div class="admin-table-wrapper">
+							<table class="admin-table">
+								<thead>
+									<tr>
+										<th>Application</th>
+										<th>Scopes</th>
+										<th>Granted At</th>
+										<th class="col-actions">Actions</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, auth := range props.Authorizations {
+										<tr>
+											<td data-label="Application">
+												<a href={ templ.URL("/admin/clients?search=" + url.QueryEscape(auth.ClientName)) } class="client-name-link" style="font-weight:600;">
+													{ auth.ClientName }
+												</a>
+												<span style="display:block;font-family:var(--font-mono);font-size:var(--text-xs);color:var(--color-text-tertiary);">{ auth.ClientID }</span>
+											</td>
+											<td data-label="Scopes">
+												<span style="font-family:var(--font-mono);font-size:var(--text-xs);background:var(--color-bg-tertiary);padding:var(--space-1) var(--space-2);border-radius:var(--radius-sm);border:1px solid var(--color-border);">
+													{ auth.Scopes }
+												</span>
+											</td>
+											<td data-label="Granted At">
+												<span style="font-family:var(--font-mono);font-size:var(--text-sm);white-space:nowrap;">
+													{ auth.GrantedAt.Format("2006-01-02 15:04") }
+												</span>
+											</td>
+											<td data-label="Actions">
+												<form
+													method="POST"
+													action={ templ.URL("/admin/users/" + props.TargetUser.ID + "/authorizations/" + auth.UUID + "/revoke") }
+													data-confirm-title="Revoke Authorization?"
+													data-confirm-message={ "This will revoke access for \"" + auth.ClientName + "\" and invalidate all associated tokens. The user will need to re-authorize this app." }
+													data-confirm-style="warning"
+													data-confirm-label="Revoke"
+												>
+													<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+													<button type="submit" class="btn btn-danger btn-small">
+														Revoke
+													</button>
+												</form>
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					} else {
+						<div class="empty-state">
+							@EmptyStateAuth()
+							<h3 class="empty-title">No Authorized Apps</h3>
+							<p class="empty-text">This user has not granted access to any applications yet.</p>
+						</div>
+						<div style="margin-top:var(--space-6);text-align:center;">
+							<a href={ templ.URL("/admin/users/" + props.TargetUser.ID) } class="admin-action-btn secondary">
+								&larr; Back to User
+							</a>
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}

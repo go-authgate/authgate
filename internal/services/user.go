@@ -45,6 +45,12 @@ var (
 	ErrInvalidRole             = errors.New("role must be admin or user")
 	ErrEmailRequired           = errors.New("email is required")
 	ErrEmailConflict           = errors.New("email already in use by another user")
+	ErrAccountDisabled         = errors.New("account is disabled")
+	ErrUsernameRequired        = errors.New("username is required")
+	ErrCannotChangeOwnStatus   = errors.New("cannot change your own active status")
+	ErrUserAlreadyActive       = errors.New("user is already active")
+	ErrUserAlreadyDisabled     = errors.New("user is already disabled")
+	ErrOAuthConnectionNotFound = errors.New("OAuth connection not found")
 )
 
 type UserService struct {
@@ -90,8 +96,11 @@ func (s *UserService) Authenticate(
 	// First, try to find existing user
 	existingUser, err := s.store.GetUserByUsername(username)
 
-	// If user exists, authenticate based on their auth_source
+	// If user exists, check active status then authenticate based on auth_source
 	if err == nil {
+		if !existingUser.IsActive {
+			return nil, ErrAccountDisabled
+		}
 		return s.authenticateExistingUser(ctx, existingUser, password)
 	}
 
@@ -216,7 +225,7 @@ func (s *UserService) authenticateAndCreateExternalUser(
 		return nil, ErrInvalidCredentials
 	}
 
-	// Create new user in local database
+	// Create new user in local database (or fetch existing one matched by external_id)
 	user, err := s.syncExternalUser(authResult, AuthModeHTTPAPI)
 	if err != nil {
 		log.Printf("[Auth] Failed to create user=%s: %v", username, err)
@@ -233,6 +242,13 @@ func (s *UserService) authenticateAndCreateExternalUser(
 		})
 
 		return nil, ErrUserSyncFailed
+	}
+
+	// UpsertExternalUser may match an existing local record by external_id even
+	// when GetUserByUsername missed (e.g. username changed upstream). Re-check
+	// IsActive here so disabled accounts cannot authenticate via this path.
+	if !user.IsActive {
+		return nil, ErrAccountDisabled
 	}
 
 	log.Printf("[Auth] New external user created: %s", username)
@@ -338,6 +354,9 @@ func (s *UserService) AuthenticateWithOAuth(
 	// 2. Check if user exists with same email
 	user, err := s.store.GetUserByEmail(oauthUserInfo.Email)
 	if err == nil {
+		if !user.IsActive {
+			return nil, ErrAccountDisabled
+		}
 		// Only auto-link when the provider has verified the email address.
 		// Without this check, an attacker who controls an OAuth account with
 		// a victim's email could take over the victim's AuthGate account.
@@ -372,6 +391,17 @@ func (s *UserService) updateOAuthConnectionAndGetUser(
 	oauthUserInfo *auth.OAuthUserInfo,
 	token *oauth2.Token,
 ) (*models.User, error) {
+	// Verify the owning account is still active before persisting any state.
+	// Otherwise a disabled user could refresh their stored OAuth tokens just by
+	// completing the provider redirect, even though we then reject the login.
+	user, err := s.store.GetUserByID(connection.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found for OAuth connection: %w", err)
+	}
+	if !user.IsActive {
+		return nil, ErrAccountDisabled
+	}
+
 	// Update token and metadata
 	connection.AccessToken = token.AccessToken
 	connection.RefreshToken = token.RefreshToken
@@ -383,12 +413,6 @@ func (s *UserService) updateOAuthConnectionAndGetUser(
 
 	if err := s.store.UpdateOAuthConnection(connection); err != nil {
 		return nil, fmt.Errorf("failed to update OAuth connection: %w", err)
-	}
-
-	// Get user
-	user, err := s.store.GetUserByID(connection.UserID)
-	if err != nil {
-		return nil, fmt.Errorf("user not found for OAuth connection: %w", err)
 	}
 
 	// Sync avatar and name if changed
@@ -513,6 +537,7 @@ func (s *UserService) createUserWithOAuth(
 		AvatarURL:    oauthUserInfo.AvatarURL,
 		Role:         models.UserRoleUser,
 		AuthSource:   models.AuthSourceLocal,
+		IsActive:     true,
 		PasswordHash: "", // OAuth users have no password
 	}
 
@@ -704,8 +729,10 @@ func (s *UserService) UpdateUserProfile(
 		}
 	}
 
-	// Prevent removing the last admin
-	if req.Role != "" && user.Role == models.UserRoleAdmin && req.Role != models.UserRoleAdmin {
+	// Prevent removing the last admin. Only applies when demoting an *active*
+	// admin; demoting a disabled admin doesn't reduce the active-admin count.
+	if req.Role != "" && user.IsActive && user.Role == models.UserRoleAdmin &&
+		req.Role != models.UserRoleAdmin {
 		adminCount, err := s.store.CountUsersByRole(models.UserRoleAdmin)
 		if err != nil {
 			return fmt.Errorf("failed to count admins: %w", err)
@@ -824,7 +851,9 @@ func (s *UserService) ValidateDeleteUser(userID, actorUserID string) error {
 		return err
 	}
 
-	if user.Role == models.UserRoleAdmin {
+	// Only block when removing an *active* admin; deleting a disabled admin
+	// doesn't reduce the active-admin count.
+	if user.IsActive && user.Role == models.UserRoleAdmin {
 		adminCount, countErr := s.store.CountUsersByRole(models.UserRoleAdmin)
 		if countErr != nil {
 			return fmt.Errorf("failed to count admins: %w", countErr)
@@ -853,8 +882,9 @@ func (s *UserService) DeleteUserAdmin(
 		return err
 	}
 
-	// Re-check last-admin guard (defense in depth against races).
-	if user.Role == models.UserRoleAdmin {
+	// Re-check last-admin guard (defense in depth against races). Only applies
+	// to active admins; disabled admins don't count toward operational capacity.
+	if user.IsActive && user.Role == models.UserRoleAdmin {
 		adminCount, countErr := s.store.CountUsersByRole(models.UserRoleAdmin)
 		if countErr != nil {
 			return fmt.Errorf("failed to count admins: %w", countErr)
@@ -902,7 +932,265 @@ func (s *UserService) DeleteUserAdmin(
 	return nil
 }
 
-// CountUsersByRole returns the number of users with the given role.
+// CountUsersByRole returns the number of active users with the given role.
+// Disabled users are excluded so that last-admin guards work correctly.
 func (s *UserService) CountUsersByRole(role string) (int64, error) {
 	return s.store.CountUsersByRole(role)
+}
+
+// ── Admin Create User ─────────────────────────────────────────────────
+
+// CreateUserRequest carries the fields for admin user creation.
+type CreateUserRequest struct {
+	Username string
+	Email    string
+	FullName string
+	Role     string
+	Password string // optional — if empty, generate random
+}
+
+// CreateUserAdmin creates a new local-auth user. Returns the user and
+// the plaintext password (to show once).
+func (s *UserService) CreateUserAdmin(
+	ctx context.Context,
+	req CreateUserRequest,
+	actorUserID string,
+) (*models.User, string, error) {
+	// Validate and sanitize required fields
+	req.Username = sanitizeUsername(strings.TrimSpace(req.Username))
+	req.Email = strings.TrimSpace(req.Email)
+	req.FullName = strings.TrimSpace(req.FullName)
+	if req.Username == "" {
+		return nil, "", ErrUsernameRequired
+	}
+	if req.Email == "" {
+		return nil, "", ErrEmailRequired
+	}
+	if req.Role == "" {
+		req.Role = models.UserRoleUser
+	}
+	if req.Role != models.UserRoleAdmin && req.Role != models.UserRoleUser {
+		return nil, "", ErrInvalidRole
+	}
+
+	// Check username uniqueness
+	if _, err := s.store.GetUserByUsername(req.Username); err == nil {
+		return nil, "", ErrUsernameConflict
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, "", fmt.Errorf("failed to check username uniqueness: %w", err)
+	}
+
+	// Check email uniqueness
+	if _, err := s.store.GetUserByEmail(req.Email); err == nil {
+		return nil, "", ErrEmailConflict
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, "", fmt.Errorf("failed to check email uniqueness: %w", err)
+	}
+
+	// Generate password if not provided
+	password := req.Password
+	if password == "" {
+		var err error
+		password, err = util.GenerateRandomPassword(16)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to generate password: %w", err)
+		}
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	user := &models.User{
+		ID:           uuid.New().String(),
+		Username:     req.Username,
+		Email:        req.Email,
+		FullName:     req.FullName,
+		Role:         req.Role,
+		PasswordHash: string(hash),
+		AuthSource:   models.AuthSourceLocal,
+		IsActive:     true,
+	}
+
+	if err := s.store.CreateUser(user); err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			// Re-query to determine which unique constraint was violated (race condition).
+			if _, emailErr := s.store.GetUserByEmail(req.Email); emailErr == nil {
+				return nil, "", ErrEmailConflict
+			}
+			return nil, "", ErrUsernameConflict
+		}
+		return nil, "", fmt.Errorf("failed to create user: %w", err)
+	}
+
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventUserCreated,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  actorUserID,
+		ResourceType: models.ResourceUser,
+		ResourceID:   user.ID,
+		ResourceName: user.Username,
+		Action:       "User created by admin",
+		Details: models.AuditDetails{
+			"username": user.Username,
+			"email":    user.Email,
+			"role":     user.Role,
+		},
+		Success: true,
+	})
+
+	return user, password, nil
+}
+
+// ── Admin OAuth Connection Management ─────────────────────────────────
+
+// GetUserOAuthConnections returns all OAuth connections for a user.
+func (s *UserService) GetUserOAuthConnections(userID string) ([]models.OAuthConnection, error) {
+	return s.store.GetOAuthConnectionsByUserID(userID)
+}
+
+// DeleteUserOAuthConnection deletes a specific OAuth connection for a user.
+func (s *UserService) DeleteUserOAuthConnection(
+	ctx context.Context,
+	userID, connectionID, actorUserID string,
+) error {
+	// Verify the connection belongs to this user with a single indexed query
+	target, err := s.store.GetOAuthConnectionByUserAndID(userID, connectionID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrOAuthConnectionNotFound
+		}
+		return fmt.Errorf("failed to look up OAuth connection: %w", err)
+	}
+
+	if err := s.store.DeleteOAuthConnection(connectionID); err != nil {
+		return fmt.Errorf("failed to delete connection: %w", err)
+	}
+
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventOAuthConnectionDeleted,
+		Severity:     models.SeverityWarning,
+		ActorUserID:  actorUserID,
+		ResourceType: models.ResourceUser,
+		ResourceID:   userID,
+		ResourceName: target.Provider + ":" + target.ProviderUsername,
+		Action:       "OAuth connection removed by admin",
+		Details: models.AuditDetails{
+			"provider":          target.Provider,
+			"provider_username": target.ProviderUsername,
+			"connection_id":     connectionID,
+		},
+		Success: true,
+	})
+
+	return nil
+}
+
+// ── Admin Disable/Enable User ─────────────────────────────────────────
+
+// ValidateSetUserActiveStatus checks whether the active status change is
+// allowed without performing it. Callers can use this to run pre-change
+// side effects (e.g. token revocation) before committing the update.
+func (s *UserService) ValidateSetUserActiveStatus(
+	userID, actorUserID string,
+	isActive bool,
+) error {
+	if actorUserID == userID {
+		return ErrCannotChangeOwnStatus
+	}
+
+	user, err := s.AdminGetUserByID(userID)
+	if err != nil {
+		return err
+	}
+
+	if isActive && user.IsActive {
+		return ErrUserAlreadyActive
+	}
+	if !isActive && !user.IsActive {
+		return ErrUserAlreadyDisabled
+	}
+
+	if !isActive && user.Role == models.UserRoleAdmin {
+		adminCount, countErr := s.store.CountUsersByRole(models.UserRoleAdmin)
+		if countErr != nil {
+			return fmt.Errorf("failed to count admins: %w", countErr)
+		}
+		if adminCount <= 1 {
+			return ErrCannotRemoveLastAdmin
+		}
+	}
+
+	return nil
+}
+
+// SetUserActiveStatus enables or disables a user account. Validation guards
+// (self-change, already in target state, last-admin) are re-checked here as
+// defense in depth so direct callers cannot bypass invariants. Handlers should
+// still call ValidateSetUserActiveStatus first when they need to gate
+// pre-change side effects (e.g. token revocation).
+func (s *UserService) SetUserActiveStatus(
+	ctx context.Context,
+	userID, actorUserID string,
+	isActive bool,
+) error {
+	if actorUserID == userID {
+		return ErrCannotChangeOwnStatus
+	}
+
+	user, err := s.AdminGetUserByID(userID)
+	if err != nil {
+		return err
+	}
+
+	if isActive && user.IsActive {
+		return ErrUserAlreadyActive
+	}
+	if !isActive && !user.IsActive {
+		return ErrUserAlreadyDisabled
+	}
+
+	if !isActive && user.Role == models.UserRoleAdmin {
+		adminCount, countErr := s.store.CountUsersByRole(models.UserRoleAdmin)
+		if countErr != nil {
+			return fmt.Errorf("failed to count admins: %w", countErr)
+		}
+		if adminCount <= 1 {
+			return ErrCannotRemoveLastAdmin
+		}
+	}
+
+	user.IsActive = isActive
+	if err := s.store.UpdateUser(user); err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	s.InvalidateUserCache(userID)
+
+	eventType := models.EventUserEnabled
+	action := "User account enabled by admin"
+	severity := models.SeverityInfo
+	if !isActive {
+		eventType = models.EventUserDisabled
+		action = "User account disabled by admin"
+		severity = models.SeverityWarning
+	}
+
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    eventType,
+		Severity:     severity,
+		ActorUserID:  actorUserID,
+		ResourceType: models.ResourceUser,
+		ResourceID:   userID,
+		ResourceName: user.Username,
+		Action:       action,
+		Details: models.AuditDetails{
+			"username":  user.Username,
+			"is_active": isActive,
+		},
+		Success: true,
+	})
+
+	return nil
 }

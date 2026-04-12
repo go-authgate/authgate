@@ -198,21 +198,26 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 		log.Printf("[OAuth] Authentication failed: %v", err)
 
 		// Handle specific errors
-		if errors.Is(err, services.ErrOAuthAutoRegisterDisabled) {
+		switch {
+		case errors.Is(err, services.ErrOAuthAutoRegisterDisabled):
 			renderErrorPage(
 				c,
 				http.StatusForbidden,
 				"Registration Disabled. New account registration via OAuth is currently disabled. Please contact your administrator.",
 			)
-			return
+		case errors.Is(err, services.ErrAccountDisabled):
+			renderErrorPage(
+				c,
+				http.StatusForbidden,
+				"Account Disabled. Your account has been disabled by an administrator. Please contact your administrator for assistance.",
+			)
+		default:
+			renderErrorPage(
+				c,
+				http.StatusInternalServerError,
+				"Authentication failed. Unable to authenticate your account at this time. Please try again later.",
+			)
 		}
-
-		// Generic error
-		renderErrorPage(
-			c,
-			http.StatusInternalServerError,
-			"Authentication failed. Unable to authenticate your account at this time. Please try again later.",
-		)
 		return
 	}
 

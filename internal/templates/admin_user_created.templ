@@ -1,0 +1,82 @@
+package templates
+
+templ AdminUserCreated(props UserCreatedPageProps) {
+	@Layout("User Created", LayoutAdminNavbar, &props.NavbarProps) {
+		<div class="main-content">
+			<div class="container">
+				<div class="card">
+					@Breadcrumb([]BreadcrumbItem{
+						{Label: "Admin", Href: "/admin"},
+						{Label: "Users", Href: "/admin/users"},
+						{Label: props.TargetUser.Username, Href: "/admin/users/" + props.TargetUser.ID},
+						{Label: "Created", Href: ""},
+					})
+					<div class="header">
+						<h1 class="page-title-with-icon">
+							<span>User Created</span>
+						</h1>
+					</div>
+					<div class="alert alert-success alert-success-spaced">
+						User "<strong>{ props.TargetUser.Username }</strong>" has been created successfully.
+					</div>
+					<div class="warning-box warning-box-enhanced">
+						<div class="warning-icon" aria-hidden="true">&#9888;</div>
+						<div class="warning-content">
+							<strong>Important Security Notice</strong>
+							<p>
+								This password is shown only once for security reasons.
+								Please copy and share it with the user through a secure channel immediately.
+							</p>
+						</div>
+					</div>
+					<div class="secret-box secret-box-enhanced">
+						<div class="secret-header">
+							<strong class="secret-title">Password</strong>
+							<p class="secret-description">
+								Copy this password and share it securely. You won't be able to see it again.
+							</p>
+						</div>
+						<div class="secret-value secret-value-enhanced" id="newPassword">{ props.NewPassword }</div>
+						<button onclick="copyToClipboard(document.getElementById('newPassword').textContent.trim())" class="btn btn-secondary btn-small copy-button-spaced">
+							Copy to Clipboard
+						</button>
+					</div>
+					<!-- User Details -->
+					<div class="admin-detail-section" style="margin-top:var(--space-8);">
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Username</div>
+							<div class="admin-detail-value">{ props.TargetUser.Username }</div>
+						</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Email</div>
+							<div class="admin-detail-value">{ props.TargetUser.Email }</div>
+						</div>
+						if props.TargetUser.FullName != "" {
+							<div class="admin-detail-row">
+								<div class="admin-detail-label">Full Name</div>
+								<div class="admin-detail-value">{ props.TargetUser.FullName }</div>
+							</div>
+						}
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Role</div>
+							<div class="admin-detail-value">
+								@UserRoleBadge(props.TargetUser.Role)
+							</div>
+						</div>
+					</div>
+					<div class="whats-next-section">
+						<h3 class="whats-next-title">What's Next?</h3>
+						<div class="action-buttons">
+							<a href={ templ.URL("/admin/users/" + props.TargetUser.ID) } class="btn btn-secondary">
+								View User Details
+							</a>
+							<a href="/admin/users" class="btn btn-primary">
+								Back to Users List
+							</a>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	}
+}

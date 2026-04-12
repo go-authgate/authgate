@@ -132,9 +132,12 @@ func (h *AuthHandler) Login(c *gin.Context,
 		var errorMsg string
 
 		// Check for specific error types
-		if errors.Is(err, services.ErrUsernameConflict) {
+		switch {
+		case errors.Is(err, services.ErrAccountDisabled):
+			errorMsg = "Your account has been disabled. Please contact your administrator."
+		case errors.Is(err, services.ErrUsernameConflict):
 			errorMsg = "Username conflict with existing user. Please contact administrator."
-		} else {
+		default:
 			errorMsg = "Invalid username or password"
 		}
 

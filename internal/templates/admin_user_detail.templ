@@ -2,6 +2,7 @@ package templates
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/go-authgate/authgate/internal/models"
 )
@@ -51,6 +52,12 @@ templ AdminUserDetail(props UserDetailPageProps) {
 							</div>
 						</div>
 						<div class="admin-detail-row">
+							<div class="admin-detail-label">Status</div>
+							<div class="admin-detail-value">
+								@UserStatusBadge(props.TargetUser.IsActive)
+							</div>
+						</div>
+						<div class="admin-detail-row">
 							<div class="admin-detail-label">Auth Source</div>
 							<div class="admin-detail-value">
 								@UserAuthSourceBadge(props.TargetUser.AuthSource)
@@ -65,20 +72,20 @@ templ AdminUserDetail(props UserDetailPageProps) {
 							<div class="admin-detail-value">{ props.TargetUser.UpdatedAt.Format("2006-01-02 15:04:05") }</div>
 						</div>
 					</div>
-					<!-- Stats -->
+					<!-- Stats (clickable) -->
 					<div class="admin-user-stats">
-						<div class="admin-user-stat-card">
+						<a href={ templ.URL("/admin/tokens?search=" + url.QueryEscape(props.TargetUser.Username)) } class="admin-user-stat-card admin-user-stat-card-link" title="View active tokens">
 							<div class="admin-user-stat-value">{ fmt.Sprintf("%d", props.ActiveTokenCount) }</div>
 							<div class="admin-user-stat-label">Active Tokens</div>
-						</div>
-						<div class="admin-user-stat-card">
+						</a>
+						<a href={ templ.URL("/admin/users/" + props.TargetUser.ID + "/connections") } class="admin-user-stat-card admin-user-stat-card-link" title="View OAuth connections">
 							<div class="admin-user-stat-value">{ fmt.Sprintf("%d", props.OAuthConnectionCount) }</div>
 							<div class="admin-user-stat-label">OAuth Connections</div>
-						</div>
-						<div class="admin-user-stat-card">
+						</a>
+						<a href={ templ.URL("/admin/users/" + props.TargetUser.ID + "/authorizations") } class="admin-user-stat-card admin-user-stat-card-link" title="View authorized apps">
 							<div class="admin-user-stat-value">{ fmt.Sprintf("%d", props.AuthorizationCount) }</div>
 							<div class="admin-user-stat-label">Authorized Apps</div>
-						</div>
+						</a>
 					</div>
 					<!-- Standard Actions -->
 					<div class="admin-action-buttons">
@@ -97,6 +104,34 @@ templ AdminUserDetail(props UserDetailPageProps) {
 									data-confirm-label="Reset Password"
 								>
 									Reset Password
+								</button>
+							</form>
+						}
+						<!-- Enable / Disable toggle -->
+						if props.TargetUser.IsActive {
+							<form method="POST" action={ templ.URL("/admin/users/" + props.TargetUser.ID + "/disable") } class="form-inline">
+								<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+								<button
+									type="submit"
+									class="admin-action-btn secondary"
+									style="color:#D97706;border-color:rgba(245,158,11,0.3);"
+									data-confirm-title="Disable User?"
+									data-confirm-message={ "This will disable \"" + props.TargetUser.Username + "\". They will be logged out and unable to log in until re-enabled. All active tokens will be revoked." }
+									data-confirm-style="warning"
+									data-confirm-label="Disable User"
+								>
+									Disable User
+								</button>
+							</form>
+						} else {
+							<form method="POST" action={ templ.URL("/admin/users/" + props.TargetUser.ID + "/enable") } class="form-inline">
+								<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+								<button
+									type="submit"
+									class="admin-action-btn secondary"
+									style="color:#059669;border-color:rgba(16,185,129,0.3);"
+								>
+									Enable User
 								</button>
 							</form>
 						}
@@ -146,5 +181,13 @@ templ AdminUserDetail(props UserDetailPageProps) {
 				</div>
 			</div>
 		</div>
+	}
+}
+
+templ UserStatusBadge(isActive bool) {
+	if isActive {
+		<span class="status-badge status-active">Active</span>
+	} else {
+		<span class="status-badge" style="background:rgba(239,68,68,0.1);color:#DC2626;border:1px solid rgba(239,68,68,0.3);">Disabled</span>
 	}
 }

@@ -69,6 +69,15 @@ func loadUserFromSession(c *gin.Context, userService *services.UserService) (boo
 		// Transient DB error — don't clear the session
 		return false, err
 	}
+	// Check if user account is disabled
+	if !user.IsActive {
+		session.Clear()
+		if saveErr := session.Save(); saveErr != nil {
+			return false, saveErr
+		}
+		return false, nil
+	}
+
 	c.Set("user_id", userIDStr)
 	c.Set("user", user)
 	c.Request = c.Request.WithContext(models.SetUserContext(c.Request.Context(), user))

@@ -105,6 +105,7 @@ func (s *Store) UpsertExternalUser(
 		Username:     username,
 		PasswordHash: "", // No local password for external users
 		Role:         models.UserRoleUser,
+		IsActive:     true,
 		ExternalID:   externalID,
 		AuthSource:   authSource,
 		Email:        email,
@@ -217,10 +218,12 @@ func (s *Store) ListUsersPaginated(
 	return users, pagination, nil
 }
 
-// CountUsersByRole returns the number of users with the given role.
+// CountUsersByRole returns the number of active users with the given role.
+// Only active users are counted so that disabled admins do not inflate the
+// "last admin" guard used by disable/delete operations.
 func (s *Store) CountUsersByRole(role string) (int64, error) {
 	var count int64
-	query := s.db.Model(&models.User{})
+	query := s.db.Model(&models.User{}).Where("is_active = ?", true)
 	if role != "" {
 		query = query.Where("role = ?", role)
 	}

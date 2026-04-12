@@ -44,6 +44,19 @@ func (s *Store) GetOAuthConnectionsByUserID(userID string) ([]models.OAuthConnec
 	return conns, err
 }
 
+// GetOAuthConnectionByUserAndID finds an OAuth connection by user ID and connection ID.
+func (s *Store) GetOAuthConnectionByUserAndID(
+	userID, connectionID string,
+) (*models.OAuthConnection, error) {
+	var conn models.OAuthConnection
+	err := s.db.Where("user_id = ? AND id = ?", userID, connectionID).
+		First(&conn).Error
+	if err != nil {
+		return nil, err
+	}
+	return &conn, nil
+}
+
 // UpdateOAuthConnection updates an existing OAuth connection
 func (s *Store) UpdateOAuthConnection(conn *models.OAuthConnection) error {
 	return s.db.Save(conn).Error

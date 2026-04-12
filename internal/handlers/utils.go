@@ -1,12 +1,16 @@
 package handlers
 
 import (
+	"log"
+	"net/http"
 	"strconv"
 
 	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/store"
 	"github.com/go-authgate/authgate/internal/templates"
 
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
@@ -122,6 +126,35 @@ func parseTokenPaginationParams(c *gin.Context) store.PaginationParams {
 	return params
 }
 
+// getFlashMessage retrieves and clears the first flash message from the session.
+// A failed session.Save here only loses the just-cleared flash (a UX nicety),
+// so we log and continue rather than fail the request.
+func getFlashMessage(c *gin.Context) string {
+	session := sessions.Default(c)
+	flashes := session.Flashes()
+	if err := session.Save(); err != nil {
+		log.Printf("[Session] Failed to save session after reading flash: %v", err)
+	}
+	if len(flashes) > 0 {
+		if msg, ok := flashes[0].(string); ok {
+			return msg
+		}
+	}
+	return ""
+}
+
+// flashAndRedirect sets a flash message and redirects to the given URL.
+// A failed session.Save here only drops the flash message, so we log and
+// continue with the redirect rather than fail the request.
+func flashAndRedirect(c *gin.Context, msg, url string) {
+	session := sessions.Default(c)
+	session.AddFlash(msg)
+	if err := session.Save(); err != nil {
+		log.Printf("[Session] Failed to save flash message: %v", err)
+	}
+	c.Redirect(http.StatusFound, url)
+}
+
 // renderErrorPage renders the error page template with the given status code and message.
 func renderErrorPage(c *gin.Context, statusCode int, message string) {
 	templates.RenderTempl(c, statusCode, templates.ErrorPage(
@@ -136,4 +169,23 @@ func toPointerSlice[T any](s []T) []*T {
 		ptrs[i] = &s[i]
 	}
 	return ptrs
+}
+
+// toAuthorizationDisplaySlice converts service-layer authorization details
+// to template display models.
+func toAuthorizationDisplaySlice(
+	auths []services.UserAuthorizationWithClient,
+) []templates.AuthorizationDisplay {
+	display := make([]templates.AuthorizationDisplay, 0, len(auths))
+	for _, a := range auths {
+		display = append(display, templates.AuthorizationDisplay{
+			UUID:       a.UUID,
+			ClientID:   a.ClientID,
+			ClientName: a.ClientName,
+			Scopes:     a.Scopes,
+			GrantedAt:  a.GrantedAt,
+			IsActive:   a.IsActive,
+		})
+	}
+	return display
 }

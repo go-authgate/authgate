@@ -314,11 +314,19 @@ func setupAllRoutes(
 
 		// User management routes
 		admin.GET("/users", h.userAdmin.ShowUsersPage)
+		admin.GET("/users/new", h.userAdmin.ShowCreateUserPage)
+		admin.POST("/users", h.userAdmin.CreateUser)
 		admin.GET("/users/:id", h.userAdmin.ViewUser)
 		admin.GET("/users/:id/edit", h.userAdmin.ShowEditUserPage)
 		admin.POST("/users/:id", h.userAdmin.UpdateUser)
 		admin.POST("/users/:id/reset-password", h.userAdmin.ResetPassword)
 		admin.POST("/users/:id/delete", h.userAdmin.DeleteUser)
+		admin.POST("/users/:id/disable", h.userAdmin.DisableUser)
+		admin.POST("/users/:id/enable", h.userAdmin.EnableUser)
+		admin.GET("/users/:id/connections", h.userAdmin.ShowUserConnections)
+		admin.POST("/users/:id/connections/:conn_id/delete", h.userAdmin.DeleteUserConnection)
+		admin.GET("/users/:id/authorizations", h.userAdmin.ShowUserAuthorizations)
+		admin.POST("/users/:id/authorizations/:uuid/revoke", h.userAdmin.RevokeUserAuthorization)
 
 		// Token management routes
 		admin.GET("/tokens", h.tokenAdmin.ShowTokensPage)

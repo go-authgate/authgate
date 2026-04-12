@@ -1,0 +1,98 @@
+package templates
+
+import "github.com/go-authgate/authgate/internal/models"
+
+templ AdminUserCreate(props UserCreatePageProps) {
+	@Layout("Create User", LayoutAdminNavbar, &props.NavbarProps) {
+		<div class="main-content">
+			<div class="admin-form-container">
+				<div class="card">
+					@Breadcrumb([]BreadcrumbItem{
+						{Label: "Admin", Href: "/admin"},
+						{Label: "Users", Href: "/admin/users"},
+						{Label: "Create User", Href: ""},
+					})
+					<div class="admin-form-header">
+						<h1 class="admin-form-title">Create User</h1>
+						<p class="admin-form-subtitle">
+							Create a new local user account. A password will be auto-generated if not provided.
+						</p>
+					</div>
+					@Alert(props.Error, AlertError)
+					<form method="POST" action="/admin/users" class="admin-form">
+						<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+						<!-- Username -->
+						<div class="admin-form-group">
+							<label for="username" class="admin-form-label admin-form-label-required">Username</label>
+							<input
+								type="text"
+								id="username"
+								name="username"
+								class="admin-form-input"
+								value={ props.Username }
+								placeholder="e.g. john_doe"
+								required
+								autocomplete="off"
+							/>
+							<small class="admin-form-hint">Must be unique. Letters, numbers, underscores, and hyphens only.</small>
+						</div>
+						<!-- Email -->
+						<div class="admin-form-group">
+							<label for="email" class="admin-form-label admin-form-label-required">Email</label>
+							<input
+								type="email"
+								id="email"
+								name="email"
+								class="admin-form-input"
+								value={ props.Email }
+								placeholder="user@example.com"
+								required
+								autocomplete="off"
+							/>
+						</div>
+						<!-- Full Name -->
+						<div class="admin-form-group">
+							<label for="full_name" class="admin-form-label">Full Name</label>
+							<input
+								type="text"
+								id="full_name"
+								name="full_name"
+								class="admin-form-input"
+								value={ props.FullName }
+								placeholder="John Doe"
+							/>
+						</div>
+						<!-- Role -->
+						<div class="admin-form-group">
+							<label for="role" class="admin-form-label admin-form-label-required">Role</label>
+							<select id="role" name="role" class="admin-form-select">
+								<option value={ models.UserRoleUser } selected?={ props.Role == models.UserRoleUser }>User</option>
+								<option value={ models.UserRoleAdmin } selected?={ props.Role == models.UserRoleAdmin }>Admin</option>
+							</select>
+						</div>
+						<!-- Password -->
+						<div class="admin-form-group">
+							<label for="password" class="admin-form-label">Password</label>
+							<input
+								type="password"
+								id="password"
+								name="password"
+								class="admin-form-input"
+								placeholder="Leave blank to auto-generate"
+								autocomplete="new-password"
+							/>
+							<small class="admin-form-hint">If left blank, a secure random password will be generated and shown once.</small>
+						</div>
+						<!-- Actions -->
+						<div class="admin-form-actions">
+							<button type="submit" class="admin-form-submit-btn">
+								Create User
+							</button>
+							<a href="/admin/users" class="admin-form-cancel-btn">Cancel</a>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	}
+}

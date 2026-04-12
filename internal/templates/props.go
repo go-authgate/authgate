@@ -404,6 +404,45 @@ type TokensPageProps struct {
 	Now            time.Time
 }
 
+// UserOAuthConnectionsPageProps contains properties for the admin user OAuth connections page
+type UserOAuthConnectionsPageProps struct {
+	BaseProps
+	NavbarProps
+	TargetUser  *models.User
+	Connections []models.OAuthConnection
+	Success     string
+	Error       string
+}
+
+// UserAuthorizationsPageProps contains properties for the admin user authorizations page
+type UserAuthorizationsPageProps struct {
+	BaseProps
+	NavbarProps
+	TargetUser     *models.User
+	Authorizations []AuthorizationDisplay
+	Success        string
+	Error          string
+}
+
+// UserCreatePageProps contains properties for the admin user create form
+type UserCreatePageProps struct {
+	BaseProps
+	NavbarProps
+	Error    string
+	Username string // form repopulation on error
+	Email    string
+	FullName string
+	Role     string
+}
+
+// UserCreatedPageProps contains properties for the admin user created success page
+type UserCreatedPageProps struct {
+	BaseProps
+	NavbarProps
+	TargetUser  *models.User
+	NewPassword string
+}
+
 // AuditLogsPageProps contains properties for the audit logs page
 type AuditLogsPageProps struct {
 	BaseProps

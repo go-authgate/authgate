@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 
 	"github.com/go-authgate/authgate/internal/middleware"
@@ -15,13 +14,22 @@ import (
 
 // UserAdminHandler handles admin user management routes.
 type UserAdminHandler struct {
-	userService  *services.UserService
-	tokenService *services.TokenService
+	userService          *services.UserService
+	tokenService         *services.TokenService
+	authorizationService *services.AuthorizationService
 }
 
 // NewUserAdminHandler creates a new UserAdminHandler.
-func NewUserAdminHandler(us *services.UserService, ts *services.TokenService) *UserAdminHandler {
-	return &UserAdminHandler{userService: us, tokenService: ts}
+func NewUserAdminHandler(
+	us *services.UserService,
+	ts *services.TokenService,
+	as *services.AuthorizationService,
+) *UserAdminHandler {
+	return &UserAdminHandler{
+		userService:          us,
+		tokenService:         ts,
+		authorizationService: as,
+	}
 }
 
 // adminGetUser fetches a user by ID and renders the appropriate error page on failure.
@@ -58,20 +66,6 @@ func (h *UserAdminHandler) ShowUsersPage(c *gin.Context) {
 		return
 	}
 
-	// Retrieve flash messages
-	session := sessions.Default(c)
-	flashes := session.Flashes()
-	if err := session.Save(); err != nil {
-		c.Set("session_save_error", err)
-	}
-
-	var successMsg string
-	if len(flashes) > 0 {
-		if msg, ok := flashes[0].(string); ok {
-			successMsg = msg
-		}
-	}
-
 	templates.RenderTempl(c, http.StatusOK, templates.AdminUsers(templates.UsersPageProps{
 		BaseProps:        templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
 		NavbarProps:      buildNavbarProps(c, user, "users"),
@@ -80,7 +74,7 @@ func (h *UserAdminHandler) ShowUsersPage(c *gin.Context) {
 		Pagination:       pagination,
 		Search:           params.Search,
 		PageSize:         params.PageSize,
-		Success:          successMsg,
+		Success:          getFlashMessage(c),
 		RoleFilter:       params.StatusFilter,
 		AuthSourceFilter: params.CategoryFilter,
 	}))
@@ -109,20 +103,6 @@ func (h *UserAdminHandler) ViewUser(c *gin.Context) {
 		return
 	}
 
-	// Retrieve flash messages
-	session := sessions.Default(c)
-	flashes := session.Flashes()
-	if err := session.Save(); err != nil {
-		c.Set("session_save_error", err)
-	}
-
-	var successMsg string
-	if len(flashes) > 0 {
-		if msg, ok := flashes[0].(string); ok {
-			successMsg = msg
-		}
-	}
-
 	templates.RenderTempl(c, http.StatusOK, templates.AdminUserDetail(templates.UserDetailPageProps{
 		BaseProps:            templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
 		NavbarProps:          buildNavbarProps(c, currentUser, "users"),
@@ -130,7 +110,7 @@ func (h *UserAdminHandler) ViewUser(c *gin.Context) {
 		ActiveTokenCount:     stats.ActiveTokenCount,
 		OAuthConnectionCount: stats.OAuthConnectionCount,
 		AuthorizationCount:   stats.AuthorizationCount,
-		Success:              successMsg,
+		Success:              getFlashMessage(c),
 	}))
 }
 
@@ -200,13 +180,7 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	session := sessions.Default(c)
-	session.AddFlash("User updated successfully.")
-	if err := session.Save(); err != nil {
-		c.Set("session_save_error", err)
-	}
-
-	c.Redirect(http.StatusFound, "/admin/users/"+targetUser.ID)
+	flashAndRedirect(c, "User updated successfully.", "/admin/users/"+targetUser.ID)
 }
 
 // ResetPassword generates a new random password and displays it once.
@@ -311,12 +285,298 @@ func (h *UserAdminHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	session := sessions.Default(c)
-	session.AddFlash("User deleted successfully")
-	if err := session.Save(); err != nil {
-		renderErrorPage(c, http.StatusInternalServerError, "Failed to save session")
+	flashAndRedirect(c, "User deleted successfully.", "/admin/users")
+}
+
+// ── Create User ───────────────────────────────────────────────────────
+
+// ShowCreateUserPage renders the user creation form.
+func (h *UserAdminHandler) ShowCreateUserPage(c *gin.Context) {
+	currentUser := getUserFromContext(c)
+	if currentUser == nil {
+		renderErrorPage(c, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
-	c.Redirect(http.StatusFound, "/admin/users")
+	templates.RenderTempl(c, http.StatusOK, templates.AdminUserCreate(templates.UserCreatePageProps{
+		BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		NavbarProps: buildNavbarProps(c, currentUser, "users"),
+		Role:        models.UserRoleUser,
+	}))
+}
+
+// CreateUser handles the user creation form submission.
+func (h *UserAdminHandler) CreateUser(c *gin.Context) {
+	currentUser := getUserFromContext(c)
+	if currentUser == nil {
+		renderErrorPage(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	req := services.CreateUserRequest{
+		Username: c.PostForm("username"),
+		Email:    c.PostForm("email"),
+		FullName: c.PostForm("full_name"),
+		Role:     c.PostForm("role"),
+		Password: c.PostForm("password"),
+	}
+
+	user, password, err := h.userService.CreateUserAdmin(
+		c.Request.Context(),
+		req,
+		currentUser.ID,
+	)
+	if err != nil {
+		// Distinguish user-facing validation errors from internal failures
+		status := http.StatusBadRequest
+		errMsg := err.Error()
+		if !errors.Is(err, services.ErrUsernameRequired) &&
+			!errors.Is(err, services.ErrEmailRequired) &&
+			!errors.Is(err, services.ErrInvalidRole) &&
+			!errors.Is(err, services.ErrUsernameConflict) &&
+			!errors.Is(err, services.ErrEmailConflict) {
+			status = http.StatusInternalServerError
+			errMsg = "An internal error occurred. Please try again."
+		}
+		templates.RenderTempl(
+			c,
+			status,
+			templates.AdminUserCreate(templates.UserCreatePageProps{
+				BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				NavbarProps: buildNavbarProps(c, currentUser, "users"),
+				Error:       errMsg,
+				Username:    req.Username,
+				Email:       req.Email,
+				FullName:    req.FullName,
+				Role:        req.Role,
+			}),
+		)
+		return
+	}
+
+	c.Header("Cache-Control", "no-store, no-cache, must-revalidate, private")
+	c.Header("Pragma", "no-cache")
+
+	templates.RenderTempl(
+		c,
+		http.StatusOK,
+		templates.AdminUserCreated(templates.UserCreatedPageProps{
+			BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+			NavbarProps: buildNavbarProps(c, currentUser, "users"),
+			TargetUser:  user,
+			NewPassword: password,
+		}),
+	)
+}
+
+// ── OAuth Connections ─────────────────────────────────────────────────
+
+// ShowUserConnections renders the user's OAuth connections page.
+func (h *UserAdminHandler) ShowUserConnections(c *gin.Context) {
+	currentUser := getUserFromContext(c)
+	if currentUser == nil {
+		renderErrorPage(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	targetUser, ok := h.adminGetUser(c)
+	if !ok {
+		return
+	}
+
+	conns, err := h.userService.GetUserOAuthConnections(targetUser.ID)
+	if err != nil {
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to load OAuth connections")
+		return
+	}
+
+	templates.RenderTempl(
+		c,
+		http.StatusOK,
+		templates.AdminUserConnections(templates.UserOAuthConnectionsPageProps{
+			BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+			NavbarProps: buildNavbarProps(c, currentUser, "users"),
+			TargetUser:  targetUser,
+			Connections: conns,
+			Success:     getFlashMessage(c),
+		}),
+	)
+}
+
+// DeleteUserConnection handles unlinking an OAuth connection.
+func (h *UserAdminHandler) DeleteUserConnection(c *gin.Context) {
+	currentUser := getUserFromContext(c)
+	if currentUser == nil {
+		renderErrorPage(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	userID := c.Param("id")
+	connID := c.Param("conn_id")
+
+	if err := h.userService.DeleteUserOAuthConnection(
+		c.Request.Context(),
+		userID,
+		connID,
+		currentUser.ID,
+	); err != nil {
+		if errors.Is(err, services.ErrOAuthConnectionNotFound) {
+			renderErrorPage(c, http.StatusNotFound, err.Error())
+		} else {
+			renderErrorPage(c, http.StatusInternalServerError, "Failed to remove OAuth connection")
+		}
+		return
+	}
+
+	flashAndRedirect(
+		c,
+		"OAuth connection removed successfully.",
+		"/admin/users/"+userID+"/connections",
+	)
+}
+
+// ── User Authorizations ───────────────────────────────────────────────
+
+// ShowUserAuthorizations renders the user's authorized apps page.
+func (h *UserAdminHandler) ShowUserAuthorizations(c *gin.Context) {
+	currentUser := getUserFromContext(c)
+	if currentUser == nil {
+		renderErrorPage(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	targetUser, ok := h.adminGetUser(c)
+	if !ok {
+		return
+	}
+
+	auths, err := h.authorizationService.ListUserAuthorizations(
+		c.Request.Context(),
+		targetUser.ID,
+	)
+	if err != nil {
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to load authorizations")
+		return
+	}
+
+	displayAuths := toAuthorizationDisplaySlice(auths)
+
+	templates.RenderTempl(
+		c,
+		http.StatusOK,
+		templates.AdminUserAuthorizations(templates.UserAuthorizationsPageProps{
+			BaseProps:      templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+			NavbarProps:    buildNavbarProps(c, currentUser, "users"),
+			TargetUser:     targetUser,
+			Authorizations: displayAuths,
+			Success:        getFlashMessage(c),
+		}),
+	)
+}
+
+// RevokeUserAuthorization handles revoking a user's app authorization.
+func (h *UserAdminHandler) RevokeUserAuthorization(c *gin.Context) {
+	currentUser := getUserFromContext(c)
+	if currentUser == nil {
+		renderErrorPage(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	userID := c.Param("id")
+	authUUID := c.Param("uuid")
+
+	if err := h.authorizationService.RevokeUserAuthorization(
+		c.Request.Context(),
+		authUUID,
+		userID,
+	); err != nil {
+		if errors.Is(err, services.ErrAuthorizationNotFound) {
+			renderErrorPage(c, http.StatusNotFound, err.Error())
+		} else {
+			renderErrorPage(c, http.StatusInternalServerError, "Failed to revoke authorization")
+		}
+		return
+	}
+
+	flashAndRedirect(
+		c,
+		"Authorization revoked successfully.",
+		"/admin/users/"+userID+"/authorizations",
+	)
+}
+
+// ── Disable/Enable User ───────────────────────────────────────────────
+
+// DisableUser handles disabling a user account.
+func (h *UserAdminHandler) DisableUser(c *gin.Context) {
+	h.toggleUserActive(c, false)
+}
+
+// EnableUser handles enabling a user account.
+func (h *UserAdminHandler) EnableUser(c *gin.Context) {
+	h.toggleUserActive(c, true)
+}
+
+// toggleUserActive is the shared implementation for DisableUser and EnableUser.
+func (h *UserAdminHandler) toggleUserActive(c *gin.Context, active bool) {
+	currentUser := getUserFromContext(c)
+	if currentUser == nil {
+		renderErrorPage(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	userID := c.Param("id")
+
+	// Validate first so we don't revoke tokens if the operation will be rejected.
+	if err := h.userService.ValidateSetUserActiveStatus(
+		userID,
+		currentUser.ID,
+		active,
+	); err != nil {
+		switch {
+		case errors.Is(err, services.ErrCannotChangeOwnStatus),
+			errors.Is(err, services.ErrUserAlreadyActive),
+			errors.Is(err, services.ErrUserAlreadyDisabled),
+			errors.Is(err, services.ErrCannotRemoveLastAdmin):
+			renderErrorPage(c, http.StatusBadRequest, err.Error())
+		case errors.Is(err, services.ErrUserNotFound):
+			renderErrorPage(c, http.StatusNotFound, "User not found")
+		default:
+			renderErrorPage(
+				c,
+				http.StatusInternalServerError,
+				"Failed to validate user status change",
+			)
+		}
+		return
+	}
+
+	// When disabling, revoke all tokens BEFORE changing status to close the
+	// window where a disabled user's tokens could still be valid.
+	if !active {
+		if err := h.tokenService.RevokeAllUserTokens(userID); err != nil {
+			renderErrorPage(
+				c,
+				http.StatusInternalServerError,
+				"Failed to revoke user tokens",
+			)
+			return
+		}
+	}
+
+	if err := h.userService.SetUserActiveStatus(
+		c.Request.Context(),
+		userID,
+		currentUser.ID,
+		active,
+	); err != nil {
+		renderErrorPage(c, http.StatusInternalServerError, "Failed to update user status")
+		return
+	}
+
+	msg := "User account has been enabled."
+	if !active {
+		msg = "User account has been disabled."
+	}
+	flashAndRedirect(c, msg, "/admin/users/"+userID)
 }

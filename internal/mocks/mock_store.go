@@ -1170,6 +1170,21 @@ func (mr *MockOAuthConnectionStoreMockRecorder) GetOAuthConnection(provider, pro
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuthConnection", reflect.TypeOf((*MockOAuthConnectionStore)(nil).GetOAuthConnection), provider, providerUserID)
 }
 
+// GetOAuthConnectionByUserAndID mocks base method.
+func (m *MockOAuthConnectionStore) GetOAuthConnectionByUserAndID(userID, connectionID string) (*models.OAuthConnection, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuthConnectionByUserAndID", userID, connectionID)
+	ret0, _ := ret[0].(*models.OAuthConnection)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuthConnectionByUserAndID indicates an expected call of GetOAuthConnectionByUserAndID.
+func (mr *MockOAuthConnectionStoreMockRecorder) GetOAuthConnectionByUserAndID(userID, connectionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuthConnectionByUserAndID", reflect.TypeOf((*MockOAuthConnectionStore)(nil).GetOAuthConnectionByUserAndID), userID, connectionID)
+}
+
 // GetOAuthConnectionByUserAndProvider mocks base method.
 func (m *MockOAuthConnectionStore) GetOAuthConnectionByUserAndProvider(userID, provider string) (*models.OAuthConnection, error) {
 	m.ctrl.T.Helper()
@@ -2099,6 +2114,21 @@ func (m *MockStore) GetOAuthConnection(provider, providerUserID string) (*models
 func (mr *MockStoreMockRecorder) GetOAuthConnection(provider, providerUserID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuthConnection", reflect.TypeOf((*MockStore)(nil).GetOAuthConnection), provider, providerUserID)
+}
+
+// GetOAuthConnectionByUserAndID mocks base method.
+func (m *MockStore) GetOAuthConnectionByUserAndID(userID, connectionID string) (*models.OAuthConnection, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuthConnectionByUserAndID", userID, connectionID)
+	ret0, _ := ret[0].(*models.OAuthConnection)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuthConnectionByUserAndID indicates an expected call of GetOAuthConnectionByUserAndID.
+func (mr *MockStoreMockRecorder) GetOAuthConnectionByUserAndID(userID, connectionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuthConnectionByUserAndID", reflect.TypeOf((*MockStore)(nil).GetOAuthConnectionByUserAndID), userID, connectionID)
 }
 
 // GetOAuthConnectionByUserAndProvider mocks base method.

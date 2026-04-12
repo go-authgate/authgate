@@ -133,6 +133,7 @@ type OAuthConnectionStore interface {
 	CreateOAuthConnection(conn *models.OAuthConnection) error
 	GetOAuthConnection(provider, providerUserID string) (*models.OAuthConnection, error)
 	GetOAuthConnectionByUserAndProvider(userID, provider string) (*models.OAuthConnection, error)
+	GetOAuthConnectionByUserAndID(userID, connectionID string) (*models.OAuthConnection, error)
 	GetOAuthConnectionsByUserID(userID string) ([]models.OAuthConnection, error)
 	UpdateOAuthConnection(conn *models.OAuthConnection) error
 	DeleteOAuthConnection(id string) error

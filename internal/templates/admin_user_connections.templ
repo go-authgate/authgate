@@ -1,0 +1,149 @@
+package templates
+
+import (
+	"fmt"
+	"strings"
+)
+
+func providerDisplayName(provider string) string {
+	switch strings.ToLower(provider) {
+	case "github":
+		return "GitHub"
+	case "gitea":
+		return "Gitea"
+	case "microsoft":
+		return "Microsoft"
+	default:
+		if provider == "" {
+			return ""
+		}
+		return strings.ToUpper(provider[:1]) + provider[1:]
+	}
+}
+
+templ AdminUserConnections(props UserOAuthConnectionsPageProps) {
+	@Layout("OAuth Connections", LayoutAdminNavbar, &props.NavbarProps) {
+		<div class="main-content">
+			<div class="admin-form-container" style="max-width:1000px;">
+				<div class="card">
+					@Breadcrumb([]BreadcrumbItem{
+						{Label: "Admin", Href: "/admin"},
+						{Label: "Users", Href: "/admin/users"},
+						{Label: props.TargetUser.Username, Href: "/admin/users/" + props.TargetUser.ID},
+						{Label: "OAuth Connections", Href: ""},
+					})
+					<div class="admin-form-header">
+						<h1 class="admin-form-title">OAuth Connections</h1>
+						<p style="font-size:var(--text-sm);color:var(--color-text-secondary);margin-top:var(--space-2);">
+							External identity providers linked to <strong>{ props.TargetUser.Username }</strong>
+						</p>
+					</div>
+					@Alert(props.Error, AlertError)
+					@Alert(props.Success, AlertSuccess)
+					if len(props.Connections) > 0 {
+						<!-- Summary bar -->
+						<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-6);padding-bottom:var(--space-4);border-bottom:2px solid var(--color-border);">
+							<span style="font-family:var(--font-mono);font-size:var(--text-sm);font-weight:600;color:var(--color-text-primary);">
+								{ fmt.Sprintf("%d", len(props.Connections)) } linked provider(s)
+							</span>
+							<a href={ templ.URL("/admin/users/" + props.TargetUser.ID) } class="admin-action-btn secondary" style="padding:var(--space-2) var(--space-4);font-size:var(--text-sm);">
+								&larr; Back to User
+							</a>
+						</div>
+						<!-- Table -->
+						<div class="admin-table-wrapper">
+							<table class="admin-table">
+								<thead>
+									<tr>
+										<th>Provider</th>
+										<th>Username</th>
+										<th>Email</th>
+										<th>Last Used</th>
+										<th>Connected</th>
+										<th class="col-actions">Actions</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, conn := range props.Connections {
+										<tr>
+											<td data-label="Provider">
+												@oauthProviderBadge(conn.Provider)
+											</td>
+											<td data-label="Username">
+												<span style="font-weight:600;">{ conn.ProviderUsername }</span>
+											</td>
+											<td data-label="Email">
+												<span style="font-size:var(--text-sm);color:var(--color-text-secondary);">{ conn.ProviderEmail }</span>
+											</td>
+											<td data-label="Last Used">
+												if !conn.LastUsedAt.IsZero() {
+													<span style="font-family:var(--font-mono);font-size:var(--text-sm);white-space:nowrap;">
+														{ conn.LastUsedAt.Format("2006-01-02 15:04") }
+													</span>
+												} else {
+													<span style="color:var(--color-text-tertiary);font-style:italic;">Never</span>
+												}
+											</td>
+											<td data-label="Connected">
+												<span style="font-family:var(--font-mono);font-size:var(--text-sm);white-space:nowrap;">
+													{ conn.CreatedAt.Format("2006-01-02 15:04") }
+												</span>
+											</td>
+											<td data-label="Actions">
+												<form
+													method="POST"
+													action={ templ.URL("/admin/users/" + props.TargetUser.ID + "/connections/" + conn.ID + "/delete") }
+													data-confirm-title="Unlink Provider?"
+													data-confirm-message={ "This will unlink the " + providerDisplayName(conn.Provider) + " account \"" + conn.ProviderUsername + "\" from this user. The user will no longer be able to log in with this provider." }
+													data-confirm-style="warning"
+													data-confirm-label="Unlink"
+												>
+													<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+													<button type="submit" class="btn btn-danger btn-small">
+														Unlink
+													</button>
+												</form>
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					} else {
+						<div class="empty-state">
+							@EmptyStateAuth()
+							<h3 class="empty-title">No OAuth Connections</h3>
+							<p class="empty-text">This user has no linked external identity providers.</p>
+						</div>
+						<div style="margin-top:var(--space-6);text-align:center;">
+							<a href={ templ.URL("/admin/users/" + props.TargetUser.ID) } class="admin-action-btn secondary">
+								&larr; Back to User
+							</a>
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ oauthProviderBadge(provider string) {
+	switch strings.ToLower(provider) {
+		case "github":
+			<span class="status-badge" style="background:rgba(36,41,46,0.1);color:#24292e;border:1px solid rgba(36,41,46,0.3);">
+				GitHub
+			</span>
+		case "gitea":
+			<span class="status-badge" style="background:rgba(96,153,38,0.1);color:#609926;border:1px solid rgba(96,153,38,0.3);">
+				Gitea
+			</span>
+		case "microsoft":
+			<span class="status-badge" style="background:rgba(0,120,215,0.1);color:#0078D7;border:1px solid rgba(0,120,215,0.3);">
+				Microsoft
+			</span>
+		default:
+			<span class="status-badge" style="background:var(--color-bg-tertiary);color:var(--color-text-secondary);border:1px solid var(--color-border);">
+				{ providerDisplayName(provider) }
+			</span>
+	}
+}

@@ -37,10 +37,16 @@ const (
 	EventClientSecretRegenerated EventType = "CLIENT_SECRET_REGENERATED"
 
 	// Admin operations — user management
+	EventUserCreated       EventType = "USER_CREATED"
 	EventUserUpdated       EventType = "USER_UPDATED"
 	EventUserDeleted       EventType = "USER_DELETED"
+	EventUserDisabled      EventType = "USER_DISABLED"
+	EventUserEnabled       EventType = "USER_ENABLED"
 	EventUserRoleChanged   EventType = "USER_ROLE_CHANGED"
 	EventUserPasswordReset EventType = "USER_PASSWORD_RESET" //nolint:gosec // G101: false positive, event type constant
+
+	// OAuth connection events
+	EventOAuthConnectionDeleted EventType = "OAUTH_CONNECTION_DELETED"
 
 	// Security events
 	EventRateLimitExceeded  EventType = "RATE_LIMIT_EXCEEDED"
