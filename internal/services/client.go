@@ -401,7 +401,11 @@ func (s *ClientService) UpdateClient(
 		enableClientCredentials,
 	)
 
-	// Token endpoint authentication fields (may be zero to preserve existing).
+	// Token endpoint authentication fields are atomic: when the caller
+	// specifies a method they must also provide its key material, and when
+	// they omit the method the existing configuration is preserved. This
+	// prevents forms that don't surface the new fields (e.g. the legacy
+	// admin UI) from silently wiping a private_key_jwt client's JWKS.
 	if req.TokenEndpointAuthMethod != "" {
 		if !validTokenEndpointAuthMethod(req.TokenEndpointAuthMethod) {
 			return ErrInvalidTokenEndpointAuthMethod
@@ -411,10 +415,10 @@ func (s *ClientService) UpdateClient(
 			return ErrPrivateKeyJWTRequiresConfidential
 		}
 		client.TokenEndpointAuthMethod = req.TokenEndpointAuthMethod
+		client.TokenEndpointAuthSigningAlg = req.TokenEndpointAuthSigningAlg
+		client.JWKSURI = strings.TrimSpace(req.JWKSURI)
+		client.JWKS = strings.TrimSpace(req.JWKS)
 	}
-	client.TokenEndpointAuthSigningAlg = req.TokenEndpointAuthSigningAlg
-	client.JWKSURI = strings.TrimSpace(req.JWKSURI)
-	client.JWKS = strings.TrimSpace(req.JWKS)
 	// Clear the shared secret when switching away from client_secret_* methods,
 	// so a stale hash cannot authenticate a reconfigured client.
 	if !client.UsesClientSecret() {

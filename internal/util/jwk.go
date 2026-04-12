@@ -113,6 +113,15 @@ func rsaKeyFromJWK(k *JWK) (*rsa.PublicKey, error) {
 	if !e.IsInt64() {
 		return nil, fmt.Errorf("%w: RSA exponent overflow", ErrInvalidJWKS)
 	}
+	// E must be an odd integer > 1 per PKCS#1; reject weak/degenerate exponents
+	// (e.g. 0, 1, even values) that make signature verification trivially unsafe.
+	eInt := e.Int64()
+	if eInt < 3 || eInt&1 == 0 {
+		return nil, fmt.Errorf(
+			"%w: RSA exponent must be odd and >= 3 (got %d)",
+			ErrInvalidJWKS, eInt,
+		)
+	}
 	if n.BitLen() < 2048 {
 		return nil, fmt.Errorf(
 			"%w: RSA modulus must be >= 2048 bits (got %d)",
@@ -120,7 +129,7 @@ func rsaKeyFromJWK(k *JWK) (*rsa.PublicKey, error) {
 			n.BitLen(),
 		)
 	}
-	return &rsa.PublicKey{N: n, E: int(e.Int64())}, nil
+	return &rsa.PublicKey{N: n, E: int(eInt)}, nil
 }
 
 func ecKeyFromJWK(k *JWK) (*ecdsa.PublicKey, error) {

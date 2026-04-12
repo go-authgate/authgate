@@ -41,8 +41,10 @@ type JWKSFetcher struct {
 }
 
 // NewJWKSFetcher constructs a JWKSFetcher.
-// timeout controls the HTTP request timeout; ttl controls the cache lifetime.
-// cache may be nil, in which case a bounded in-process memory cache is used.
+// timeout controls the HTTP request timeout; ttl controls the cache lifetime
+// when a cache is provided. cache may be nil, in which case every call goes
+// straight to the remote — callers that need kid-miss refresh semantics
+// should supply a non-nil cache.
 func NewJWKSFetcher(cache core.Cache[util.JWKSet], timeout, ttl time.Duration) *JWKSFetcher {
 	if timeout <= 0 {
 		timeout = 10 * time.Second
@@ -81,8 +83,10 @@ func (f *JWKSFetcher) GetWithRefresh(ctx context.Context, uri, kid string) (*uti
 	if !f.canRefreshNow(uri) {
 		return set, nil
 	}
-	if err := f.cache.Delete(ctx, uri); err != nil {
-		log.Printf("[JWKSFetcher] cache delete failed for %s: %v", uri, err)
+	if f.cache != nil {
+		if err := f.cache.Delete(ctx, uri); err != nil {
+			log.Printf("[JWKSFetcher] cache delete failed for %s: %v", uri, err)
+		}
 	}
 	return f.getCached(ctx, uri)
 }

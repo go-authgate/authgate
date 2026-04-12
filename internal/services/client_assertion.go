@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/util"
@@ -69,11 +70,10 @@ type ClientAssertionVerifier struct {
 	auditService  core.AuditLogger
 	cfg           ClientAssertionConfig
 
-	// jtiMu serialises the jti Get+Set so two concurrent requests with the
-	// same jti cannot both observe a cache miss and pass replay detection.
-	// Honest traffic has unique jtis and hits no contention; replay attempts
-	// and malformed duplicates block each other, which is the desired effect.
-	jtiMu sync.Mutex
+	// jtiLocks shards the jti replay Get+Set critical section per client to
+	// keep honest traffic free of cross-client contention while still closing
+	// the TOCTOU window for concurrent requests carrying the same jti.
+	jtiLocks sync.Map // map[string]*sync.Mutex, keyed by client_id
 }
 
 // NewClientAssertionVerifier wires the verifier. auditService may be nil (no-op).
@@ -318,13 +318,24 @@ func (v *ClientAssertionVerifier) checkJTIReplay(
 	}
 	key := jtiCacheKeyPrefix + clientID + ":" + jti
 
-	// Serialise the Get+Set pair: without the lock, two concurrent requests
-	// carrying the same jti can both observe a cache miss before either Set
-	// lands, accepting a replay.
-	v.jtiMu.Lock()
-	defer v.jtiMu.Unlock()
+	// Serialise the Get+Set pair per client so two concurrent requests
+	// carrying the same jti cannot both observe a cache miss before either
+	// Set lands. Sharding by client keeps honest high-throughput traffic
+	// free of cross-client contention.
+	lockIface, _ := v.jtiLocks.LoadOrStore(clientID, &sync.Mutex{})
+	lock := lockIface.(*sync.Mutex)
+	lock.Lock()
+	defer lock.Unlock()
 
-	if _, err := v.jtiCache.Get(ctx, key); err == nil {
+	switch _, err := v.jtiCache.Get(ctx, key); {
+	case err == nil:
+		return ErrAssertionJTIReplay
+	case errors.Is(err, cache.ErrCacheMiss):
+		// expected — the jti has not been seen; fall through to record it.
+	default:
+		// Backend error (e.g. Redis unavailable). Fail closed so we do not
+		// silently accept replays while the cache is degraded.
+		log.Printf("[ClientAssertion] jti cache lookup failed: %v", err)
 		return ErrAssertionJTIReplay
 	}
 	// TTL = remaining assertion lifetime + clock skew. If exp is absent,
@@ -336,10 +347,11 @@ func (v *ClientAssertionVerifier) checkJTIReplay(
 			ttl = remaining
 		}
 	}
-	// Log but do not block on cache write failure — availability over perfect
-	// replay protection (the cache is best-effort in a multi-instance setup).
 	if err := v.jtiCache.Set(ctx, key, true, ttl); err != nil {
+		// Set failure after a miss: reject the assertion rather than
+		// silently skipping replay tracking.
 		log.Printf("[ClientAssertion] failed to record jti %s: %v", jti, err)
+		return ErrAssertionJTIReplay
 	}
 	return nil
 }
