@@ -56,7 +56,7 @@ type clientRegistrationRequest struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			request	body		clientRegistrationRequest															true	"Client registration request"
-//	@Success		201		{object}	object{client_id=string,client_secret=string,client_name=string,redirect_uris=[]string,grant_types=[]string,token_endpoint_auth_method=string,scope=string,client_id_issued_at=int,client_secret_expires_at=int}	"Client registered successfully"
+//	@Success		201		{object}	object{client_id=string,client_secret=string,client_secret_expires_at=int,jwks_uri=string,token_endpoint_auth_signing_alg=string,client_name=string,redirect_uris=[]string,grant_types=[]string,token_endpoint_auth_method=string,scope=string,client_id_issued_at=int}	"Client registered successfully. client_secret and client_secret_expires_at are only present for client_secret_basic/post auth methods; jwks_uri and token_endpoint_auth_signing_alg are present for private_key_jwt."
 //	@Failure		400		{object}	object{error=string,error_description=string}											"Invalid client metadata"
 //	@Failure		401		{object}	object{error=string,error_description=string}											"Invalid or missing initial access token"
 //	@Failure		403		{object}	object{error=string,error_description=string}											"Dynamic registration is disabled"

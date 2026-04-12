@@ -235,14 +235,27 @@ func (s *ClientService) CreateClient(
 		return nil, err
 	}
 
-	// Token endpoint authentication method (RFC 7591 §2).
+	// Token endpoint authentication method (RFC 7591 §2). Enforce full
+	// method ↔ client type consistency so downstream code that keys off
+	// either field cannot disagree on a client's auth contract.
 	authMethod := resolveTokenEndpointAuthMethod(req.TokenEndpointAuthMethod, clientType)
 	if !validTokenEndpointAuthMethod(authMethod) {
 		return nil, ErrInvalidTokenEndpointAuthMethod
 	}
-	if authMethod == models.TokenEndpointAuthPrivateKeyJWT &&
-		clientType != core.ClientTypeConfidential {
-		return nil, ErrPrivateKeyJWTRequiresConfidential
+	switch authMethod {
+	case models.TokenEndpointAuthNone:
+		if clientType != core.ClientTypePublic {
+			return nil, ErrInvalidTokenEndpointAuthMethod
+		}
+	case models.TokenEndpointAuthClientSecretBasic,
+		models.TokenEndpointAuthClientSecretPost:
+		if clientType != core.ClientTypeConfidential {
+			return nil, ErrInvalidTokenEndpointAuthMethod
+		}
+	case models.TokenEndpointAuthPrivateKeyJWT:
+		if clientType != core.ClientTypeConfidential {
+			return nil, ErrPrivateKeyJWTRequiresConfidential
+		}
 	}
 
 	// Generate client ID
@@ -410,9 +423,31 @@ func (s *ClientService) UpdateClient(
 		if !validTokenEndpointAuthMethod(req.TokenEndpointAuthMethod) {
 			return ErrInvalidTokenEndpointAuthMethod
 		}
-		if req.TokenEndpointAuthMethod == models.TokenEndpointAuthPrivateKeyJWT &&
-			clientType != core.ClientTypeConfidential {
-			return ErrPrivateKeyJWTRequiresConfidential
+		switch req.TokenEndpointAuthMethod {
+		case models.TokenEndpointAuthNone:
+			if clientType != core.ClientTypePublic {
+				return ErrInvalidTokenEndpointAuthMethod
+			}
+		case models.TokenEndpointAuthClientSecretBasic,
+			models.TokenEndpointAuthClientSecretPost:
+			if clientType != core.ClientTypeConfidential {
+				return ErrInvalidTokenEndpointAuthMethod
+			}
+			// Switching to client_secret_* from a method that never stored
+			// a secret (private_key_jwt or none) would leave the client
+			// unauthenticatable. Require an explicit RegenerateSecret call
+			// to mint one so the operator receives the new plaintext.
+			if client.ClientSecret == "" {
+				return fmt.Errorf(
+					"%w: switching to %s requires generating a new secret first (use RegenerateSecret)",
+					ErrInvalidClientData,
+					req.TokenEndpointAuthMethod,
+				)
+			}
+		case models.TokenEndpointAuthPrivateKeyJWT:
+			if clientType != core.ClientTypeConfidential {
+				return ErrPrivateKeyJWTRequiresConfidential
+			}
 		}
 		client.TokenEndpointAuthMethod = req.TokenEndpointAuthMethod
 		client.TokenEndpointAuthSigningAlg = req.TokenEndpointAuthSigningAlg

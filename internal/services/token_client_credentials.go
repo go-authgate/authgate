@@ -41,7 +41,15 @@ func (s *TokenService) IssueClientCredentialsToken(
 		return nil, ErrClientCredentialsFlowDisabled
 	}
 
-	// 4. Authenticate the client via its secret
+	// 4. Refuse to accept a shared secret for clients whose registered auth
+	// method is not secret-based (e.g. private_key_jwt). This prevents a
+	// downgrade attack where a stale or unexpected secret hash on such a
+	// client could be presented to bypass the assertion requirement.
+	if !client.UsesClientSecret() {
+		return nil, ErrInvalidClientCredentials
+	}
+
+	// 5. Authenticate the client via its secret
 	if !client.ValidateClientSecret([]byte(clientSecret)) {
 		return nil, ErrInvalidClientCredentials
 	}
@@ -165,6 +173,11 @@ func (s *TokenService) AuthenticateClient(
 		return ErrInvalidClientCredentials
 	}
 	if !client.IsActive() {
+		return ErrInvalidClientCredentials
+	}
+	// Guard against auth-method downgrade: a client registered for
+	// private_key_jwt or none must not be authenticable via a shared secret.
+	if !client.UsesClientSecret() {
 		return ErrInvalidClientCredentials
 	}
 	if !client.ValidateClientSecret([]byte(clientSecret)) {

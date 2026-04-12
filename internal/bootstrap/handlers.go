@@ -58,8 +58,11 @@ func initializeHandlers(deps handlerDeps) handlerSet {
 	// when multi-instance deployment needs coordinated jti replay protection.
 	var clientAuth *handlers.ClientAuthenticator
 	if deps.cfg.PrivateKeyJWTEnabled {
-		jwksCache := cache.NewMemoryCache[util.JWKSet]()
-		jtiCache := cache.NewMemoryCache[bool]()
+		// Pass 0 to disable the background reaper: these caches aren't wired
+		// into the shutdown manager, and lazy expiration on Get is sufficient
+		// given the short TTLs used here (JWKS hour, jti ≤ assertion lifetime).
+		jwksCache := cache.NewMemoryCache[util.JWKSet](0)
+		jtiCache := cache.NewMemoryCache[bool](0)
 		jwksFetcher := services.NewJWKSFetcher(
 			jwksCache,
 			deps.cfg.JWKSFetchTimeout,
