@@ -318,9 +318,10 @@ func (v *ClientAssertionVerifier) checkJTIReplay(
 		return ErrAssertionMissingJTI
 	}
 	if v.jtiCache == nil {
-		// Without a cache we cannot prevent replay. Treat this as a
-		// hard-configured failure rather than silently allowing replays.
-		return errors.New("jti replay cache not configured")
+		// Without a cache we cannot prevent replay. Fail closed using the
+		// dedicated sentinel so callers/tests can distinguish this from an
+		// actual replay via errors.Is.
+		return ErrAssertionJTICacheUnavailable
 	}
 	key := jtiCacheKeyPrefix + clientID + ":" + jti
 
