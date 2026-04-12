@@ -91,7 +91,7 @@ func NewClientAssertionVerifier(
 	if cfg.MaxLifetime <= 0 {
 		cfg.MaxLifetime = 5 * time.Minute
 	}
-	if cfg.ClockSkew < 0 {
+	if cfg.ClockSkew <= 0 {
 		cfg.ClockSkew = 30 * time.Second
 	}
 	return &ClientAssertionVerifier{

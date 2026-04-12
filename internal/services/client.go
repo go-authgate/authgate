@@ -96,6 +96,27 @@ func resolveTokenEndpointAuthMethod(method string, clientType core.ClientType) s
 	return models.TokenEndpointAuthClientSecretBasic
 }
 
+// validateInlineJWKS parses the inline JWKS JSON (if present) and verifies
+// every key can be converted to a usable public key. Called on create/update
+// so malformed registrations are rejected immediately, rather than failing
+// opaquely at assertion-verification time.
+func validateInlineJWKS(jwks string) error {
+	jwks = strings.TrimSpace(jwks)
+	if jwks == "" {
+		return nil
+	}
+	set, err := util.ParseJWKSet(jwks)
+	if err != nil {
+		return err
+	}
+	for i := range set.Keys {
+		if _, err := set.Keys[i].ToPublicKey(); err != nil {
+			return fmt.Errorf("jwks[%d]: %w", i, err)
+		}
+	}
+	return nil
+}
+
 // validateRedirectURIs checks that every URI in the slice is an absolute http/https
 // URI without a fragment, as required by RFC 6749.
 func validateRedirectURIs(uris []string) error {
@@ -309,6 +330,9 @@ func (s *ClientService) CreateClient(
 	if err := client.ValidateKeyMaterial(); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrInvalidClientData, err.Error())
 	}
+	if err := validateInlineJWKS(client.JWKS); err != nil {
+		return nil, fmt.Errorf("%w: invalid jwks: %s", ErrInvalidClientData, err.Error())
+	}
 
 	// Generate a shared secret only for the two client_secret_* auth methods.
 	// Public (none) and private_key_jwt clients do not have a secret.
@@ -461,6 +485,9 @@ func (s *ClientService) UpdateClient(
 	}
 	if err := client.ValidateKeyMaterial(); err != nil {
 		return fmt.Errorf("%w: %s", ErrInvalidClientData, err.Error())
+	}
+	if err := validateInlineJWKS(client.JWKS); err != nil {
+		return fmt.Errorf("%w: invalid jwks: %s", ErrInvalidClientData, err.Error())
 	}
 
 	err = s.store.UpdateClient(client)
