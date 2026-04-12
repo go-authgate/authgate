@@ -80,6 +80,23 @@ func TestDeleteExpiredTokensBatched(t *testing.T) {
 	assert.Equal(t, int64(30), remaining, "only unexpired tokens should remain")
 }
 
+func TestDeleteExpiredTokensInvalidBatchSize(t *testing.T) {
+	// Guard against a misconfigured batch size silently looping forever: GORM
+	// treats Limit(0) as "no limit", so the old termination check never fired.
+	withSmallCleanupBatch(t, 0)
+	s := createFreshStore(t, "sqlite", nil)
+
+	seedExpiredTokens(t, s, 5)
+
+	err := s.DeleteExpiredTokens()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cleanupBatchSize must be positive")
+
+	var remaining int64
+	require.NoError(t, s.db.Model(&models.AccessToken{}).Count(&remaining).Error)
+	assert.Equal(t, int64(5), remaining, "no rows should be deleted when guard fires")
+}
+
 func TestDeleteExpiredTokensNoRows(t *testing.T) {
 	withSmallCleanupBatch(t, 100)
 	s := createFreshStore(t, "sqlite", nil)

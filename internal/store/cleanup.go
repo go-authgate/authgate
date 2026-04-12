@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/go-authgate/authgate/internal/models"
@@ -19,15 +20,22 @@ var cleanupBatchSize = 10000
 // friendliness, not throughput. Declared as var so tests can zero it out.
 var cleanupBatchPause = 200 * time.Millisecond
 
-// deleteInBatches DELETEs rows of `model` matching whereClause in batches of
-// cleanupBatchSize. The subquery form (`id IN (SELECT id … LIMIT N)`) works on
-// PostgreSQL — which does not support `DELETE … LIMIT` directly — and lets the
+// deleteByIDInBatches DELETEs rows of `model` matching whereClause in batches of
+// cleanupBatchSize, using the subquery form `id IN (SELECT id … LIMIT N)`.
+// PostgreSQL does not support `DELETE … LIMIT` directly, and this form lets the
 // inner SELECT use the WHERE-clause index (e.g. expires_at).
-func (s *Store) deleteInBatches(
+//
+// The helper assumes `model` has an `id` primary-key column — all current
+// cleanup targets (AccessToken, DeviceCode, AuditLog) satisfy this. Do not call
+// it with models whose PK column is named differently.
+func (s *Store) deleteByIDInBatches(
 	model any,
 	whereClause string,
 	args ...any,
 ) (int64, error) {
+	if cleanupBatchSize <= 0 {
+		return 0, fmt.Errorf("cleanupBatchSize must be positive, got %d", cleanupBatchSize)
+	}
 	var total int64
 	for {
 		sub := s.db.Model(model).
@@ -39,7 +47,7 @@ func (s *Store) deleteInBatches(
 			return total, res.Error
 		}
 		total += res.RowsAffected
-		if res.RowsAffected < int64(cleanupBatchSize) {
+		if res.RowsAffected == 0 || res.RowsAffected < int64(cleanupBatchSize) {
 			return total, nil
 		}
 		time.Sleep(cleanupBatchPause)
@@ -48,13 +56,13 @@ func (s *Store) deleteInBatches(
 
 // DeleteExpiredTokens removes access/refresh tokens past expiry.
 func (s *Store) DeleteExpiredTokens() error {
-	_, err := s.deleteInBatches(&models.AccessToken{}, "expires_at < ?", time.Now())
+	_, err := s.deleteByIDInBatches(&models.AccessToken{}, "expires_at < ?", time.Now())
 	return err
 }
 
 // DeleteExpiredDeviceCodes removes device authorization codes past expiry.
 func (s *Store) DeleteExpiredDeviceCodes() error {
-	_, err := s.deleteInBatches(&models.DeviceCode{}, "expires_at < ?", time.Now())
+	_, err := s.deleteByIDInBatches(&models.DeviceCode{}, "expires_at < ?", time.Now())
 	return err
 }
 
