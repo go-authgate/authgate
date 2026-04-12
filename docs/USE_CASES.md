@@ -897,13 +897,25 @@ Legitimate devices will prompt for re-authentication on next use.
 ### Admin Response
 
 ```bash
-# Admin can also revoke all tokens for a user
-sqlite3 oauth.db "UPDATE access_tokens SET status='revoked' WHERE user_id='user-uuid';"
+# Preferred: disable the account in one call. This revokes every active and
+# refresh token, blocks future logins (local + OAuth callbacks), and forces
+# the user out of any live session on their next request. Re-enable later
+# once the account is verified to be safe.
+curl -X POST https://auth.yourplatform.com/admin/users/<user-id>/disable \
+  -H "Cookie: admin-session=..." \
+  -H "X-CSRF-Token: ..."
 
-# Check audit logs for suspicious activity
-curl "https://auth.yourplatform.com/admin/audit/api?user_id=user-uuid&since=7d" \
+# After containment, audit the activity:
+curl "https://auth.yourplatform.com/admin/audit/api?user_id=<user-id>&since=7d" \
   -H "Cookie: admin-session=..."
+
+# When ready to restore access:
+curl -X POST https://auth.yourplatform.com/admin/users/<user-id>/enable \
+  -H "Cookie: admin-session=..." \
+  -H "X-CSRF-Token: ..."
 ```
+
+If a third-party OAuth account (GitHub/Gitea/Microsoft) is the suspected entry vector, unlink just that binding instead of disabling the whole account: `POST /admin/users/<user-id>/connections/<conn-id>/delete`.
 
 ---
 

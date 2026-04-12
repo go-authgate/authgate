@@ -100,6 +100,7 @@ Before deploying AuthGate to production, complete this security checklist:
 - [ ] Provide clear instructions for revoking suspicious sessions
 - [ ] Document incident response procedures
 - [ ] Train administrators on security best practices
+- [ ] Train administrators that `POST /admin/users/:id/disable` is the fastest containment action — it revokes every active and refresh token immediately, blocks future logins (local + OAuth callbacks return `ErrAccountDisabled`), and `RequireAuth` clears any live session on the next request. Guards prevent disabling your own account or the last *active* admin (disabled admins do not block this guard).
 
 ---
 
@@ -521,7 +522,14 @@ AUDIT_LOG_RETENTION=2160h  # 90 days (adjust for compliance)
 **Step 2: Containment**
 
 ```bash
-# Immediately revoke all tokens for affected user
+# Preferred (admin): disable the affected user — revokes every access/refresh
+# token, blocks future logins (local + OAuth callbacks), and RequireAuth clears
+# any live session on the user's next request. Re-enable later with /enable.
+curl -X POST https://auth.yourdomain.com/admin/users/<user-id>/disable \
+  -H "Cookie: admin-session=..." \
+  -H "X-CSRF-Token: ..."
+
+# Self-service alternative when the user is cooperating:
 curl -X POST https://auth.yourdomain.com/account/sessions/revoke-all \
   -H "Cookie: session=..."
 

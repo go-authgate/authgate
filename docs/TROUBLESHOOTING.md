@@ -656,6 +656,25 @@ ENABLE_TOKEN_ROTATION=false          # Set true for rotation mode
 - **CLI/API:** Call `POST /oauth/revoke` with the token parameter
 - **Revoke All:** Use "Revoke All" button to sign out all devices at once
 
+### Q: A user was suddenly redirected to `/login` mid-session — what happened?
+
+**A:** Most likely an admin disabled the account via `POST /admin/users/:id/disable`. The disable action revokes all of the user's access and refresh tokens, and `RequireAuth` re-checks `IsActive` on every request — so the next request after disable clears the session and bounces the user to the login page (where local and OAuth callbacks both reject them with `ErrAccountDisabled`).
+
+To confirm and recover:
+
+```bash
+# Check the audit log for a USER_DISABLED event on this user
+curl "https://auth.yourplatform.com/admin/audit/api?user_id=<user-id>&event_type=USER_DISABLED" \
+  -H "Cookie: admin-session=..."
+
+# Re-enable the account when the situation is resolved
+curl -X POST https://auth.yourplatform.com/admin/users/<user-id>/enable \
+  -H "Cookie: admin-session=..." \
+  -H "X-CSRF-Token: ..."
+```
+
+The user will need to log in again from scratch — re-enabling does not restore the previously revoked tokens.
+
 ### Q: How long do device codes last?
 
 **A:** Device codes expire after 30 minutes by default. This is configurable via `Config.DeviceCodeExpiration` in `config/config.go`.

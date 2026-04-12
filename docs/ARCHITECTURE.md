@@ -33,7 +33,7 @@ authgate/
 │   ├── csrf.go      # CSRF protection middleware
 │   └── ratelimit.go # Rate limiting middleware (memory/Redis store)
 ├── models/          # Data models
-│   ├── user.go      # User accounts
+│   ├── user.go      # User accounts (includes IsActive flag for admin disable/enable)
 │   ├── client.go    # OAuth clients (OAuthClient)
 │   ├── device.go    # Device codes (DeviceCode)
 │   ├── token.go     # Access tokens (AccessToken)
@@ -177,6 +177,16 @@ sequenceDiagram
 | `/admin/audit/api/stats`            | GET      | Yes (Admin)   | Get audit log statistics                                                                          |
 | `/admin/clients/:id/authorizations` | GET      | Yes (Admin)   | View all users who consented to a client                                                          |
 | `/admin/clients/:id/revoke-all`     | POST     | Yes (Admin)   | Revoke all tokens and consents for a client                                                       |
+| `/admin/users`                      | GET/POST | Yes (Admin)   | List users / create a user (auto-generates password if none supplied; `auth_source=local`)        |
+| `/admin/users/:id`                  | GET/POST | Yes (Admin)   | View / update user (cannot change own role)                                                       |
+| `/admin/users/:id/reset-password`   | POST     | Yes (Admin)   | Generate a new random password (local-auth users only)                                            |
+| `/admin/users/:id/delete`           | POST     | Yes (Admin)   | Delete user (blocked for self and last active admin)                                              |
+| `/admin/users/:id/disable`          | POST     | Yes (Admin)   | Disable user — revokes all tokens, clears any live session on next request                        |
+| `/admin/users/:id/enable`           | POST     | Yes (Admin)   | Re-enable a disabled user                                                                         |
+| `/admin/users/:id/connections`      | GET      | Yes (Admin)   | List the user's third-party OAuth connections (GitHub, Gitea, Microsoft)                          |
+| `/admin/users/:id/connections/:conn_id/delete` | POST | Yes (Admin) | Unlink a specific third-party OAuth connection                                                |
+| `/admin/users/:id/authorizations`   | GET      | Yes (Admin)   | List apps the user has authorized                                                                 |
+| `/admin/users/:id/authorizations/:uuid/revoke` | POST | Yes (Admin) | Revoke a single user authorization                                                            |
 
 ### Endpoint Details
 

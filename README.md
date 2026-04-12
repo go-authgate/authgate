@@ -83,7 +83,7 @@ AuthGate also serves as a lightweight **centralised identity gateway** for inter
 - 📱 Single-page apps and mobile apps — **Authorization Code Flow + PKCE (public)**
 - 🤖 CI/CD pipelines and automation scripts — **Device Code Flow** or **Client Credentials**
 - ⚙️ Microservices and server-to-server APIs — **Client Credentials Grant**
-- 🏢 Enterprise teams needing **token self-service** — users manage and revoke their own active sessions and per-app grants via the built-in web UI (`/account/sessions`, `/account/authorizations`), no admin intervention required
+- 🏢 Enterprise teams needing **token self-service** — users manage and revoke their own active sessions and per-app grants via the built-in web UI (`/account/sessions`, `/account/authorizations`), no admin intervention required. Admins can additionally create accounts, disable or re-enable users (revoking all tokens immediately), and inspect or unlink each user's third-party OAuth connections and authorized apps from `/admin/users/:id`.
 - 🔑 Organisations wanting a **unified internal SSO portal** — centralise login across all internal tools and services through a single OAuth 2.0 gateway, eliminating per-system password management
 - 🔍 **Security & compliance teams** — comprehensive audit logs of every authentication, token, and admin event with filtering and CSV export (`/admin/audit`), satisfying audit and regulatory requirements
 
@@ -356,6 +356,11 @@ sequenceDiagram
 | `/account/authorizations`           | GET      | Manage per-app consent grants                                                              |
 | `/admin/clients/:id/authorizations` | GET      | Admin: view all authorized users for a client                                              |
 | `/admin/clients/:id/revoke-all`     | POST     | Admin: force re-auth for all users                                                         |
+| `/admin/users`                      | GET/POST | Admin: list / create users                                                                 |
+| `/admin/users/:id/disable`          | POST     | Admin: disable user (revokes all tokens, blocks login)                                     |
+| `/admin/users/:id/enable`           | POST     | Admin: re-enable a disabled user                                                           |
+| `/admin/users/:id/connections`      | GET      | Admin: list a user's third-party OAuth connections                                         |
+| `/admin/users/:id/authorizations`   | GET      | Admin: list apps a user has authorized                                                     |
 | `/health`                           | GET      | Health check                                                                               |
 | `/metrics`                          | GET      | Prometheus metrics (optional auth)                                                         |
 

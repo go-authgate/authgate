@@ -111,6 +111,8 @@ In addition to Device Code Flow, AuthGate supports Authorization Code Flow with 
 - `OAuthApplication.ClientType` - "confidential" (with secret) or "public" (PKCE only)
 - `UserAuthorization` - Per-app consent grants (one record per user+app pair)
 - `AccessToken` - Unified storage for both access and refresh tokens (distinguished by `token_category` field)
+- `User.IsActive` - Boolean (default `true`) controlling whether a user may log in. Disabling revokes all of the user's tokens and `RequireAuth` clears any live session on the next request. Guards prevent self-disable and disabling the last *active* admin.
+- `OAuthConnection` - Per-user binding to a third-party provider (GitHub, Gitea, Microsoft). Stores provider tokens and `LastUsedAt`; admins can list/unlink them per user via `/admin/users/:id/connections`.
 
 ### Key Features
 
@@ -150,7 +152,7 @@ In addition to Device Code Flow, AuthGate supports Authorization Code Flow with 
 - Tracks authentication, device authorization, token operations, admin actions, security events
 - Asynchronous batch writes (every 1s or 100 records) for minimal performance impact
 - Automatic sensitive data masking (passwords, tokens, secrets)
-- Event types: AUTHENTICATION*\*, DEVICE_CODE*\_, TOKEN\_\_, CLIENT\_\*, RATE_LIMIT_EXCEEDED
+- Event types: AUTHENTICATION*\*, DEVICE_CODE*\_, TOKEN\_\_, CLIENT\_\*, USER\_\* (`USER_CREATED`, `USER_DISABLED`, `USER_ENABLED`, `USER_PASSWORD_RESET`, `USER_ROLE_CHANGED`), `OAUTH_CONNECTION_DELETED`, RATE_LIMIT_EXCEEDED
 - Severity levels: INFO, WARNING, ERROR, CRITICAL
 - Web interface at `/admin/audit` with filtering and CSV export
 
@@ -231,6 +233,20 @@ In addition to Device Code Flow, AuthGate supports Authorization Code Flow with 
 - `POST /admin/clients/:id/update` - Update OAuth client
 - `GET /admin/clients/:id/authorizations` - View all authorized users for a client
 - `POST /admin/clients/:id/revoke-all` - Force re-auth for all users of a client
+- `GET /admin/users` - List users
+- `GET /admin/users/new` - Create user form (admin-created users start active, local auth)
+- `POST /admin/users` - Create user (auto-generates a random password if none supplied)
+- `GET /admin/users/:id` - View user detail (active tokens, OAuth connections, authorized apps)
+- `GET /admin/users/:id/edit` - Edit user form
+- `POST /admin/users/:id` - Update user
+- `POST /admin/users/:id/reset-password` - Generate a new random password (local users only)
+- `POST /admin/users/:id/delete` - Delete user
+- `POST /admin/users/:id/disable` - Disable account (revokes all tokens, blocks future logins)
+- `POST /admin/users/:id/enable` - Re-enable a disabled account
+- `GET /admin/users/:id/connections` - List the user's third-party OAuth connections
+- `POST /admin/users/:id/connections/:conn_id/delete` - Unlink a specific OAuth connection
+- `GET /admin/users/:id/authorizations` - List apps the user has authorized
+- `POST /admin/users/:id/authorizations/:uuid/revoke` - Revoke a specific user authorization
 - `GET /admin/audit` - View audit logs with filtering (admin only)
 - `GET /admin/audit/export` - Export audit logs as CSV (admin only)
 
