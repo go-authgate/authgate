@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -633,6 +634,27 @@ func (c *Config) Validate() error {
 			"CLIENT_CACHE_CLIENT_TTL must be a positive duration when CLIENT_CACHE_TYPE=%q (got %s)",
 			CacheTypeRedisAside,
 			c.ClientCacheClientTTL,
+		)
+	}
+
+	// Cleanup lock validation (only when enabled)
+	if c.EnableCleanupLock {
+		if c.RedisAddr == "" {
+			return errors.New("REDIS_ADDR must be set when ENABLE_CLEANUP_LOCK=true")
+		}
+		if c.CleanupLockKeyValidity <= 0 {
+			return fmt.Errorf(
+				"CLEANUP_LOCK_KEY_VALIDITY must be a positive duration when ENABLE_CLEANUP_LOCK=true (got %s)",
+				c.CleanupLockKeyValidity,
+			)
+		}
+	}
+
+	// Expired-token cleanup interval must be positive when cleanup is enabled.
+	if c.EnableExpiredTokenCleanup && c.ExpiredTokenCleanupInterval <= 0 {
+		return fmt.Errorf(
+			"EXPIRED_TOKEN_CLEANUP_INTERVAL must be a positive duration when ENABLE_EXPIRED_TOKEN_CLEANUP=true (got %s)",
+			c.ExpiredTokenCleanupInterval,
 		)
 	}
 

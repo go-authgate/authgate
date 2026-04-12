@@ -309,7 +309,7 @@ func addExpiredTokenCleanupJob(
 	cfg *config.Config,
 	locker rueidislock.Locker,
 ) {
-	if !cfg.EnableExpiredTokenCleanup {
+	if !cfg.EnableExpiredTokenCleanup || cfg.ExpiredTokenCleanupInterval <= 0 {
 		return
 	}
 

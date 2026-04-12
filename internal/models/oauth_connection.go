@@ -7,7 +7,7 @@ import (
 // OAuthConnection represents an OAuth provider connection for a user
 type OAuthConnection struct {
 	ID             string `gorm:"primaryKey"`
-	UserID         string `gorm:"not null;index:idx_oauth_conn_user_id;uniqueIndex:idx_oauth_user_provider,priority:1"`
+	UserID         string `gorm:"not null;uniqueIndex:idx_oauth_user_provider,priority:1"`
 	Provider       string `gorm:"not null;uniqueIndex:idx_oauth_provider_user,priority:1;uniqueIndex:idx_oauth_user_provider,priority:2"` // "github", "gitea", "gitlab"
 	ProviderUserID string `gorm:"not null;uniqueIndex:idx_oauth_provider_user,priority:2"`                                                // Provider's user ID
 

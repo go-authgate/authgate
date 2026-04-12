@@ -20,9 +20,10 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_active
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_client_active
     ON user_authorizations (client_id, is_active);
 
--- oauth_connections: GetOAuthConnectionsByUserID
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_oauth_conn_user_id
-    ON oauth_connections (user_id);
+-- oauth_connections: GetOAuthConnectionsByUserID / DeleteOAuthConnectionsByUserID
+-- are served by the existing unique composite index idx_oauth_user_provider
+-- (user_id, provider); PostgreSQL uses the leading column for user_id-only
+-- predicates, so no standalone user_id index is required.
 
 -- audit_logs: admin filter combinations
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_severity
