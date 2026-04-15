@@ -179,6 +179,7 @@ func (s *Store) seedData(ctx context.Context, cfg *config.Config) error {
 			Email:        "admin@localhost", // Default email for admin
 			PasswordHash: string(hash),
 			Role:         models.UserRoleAdmin,
+			FullName:     "Administrator",
 			IsActive:     true,
 		}
 		if err := s.db.WithContext(ctx).Create(user).Error; err != nil {
