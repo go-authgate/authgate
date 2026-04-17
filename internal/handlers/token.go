@@ -43,6 +43,7 @@ type TokenHandler struct {
 	tokenService         *services.TokenService
 	authorizationService *services.AuthorizationService
 	config               *config.Config
+	clientAuthenticator  *ClientAuthenticator // optional; when nil, falls back to secret-only auth
 }
 
 func NewTokenHandler(
@@ -55,6 +56,13 @@ func NewTokenHandler(
 		authorizationService: as,
 		config:               cfg,
 	}
+}
+
+// WithClientAuthenticator attaches a shared ClientAuthenticator so the token
+// endpoint can accept RFC 7523 private_key_jwt in addition to client_secret.
+func (h *TokenHandler) WithClientAuthenticator(a *ClientAuthenticator) *TokenHandler {
+	h.clientAuthenticator = a
+	return h
 }
 
 // buildTokenResponse constructs a standard OAuth 2.0 token response (RFC 6749 §5.1).
@@ -278,45 +286,69 @@ func (h *TokenHandler) TokenInfo(c *gin.Context) {
 // Introspect godoc
 //
 //	@Summary		Introspect token (RFC 7662)
-//	@Description	Determine the active state and metadata of an OAuth 2.0 token. Requires client authentication via HTTP Basic Auth or form-body client credentials.
+//	@Description	Determine the active state and metadata of an OAuth 2.0 token. Requires client authentication via HTTP Basic Auth, form-body client_id/client_secret, or RFC 7523 private_key_jwt (client_assertion + client_assertion_type).
 //	@Tags			OAuth
 //	@Accept			x-www-form-urlencoded
 //	@Produce		json
-//	@Param			token			formData	string																																		true	"The token to introspect"
-//	@Param			token_type_hint	formData	string																																		false	"Hint about the type of token: 'access_token' or 'refresh_token'"
-//	@Param			client_id		formData	string																																		false	"Client ID (alternative to HTTP Basic Auth)"
-//	@Param			client_secret	formData	string																																		false	"Client secret (alternative to HTTP Basic Auth)"
+//	@Param			token					formData	string																																		true	"The token to introspect"
+//	@Param			token_type_hint			formData	string																																		false	"Hint about the type of token: 'access_token' or 'refresh_token'"
+//	@Param			client_id				formData	string																																		false	"Client ID (alternative to HTTP Basic Auth)"
+//	@Param			client_secret			formData	string																																		false	"Client secret (alternative to HTTP Basic Auth)"
+//	@Param			client_assertion		formData	string																																		false	"Signed JWT assertion (RFC 7523 private_key_jwt); use with client_assertion_type"
+//	@Param			client_assertion_type	formData	string																																		false	"Must be urn:ietf:params:oauth:client-assertion-type:jwt-bearer when client_assertion is present"
 //	@Success		200				{object}	object{active=bool,scope=string,client_id=string,username=string,token_type=string,exp=int,iat=int,sub=string,iss=string,jti=string}	"Token introspection response"
 //	@Failure		401				{object}	object{error=string,error_description=string}																							"Client authentication failed"
 //	@Router			/oauth/introspect [post]
 func (h *TokenHandler) Introspect(c *gin.Context) {
-	// 1. Authenticate the calling client (RFC 7662 §2.1)
-	clientID, clientSecret := parseClientCredentials(c)
-	if clientID == "" || clientSecret == "" {
-		c.Header("WWW-Authenticate", `Basic realm="authgate"`)
-		respondOAuthError(
-			c,
-			http.StatusUnauthorized,
-			errInvalidClient,
-			"Client authentication required",
-		)
-		return
-	}
-
-	// Verify client credentials
-	if err := h.tokenService.AuthenticateClient(
-		c.Request.Context(),
-		clientID,
-		clientSecret,
-	); err != nil {
-		c.Header("WWW-Authenticate", `Basic realm="authgate"`)
-		respondOAuthError(
-			c,
-			http.StatusUnauthorized,
-			errInvalidClient,
-			"Client authentication failed",
-		)
-		return
+	// 1. Authenticate the calling client (RFC 7662 §2.1).
+	// Prefer the shared authenticator so private_key_jwt is accepted alongside
+	// client_secret_* methods.
+	var clientID string
+	if h.clientAuthenticator != nil {
+		authed, err := h.clientAuthenticator.Authenticate(c, true)
+		if err != nil {
+			// Only advertise a Basic challenge when Basic is actually an
+			// applicable method for this caller — otherwise a private_key_jwt
+			// client would see a misleading WWW-Authenticate header.
+			if shouldChallengeBasic(c) {
+				c.Header("WWW-Authenticate", `Basic realm="authgate"`)
+			}
+			respondOAuthError(
+				c,
+				http.StatusUnauthorized,
+				errInvalidClient,
+				"Client authentication failed",
+			)
+			return
+		}
+		clientID = authed.Client.ClientID
+	} else {
+		id, secret, _ := parseClientCredentials(c)
+		if id == "" || secret == "" {
+			c.Header("WWW-Authenticate", `Basic realm="authgate"`)
+			respondOAuthError(
+				c,
+				http.StatusUnauthorized,
+				errInvalidClient,
+				"Client authentication required",
+			)
+			return
+		}
+		if err := h.tokenService.AuthenticateClient(
+			c.Request.Context(),
+			id,
+			secret,
+		); err != nil {
+			c.Header("WWW-Authenticate", `Basic realm="authgate"`)
+			respondOAuthError(
+				c,
+				http.StatusUnauthorized,
+				errInvalidClient,
+				"Client authentication failed",
+			)
+			return
+		}
+		clientID = id
 	}
 
 	// 2. Get the token parameter (RFC 7662 §2.1: REQUIRED)
@@ -408,12 +440,43 @@ func (h *TokenHandler) Revoke(c *gin.Context) {
 }
 
 // handleClientCredentialsGrant handles the client_credentials grant type (RFC 6749 §4.4).
-// Client authentication is accepted via HTTP Basic Auth (preferred per RFC 6749 §2.3.1)
-// or as client_id / client_secret form-body parameters.
+// Client authentication is accepted via HTTP Basic Auth (preferred per RFC 6749 §2.3.1),
+// client_id / client_secret form-body parameters, or RFC 7523 private_key_jwt assertions.
 // Only confidential clients with the client_credentials flow enabled may use this endpoint.
 // No refresh token is issued in the response.
 func (h *TokenHandler) handleClientCredentialsGrant(c *gin.Context) {
-	clientID, clientSecret := parseClientCredentials(c)
+	requestedScopes := c.PostForm("scope") // Optional
+
+	// Prefer the shared authenticator when wired — it unifies Basic Auth,
+	// form-body credentials, and private_key_jwt assertions.
+	if h.clientAuthenticator != nil {
+		authed, err := h.clientAuthenticator.Authenticate(c, true)
+		if err != nil {
+			if shouldChallengeBasic(c) {
+				c.Header("WWW-Authenticate", `Basic realm="authgate"`)
+			}
+			respondOAuthError(
+				c,
+				http.StatusUnauthorized,
+				errInvalidClient,
+				"Client authentication failed",
+			)
+			return
+		}
+		accessToken, err := h.tokenService.IssueClientCredentialsTokenForClient(
+			c.Request.Context(),
+			authed.Client,
+			requestedScopes,
+		)
+		if err != nil {
+			h.writeClientCredentialsError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, buildTokenResponse(accessToken, nil, ""))
+		return
+	}
+
+	clientID, clientSecret, _ := parseClientCredentials(c)
 	if clientID == "" || clientSecret == "" {
 		c.Header("WWW-Authenticate", `Basic realm="authgate"`)
 		respondOAuthError(
@@ -425,8 +488,6 @@ func (h *TokenHandler) handleClientCredentialsGrant(c *gin.Context) {
 		return
 	}
 
-	requestedScopes := c.PostForm("scope") // Optional
-
 	accessToken, err := h.tokenService.IssueClientCredentialsToken(
 		c.Request.Context(),
 		clientID,
@@ -434,40 +495,57 @@ func (h *TokenHandler) handleClientCredentialsGrant(c *gin.Context) {
 		requestedScopes,
 	)
 	if err != nil {
-		switch {
-		case errors.Is(err, services.ErrInvalidClientCredentials),
-			errors.Is(err, services.ErrClientNotConfidential):
-			// RFC 6749 §5.2: use 401 + WWW-Authenticate for invalid_client
-			c.Header("WWW-Authenticate", `Basic realm="authgate"`)
-			respondOAuthError(
-				c,
-				http.StatusUnauthorized,
-				errInvalidClient,
-				"Client authentication failed",
-			)
-		case errors.Is(err, services.ErrClientCredentialsFlowDisabled):
-			respondOAuthError(c, http.StatusBadRequest, errUnauthorizedClient,
-				"Client credentials flow is not enabled for this client")
-		case errors.Is(err, token.ErrInvalidScope):
-			respondOAuthError(
-				c,
-				http.StatusBadRequest,
-				errInvalidScope,
-				"Requested scope exceeds client permissions or contains restricted scopes (openid, offline_access are not permitted)",
-			)
-		default:
-			respondOAuthError(
-				c,
-				http.StatusInternalServerError,
-				errServerError,
-				"Token issuance failed",
-			)
-		}
+		h.writeClientCredentialsError(c, err)
 		return
 	}
 
 	// RFC 6749 §4.4.3: response MUST NOT include a refresh_token
 	c.JSON(http.StatusOK, buildTokenResponse(accessToken, nil, ""))
+}
+
+// shouldChallengeBasic reports whether an HTTP Basic Auth challenge is
+// meaningful in a 401 response to the given request. We skip the challenge
+// when the caller explicitly used private_key_jwt (client_assertion is
+// present) because Basic is not an applicable method for that client.
+func shouldChallengeBasic(c *gin.Context) bool {
+	return c.PostForm(formClientAssertion) == "" &&
+		c.PostForm(formClientAssertionType) == ""
+}
+
+// writeClientCredentialsError maps service-layer errors from the client_credentials
+// flow to RFC 6749 error responses. Shared between the classic and shared-authenticator
+// code paths.
+func (h *TokenHandler) writeClientCredentialsError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, services.ErrInvalidClientCredentials),
+		errors.Is(err, services.ErrClientNotConfidential):
+		if shouldChallengeBasic(c) {
+			c.Header("WWW-Authenticate", `Basic realm="authgate"`)
+		}
+		respondOAuthError(
+			c,
+			http.StatusUnauthorized,
+			errInvalidClient,
+			"Client authentication failed",
+		)
+	case errors.Is(err, services.ErrClientCredentialsFlowDisabled):
+		respondOAuthError(c, http.StatusBadRequest, errUnauthorizedClient,
+			"Client credentials flow is not enabled for this client")
+	case errors.Is(err, token.ErrInvalidScope):
+		respondOAuthError(
+			c,
+			http.StatusBadRequest,
+			errInvalidScope,
+			"Requested scope exceeds client permissions or contains restricted scopes (openid, offline_access are not permitted)",
+		)
+	default:
+		respondOAuthError(
+			c,
+			http.StatusInternalServerError,
+			errServerError,
+			"Token issuance failed",
+		)
+	}
 }
 
 // handleAuthorizationCodeGrant handles the authorization_code grant type (RFC 6749 §4.1.3).

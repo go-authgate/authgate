@@ -41,11 +41,49 @@ func (s *TokenService) IssueClientCredentialsToken(
 		return nil, ErrClientCredentialsFlowDisabled
 	}
 
-	// 4. Authenticate the client via its secret
+	// 4. Refuse to accept a shared secret for clients whose registered auth
+	// method is not secret-based (e.g. private_key_jwt). This prevents a
+	// downgrade attack where a stale or unexpected secret hash on such a
+	// client could be presented to bypass the assertion requirement.
+	if !client.UsesClientSecret() {
+		return nil, ErrInvalidClientCredentials
+	}
+
+	// 5. Authenticate the client via its secret
 	if !client.ValidateClientSecret([]byte(clientSecret)) {
 		return nil, ErrInvalidClientCredentials
 	}
 
+	return s.issueClientCredentialsTokenForClient(ctx, client, requestedScopes)
+}
+
+// IssueClientCredentialsTokenForClient issues a client_credentials access token
+// for a client that has already been authenticated (e.g. via RFC 7523
+// private_key_jwt). The caller is responsible for authentication; this method
+// only checks client type, flow enablement, and scope bounds.
+func (s *TokenService) IssueClientCredentialsTokenForClient(
+	ctx context.Context,
+	client *models.OAuthApplication,
+	requestedScopes string,
+) (*models.AccessToken, error) {
+	if client == nil || !client.IsActive() {
+		return nil, ErrInvalidClientCredentials
+	}
+	if core.ClientType(client.ClientType) != core.ClientTypeConfidential {
+		return nil, ErrClientNotConfidential
+	}
+	if !client.EnableClientCredentialsFlow {
+		return nil, ErrClientCredentialsFlowDisabled
+	}
+	return s.issueClientCredentialsTokenForClient(ctx, client, requestedScopes)
+}
+
+func (s *TokenService) issueClientCredentialsTokenForClient(
+	ctx context.Context,
+	client *models.OAuthApplication,
+	requestedScopes string,
+) (*models.AccessToken, error) {
+	clientID := client.ClientID
 	// 5. Resolve effective scopes
 	effectiveScopes := requestedScopes
 	if effectiveScopes == "" {
@@ -135,6 +173,11 @@ func (s *TokenService) AuthenticateClient(
 		return ErrInvalidClientCredentials
 	}
 	if !client.IsActive() {
+		return ErrInvalidClientCredentials
+	}
+	// Guard against auth-method downgrade: a client registered for
+	// private_key_jwt or none must not be authenticable via a shared secret.
+	if !client.UsesClientSecret() {
 		return ErrInvalidClientCredentials
 	}
 	if !client.ValidateClientSecret([]byte(clientSecret)) {

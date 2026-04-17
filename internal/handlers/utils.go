@@ -24,13 +24,13 @@ func parsePaginationParams(c *gin.Context) store.PaginationParams {
 
 // parseClientCredentials extracts client_id and client_secret from the request
 // using HTTP Basic Auth (preferred per RFC 6749 §2.3.1) or form-body parameters.
-func parseClientCredentials(c *gin.Context) (clientID, clientSecret string) {
-	clientID, clientSecret, ok := c.Request.BasicAuth()
-	if !ok {
-		clientID = c.PostForm("client_id")
-		clientSecret = c.PostForm("client_secret")
+// fromHeader is true when credentials were taken from the Authorization header,
+// letting callers distinguish client_secret_basic from client_secret_post.
+func parseClientCredentials(c *gin.Context) (clientID, clientSecret string, fromHeader bool) {
+	if id, pw, ok := c.Request.BasicAuth(); ok {
+		return id, pw, true
 	}
-	return clientID, clientSecret
+	return c.PostForm("client_id"), c.PostForm("client_secret"), false
 }
 
 // respondOAuthError writes an RFC-compliant OAuth error JSON response.

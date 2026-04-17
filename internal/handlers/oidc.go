@@ -42,20 +42,21 @@ func NewOIDCHandler(
 
 // discoveryMetadata holds the OIDC Provider Metadata returned by the discovery endpoint.
 type discoveryMetadata struct {
-	Issuer                           string   `json:"issuer"`
-	AuthorizationEndpoint            string   `json:"authorization_endpoint"`
-	TokenEndpoint                    string   `json:"token_endpoint"`
-	UserinfoEndpoint                 string   `json:"userinfo_endpoint"`
-	RevocationEndpoint               string   `json:"revocation_endpoint"`
-	JwksURI                          string   `json:"jwks_uri,omitempty"`
-	ResponseTypesSupported           []string `json:"response_types_supported"`
-	SubjectTypesSupported            []string `json:"subject_types_supported"`
-	IDTokenSigningAlgValuesSupported []string `json:"id_token_signing_alg_values_supported,omitempty"`
-	ScopesSupported                  []string `json:"scopes_supported"`
-	TokenEndpointAuthMethods         []string `json:"token_endpoint_auth_methods_supported"`
-	GrantTypesSupported              []string `json:"grant_types_supported"`
-	ClaimsSupported                  []string `json:"claims_supported"`
-	CodeChallengeMethodsSupported    []string `json:"code_challenge_methods_supported"`
+	Issuer                                     string   `json:"issuer"`
+	AuthorizationEndpoint                      string   `json:"authorization_endpoint"`
+	TokenEndpoint                              string   `json:"token_endpoint"`
+	UserinfoEndpoint                           string   `json:"userinfo_endpoint"`
+	RevocationEndpoint                         string   `json:"revocation_endpoint"`
+	JwksURI                                    string   `json:"jwks_uri,omitempty"`
+	ResponseTypesSupported                     []string `json:"response_types_supported"`
+	SubjectTypesSupported                      []string `json:"subject_types_supported"`
+	IDTokenSigningAlgValuesSupported           []string `json:"id_token_signing_alg_values_supported,omitempty"`
+	ScopesSupported                            []string `json:"scopes_supported"`
+	TokenEndpointAuthMethods                   []string `json:"token_endpoint_auth_methods_supported"`
+	TokenEndpointAuthSigningAlgValuesSupported []string `json:"token_endpoint_auth_signing_alg_values_supported,omitempty"`
+	GrantTypesSupported                        []string `json:"grant_types_supported"`
+	ClaimsSupported                            []string `json:"claims_supported"`
+	CodeChallengeMethodsSupported              []string `json:"code_challenge_methods_supported"`
 }
 
 // Discovery godoc
@@ -89,11 +90,12 @@ func (h *OIDCHandler) Discovery(c *gin.Context) {
 		SubjectTypesSupported:            []string{"public"},
 		IDTokenSigningAlgValuesSupported: idTokenAlgs,
 		ScopesSupported:                  scopes,
-		TokenEndpointAuthMethods: []string{
-			"client_secret_basic",
-			"client_secret_post",
-			"none",
-		},
+		TokenEndpointAuthMethods: tokenEndpointAuthMethods(
+			h.config.PrivateKeyJWTEnabled,
+		),
+		TokenEndpointAuthSigningAlgValuesSupported: tokenEndpointAuthSigningAlgs(
+			h.config.PrivateKeyJWTEnabled,
+		),
 		GrantTypesSupported: []string{
 			GrantTypeAuthorizationCode,
 			GrantTypeDeviceCode,
@@ -175,6 +177,30 @@ func (h *OIDCHandler) UserInfo(c *gin.Context) {
 
 	claims := buildUserInfoClaims(result.UserID, h.issuerURL, result.Scopes, user)
 	c.JSON(http.StatusOK, claims)
+}
+
+// tokenEndpointAuthMethods returns the list of supported client authentication
+// methods, conditionally including private_key_jwt (RFC 7523).
+func tokenEndpointAuthMethods(privateKeyJWTEnabled bool) []string {
+	methods := []string{
+		models.TokenEndpointAuthClientSecretBasic,
+		models.TokenEndpointAuthClientSecretPost,
+		models.TokenEndpointAuthNone,
+	}
+	if privateKeyJWTEnabled {
+		methods = append(methods, models.TokenEndpointAuthPrivateKeyJWT)
+	}
+	return methods
+}
+
+// tokenEndpointAuthSigningAlgs returns the list of JWT signing algorithms accepted
+// for client_assertion. The list is empty (omitted from discovery) when
+// private_key_jwt is disabled.
+func tokenEndpointAuthSigningAlgs(privateKeyJWTEnabled bool) []string {
+	if !privateKeyJWTEnabled {
+		return nil
+	}
+	return []string{models.AssertionAlgRS256, models.AssertionAlgES256}
 }
 
 // buildUserInfoClaims constructs UserInfo response claims based on the granted scopes.

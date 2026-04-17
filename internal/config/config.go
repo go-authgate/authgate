@@ -100,6 +100,13 @@ type Config struct {
 	// Client Credentials Flow settings (RFC 6749 §4.4)
 	ClientCredentialsTokenExpiration time.Duration // Access token lifetime for client_credentials grant (default: 1h, same as JWTExpiration)
 
+	// Private Key JWT settings (RFC 7523 client_assertion-based authentication)
+	PrivateKeyJWTEnabled       bool          // Enable private_key_jwt token endpoint authentication (default: true)
+	JWKSFetchTimeout           time.Duration // HTTP timeout for fetching remote JWKS (default: 10s)
+	JWKSCacheTTL               time.Duration // Cached JWKS lifetime before refetch (default: 1h)
+	ClientAssertionMaxLifetime time.Duration // Maximum allowed assertion exp-iat window (default: 5m)
+	ClientAssertionClockSkew   time.Duration // Clock skew tolerance when validating exp/nbf/iat (default: 30s)
+
 	// OAuth settings
 	// GitHub OAuth
 	GitHubOAuthEnabled     bool
@@ -303,6 +310,13 @@ func Load() *Config {
 			"CLIENT_CREDENTIALS_TOKEN_EXPIRATION",
 			time.Hour,
 		), // 1 hour default; keep short — no refresh token means no rotation mechanism
+
+		// Private Key JWT (RFC 7523) settings
+		PrivateKeyJWTEnabled:       getEnvBool("PRIVATE_KEY_JWT_ENABLED", true),
+		JWKSFetchTimeout:           getEnvDuration("JWKS_FETCH_TIMEOUT", 10*time.Second),
+		JWKSCacheTTL:               getEnvDuration("JWKS_CACHE_TTL", time.Hour),
+		ClientAssertionMaxLifetime: getEnvDuration("CLIENT_ASSERTION_MAX_LIFETIME", 5*time.Minute),
+		ClientAssertionClockSkew:   getEnvDuration("CLIENT_ASSERTION_CLOCK_SKEW", 30*time.Second),
 
 		// OAuth settings
 		// GitHub OAuth

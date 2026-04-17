@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"crypto/subtle"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -36,12 +37,15 @@ func NewRegistrationHandler(
 
 // clientRegistrationRequest represents the RFC 7591 §2 registration request body.
 type clientRegistrationRequest struct {
-	ClientName   string   `json:"client_name"`
-	RedirectURIs []string `json:"redirect_uris"`
-	GrantTypes   []string `json:"grant_types"`
-	TokenEPAuth  string   `json:"token_endpoint_auth_method"`
-	Scope        string   `json:"scope"`
-	ClientURI    string   `json:"client_uri"`
+	ClientName            string          `json:"client_name"`
+	RedirectURIs          []string        `json:"redirect_uris"`
+	GrantTypes            []string        `json:"grant_types"`
+	TokenEPAuth           string          `json:"token_endpoint_auth_method"`
+	Scope                 string          `json:"scope"`
+	ClientURI             string          `json:"client_uri"`
+	JWKSURI               string          `json:"jwks_uri,omitempty"`
+	JWKS                  json.RawMessage `json:"jwks,omitempty"`
+	TokenEPAuthSigningAlg string          `json:"token_endpoint_auth_signing_alg,omitempty"`
 }
 
 // Register godoc
@@ -52,7 +56,7 @@ type clientRegistrationRequest struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			request	body		clientRegistrationRequest															true	"Client registration request"
-//	@Success		201		{object}	object{client_id=string,client_secret=string,client_name=string,redirect_uris=[]string,grant_types=[]string,token_endpoint_auth_method=string,scope=string,client_id_issued_at=int,client_secret_expires_at=int}	"Client registered successfully"
+//	@Success		201		{object}	object{client_id=string,client_secret=string,client_secret_expires_at=int,jwks_uri=string,token_endpoint_auth_signing_alg=string,client_name=string,redirect_uris=[]string,grant_types=[]string,token_endpoint_auth_method=string,scope=string,client_id_issued_at=int}	"Client registered successfully. client_secret and client_secret_expires_at are only present for client_secret_basic/post auth methods; jwks_uri and token_endpoint_auth_signing_alg are present for private_key_jwt."
 //	@Failure		400		{object}	object{error=string,error_description=string}											"Invalid client metadata"
 //	@Failure		401		{object}	object{error=string,error_description=string}											"Invalid or missing initial access token"
 //	@Failure		403		{object}	object{error=string,error_description=string}											"Dynamic registration is disabled"
@@ -104,10 +108,17 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 	// 5. Determine grant types from request
 	enableDeviceFlow := false
 	enableAuthCodeFlow := false
+	enableClientCredentials := false
 
 	if len(req.GrantTypes) == 0 {
-		// RFC 7591 §2: default grant_type is "authorization_code"
-		enableAuthCodeFlow = true
+		// RFC 7591 §2: default grant_type is "authorization_code", except
+		// private_key_jwt registrations typically target the client_credentials
+		// flow — skip the redirect_uri requirement in that case.
+		if req.TokenEPAuth == models.TokenEndpointAuthPrivateKeyJWT {
+			enableClientCredentials = true
+		} else {
+			enableAuthCodeFlow = true
+		}
 	} else {
 		for _, gt := range req.GrantTypes {
 			switch gt {
@@ -115,12 +126,14 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 				enableAuthCodeFlow = true
 			case GrantTypeDeviceCode, GrantTypeDeviceCodeShort:
 				enableDeviceFlow = true
+			case GrantTypeClientCredentials:
+				enableClientCredentials = true
 			default:
 				respondOAuthError(
 					c,
 					http.StatusBadRequest,
 					"invalid_client_metadata",
-					"Unsupported grant_type: "+gt+". Supported: authorization_code, device_code",
+					"Unsupported grant_type: "+gt+". Supported: authorization_code, device_code, client_credentials",
 				)
 				return
 			}
@@ -130,23 +143,78 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 	// 6. Determine auth method → client type (RFC 7591 §2: default is "client_secret_basic")
 	authMethod := req.TokenEPAuth
 	if authMethod == "" {
-		authMethod = "client_secret_basic"
+		authMethod = models.TokenEndpointAuthClientSecretBasic
 	}
 
 	var clientType core.ClientType
 	switch authMethod {
-	case "none":
+	case models.TokenEndpointAuthNone:
 		clientType = core.ClientTypePublic
-	case "client_secret_basic", "client_secret_post":
+	case models.TokenEndpointAuthClientSecretBasic, models.TokenEndpointAuthClientSecretPost:
+		clientType = core.ClientTypeConfidential
+	case models.TokenEndpointAuthPrivateKeyJWT:
+		if !h.config.PrivateKeyJWTEnabled {
+			respondOAuthError(
+				c,
+				http.StatusBadRequest,
+				"invalid_client_metadata",
+				"private_key_jwt is not enabled on this server",
+			)
+			return
+		}
 		clientType = core.ClientTypeConfidential
 	default:
 		respondOAuthError(
 			c,
 			http.StatusBadRequest,
 			"invalid_client_metadata",
-			"Unsupported token_endpoint_auth_method: "+req.TokenEPAuth+". Supported: none, client_secret_basic, client_secret_post",
+			"Unsupported token_endpoint_auth_method: "+req.TokenEPAuth+". Supported: none, client_secret_basic, client_secret_post, private_key_jwt",
 		)
 		return
+	}
+
+	// 6b. For private_key_jwt, require key material (RFC 7591 §2.1).
+	var (
+		jwksInline string
+		signingAlg string
+	)
+	if authMethod == models.TokenEndpointAuthPrivateKeyJWT {
+		hasURI := strings.TrimSpace(req.JWKSURI) != ""
+		hasInline := len(req.JWKS) > 0 && !isJSONNull(req.JWKS)
+		if !hasURI && !hasInline {
+			respondOAuthError(
+				c,
+				http.StatusBadRequest,
+				"invalid_client_metadata",
+				"private_key_jwt requires either jwks_uri or jwks",
+			)
+			return
+		}
+		if hasURI && hasInline {
+			respondOAuthError(
+				c,
+				http.StatusBadRequest,
+				"invalid_client_metadata",
+				"jwks_uri and jwks are mutually exclusive",
+			)
+			return
+		}
+		if hasInline {
+			jwksInline = string(req.JWKS)
+		}
+		signingAlg = req.TokenEPAuthSigningAlg
+		if signingAlg == "" {
+			signingAlg = models.AssertionAlgRS256
+		}
+		if signingAlg != models.AssertionAlgRS256 && signingAlg != models.AssertionAlgES256 {
+			respondOAuthError(
+				c,
+				http.StatusBadRequest,
+				"invalid_client_metadata",
+				"Unsupported token_endpoint_auth_signing_alg: "+req.TokenEPAuthSigningAlg+". Supported: RS256, ES256",
+			)
+			return
+		}
 	}
 
 	// 7. Validate scopes (only user-safe scopes allowed)
@@ -170,14 +238,19 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 
 	// 8. Create the client via service (pending status, requires admin approval)
 	createReq := services.CreateClientRequest{
-		ClientName:         req.ClientName,
-		Description:        req.ClientURI,
-		Scopes:             scope,
-		RedirectURIs:       req.RedirectURIs,
-		ClientType:         clientType,
-		EnableDeviceFlow:   enableDeviceFlow,
-		EnableAuthCodeFlow: enableAuthCodeFlow,
-		IsAdminCreated:     false, // Dynamic registration → pending approval
+		ClientName:                  req.ClientName,
+		Description:                 req.ClientURI,
+		Scopes:                      scope,
+		RedirectURIs:                req.RedirectURIs,
+		ClientType:                  clientType,
+		EnableDeviceFlow:            enableDeviceFlow,
+		EnableAuthCodeFlow:          enableAuthCodeFlow,
+		IsAdminCreated:              false, // Dynamic registration → pending approval
+		EnableClientCredentialsFlow: enableClientCredentials,
+		TokenEndpointAuthMethod:     authMethod,
+		TokenEndpointAuthSigningAlg: signingAlg,
+		JWKSURI:                     req.JWKSURI,
+		JWKS:                        jwksInline,
 	}
 
 	resp, err := h.clientService.CreateClient(c.Request.Context(), createReq)
@@ -219,17 +292,35 @@ func (h *RegistrationHandler) Register(c *gin.Context) {
 	// 10. Build RFC 7591 §3.2.1 response
 	grantTypes := buildResponseGrantTypes(app)
 
-	c.JSON(http.StatusCreated, gin.H{
+	response := gin.H{
 		"client_id":                  app.ClientID,
-		"client_secret":              resp.ClientSecretPlain,
 		"client_name":                app.ClientName,
 		"redirect_uris":              app.RedirectURIs,
 		"grant_types":                grantTypes,
 		"token_endpoint_auth_method": authMethod,
 		"scope":                      app.Scopes,
 		"client_id_issued_at":        app.CreatedAt.Unix(),
-		"client_secret_expires_at":   0, // 0 = does not expire (RFC 7591 §3.2.1)
-	})
+	}
+	// Only client_secret_* clients receive a shared secret in the response.
+	if app.UsesClientSecret() {
+		response["client_secret"] = resp.ClientSecretPlain
+		response["client_secret_expires_at"] = 0 // RFC 7591 §3.2.1: 0 = does not expire
+	}
+	if app.UsesPrivateKeyJWT() {
+		if app.JWKSURI != "" {
+			response["jwks_uri"] = app.JWKSURI
+		}
+		response["token_endpoint_auth_signing_alg"] = app.TokenEndpointAuthSigningAlg
+	}
+	c.JSON(http.StatusCreated, response)
+}
+
+// isJSONNull reports whether the given raw JSON represents the null literal
+// (or only whitespace around it). Used to distinguish "jwks": null from a
+// missing or present jwks field.
+func isJSONNull(raw json.RawMessage) bool {
+	s := strings.TrimSpace(string(raw))
+	return s == "" || s == "null"
 }
 
 // buildResponseGrantTypes converts the OAuthApplication's enabled flows into

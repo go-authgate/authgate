@@ -40,6 +40,7 @@ func setupRegistrationTestEnvWithOpts(t *testing.T, opts registrationTestOpts) *
 		BaseURL:                         "http://localhost:8080",
 		EnableDynamicClientRegistration: opts.enabled,
 		DynamicClientRegistrationToken:  opts.token,
+		PrivateKeyJWTEnabled:            true,
 	}
 
 	s, err := store.New(context.Background(), "sqlite", ":memory:", &config.Config{})
@@ -284,6 +285,72 @@ func TestRegister_UnsupportedAuthMethod(t *testing.T) {
 
 	w := postRegister(t, r, map[string]any{
 		"client_name":                "My App",
+		"token_endpoint_auth_method": "mTLS",
+	})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Equal(t, "invalid_client_metadata", resp["error"])
+	assert.Contains(t, resp["error_description"], "mTLS")
+}
+
+// ─── Success: private_key_jwt registration with inline jwks ─────────────────
+
+func TestRegister_PrivateKeyJWT_InlineJWKS(t *testing.T) {
+	r := setupRegistrationTestEnv(t, true)
+
+	jwks := map[string]any{
+		"keys": []map[string]any{
+			{
+				"kty": "RSA",
+				"use": "sig",
+				"kid": "test",
+				"alg": "RS256",
+				"n":   "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw",
+				"e":   "AQAB",
+			},
+		},
+	}
+	w := postRegister(t, r, map[string]any{
+		"client_name":                     "Machine Client",
+		"token_endpoint_auth_method":      "private_key_jwt",
+		"token_endpoint_auth_signing_alg": "RS256",
+		"jwks":                            jwks,
+	})
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Equal(t, "private_key_jwt", resp["token_endpoint_auth_method"])
+	assert.Equal(t, "RS256", resp["token_endpoint_auth_signing_alg"])
+	// private_key_jwt clients must not receive a shared secret.
+	_, hasSecret := resp["client_secret"]
+	assert.False(t, hasSecret, "private_key_jwt client should not receive a client_secret")
+}
+
+func TestRegister_PrivateKeyJWT_JWKSURI(t *testing.T) {
+	r := setupRegistrationTestEnv(t, true)
+
+	w := postRegister(t, r, map[string]any{
+		"client_name":                     "Machine Client",
+		"token_endpoint_auth_method":      "private_key_jwt",
+		"token_endpoint_auth_signing_alg": "ES256",
+		"jwks_uri":                        "https://example.com/.well-known/jwks.json",
+	})
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Equal(t, "private_key_jwt", resp["token_endpoint_auth_method"])
+	assert.Equal(t, "https://example.com/.well-known/jwks.json", resp["jwks_uri"])
+}
+
+func TestRegister_PrivateKeyJWT_MissingKeyMaterial(t *testing.T) {
+	r := setupRegistrationTestEnv(t, true)
+
+	w := postRegister(t, r, map[string]any{
+		"client_name":                "Machine Client",
 		"token_endpoint_auth_method": "private_key_jwt",
 	})
 
@@ -291,7 +358,20 @@ func TestRegister_UnsupportedAuthMethod(t *testing.T) {
 	var resp map[string]any
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	assert.Equal(t, "invalid_client_metadata", resp["error"])
-	assert.Contains(t, resp["error_description"], "private_key_jwt")
+	assert.Contains(t, resp["error_description"], "jwks")
+}
+
+func TestRegister_PrivateKeyJWT_BothKeysProvided(t *testing.T) {
+	r := setupRegistrationTestEnv(t, true)
+
+	w := postRegister(t, r, map[string]any{
+		"client_name":                "Machine Client",
+		"token_endpoint_auth_method": "private_key_jwt",
+		"jwks_uri":                   "https://example.com/jwks",
+		"jwks":                       map[string]any{"keys": []any{}},
+	})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 // ─── Error: unsupported scope ────────────────────────────────────────────────

@@ -63,7 +63,59 @@ var (
 	ErrInvalidClientStatus = errors.New(
 		"status must be \"active\", \"inactive\", or \"pending\"",
 	)
+	ErrPrivateKeyJWTRequiresConfidential = errors.New(
+		"private_key_jwt requires a confidential client",
+	)
+	ErrInvalidTokenEndpointAuthMethod = errors.New(
+		"invalid token_endpoint_auth_method",
+	)
 )
+
+// validTokenEndpointAuthMethod reports whether m is one of the recognised
+// RFC 7591 §2 values AuthGate supports.
+func validTokenEndpointAuthMethod(m string) bool {
+	switch m {
+	case models.TokenEndpointAuthNone,
+		models.TokenEndpointAuthClientSecretBasic,
+		models.TokenEndpointAuthClientSecretPost,
+		models.TokenEndpointAuthPrivateKeyJWT:
+		return true
+	}
+	return false
+}
+
+// resolveTokenEndpointAuthMethod picks the default auth method for a given
+// client type when the caller did not specify one.
+func resolveTokenEndpointAuthMethod(method string, clientType core.ClientType) string {
+	if method != "" {
+		return method
+	}
+	if clientType == core.ClientTypePublic {
+		return models.TokenEndpointAuthNone
+	}
+	return models.TokenEndpointAuthClientSecretBasic
+}
+
+// validateInlineJWKS parses the inline JWKS JSON (if present) and verifies
+// every key can be converted to a usable public key. Called on create/update
+// so malformed registrations are rejected immediately, rather than failing
+// opaquely at assertion-verification time.
+func validateInlineJWKS(jwks string) error {
+	jwks = strings.TrimSpace(jwks)
+	if jwks == "" {
+		return nil
+	}
+	set, err := util.ParseJWKSet(jwks)
+	if err != nil {
+		return err
+	}
+	for i := range set.Keys {
+		if _, err := set.Keys[i].ToPublicKey(); err != nil {
+			return fmt.Errorf("jwks[%d]: %w", i, err)
+		}
+	}
+	return nil
+}
 
 // validateRedirectURIs checks that every URI in the slice is an absolute http/https
 // URI without a fragment, as required by RFC 6749.
@@ -143,6 +195,14 @@ type CreateClientRequest struct {
 	EnableAuthCodeFlow          bool // Enable Authorization Code Flow (RFC 6749)
 	EnableClientCredentialsFlow bool // Enable Client Credentials Grant (RFC 6749 §4.4); confidential clients only
 	IsAdminCreated              bool // When true: Status=active; when false: Status=pending
+
+	// Token endpoint authentication (RFC 7591 §2). When empty, a default is
+	// selected based on ClientType. Setting this to "private_key_jwt" (RFC 7523)
+	// requires JWKSURI or JWKS plus TokenEndpointAuthSigningAlg.
+	TokenEndpointAuthMethod     string
+	TokenEndpointAuthSigningAlg string // RS256 | ES256
+	JWKSURI                     string // Mutually exclusive with JWKS
+	JWKS                        string // Inline JWK Set JSON
 }
 
 type UpdateClientRequest struct {
@@ -155,6 +215,12 @@ type UpdateClientRequest struct {
 	EnableDeviceFlow            bool
 	EnableAuthCodeFlow          bool
 	EnableClientCredentialsFlow bool // Enable Client Credentials Grant (RFC 6749 §4.4); confidential clients only
+
+	// Token endpoint authentication (see CreateClientRequest).
+	TokenEndpointAuthMethod     string
+	TokenEndpointAuthSigningAlg string
+	JWKSURI                     string
+	JWKS                        string
 }
 
 type ClientResponse struct {
@@ -188,6 +254,40 @@ func (s *ClientService) CreateClient(
 
 	if err := validateRedirectURIs(req.RedirectURIs); err != nil {
 		return nil, err
+	}
+
+	// Token endpoint authentication method (RFC 7591 §2). Enforce full
+	// method ↔ client type consistency so downstream code that keys off
+	// either field cannot disagree on a client's auth contract.
+	authMethod := resolveTokenEndpointAuthMethod(req.TokenEndpointAuthMethod, clientType)
+	if !validTokenEndpointAuthMethod(authMethod) {
+		return nil, ErrInvalidTokenEndpointAuthMethod
+	}
+	switch authMethod {
+	case models.TokenEndpointAuthNone:
+		if clientType != core.ClientTypePublic {
+			return nil, ErrInvalidTokenEndpointAuthMethod
+		}
+	case models.TokenEndpointAuthClientSecretBasic,
+		models.TokenEndpointAuthClientSecretPost:
+		if clientType != core.ClientTypeConfidential {
+			return nil, ErrInvalidTokenEndpointAuthMethod
+		}
+	case models.TokenEndpointAuthPrivateKeyJWT:
+		if clientType != core.ClientTypeConfidential {
+			return nil, ErrPrivateKeyJWTRequiresConfidential
+		}
+		// Only client_credentials and introspection currently authenticate
+		// via the shared ClientAuthenticator. Enabling other grants on a
+		// private_key_jwt client would produce a client that can register
+		// but cannot actually exchange codes or refresh tokens, because
+		// those paths still expect a shared secret.
+		if req.EnableAuthCodeFlow || req.EnableDeviceFlow {
+			return nil, fmt.Errorf(
+				"%w: private_key_jwt is currently supported only for the client_credentials grant; disable authorization_code and device_code flows",
+				ErrInvalidClientData,
+			)
+		}
 	}
 
 	// Generate client ID
@@ -232,12 +332,28 @@ func (s *ClientService) CreateClient(
 		EnableClientCredentialsFlow: enableClientCredentials,
 		Status:                      clientStatus,
 		CreatedBy:                   req.CreatedBy,
+		TokenEndpointAuthMethod:     authMethod,
+		TokenEndpointAuthSigningAlg: req.TokenEndpointAuthSigningAlg,
+		JWKSURI:                     strings.TrimSpace(req.JWKSURI),
+		JWKS:                        strings.TrimSpace(req.JWKS),
 	}
 
-	// Generate client secret
-	clientSecret, err := client.GenerateClientSecret(ctx)
-	if err != nil {
-		return nil, err
+	if err := client.ValidateKeyMaterial(); err != nil {
+		return nil, fmt.Errorf("%w: %s", ErrInvalidClientData, err.Error())
+	}
+	if err := validateInlineJWKS(client.JWKS); err != nil {
+		return nil, fmt.Errorf("%w: invalid jwks: %s", ErrInvalidClientData, err.Error())
+	}
+
+	// Generate a shared secret only for the two client_secret_* auth methods.
+	// Public (none) and private_key_jwt clients do not have a secret.
+	var clientSecret string
+	if client.UsesClientSecret() {
+		var err error
+		clientSecret, err = client.GenerateClientSecret(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if err := s.store.CreateClient(client); err != nil {
@@ -332,6 +448,67 @@ func (s *ClientService) UpdateClient(
 		req.EnableAuthCodeFlow,
 		enableClientCredentials,
 	)
+
+	// Token endpoint authentication fields are atomic: when the caller
+	// specifies a method they must also provide its key material, and when
+	// they omit the method the existing configuration is preserved. This
+	// prevents forms that don't surface the new fields (e.g. the legacy
+	// admin UI) from silently wiping a private_key_jwt client's JWKS.
+	if req.TokenEndpointAuthMethod != "" {
+		if !validTokenEndpointAuthMethod(req.TokenEndpointAuthMethod) {
+			return ErrInvalidTokenEndpointAuthMethod
+		}
+		switch req.TokenEndpointAuthMethod {
+		case models.TokenEndpointAuthNone:
+			if clientType != core.ClientTypePublic {
+				return ErrInvalidTokenEndpointAuthMethod
+			}
+		case models.TokenEndpointAuthClientSecretBasic,
+			models.TokenEndpointAuthClientSecretPost:
+			if clientType != core.ClientTypeConfidential {
+				return ErrInvalidTokenEndpointAuthMethod
+			}
+			// Switching to client_secret_* from a method that never stored
+			// a secret (private_key_jwt or none) would leave the client
+			// unauthenticatable. Require an explicit RegenerateSecret call
+			// to mint one so the operator receives the new plaintext.
+			if client.ClientSecret == "" {
+				return fmt.Errorf(
+					"%w: switching to %s requires generating a new secret first (use RegenerateSecret)",
+					ErrInvalidClientData,
+					req.TokenEndpointAuthMethod,
+				)
+			}
+		case models.TokenEndpointAuthPrivateKeyJWT:
+			if clientType != core.ClientTypeConfidential {
+				return ErrPrivateKeyJWTRequiresConfidential
+			}
+			// See the matching guard in CreateClient — authorization_code and
+			// device_code still expect a shared secret, so enabling them on a
+			// private_key_jwt client produces an unusable configuration.
+			if req.EnableAuthCodeFlow || req.EnableDeviceFlow {
+				return fmt.Errorf(
+					"%w: private_key_jwt is currently supported only for the client_credentials grant; disable authorization_code and device_code flows",
+					ErrInvalidClientData,
+				)
+			}
+		}
+		client.TokenEndpointAuthMethod = req.TokenEndpointAuthMethod
+		client.TokenEndpointAuthSigningAlg = req.TokenEndpointAuthSigningAlg
+		client.JWKSURI = strings.TrimSpace(req.JWKSURI)
+		client.JWKS = strings.TrimSpace(req.JWKS)
+	}
+	// Clear the shared secret when switching away from client_secret_* methods,
+	// so a stale hash cannot authenticate a reconfigured client.
+	if !client.UsesClientSecret() {
+		client.ClientSecret = ""
+	}
+	if err := client.ValidateKeyMaterial(); err != nil {
+		return fmt.Errorf("%w: %s", ErrInvalidClientData, err.Error())
+	}
+	if err := validateInlineJWKS(client.JWKS); err != nil {
+		return fmt.Errorf("%w: invalid jwks: %s", ErrInvalidClientData, err.Error())
+	}
 
 	err = s.store.UpdateClient(client)
 	if err != nil {

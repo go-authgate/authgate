@@ -4,12 +4,15 @@ import (
 	"crypto"
 	"embed"
 	"net/http"
+	"strings"
 
 	"github.com/go-authgate/authgate/internal/auth"
+	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/handlers"
 	"github.com/go-authgate/authgate/internal/services"
+	"github.com/go-authgate/authgate/internal/util"
 )
 
 // handlerSet holds all HTTP handlers and required services
@@ -50,6 +53,50 @@ func initializeHandlers(deps handlerDeps) handlerSet {
 	// Build JWKS handler from the token provider's public key info
 	jwksHandler := buildJWKSHandler(deps.tokenProvider, deps.cfg)
 
+	// Build the optional RFC 7523 private_key_jwt client authenticator.
+	// Memory caches are used locally — a follow-up PR may wire redis variants
+	// when multi-instance deployment needs coordinated jti replay protection.
+	var clientAuth *handlers.ClientAuthenticator
+	if deps.cfg.PrivateKeyJWTEnabled {
+		// Pass 0 to disable the background reaper: these caches aren't wired
+		// into the shutdown manager, and lazy expiration on Get is sufficient
+		// given the short TTLs used here (JWKS hour, jti ≤ assertion lifetime).
+		jwksCache := cache.NewMemoryCache[util.JWKSet](0)
+		jtiCache := cache.NewMemoryCache[bool](0)
+		jwksFetcher := services.NewJWKSFetcher(
+			jwksCache,
+			deps.cfg.JWKSFetchTimeout,
+			deps.cfg.JWKSCacheTTL,
+		)
+		tokenEndpoint := strings.TrimRight(deps.cfg.BaseURL, "/") + "/oauth/token"
+		issuer := strings.TrimRight(deps.cfg.BaseURL, "/")
+		verifier := services.NewClientAssertionVerifier(
+			deps.services.client,
+			jwksFetcher,
+			jtiCache,
+			deps.auditService,
+			services.ClientAssertionConfig{
+				Enabled:           true,
+				ExpectedAudiences: []string{tokenEndpoint, issuer},
+				MaxLifetime:       deps.cfg.ClientAssertionMaxLifetime,
+				ClockSkew:         deps.cfg.ClientAssertionClockSkew,
+			},
+		)
+		clientAuth = handlers.NewClientAuthenticator(
+			deps.services.client,
+			verifier,
+		)
+	}
+
+	tokenHandler := handlers.NewTokenHandler(
+		deps.services.token,
+		deps.services.authorization,
+		deps.cfg,
+	)
+	if clientAuth != nil {
+		tokenHandler = tokenHandler.WithClientAuthenticator(clientAuth)
+	}
+
 	return handlerSet{
 		auth: handlers.NewAuthHandler(
 			deps.services.user,
@@ -62,11 +109,7 @@ func initializeHandlers(deps handlerDeps) handlerSet {
 			deps.services.authorization,
 			deps.cfg,
 		),
-		token: handlers.NewTokenHandler(
-			deps.services.token,
-			deps.services.authorization,
-			deps.cfg,
-		),
+		token:      tokenHandler,
 		client:     handlers.NewClientHandler(deps.services.client, deps.services.authorization),
 		userClient: handlers.NewUserClientHandler(deps.services.client),
 		session:    handlers.NewSessionHandler(deps.services.token),

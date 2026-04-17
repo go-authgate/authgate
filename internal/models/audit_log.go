@@ -73,6 +73,10 @@ const (
 	// Token Introspection events (RFC 7662)
 	EventTokenIntrospected EventType = "TOKEN_INTROSPECTED"
 
+	// Client authentication events (RFC 7523 private_key_jwt)
+	EventClientAssertionVerified EventType = "CLIENT_ASSERTION_VERIFIED"
+	EventClientAssertionFailed   EventType = "CLIENT_ASSERTION_FAILED"
+
 	// Audit events
 	EventTypeAuditLogView     EventType = "AUDIT_LOG_VIEWED"
 	EventTypeAuditLogExported EventType = "AUDIT_LOG_EXPORTED"
