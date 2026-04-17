@@ -751,6 +751,77 @@ func TestConfig_Validate_SessionRememberMeMaxAge(t *testing.T) {
 	})
 }
 
+func TestConfig_Validate_CleanupLock(t *testing.T) {
+	t.Run("enabled without redis address fails", func(t *testing.T) {
+		cfg := validBaseConfig()
+		cfg.EnableCleanupLock = true
+		cfg.CleanupLockKeyValidity = 5 * time.Minute
+		cfg.RedisAddr = ""
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "REDIS_ADDR must be set when ENABLE_CLEANUP_LOCK=true")
+	})
+
+	t.Run("enabled with zero validity fails", func(t *testing.T) {
+		cfg := validBaseConfig()
+		cfg.EnableCleanupLock = true
+		cfg.RedisAddr = "localhost:6379"
+		cfg.CleanupLockKeyValidity = 0
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "CLEANUP_LOCK_KEY_VALIDITY must be a positive duration")
+	})
+
+	t.Run("enabled with valid settings passes", func(t *testing.T) {
+		cfg := validBaseConfig()
+		cfg.EnableCleanupLock = true
+		cfg.RedisAddr = "localhost:6379"
+		cfg.CleanupLockKeyValidity = 5 * time.Minute
+		err := cfg.Validate()
+		require.NoError(t, err)
+	})
+
+	t.Run("disabled does not require redis or validity", func(t *testing.T) {
+		cfg := validBaseConfig()
+		cfg.EnableCleanupLock = false
+		cfg.RedisAddr = ""
+		cfg.CleanupLockKeyValidity = 0
+		err := cfg.Validate()
+		require.NoError(t, err)
+	})
+}
+
+func TestConfig_Validate_ExpiredTokenCleanupInterval(t *testing.T) {
+	t.Run("enabled with zero interval fails", func(t *testing.T) {
+		cfg := validBaseConfig()
+		cfg.EnableExpiredTokenCleanup = true
+		cfg.ExpiredTokenCleanupInterval = 0
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(
+			t,
+			err.Error(),
+			"EXPIRED_TOKEN_CLEANUP_INTERVAL must be a positive duration",
+		)
+	})
+
+	t.Run("enabled with positive interval passes", func(t *testing.T) {
+		cfg := validBaseConfig()
+		cfg.EnableExpiredTokenCleanup = true
+		cfg.ExpiredTokenCleanupInterval = 30 * time.Minute
+		err := cfg.Validate()
+		require.NoError(t, err)
+	})
+
+	t.Run("disabled skips interval validation", func(t *testing.T) {
+		cfg := validBaseConfig()
+		cfg.EnableExpiredTokenCleanup = false
+		cfg.ExpiredTokenCleanupInterval = 0
+		err := cfg.Validate()
+		require.NoError(t, err)
+	})
+}
+
 func TestAuthCodeFlowConfigFields(t *testing.T) {
 	// Verify the fields exist and have sensible types/values
 	cfg := &Config{

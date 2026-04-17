@@ -89,10 +89,10 @@ func (s *Store) GetAuditLogsPaginated(
 	return logs, pagination, nil
 }
 
-// DeleteOldAuditLogs deletes audit logs older than the specified time
+// DeleteOldAuditLogs deletes audit logs older than the specified time in
+// bounded batches to keep lock duration short on large tables.
 func (s *Store) DeleteOldAuditLogs(olderThan time.Time) (int64, error) {
-	result := s.db.Where("created_at < ?", olderThan).Delete(&models.AuditLog{})
-	return result.RowsAffected, result.Error
+	return s.deleteByIDInBatches(&models.AuditLog{}, "created_at < ?", olderThan)
 }
 
 // GetAuditLogStats returns statistics about audit logs in a given time range

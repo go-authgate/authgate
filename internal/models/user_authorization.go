@@ -9,14 +9,14 @@ type UserAuthorization struct {
 	UUID string `gorm:"uniqueIndex;size:36;not null"` // Public UUID for API/UI identification
 
 	// Relations (composite unique index ensures one grant per user+app)
-	UserID        string `gorm:"not null;uniqueIndex:idx_user_app"` // FK → User.ID
-	ApplicationID int64  `gorm:"not null;uniqueIndex:idx_user_app"` // FK → OAuthApplication.ID
-	ClientID      string `gorm:"not null;index"`                    // Denormalized ClientID UUID (for UI display and API responses)
+	UserID        string `gorm:"not null;uniqueIndex:idx_user_app;index:idx_user_active,priority:1"` // FK → User.ID
+	ApplicationID int64  `gorm:"not null;uniqueIndex:idx_user_app"`                                  // FK → OAuthApplication.ID
+	ClientID      string `gorm:"not null;index;index:idx_client_active,priority:1"`                  // Denormalized ClientID UUID (for UI display and API responses)
 
 	Scopes    string `gorm:"not null"`
 	GrantedAt time.Time
 	RevokedAt *time.Time
-	IsActive  bool `gorm:"not null;default:true"`
+	IsActive  bool `gorm:"not null;default:true;index:idx_user_active,priority:2;index:idx_client_active,priority:2"`
 
 	CreatedAt time.Time
 	UpdatedAt time.Time

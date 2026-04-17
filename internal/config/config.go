@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -163,6 +164,10 @@ type Config struct {
 	// Token/Device Code cleanup settings
 	EnableExpiredTokenCleanup   bool          // Enable periodic cleanup of expired tokens and device codes (default: false)
 	ExpiredTokenCleanupInterval time.Duration // How often to purge expired rows (default: 1h)
+
+	// Distributed cleanup lock (multi-pod deployments)
+	EnableCleanupLock      bool          // Use Redis lock so only one pod runs cleanup per interval (default: false)
+	CleanupLockKeyValidity time.Duration // Lock validity window, auto-extended by rueidislock (default: 5m)
 
 	// Prometheus Metrics settings
 	MetricsEnabled             bool          // Enable Prometheus metrics endpoint (default: false)
@@ -370,6 +375,10 @@ func Load() *Config {
 		// Token/Device Code cleanup settings
 		EnableExpiredTokenCleanup:   getEnvBool("ENABLE_EXPIRED_TOKEN_CLEANUP", false),
 		ExpiredTokenCleanupInterval: getEnvDuration("EXPIRED_TOKEN_CLEANUP_INTERVAL", time.Hour),
+
+		// Distributed cleanup lock
+		EnableCleanupLock:      getEnvBool("ENABLE_CLEANUP_LOCK", false),
+		CleanupLockKeyValidity: getEnvDuration("CLEANUP_LOCK_KEY_VALIDITY", 5*time.Minute),
 
 		// Prometheus Metrics settings
 		MetricsEnabled:             getEnvBool("METRICS_ENABLED", false),
@@ -625,6 +634,27 @@ func (c *Config) Validate() error {
 			"CLIENT_CACHE_CLIENT_TTL must be a positive duration when CLIENT_CACHE_TYPE=%q (got %s)",
 			CacheTypeRedisAside,
 			c.ClientCacheClientTTL,
+		)
+	}
+
+	// Cleanup lock validation (only when enabled)
+	if c.EnableCleanupLock {
+		if c.RedisAddr == "" {
+			return errors.New("REDIS_ADDR must be set when ENABLE_CLEANUP_LOCK=true")
+		}
+		if c.CleanupLockKeyValidity <= 0 {
+			return fmt.Errorf(
+				"CLEANUP_LOCK_KEY_VALIDITY must be a positive duration when ENABLE_CLEANUP_LOCK=true (got %s)",
+				c.CleanupLockKeyValidity,
+			)
+		}
+	}
+
+	// Expired-token cleanup interval must be positive when cleanup is enabled.
+	if c.EnableExpiredTokenCleanup && c.ExpiredTokenCleanupInterval <= 0 {
+		return fmt.Errorf(
+			"EXPIRED_TOKEN_CLEANUP_INTERVAL must be a positive duration when ENABLE_EXPIRED_TOKEN_CLEANUP=true (got %s)",
+			c.ExpiredTokenCleanupInterval,
 		)
 	}
 

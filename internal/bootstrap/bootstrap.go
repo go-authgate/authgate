@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
+	"github.com/redis/rueidis/rueidislock"
 )
 
 // Application holds all initialized components
@@ -39,6 +40,7 @@ type Application struct {
 	TokenCache             core.Cache[models.AccessToken]
 	TokenCacheCloser       func() error
 	RateLimitRedisClient   *redis.Client
+	CleanupLocker          rueidislock.Locker
 
 	// Services
 	AuditService core.AuditLogger
@@ -137,6 +139,12 @@ func (app *Application) initializeInfrastructure(ctx context.Context) error {
 		return err
 	}
 
+	// Distributed cleanup lock (multi-pod: serialize DELETE jobs)
+	app.CleanupLocker, err = initializeCleanupLocker(app.Config)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -222,8 +230,9 @@ func (app *Application) startWithGracefulShutdown() {
 	addClientCacheCleanupJob(m, app.ClientCache, app.Config)
 	addTokenCacheCleanupJob(m, app.TokenCache, app.Config)
 	addDatabaseShutdownJob(m, app.DB, app.Config)
-	addAuditLogCleanupJob(m, app.Config, app.AuditService)
-	addExpiredTokenCleanupJob(m, app.DB, app.Config)
+	addAuditLogCleanupJob(m, app.Config, app.AuditService, app.CleanupLocker)
+	addExpiredTokenCleanupJob(m, app.DB, app.Config, app.CleanupLocker)
+	addCleanupLockerShutdownJob(m, app.CleanupLocker)
 	addMetricsGaugeUpdateJob(m, app.Config, app.DB, app.MetricsRecorder, app.MetricsCache)
 
 	// Wait for graceful shutdown

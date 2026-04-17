@@ -13,10 +13,10 @@ type DeviceCode struct {
 	UserCode       string    `gorm:"uniqueIndex;not null"`
 	ClientID       string    `gorm:"not null;index"`
 	Scopes         string    `gorm:"not null"` // space-separated scopes
-	ExpiresAt      time.Time `gorm:"index"`
+	ExpiresAt      time.Time `gorm:"index;index:idx_device_auth_exp,priority:2"`
 	Interval       int       // polling interval in seconds
 	UserID         string    // filled after authorization
-	Authorized     bool      `gorm:"default:false"`
+	Authorized     bool      `gorm:"default:false;index:idx_device_auth_exp,priority:1"`
 	AuthorizedAt   time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time

@@ -14,6 +14,7 @@ import (
 
 	"github.com/appleboy/graceful"
 	"github.com/redis/go-redis/v9"
+	"github.com/redis/rueidis/rueidislock"
 )
 
 // createHTTPServer creates the HTTP server instance
@@ -118,36 +119,46 @@ func addAuditServiceShutdownJob(
 	})
 }
 
-// addAuditLogCleanupJob adds periodic audit log cleanup job
+// addAuditLogCleanupJob adds periodic audit log cleanup job.
+// When a cleanup locker is supplied, only one pod across the fleet performs
+// the DELETE per tick; others skip silently.
 func addAuditLogCleanupJob(
 	m *graceful.Manager,
 	cfg *config.Config,
 	auditService core.AuditLogger,
+	locker rueidislock.Locker,
 ) {
-	if !cfg.EnableAuditLogging || cfg.AuditLogRetention <= 0 {
+	if !cfg.EnableAuditLogging || cfg.AuditLogRetention <= 0 || cfg.AuditLogCleanupInterval <= 0 {
 		return
 	}
 
+	run := func(ctx context.Context) error {
+		return runWithCleanupLock(ctx, locker, cleanupLockAuditLogs, func(context.Context) error {
+			deleted, err := auditService.CleanupOldLogs(cfg.AuditLogRetention)
+			if err != nil {
+				log.Printf("Failed to cleanup old audit logs: %v", err)
+				return nil
+			}
+			if deleted > 0 {
+				log.Printf("Cleaned up %d old audit logs", deleted)
+			}
+			return nil
+		})
+	}
+
 	m.AddRunningJob(func(ctx context.Context) error {
-		ticker := time.NewTicker(24 * time.Hour)
+		ticker := time.NewTicker(cfg.AuditLogCleanupInterval)
 		defer ticker.Stop()
 
-		// Run cleanup immediately on startup
-		if deleted, err := auditService.CleanupOldLogs(cfg.AuditLogRetention); err != nil {
-			log.Printf("Failed to cleanup old audit logs: %v", err)
-		} else if deleted > 0 {
-			log.Printf("Cleaned up %d old audit logs", deleted)
+		if err := run(ctx); err != nil {
+			log.Printf("Audit log cleanup run error: %v", err)
 		}
 
 		for {
 			select {
 			case <-ticker.C:
-				if deleted, err := auditService.CleanupOldLogs(
-					cfg.AuditLogRetention,
-				); err != nil {
-					log.Printf("Failed to cleanup old audit logs: %v", err)
-				} else if deleted > 0 {
-					log.Printf("Cleaned up %d old audit logs", deleted)
+				if err := run(ctx); err != nil {
+					log.Printf("Audit log cleanup run error: %v", err)
 				}
 			case <-ctx.Done():
 				return nil
@@ -290,36 +301,67 @@ func addTokenCacheCleanupJob(
 
 // addExpiredTokenCleanupJob adds a periodic job that purges expired access tokens
 // and device codes from the database to prevent unbounded table growth.
-func addExpiredTokenCleanupJob(m *graceful.Manager, db *store.Store, cfg *config.Config) {
-	if !cfg.EnableExpiredTokenCleanup {
+// When a cleanup locker is supplied, only one pod across the fleet performs
+// the DELETE per tick; others skip silently.
+func addExpiredTokenCleanupJob(
+	m *graceful.Manager,
+	db *store.Store,
+	cfg *config.Config,
+	locker rueidislock.Locker,
+) {
+	if !cfg.EnableExpiredTokenCleanup || cfg.ExpiredTokenCleanupInterval <= 0 {
 		return
 	}
 
-	m.AddRunningJob(func(ctx context.Context) error {
-		ticker := time.NewTicker(cfg.ExpiredTokenCleanupInterval)
-		defer ticker.Stop()
-
-		// Run cleanup immediately on startup
-		if err := db.DeleteExpiredTokens(); err != nil {
-			log.Printf("Failed to cleanup expired tokens: %v", err)
-		}
-		if err := db.DeleteExpiredDeviceCodes(); err != nil {
-			log.Printf("Failed to cleanup expired device codes: %v", err)
-		}
-
-		for {
-			select {
-			case <-ticker.C:
+	run := func(ctx context.Context) error {
+		return runWithCleanupLock(
+			ctx,
+			locker,
+			cleanupLockExpiredTokens,
+			func(context.Context) error {
 				if err := db.DeleteExpiredTokens(); err != nil {
 					log.Printf("Failed to cleanup expired tokens: %v", err)
 				}
 				if err := db.DeleteExpiredDeviceCodes(); err != nil {
 					log.Printf("Failed to cleanup expired device codes: %v", err)
 				}
+				return nil
+			},
+		)
+	}
+
+	m.AddRunningJob(func(ctx context.Context) error {
+		ticker := time.NewTicker(cfg.ExpiredTokenCleanupInterval)
+		defer ticker.Stop()
+
+		if err := run(ctx); err != nil {
+			log.Printf("Expired token cleanup run error: %v", err)
+		}
+
+		for {
+			select {
+			case <-ticker.C:
+				if err := run(ctx); err != nil {
+					log.Printf("Expired token cleanup run error: %v", err)
+				}
 			case <-ctx.Done():
 				return nil
 			}
 		}
+	})
+}
+
+// addCleanupLockerShutdownJob closes the distributed cleanup locker on
+// shutdown. No-op when locker is nil.
+func addCleanupLockerShutdownJob(m *graceful.Manager, locker rueidislock.Locker) {
+	if locker == nil {
+		return
+	}
+	m.AddShutdownJob(func() error {
+		log.Println("Closing cleanup locker...")
+		locker.Close()
+		log.Println("Cleanup locker closed")
+		return nil
 	})
 }
 

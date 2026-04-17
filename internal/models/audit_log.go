@@ -137,19 +137,19 @@ type AuditLog struct {
 	ID string `gorm:"primaryKey;type:varchar(36)" json:"id"`
 
 	// Event information
-	EventType EventType     `gorm:"type:varchar(50);index;not null" json:"event_type"`
-	EventTime time.Time     `gorm:"index;not null"                  json:"event_time"`
-	Severity  EventSeverity `gorm:"type:varchar(20);not null"       json:"severity"`
+	EventType EventType     `gorm:"type:varchar(50);index;not null;index:idx_audit_type_time,priority:1"                                                                                             json:"event_type"`
+	EventTime time.Time     `gorm:"index;not null;index:idx_audit_type_time,priority:2,sort:desc;index:idx_audit_actor_time,priority:2,sort:desc;index:idx_audit_resource_time,priority:3,sort:desc" json:"event_time"`
+	Severity  EventSeverity `gorm:"type:varchar(20);not null;index:idx_audit_severity"                                                                                                               json:"severity"`
 
 	// Actor information
-	ActorUserID   string `gorm:"type:varchar(36);index" json:"actor_user_id"`
-	ActorUsername string `gorm:"type:varchar(100)"      json:"actor_username"`
-	ActorIP       string `gorm:"type:varchar(45);index" json:"actor_ip"` // Support IPv6
+	ActorUserID   string `gorm:"type:varchar(36);index;index:idx_audit_actor_time,priority:1" json:"actor_user_id"`
+	ActorUsername string `gorm:"type:varchar(100)"                                            json:"actor_username"`
+	ActorIP       string `gorm:"type:varchar(45);index"                                       json:"actor_ip"` // Support IPv6
 
 	// Resource information
-	ResourceType ResourceType `gorm:"type:varchar(50);index" json:"resource_type"`
-	ResourceID   string       `gorm:"type:varchar(36);index" json:"resource_id"`
-	ResourceName string       `gorm:"type:varchar(255)"      json:"resource_name"`
+	ResourceType ResourceType `gorm:"type:varchar(50);index;index:idx_audit_resource_time,priority:1" json:"resource_type"`
+	ResourceID   string       `gorm:"type:varchar(36);index;index:idx_audit_resource_time,priority:2" json:"resource_id"`
+	ResourceName string       `gorm:"type:varchar(255)"                                               json:"resource_name"`
 
 	// Operation details
 	Action       string       `gorm:"type:varchar(255);not null" json:"action"`
