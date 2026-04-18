@@ -17,14 +17,15 @@ const (
 )
 
 type User struct {
-	ID           string `gorm:"primaryKey"`
-	Username     string `gorm:"uniqueIndex;not null"`
-	Email        string `gorm:"uniqueIndex;not null"` // Email is unique and required
-	PasswordHash string // OAuth-only users have empty password
-	Role         string `gorm:"not null;default:'user'"` // "admin" or "user"
-	FullName     string // User full name
-	AvatarURL    string // User avatar URL (from OAuth or manual)
-	IsActive     bool   `gorm:"not null;default:true"` // false = disabled by admin
+	ID            string `gorm:"primaryKey"`
+	Username      string `gorm:"uniqueIndex;not null"`
+	Email         string `gorm:"uniqueIndex;not null"` // Email is unique and required
+	PasswordHash  string // OAuth-only users have empty password
+	Role          string `gorm:"not null;default:'user'"` // "admin" or "user"
+	FullName      string // User full name
+	AvatarURL     string // User avatar URL (from OAuth or manual)
+	IsActive      bool   `gorm:"not null;default:true"`  // false = disabled by admin
+	EmailVerified bool   `gorm:"not null;default:false"` // true when a trusted OAuth provider has verified the email
 
 	// External authentication support
 	ExternalID string `gorm:"index"`           // External user ID (e.g., from HTTP API)
