@@ -168,7 +168,7 @@ func (s *TokenService) ExchangeAuthorizationCode(
 					}
 					if scopeSet["email"] {
 						params.Email = user.Email
-						params.EmailVerified = false // AuthGate does not verify email addresses
+						params.EmailVerified = user.EmailVerified
 					}
 				} else {
 					log.Printf(

@@ -46,6 +46,7 @@ func TestAuthenticateWithOAuth_NewUser(t *testing.T) {
 		Username:       "alice",
 		Email:          "alice@example.com",
 		FullName:       "Alice Example",
+		EmailVerified:  true,
 	}
 
 	user, err := svc.AuthenticateWithOAuth(context.Background(), "github", info, newOAuthToken())
@@ -53,6 +54,65 @@ func TestAuthenticateWithOAuth_NewUser(t *testing.T) {
 	require.NotNil(t, user)
 	assert.Equal(t, "alice@example.com", user.Email)
 	assert.True(t, strings.HasPrefix(user.Username, "alice"))
+	assert.True(t, user.EmailVerified, "verified OAuth email must set User.EmailVerified")
+}
+
+// TestAuthenticateWithOAuth_NewUser_UnverifiedEmail verifies that a new OAuth
+// user from a provider that doesn't verify email is stored with
+// EmailVerified=false so ID tokens don't falsely assert verification.
+func TestAuthenticateWithOAuth_NewUser_UnverifiedEmail(t *testing.T) {
+	svc := newOAuthUserService(t)
+
+	info := &auth.OAuthUserInfo{
+		ProviderUserID: uuid.New().String(),
+		Username:       "dan",
+		Email:          "dan@example.com",
+		EmailVerified:  false,
+	}
+
+	user, err := svc.AuthenticateWithOAuth(context.Background(), "gitea", info, newOAuthToken())
+	require.NoError(t, err)
+	assert.False(t, user.EmailVerified)
+}
+
+// TestAuthenticateWithOAuth_LinkPromotesEmailVerified verifies that when an
+// unverified local user links to a provider that verifies the email, the
+// User.EmailVerified flag is promoted to true.
+func TestAuthenticateWithOAuth_LinkPromotesEmailVerified(t *testing.T) {
+	svc := newOAuthUserService(t)
+
+	// Start as an unverified-email local user created via a non-verifying provider.
+	unverified := &auth.OAuthUserInfo{
+		ProviderUserID: uuid.New().String(),
+		Username:       "eve",
+		Email:          "eve@example.com",
+		EmailVerified:  false,
+	}
+	created, err := svc.AuthenticateWithOAuth(
+		context.Background(),
+		"gitea",
+		unverified,
+		newOAuthToken(),
+	)
+	require.NoError(t, err)
+	require.False(t, created.EmailVerified)
+
+	// Same email comes back via a verifying provider: link + promote.
+	verified := &auth.OAuthUserInfo{
+		ProviderUserID: uuid.New().String(),
+		Username:       "eve",
+		Email:          "eve@example.com",
+		EmailVerified:  true,
+	}
+	linked, err := svc.AuthenticateWithOAuth(
+		context.Background(),
+		"github",
+		verified,
+		newOAuthToken(),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, created.ID, linked.ID)
+	assert.True(t, linked.EmailVerified, "linking a verified provider must promote EmailVerified")
 }
 
 // TestCreateUserWithOAuth_DuplicateEmail verifies that calling createUserWithOAuth

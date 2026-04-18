@@ -198,7 +198,7 @@ func buildUserInfoClaims(userID, issuer, scopes string, user *models.User) map[s
 
 	if scopeSet["email"] {
 		claims["email"] = user.Email
-		claims["email_verified"] = false
+		claims["email_verified"] = user.EmailVerified
 	}
 
 	return claims

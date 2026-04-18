@@ -487,11 +487,22 @@ func (s *UserService) linkOAuthToExistingUser(
 		return nil, fmt.Errorf("failed to link OAuth: %w", err)
 	}
 
-	// Update user avatar if empty
+	// Update user avatar and email verification status.
+	// linkOAuthToExistingUser is only reached when the provider verified the
+	// email address (see AuthenticateWithOAuth), so we can safely promote the
+	// user's EmailVerified flag here.
+	updated := false
 	if user.AvatarURL == "" && oauthUserInfo.AvatarURL != "" {
 		user.AvatarURL = oauthUserInfo.AvatarURL
+		updated = true
+	}
+	if !user.EmailVerified && oauthUserInfo.EmailVerified {
+		user.EmailVerified = true
+		updated = true
+	}
+	if updated {
 		if err := s.store.UpdateUser(user); err != nil {
-			log.Printf("[OAuth] Failed to update user avatar: %v", err)
+			log.Printf("[OAuth] Failed to update user profile: %v", err)
 			// Continue with login even if update fails
 		}
 		s.InvalidateUserCache(user.ID)
@@ -530,15 +541,16 @@ func (s *UserService) createUserWithOAuth(
 
 	// Create user (no password)
 	user := &models.User{
-		ID:           uuid.New().String(),
-		Username:     username,
-		Email:        oauthUserInfo.Email,
-		FullName:     oauthUserInfo.FullName,
-		AvatarURL:    oauthUserInfo.AvatarURL,
-		Role:         models.UserRoleUser,
-		AuthSource:   models.AuthSourceLocal,
-		IsActive:     true,
-		PasswordHash: "", // OAuth users have no password
+		ID:            uuid.New().String(),
+		Username:      username,
+		Email:         oauthUserInfo.Email,
+		FullName:      oauthUserInfo.FullName,
+		AvatarURL:     oauthUserInfo.AvatarURL,
+		Role:          models.UserRoleUser,
+		AuthSource:    models.AuthSourceLocal,
+		IsActive:      true,
+		EmailVerified: oauthUserInfo.EmailVerified,
+		PasswordHash:  "", // OAuth users have no password
 	}
 
 	// Create OAuth connection

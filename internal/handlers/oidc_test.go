@@ -22,10 +22,11 @@ import (
 func TestBuildUserInfoClaims_AllScopes(t *testing.T) {
 	updatedAt := time.Unix(1708646400, 0)
 	user := &models.User{
-		FullName:  "John Doe",
-		Username:  "johndoe",
-		AvatarURL: "https://example.com/avatar.jpg",
-		Email:     "john@example.com",
+		FullName:      "John Doe",
+		Username:      "johndoe",
+		AvatarURL:     "https://example.com/avatar.jpg",
+		Email:         "john@example.com",
+		EmailVerified: true,
 	}
 	user.UpdatedAt = updatedAt
 	claims := buildUserInfoClaims(
@@ -42,7 +43,7 @@ func TestBuildUserInfoClaims_AllScopes(t *testing.T) {
 	assert.Equal(t, "https://example.com/avatar.jpg", claims["picture"])
 	assert.Equal(t, int64(1708646400), claims["updated_at"])
 	assert.Equal(t, "john@example.com", claims["email"])
-	assert.Equal(t, false, claims["email_verified"])
+	assert.Equal(t, true, claims["email_verified"])
 }
 
 func TestBuildUserInfoClaims_OpenIDOnly(t *testing.T) {
@@ -84,10 +85,11 @@ func TestBuildUserInfoClaims_ProfileScopeOnly(t *testing.T) {
 
 func TestBuildUserInfoClaims_EmailScopeOnly(t *testing.T) {
 	user := &models.User{
-		FullName:  "Bob Builder",
-		Username:  "bob",
-		AvatarURL: "",
-		Email:     "bob@example.com",
+		FullName:      "Bob Builder",
+		Username:      "bob",
+		AvatarURL:     "",
+		Email:         "bob@example.com",
+		EmailVerified: false,
 	}
 	claims := buildUserInfoClaims("user-789", "https://auth.example.com", "email", user)
 
@@ -96,6 +98,15 @@ func TestBuildUserInfoClaims_EmailScopeOnly(t *testing.T) {
 	assert.Equal(t, false, claims["email_verified"])
 	// No profile claims
 	assert.Nil(t, claims["name"])
+}
+
+func TestBuildUserInfoClaims_EmailVerifiedMirrorsUserField(t *testing.T) {
+	user := &models.User{
+		Email:         "carol@example.com",
+		EmailVerified: true,
+	}
+	claims := buildUserInfoClaims("user-901", "https://auth.example.com", "email", user)
+	assert.Equal(t, true, claims["email_verified"])
 }
 
 func TestBuildUserInfoClaims_NoScopes(t *testing.T) {

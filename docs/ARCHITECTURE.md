@@ -232,7 +232,7 @@ sequenceDiagram
 | --------- | ------------------------------------------------------------------ |
 | _(any)_   | `sub` (always present — user UUID)                                 |
 | `profile` | `name`, `preferred_username`, `picture` (if set), `updated_at`     |
-| `email`   | `email`, `email_verified` (always `false` — no email verification) |
+| `email`   | `email`, `email_verified` (`true` only when a trusted OAuth provider confirmed the address) |
 
 Example request for `openid profile email` scopes:
 
