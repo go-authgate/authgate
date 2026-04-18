@@ -142,7 +142,7 @@ AUDIT_LOG_CLEANUP_INTERVAL=24h          # Cleanup frequency (default: 24h)
 
 ## TLS / HTTPS
 
-AuthGate can serve HTTPS directly by setting two environment variables. When both are configured, the server listens on `SERVER_ADDR` using TLS; when either is empty, it falls back to plain HTTP.
+AuthGate can serve HTTPS directly by setting two environment variables. When both are configured, the server listens on `SERVER_ADDR` using TLS. When both are empty (the default), it serves plain HTTP. Setting only one of the two is rejected at startup by `Config.Validate()` — this prevents silently falling back to HTTP when the operator meant to enable TLS.
 
 ```bash
 TLS_CERT_FILE=/etc/authgate/tls/fullchain.pem   # PEM-encoded certificate (full chain)
@@ -151,7 +151,7 @@ TLS_KEY_FILE=/etc/authgate/tls/privkey.pem      # PEM-encoded private key
 
 Notes:
 
-- **Both variables must be set.** Setting only one is treated as TLS disabled (plain HTTP).
+- **Both variables must be set together.** Setting only one causes `Config.Validate()` to fail at startup (prevents accidental HTTP fallback when TLS was intended). Leave both empty for plain HTTP.
 - **Use a full chain certificate** (leaf + intermediates). Clients often reject leaf-only certificates from non-root CAs.
 - **Update `BASE_URL`** to `https://...` so OAuth redirect URIs, `verification_uri`, and JWKS links use the correct scheme.
 - **Cipher suites / TLS versions** use Go's `crypto/tls` defaults — modern, secure, no tuning needed for typical deployments.

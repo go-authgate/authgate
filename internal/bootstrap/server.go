@@ -33,14 +33,15 @@ func createHTTPServer(cfg *config.Config, handler http.Handler) *http.Server {
 func addServerRunningJob(m *graceful.Manager, srv *http.Server, cfg *config.Config) {
 	m.AddRunningJob(func(ctx context.Context) error {
 		go func() {
+			tlsEnabled := cfg.TLSEnabled()
 			scheme := "HTTP"
-			if cfg.TLSEnabled() {
+			if tlsEnabled {
 				scheme = "HTTPS"
 			}
 			log.Printf("Starting %s server on %s", scheme, srv.Addr)
 
 			var err error
-			if cfg.TLSEnabled() {
+			if tlsEnabled {
 				err = srv.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile)
 			} else {
 				err = srv.ListenAndServe()
