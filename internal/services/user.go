@@ -361,8 +361,11 @@ func (s *UserService) AuthenticateWithOAuth(
 		return s.updateOAuthConnectionAndGetUser(ctx, connection, oauthUserInfo, token)
 	}
 
-	// 2. Check if user exists with same email
-	user, err := s.store.GetUserByEmail(oauthUserInfo.Email)
+	// 2. Check if user exists with same email. Use the whitespace-tolerant
+	// normalized lookup so legacy rows are still found and any ambiguity
+	// between duplicate whitespace variants blocks auto-link instead of
+	// letting the provider bind to a non-deterministic row.
+	user, err := s.store.FindUserByNormalizedEmail(oauthUserInfo.Email)
 	if err == nil {
 		if !user.IsActive {
 			return nil, ErrAccountDisabled
@@ -786,12 +789,6 @@ func (s *UserService) UpdateUserProfile(
 	if req.Email != user.Email {
 		existing, lookupErr := s.store.GetUserByEmail(req.Email)
 		if lookupErr != nil {
-			// Ambiguous matches mean at least two other rows already share
-			// this normalized email — from the admin's perspective that's
-			// just a conflict, so surface the familiar error.
-			if errors.Is(lookupErr, store.ErrAmbiguousEmail) {
-				return ErrEmailConflict
-			}
 			if !errors.Is(lookupErr, gorm.ErrRecordNotFound) {
 				return fmt.Errorf("failed to check email uniqueness: %w", lookupErr)
 			}
@@ -1058,12 +1055,11 @@ func (s *UserService) CreateUserAdmin(
 		return nil, "", fmt.Errorf("failed to check username uniqueness: %w", err)
 	}
 
-	// Check email uniqueness. Ambiguous matches (legacy whitespace variants)
-	// also count as a conflict — the target email is already occupied by one
-	// or more rows, so the admin create must be rejected the same way.
+	// Check email uniqueness against the indexed exact value. Legacy
+	// whitespace-variant duplicates are not detected here by design —
+	// they'd show up for OAuth auto-link via FindUserByNormalizedEmail, but
+	// for admin creates a fast indexed check is the right trade-off.
 	if _, err := s.store.GetUserByEmail(req.Email); err == nil {
-		return nil, "", ErrEmailConflict
-	} else if errors.Is(err, store.ErrAmbiguousEmail) {
 		return nil, "", ErrEmailConflict
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, "", fmt.Errorf("failed to check email uniqueness: %w", err)
@@ -1098,11 +1094,9 @@ func (s *UserService) CreateUserAdmin(
 	if err := s.store.CreateUser(user); err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			// Re-query to determine which unique constraint was violated
-			// (race condition). ErrAmbiguousEmail also signals "email is
-			// in use" here — treat it the same as a normal email match
-			// instead of falling through to the username-conflict branch.
-			_, emailErr := s.store.GetUserByEmail(req.Email)
-			if emailErr == nil || errors.Is(emailErr, store.ErrAmbiguousEmail) {
+			// (race condition). An exact-email match means the email is
+			// the culprit; otherwise fall back to username conflict.
+			if _, emailErr := s.store.GetUserByEmail(req.Email); emailErr == nil {
 				return nil, "", ErrEmailConflict
 			}
 			return nil, "", ErrUsernameConflict

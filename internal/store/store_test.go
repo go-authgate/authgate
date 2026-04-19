@@ -1645,7 +1645,7 @@ func TestGetUserByEmail_ExactMatchPlusLegacyDuplicate_ReturnsError(t *testing.T)
 		AuthSource: "http_api",
 	}))
 
-	_, err = store.GetUserByEmail("mixed@example.com")
+	_, err = store.FindUserByNormalizedEmail("mixed@example.com")
 	assert.ErrorIs(t, err, ErrAmbiguousEmail,
 		"ambiguity must be surfaced even when an exact match exists alongside a legacy duplicate")
 }
@@ -1676,7 +1676,7 @@ func TestGetUserByEmail_AmbiguousWhitespaceDuplicates_ReturnsError(t *testing.T)
 		AuthSource: "http_api",
 	}))
 
-	_, err = store.GetUserByEmail("dup@example.com")
+	_, err = store.FindUserByNormalizedEmail("dup@example.com")
 	assert.ErrorIs(t, err, ErrAmbiguousEmail,
 		"ambiguous whitespace-variant duplicates must surface ErrAmbiguousEmail")
 }
@@ -1701,10 +1701,10 @@ func TestGetUserByEmail_LegacyWhitespace_FallbackMatches(t *testing.T) {
 	}
 	require.NoError(t, store.CreateUser(legacy))
 
-	got, err := store.GetUserByEmail("legacy@example.com")
+	got, err := store.FindUserByNormalizedEmail("legacy@example.com")
 	require.NoError(t, err)
 	assert.Equal(t, legacy.ID, got.ID,
-		"GetUserByEmail must fall back to TRIM(email) to locate legacy rows")
+		"FindUserByNormalizedEmail must match legacy rows via TRIM(email)")
 }
 
 // TestUpsertExternalUser_EmailUnchanged_PreservesEmailVerified verifies that

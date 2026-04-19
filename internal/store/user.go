@@ -189,60 +189,44 @@ func (s *Store) GetUsersByIDs(userIDs []string) (map[string]*models.User, error)
 	return userMap, nil
 }
 
-// GetUserByEmail finds a user by email address. The lookup is resilient to
-// incidental whitespace on either side: the argument is trimmed before
-// matching. If more than one row ties to the normalized value — whether via
-// exact match plus a legacy duplicate or purely through the fallback — the
-// function returns ErrAmbiguousEmail rather than picking a non-deterministic
-// winner. In the OAuth auto-link path this guarantees a verified provider
-// can never silently bind to the wrong local user when legacy whitespace
-// duplicates exist.
-//
-// Performance: the fast path is an indexed `email = ?` lookup. The
-// TRIM-based scan is only exercised when either (a) the exact match
-// returned nothing (so we fall back to legacy rows), or (b) an exact match
-// was found and we need to confirm no legacy whitespace duplicate exists.
-// The confirmation query is capped to one extra row (LIMIT 1 excluding the
-// exact-match ID) to keep scans bounded on large tables.
-//
-// Known limitation: Go's strings.TrimSpace strips Unicode whitespace (tabs,
-// newlines, NBSP, …) while SQL TRIM() only removes ASCII spaces by default
-// on the supported dialects (SQLite, Postgres). In practice OAuth providers
-// and admin forms return ASCII-space whitespace if any, so the divergence
-// only matters for pre-existing legacy rows whose stored email contains
-// exotic whitespace — those rows would miss this lookup. The write paths
-// in this package trim with strings.TrimSpace on insert/update, so newly
-// stored rows stay free of both kinds.
+// GetUserByEmail finds a user by the exact email address, using the UNIQUE
+// index on the column. The input is trimmed with strings.TrimSpace before
+// matching so callers can pass user-entered values safely, but the stored
+// side is not normalized — legacy rows whose stored email carries
+// incidental whitespace will NOT be found by this method. Callers that
+// must protect against ambiguous legacy duplicates (notably the OAuth
+// auto-link path) should use FindUserByNormalizedEmail instead; that path
+// pays for a non-indexed TRIM-based scan in exchange for whitespace
+// tolerance and ambiguity detection.
 func (s *Store) GetUserByEmail(email string) (*models.User, error) {
 	email = strings.TrimSpace(email)
 
-	// Fast path: indexed exact match on the UNIQUE email column.
-	var exact models.User
-	err := s.db.Where("email = ?", email).First(&exact).Error
-	if err == nil {
-		// Confirm there are no legacy whitespace-variant duplicates that
-		// would make this selection ambiguous. Bounded by LIMIT 1.
-		var dup models.User
-		dupErr := s.db.
-			Where("id != ? AND TRIM(email) = ?", exact.ID, email).
-			Limit(1).
-			Find(&dup).
-			Error
-		if dupErr != nil {
-			return nil, dupErr
-		}
-		if dup.ID != "" {
-			return nil, ErrAmbiguousEmail
-		}
-		return &exact, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
+	var user models.User
+	if err := s.db.Where("email = ?", email).First(&user).Error; err != nil {
 		return nil, err
 	}
+	return &user, nil
+}
 
-	// Fallback: no exact match — scan for legacy rows whose stored email
-	// carries incidental whitespace. Bounded by LIMIT 2 so we can
-	// distinguish a unique legacy match from an ambiguous duplicate.
+// FindUserByNormalizedEmail looks up a user by email with whitespace-
+// tolerant matching on the stored side. When more than one row ties to
+// the normalized value, it returns ErrAmbiguousEmail instead of picking a
+// non-deterministic winner. Intended for the OAuth auto-link flow where
+// binding a verified provider to the wrong local user must be prevented.
+//
+// Performance: the lookup is a `TRIM(email) = ?` scan bounded by LIMIT 2,
+// which is NOT backed by the UNIQUE email index. Callers that do not need
+// whitespace tolerance (the common case — admin uniqueness checks, etc.)
+// should use GetUserByEmail instead.
+//
+// Known limitation: Go's strings.TrimSpace strips Unicode whitespace while
+// SQL TRIM() only removes ASCII spaces by default on SQLite and Postgres.
+// The write paths in this package trim on insert/update, so newly stored
+// rows stay free of both kinds; only pre-existing legacy rows containing
+// exotic whitespace (tabs, NBSP, …) would miss this lookup.
+func (s *Store) FindUserByNormalizedEmail(email string) (*models.User, error) {
+	email = strings.TrimSpace(email)
+
 	var matches []models.User
 	if err := s.db.Where("TRIM(email) = ?", email).Limit(2).Find(&matches).Error; err != nil {
 		return nil, err

@@ -59,6 +59,21 @@ func (mr *MockUserReaderMockRecorder) CountUsersByRole(role any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUsersByRole", reflect.TypeOf((*MockUserReader)(nil).CountUsersByRole), role)
 }
 
+// FindUserByNormalizedEmail mocks base method.
+func (m *MockUserReader) FindUserByNormalizedEmail(email string) (*models.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindUserByNormalizedEmail", email)
+	ret0, _ := ret[0].(*models.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindUserByNormalizedEmail indicates an expected call of FindUserByNormalizedEmail.
+func (mr *MockUserReaderMockRecorder) FindUserByNormalizedEmail(email any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUserByNormalizedEmail", reflect.TypeOf((*MockUserReader)(nil).FindUserByNormalizedEmail), email)
+}
+
 // GetUserByEmail mocks base method.
 func (m *MockUserReader) GetUserByEmail(email string) (*models.User, error) {
 	m.ctrl.T.Helper()
@@ -1873,6 +1888,21 @@ func (m *MockStore) DeleteUser(id string) error {
 func (mr *MockStoreMockRecorder) DeleteUser(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUser", reflect.TypeOf((*MockStore)(nil).DeleteUser), id)
+}
+
+// FindUserByNormalizedEmail mocks base method.
+func (m *MockStore) FindUserByNormalizedEmail(email string) (*models.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindUserByNormalizedEmail", email)
+	ret0, _ := ret[0].(*models.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindUserByNormalizedEmail indicates an expected call of FindUserByNormalizedEmail.
+func (mr *MockStoreMockRecorder) FindUserByNormalizedEmail(email any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUserByNormalizedEmail", reflect.TypeOf((*MockStore)(nil).FindUserByNormalizedEmail), email)
 }
 
 // GetAccessTokenByHash mocks base method.

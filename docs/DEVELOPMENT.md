@@ -324,11 +324,13 @@ db.AutoMigrate(
 
 **Production caveat:** AutoMigrate runs at process startup and will issue
 `ALTER TABLE` statements whenever a model adds or changes a column. On
-Postgres and MySQL this can take an `ACCESS EXCLUSIVE` lock and — for
-`NOT NULL` column additions with a default — rewrite the entire table
-before the server accepts traffic. Large deployments (hundreds of
-thousands of rows or more) should either run the equivalent migration
-out-of-band ahead of the rollout or tolerate the downtime window.
+Postgres, adding a `NOT NULL` column with a default can take an
+`ACCESS EXCLUSIVE` lock and — depending on the server version — rewrite
+the entire table before traffic is accepted. Other engines may take a
+comparable table lock or block writers for the duration of the change.
+Large deployments (hundreds of thousands of rows or more) should either
+run the equivalent migration out-of-band ahead of the rollout or tolerate
+the downtime window.
 Example using the recent `users.email_verified` column:
 
 ```sql
