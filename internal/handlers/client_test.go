@@ -70,15 +70,40 @@ func Test_parseRedirectURIs(t *testing.T) {
 			input: "http://localhost:8080,http://127.0.0.1:3000",
 			want:  []string{"http://localhost:8080", "http://127.0.0.1:3000"},
 		},
+		{
+			name:  "newline separated",
+			input: "https://a.example.com/cb\nhttps://b.example.com/cb",
+			want:  []string{"https://a.example.com/cb", "https://b.example.com/cb"},
+		},
+		{
+			name:  "CRLF separated",
+			input: "https://a.example.com/cb\r\nhttps://b.example.com/cb",
+			want:  []string{"https://a.example.com/cb", "https://b.example.com/cb"},
+		},
+		{
+			name:  "mixed comma and newline",
+			input: "https://a.example.com/cb,\nhttps://b.example.com/cb\nhttps://c.example.com/cb",
+			want: []string{
+				"https://a.example.com/cb",
+				"https://b.example.com/cb",
+				"https://c.example.com/cb",
+			},
+		},
+		{
+			name:  "newline with surrounding spaces",
+			input: "  https://a.example.com/cb  \n  https://b.example.com/cb  \n",
+			want:  []string{"https://a.example.com/cb", "https://b.example.com/cb"},
+		},
+		{
+			name:  "blank lines between URIs",
+			input: "https://a.example.com/cb\n\n\nhttps://b.example.com/cb",
+			want:  []string{"https://a.example.com/cb", "https://b.example.com/cb"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := parseRedirectURIs(tt.input)
-			// Handle nil vs empty slice comparison
-			if len(got) == 0 && len(tt.want) == 0 {
-				return
-			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("parseRedirectURIs() = %v, want %v", got, tt.want)
 			}

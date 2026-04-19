@@ -851,6 +851,96 @@ a.admin-user-stat-card-link:hover .admin-user-stat-label {
   color: var(--color-text-secondary);
   line-height: 1.5;
 }
+/* ============================================
+   Redirect URI Tag Picker
+   ============================================ */
+.admin-uri-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-secondary);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  cursor: text;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  box-sizing: border-box;
+}
+.admin-uri-picker:hover {
+  border-color: var(--color-gray-400);
+  background: var(--color-bg-primary);
+}
+.admin-uri-picker:focus-within {
+  outline: none;
+  border-color: var(--color-primary);
+  background: var(--color-bg-primary);
+  box-shadow: 0 0 0 4px rgba(0, 114, 255, 0.1);
+}
+.admin-uri-tags { display: contents; }
+.admin-uri-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  padding: 4px var(--space-3);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  animation: scopeTagIn 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.admin-uri-tag-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 48ch;
+}
+.admin-uri-tag-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--color-text-tertiary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+}
+.admin-uri-tag-remove:hover {
+  opacity: 1;
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+}
+.admin-uri-text-input {
+  flex: 1 1 220px;
+  min-width: 180px;
+  padding: 0;
+  font-size: var(--text-sm);
+  font-family: var(--font-mono);
+  color: var(--color-text-primary);
+  background: transparent;
+  border: none;
+  outline: none;
+  line-height: 1.5;
+}
+.admin-uri-text-input::placeholder {
+  color: var(--color-text-tertiary);
+  font-family: var(--font-sans);
+  font-style: italic;
+}
 @media (prefers-reduced-motion: reduce) {
-  .admin-scope-tag { animation: none !important; }
+  .admin-scope-tag,
+  .admin-uri-tag { animation: none !important; }
 }
