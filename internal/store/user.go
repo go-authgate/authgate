@@ -71,7 +71,12 @@ func (s *Store) UpsertExternalUser(
 			// Username available, continue with update
 		}
 
-		// Update user fields
+		// Update user fields. An external system has no way to prove that the
+		// new email address is verified, so downgrade EmailVerified whenever
+		// the stored email changes.
+		if user.Email != email {
+			user.EmailVerified = false
+		}
 		user.Username = username
 		user.Email = email
 		user.FullName = fullName

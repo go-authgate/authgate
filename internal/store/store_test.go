@@ -1415,6 +1415,71 @@ func TestUpsertExternalUser_Success_UpdateExisting(t *testing.T) {
 	assert.Equal(t, "Robert Builder", updatedUser.FullName)
 }
 
+// TestUpsertExternalUser_EmailChange_ClearsEmailVerified verifies that when an
+// external auth sync changes the user's email, EmailVerified is reset to false.
+// External systems can't prove the new address is verified, so ID tokens must
+// not continue asserting email_verified=true after the address changes.
+func TestUpsertExternalUser_EmailChange_ClearsEmailVerified(t *testing.T) {
+	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
+	require.NoError(t, err)
+
+	user, err := store.UpsertExternalUser(
+		"carol",
+		"ext-carol",
+		"http_api",
+		"carol@example.com",
+		"Carol",
+	)
+	require.NoError(t, err)
+
+	// Promote to verified, as if a trusted OAuth provider had confirmed it.
+	user.EmailVerified = true
+	require.NoError(t, store.UpdateUser(user))
+
+	// External sync returns a new email — verification must be downgraded.
+	updated, err := store.UpsertExternalUser(
+		"carol",
+		"ext-carol",
+		"http_api",
+		"carol.new@example.com",
+		"Carol",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "carol.new@example.com", updated.Email)
+	assert.False(t, updated.EmailVerified,
+		"changing the email via external sync must downgrade EmailVerified")
+}
+
+// TestUpsertExternalUser_EmailUnchanged_PreservesEmailVerified verifies that
+// EmailVerified is preserved when the external sync keeps the same email.
+func TestUpsertExternalUser_EmailUnchanged_PreservesEmailVerified(t *testing.T) {
+	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
+	require.NoError(t, err)
+
+	user, err := store.UpsertExternalUser(
+		"dave",
+		"ext-dave",
+		"http_api",
+		"dave@example.com",
+		"Dave",
+	)
+	require.NoError(t, err)
+
+	user.EmailVerified = true
+	require.NoError(t, store.UpdateUser(user))
+
+	updated, err := store.UpsertExternalUser(
+		"dave",
+		"ext-dave",
+		"http_api",
+		"dave@example.com",
+		"David",
+	)
+	require.NoError(t, err)
+	assert.True(t, updated.EmailVerified,
+		"EmailVerified must persist when the email is unchanged")
+}
+
 // TestDefaultAdminPassword_WhitespaceHandling tests that whitespace-only passwords are treated as empty
 func TestDefaultAdminPassword_WhitespaceHandling(t *testing.T) {
 	tests := []struct {

@@ -756,6 +756,11 @@ func (s *UserService) UpdateUserProfile(
 
 	oldRole := user.Role
 	user.FullName = req.FullName
+	if req.Email != user.Email {
+		// Admin edits do not verify the new address, so downgrade the claim
+		// until a trusted OAuth provider confirms it again.
+		user.EmailVerified = false
+	}
 	user.Email = req.Email
 	if req.Role != "" {
 		user.Role = req.Role

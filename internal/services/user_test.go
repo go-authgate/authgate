@@ -476,6 +476,60 @@ func TestUpdateUserProfile_EmailConflict(t *testing.T) {
 	assert.ErrorIs(t, err, ErrEmailConflict)
 }
 
+func TestUpdateUserProfile_EmailChange_ClearsEmailVerified(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	u := makeTestUser(t, db)
+	u.EmailVerified = true
+	require.NoError(t, db.UpdateUser(u))
+
+	actor := makeTestUser(t, db)
+
+	mockCache.EXPECT().Delete(gomock.Any(), "user:"+u.ID).Return(nil).Times(1)
+
+	svc := newUserServiceWithStore(db, mockCache)
+	err := svc.UpdateUserProfile(context.Background(), u.ID, actor.ID, UpdateUserProfileRequest{
+		FullName: u.FullName,
+		Email:    "new-" + u.Email,
+		Role:     u.Role,
+	})
+	require.NoError(t, err)
+
+	updated, err := db.GetUserByID(u.ID)
+	require.NoError(t, err)
+	assert.False(t, updated.EmailVerified,
+		"changing the email via admin edit must downgrade EmailVerified")
+}
+
+func TestUpdateUserProfile_EmailUnchanged_PreservesEmailVerified(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	u := makeTestUser(t, db)
+	u.EmailVerified = true
+	require.NoError(t, db.UpdateUser(u))
+
+	actor := makeTestUser(t, db)
+
+	mockCache.EXPECT().Delete(gomock.Any(), "user:"+u.ID).Return(nil).Times(1)
+
+	svc := newUserServiceWithStore(db, mockCache)
+	err := svc.UpdateUserProfile(context.Background(), u.ID, actor.ID, UpdateUserProfileRequest{
+		FullName: "Renamed",
+		Email:    u.Email,
+		Role:     u.Role,
+	})
+	require.NoError(t, err)
+
+	updated, err := db.GetUserByID(u.ID)
+	require.NoError(t, err)
+	assert.True(t, updated.EmailVerified,
+		"EmailVerified must persist when the email is unchanged")
+}
+
 func TestUpdateUserProfile_CannotDemoteLastAdmin(t *testing.T) {
 	db := setupTestStore(t)
 	ctrl := gomock.NewController(t)
