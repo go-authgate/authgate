@@ -70,6 +70,35 @@ func Test_parseRedirectURIs(t *testing.T) {
 			input: "http://localhost:8080,http://127.0.0.1:3000",
 			want:  []string{"http://localhost:8080", "http://127.0.0.1:3000"},
 		},
+		{
+			name:  "newline separated",
+			input: "https://a.example.com/cb\nhttps://b.example.com/cb",
+			want:  []string{"https://a.example.com/cb", "https://b.example.com/cb"},
+		},
+		{
+			name:  "CRLF separated",
+			input: "https://a.example.com/cb\r\nhttps://b.example.com/cb",
+			want:  []string{"https://a.example.com/cb", "https://b.example.com/cb"},
+		},
+		{
+			name:  "mixed comma and newline",
+			input: "https://a.example.com/cb,\nhttps://b.example.com/cb\nhttps://c.example.com/cb",
+			want: []string{
+				"https://a.example.com/cb",
+				"https://b.example.com/cb",
+				"https://c.example.com/cb",
+			},
+		},
+		{
+			name:  "newline with surrounding spaces",
+			input: "  https://a.example.com/cb  \n  https://b.example.com/cb  \n",
+			want:  []string{"https://a.example.com/cb", "https://b.example.com/cb"},
+		},
+		{
+			name:  "blank lines between URIs",
+			input: "https://a.example.com/cb\n\n\nhttps://b.example.com/cb",
+			want:  []string{"https://a.example.com/cb", "https://b.example.com/cb"},
+		},
 	}
 
 	for _, tt := range tests {

@@ -265,21 +265,35 @@ templ ClientFormCommonFields(props ClientFormFieldsProps) {
 	</div>
 	<!-- Redirect URIs -->
 	<div class="admin-form-group">
-		<label for="redirect_uris" class="admin-form-label">Redirect URIs</label>
+		<label for="uriTextInput" class="admin-form-label">Redirect URIs</label>
 		if props.Client != nil {
-			<textarea id="redirect_uris" name="redirect_uris" class="admin-form-textarea" rows="3">{ props.Client.RedirectURIs }</textarea>
+			<input type="hidden" id="redirect_uris" name="redirect_uris" value={ props.Client.RedirectURIs }/>
 		} else {
-			<textarea id="redirect_uris" name="redirect_uris" class="admin-form-textarea" rows="3"></textarea>
+			<input type="hidden" id="redirect_uris" name="redirect_uris" value=""/>
 		}
+		<div class="admin-uri-picker" id="uriPicker">
+			<div class="admin-uri-tags" id="uriTags"></div>
+			<input
+				type="text"
+				class="admin-uri-text-input"
+				id="uriTextInput"
+				placeholder="https://app.example.com/callback"
+				autocomplete="off"
+				spellcheck="false"
+				inputmode="url"
+			/>
+		</div>
 		<small class="admin-form-hint">
-			Comma-separated redirect URIs. Required when Authorization Code Flow is enabled.
-			Example: <code>https://app.example.com/callback</code>
+			Press <kbd>Enter</kbd> to add a URI. You can also paste multiple URIs separated by
+			commas or new lines. Click <strong>&times;</strong> on a tag to remove it.
+			Required when Authorization Code Flow is enabled.
 		</small>
 	</div>
 	if props.ShowClientCredentials {
 		@clientCredentialsScript()
 	}
 	@clientScopePickerScript()
+	@clientRedirectURIPickerScript()
 }
 
 // clientCredentialsScript renders the JS that syncs the Client Credentials checkbox
@@ -395,6 +409,104 @@ templ clientScopePickerScript() {
 					if (!presetsOnly) { textInput.focus(); }
 				});
 			});
+
+			init();
+		})();
+	</script>
+}
+
+templ clientRedirectURIPickerScript() {
+	<script>
+		(function () {
+			var hiddenInput = document.getElementById('redirect_uris');
+			var picker      = document.getElementById('uriPicker');
+			var tagsEl      = document.getElementById('uriTags');
+			var textInput   = document.getElementById('uriTextInput');
+			var selected    = [];
+
+			function syncHidden() { hiddenInput.value = selected.join('\n'); }
+
+			function renderTags() {
+				tagsEl.innerHTML = '';
+				selected.forEach(function (uri) {
+					var tag = document.createElement('span');
+					tag.className = 'admin-uri-tag';
+					var label = document.createElement('span');
+					label.className = 'admin-uri-tag-label';
+					label.textContent = uri;
+					var btn = document.createElement('button');
+					btn.type = 'button';
+					btn.className = 'admin-uri-tag-remove';
+					btn.setAttribute('aria-label', 'Remove ' + uri);
+					btn.textContent = '×';
+					btn.addEventListener('click', function () { removeURI(uri); });
+					tag.appendChild(label);
+					tag.appendChild(btn);
+					tagsEl.appendChild(tag);
+				});
+			}
+
+			function render() { renderTags(); syncHidden(); }
+
+			function addURI(u) {
+				u = u.trim();
+				if (u && selected.indexOf(u) === -1) { selected.push(u); render(); }
+			}
+
+			function addMany(text) {
+				text.split(/[\s,]+/).forEach(function (u) {
+					if (u) { addURI(u); }
+				});
+			}
+
+			function removeURI(u) {
+				var i = selected.indexOf(u);
+				if (i !== -1) { selected.splice(i, 1); render(); }
+			}
+
+			function commitInput() {
+				var v = textInput.value;
+				if (v.trim()) { addMany(v); textInput.value = ''; }
+			}
+
+			function init() {
+				var v = hiddenInput.value;
+				if (v && v.trim()) {
+					v.split(/[\s,]+/).forEach(function (u) {
+						u = u.trim();
+						if (u && selected.indexOf(u) === -1) { selected.push(u); }
+					});
+				}
+				render();
+			}
+
+			textInput.addEventListener('keydown', function (e) {
+				if (e.key === 'Enter' || e.key === ',') {
+					e.preventDefault();
+					commitInput();
+				} else if (e.key === 'Backspace' && !textInput.value && selected.length) {
+					removeURI(selected[selected.length - 1]);
+				}
+			});
+			textInput.addEventListener('blur', commitInput);
+			textInput.addEventListener('paste', function (e) {
+				var data = (e.clipboardData || window.clipboardData).getData('text');
+				if (data && /[,\r\n]/.test(data)) {
+					e.preventDefault();
+					addMany(data);
+					textInput.value = '';
+				}
+			});
+			picker.addEventListener('click', function (e) {
+				if (e.target !== textInput && !e.target.classList.contains('admin-uri-tag-remove')) {
+					textInput.focus();
+				}
+			});
+
+			var form = picker.closest('form');
+			if (form) {
+				form.addEventListener('submit', function () { commitInput(); });
+			}
 
 			init();
 		})();

@@ -25,14 +25,14 @@ func NewClientHandler(
 	return &ClientHandler{clientService: cs, authorizationService: as}
 }
 
-// parseRedirectURIs parses a comma-separated string into a slice of trimmed URIs
 func parseRedirectURIs(input string) []string {
-	var redirectURIs []string
 	if strings.TrimSpace(input) == "" {
-		return redirectURIs
+		return nil
 	}
-
-	for uri := range strings.SplitSeq(input, ",") {
+	var redirectURIs []string
+	for _, uri := range strings.FieldsFunc(input, func(r rune) bool {
+		return r == ',' || r == '\n' || r == '\r'
+	}) {
 		if trimmed := strings.TrimSpace(uri); trimmed != "" {
 			redirectURIs = append(redirectURIs, trimmed)
 		}
