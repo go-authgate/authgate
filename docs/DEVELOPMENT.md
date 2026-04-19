@@ -322,6 +322,23 @@ db.AutoMigrate(
 )
 ```
 
+**Production caveat:** AutoMigrate runs at process startup and will issue
+`ALTER TABLE` statements whenever a model adds or changes a column. On
+Postgres, adding a `NOT NULL` column with a default can take an
+`ACCESS EXCLUSIVE` lock and — depending on the server version — rewrite
+the entire table before traffic is accepted. Other engines may take a
+comparable table lock or block writers for the duration of the change.
+Large deployments (hundreds of thousands of rows or more) should either
+run the equivalent migration out-of-band ahead of the rollout or tolerate
+the downtime window.
+Example using the recent `users.email_verified` column:
+
+```sql
+-- Run during a maintenance window BEFORE deploying the new binary to
+-- skip the startup ALTER TABLE on a large users table:
+ALTER TABLE users ADD COLUMN email_verified BOOLEAN NOT NULL DEFAULT FALSE;
+```
+
 ---
 
 ## Extending the Server

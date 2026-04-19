@@ -15,6 +15,14 @@ type UserReader interface {
 	GetUserByUsername(username string) (*models.User, error)
 	GetUserByID(id string) (*models.User, error)
 	GetUserByEmail(email string) (*models.User, error)
+	// FindUserByNormalizedEmail locates a user whose stored email matches the
+	// input after trimming whitespace on both sides, and returns an error when
+	// more than one legacy row ties to the same normalized value. Used by the
+	// OAuth auto-link path where picking a non-deterministic match would risk
+	// binding a verified provider to the wrong local user. Slower than
+	// GetUserByEmail because the fallback is not index-friendly — callers that
+	// don't need whitespace tolerance should keep using GetUserByEmail.
+	FindUserByNormalizedEmail(email string) (*models.User, error)
 	GetUserByExternalID(externalID, authSource string) (*models.User, error)
 	GetUsersByIDs(userIDs []string) (map[string]*models.User, error)
 	ListUsersPaginated(params types.PaginationParams) ([]models.User, types.PaginationResult, error)

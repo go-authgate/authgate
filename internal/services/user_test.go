@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -474,6 +475,152 @@ func TestUpdateUserProfile_EmailConflict(t *testing.T) {
 		Role:     u1.Role,
 	})
 	assert.ErrorIs(t, err, ErrEmailConflict)
+}
+
+func TestUpdateUserProfile_EmailChange_ClearsEmailVerified(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	u := makeTestUser(t, db)
+	u.EmailVerified = true
+	require.NoError(t, db.UpdateUser(u))
+
+	actor := makeTestUser(t, db)
+
+	mockCache.EXPECT().Delete(gomock.Any(), "user:"+u.ID).Return(nil).Times(1)
+
+	svc := newUserServiceWithStore(db, mockCache)
+	err := svc.UpdateUserProfile(context.Background(), u.ID, actor.ID, UpdateUserProfileRequest{
+		FullName: u.FullName,
+		Email:    "new-" + u.Email,
+		Role:     u.Role,
+	})
+	require.NoError(t, err)
+
+	updated, err := db.GetUserByID(u.ID)
+	require.NoError(t, err)
+	assert.False(t, updated.EmailVerified,
+		"changing the email via admin edit must downgrade EmailVerified")
+}
+
+func TestUpdateUserProfile_NormalizationEdit_DetectsConflict(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	// u has a legacy whitespace email; another user already owns the trimmed form.
+	u := makeTestUser(t, db)
+	trimmed := u.Email
+	u.Email = "  " + trimmed + "  "
+	require.NoError(t, db.UpdateUser(u))
+
+	other := makeTestUser(t, db)
+	other.Email = trimmed
+	require.NoError(t, db.UpdateUser(other))
+
+	actor := makeTestUser(t, db)
+
+	svc := newUserServiceWithStore(db, mockCache)
+	err := svc.UpdateUserProfile(context.Background(), u.ID, actor.ID, UpdateUserProfileRequest{
+		FullName: u.FullName,
+		Email:    trimmed, // pure normalization edit
+		Role:     u.Role,
+	})
+	assert.ErrorIs(
+		t,
+		err,
+		ErrEmailConflict,
+		"normalization-only edit must surface a deterministic ErrEmailConflict instead of a DB error",
+	)
+}
+
+func TestUpdateUserProfile_LegacyUnnormalizedStoredEmail_SelfHeals(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	u := makeTestUser(t, db)
+	// Simulate a legacy row whose stored email carries incidental whitespace.
+	u.Email = "  " + u.Email + "  "
+	u.EmailVerified = true
+	require.NoError(t, db.UpdateUser(u))
+	normalizedEmail := strings.TrimSpace(u.Email)
+
+	actor := makeTestUser(t, db)
+
+	mockCache.EXPECT().Delete(gomock.Any(), "user:"+u.ID).Return(nil).Times(1)
+
+	svc := newUserServiceWithStore(db, mockCache)
+	err := svc.UpdateUserProfile(context.Background(), u.ID, actor.ID, UpdateUserProfileRequest{
+		FullName: u.FullName,
+		Email:    normalizedEmail, // admin re-enters same logical email
+		Role:     u.Role,
+	})
+	require.NoError(t, err)
+
+	updated, err := db.GetUserByID(u.ID)
+	require.NoError(t, err)
+	assert.Equal(t, normalizedEmail, updated.Email,
+		"stored email must be rewritten to the trimmed form")
+	assert.True(t, updated.EmailVerified,
+		"a no-op edit against a legacy whitespace row must not downgrade EmailVerified")
+}
+
+func TestUpdateUserProfile_EmailWhitespaceOnly_PreservesEmailVerified(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	u := makeTestUser(t, db)
+	u.EmailVerified = true
+	require.NoError(t, db.UpdateUser(u))
+
+	actor := makeTestUser(t, db)
+
+	mockCache.EXPECT().Delete(gomock.Any(), "user:"+u.ID).Return(nil).Times(1)
+
+	svc := newUserServiceWithStore(db, mockCache)
+	err := svc.UpdateUserProfile(context.Background(), u.ID, actor.ID, UpdateUserProfileRequest{
+		FullName: u.FullName,
+		Email:    "  " + u.Email + "  ", // only whitespace differs
+		Role:     u.Role,
+	})
+	require.NoError(t, err)
+
+	updated, err := db.GetUserByID(u.ID)
+	require.NoError(t, err)
+	assert.Equal(t, u.Email, updated.Email,
+		"trimmed email must be stored; trailing whitespace must not leak")
+	assert.True(t, updated.EmailVerified,
+		"accidental whitespace in req.Email must not downgrade EmailVerified")
+}
+
+func TestUpdateUserProfile_EmailUnchanged_PreservesEmailVerified(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	u := makeTestUser(t, db)
+	u.EmailVerified = true
+	require.NoError(t, db.UpdateUser(u))
+
+	actor := makeTestUser(t, db)
+
+	mockCache.EXPECT().Delete(gomock.Any(), "user:"+u.ID).Return(nil).Times(1)
+
+	svc := newUserServiceWithStore(db, mockCache)
+	err := svc.UpdateUserProfile(context.Background(), u.ID, actor.ID, UpdateUserProfileRequest{
+		FullName: "Renamed",
+		Email:    u.Email,
+		Role:     u.Role,
+	})
+	require.NoError(t, err)
+
+	updated, err := db.GetUserByID(u.ID)
+	require.NoError(t, err)
+	assert.True(t, updated.EmailVerified,
+		"EmailVerified must persist when the email is unchanged")
 }
 
 func TestUpdateUserProfile_CannotDemoteLastAdmin(t *testing.T) {

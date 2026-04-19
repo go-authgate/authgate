@@ -211,6 +211,12 @@ func (h *OAuthHandler) OAuthCallback(c *gin.Context) {
 				http.StatusForbidden,
 				"Account Disabled. Your account has been disabled by an administrator. Please contact your administrator for assistance.",
 			)
+		case errors.Is(err, services.ErrAmbiguousEmail):
+			renderErrorPage(
+				c,
+				http.StatusConflict,
+				"Duplicate Account Detected. Multiple local accounts share this email address. Please contact your administrator to merge or remove the duplicates before signing in via OAuth.",
+			)
 		default:
 			renderErrorPage(
 				c,

@@ -51,6 +51,9 @@ var (
 	ErrUserAlreadyActive       = errors.New("user is already active")
 	ErrUserAlreadyDisabled     = errors.New("user is already disabled")
 	ErrOAuthConnectionNotFound = errors.New("OAuth connection not found")
+	ErrAmbiguousEmail          = errors.New(
+		"multiple local users share this email; please deduplicate before signing in via OAuth",
+	)
 )
 
 type UserService struct {
@@ -336,6 +339,13 @@ func (s *UserService) AuthenticateWithOAuth(
 	oauthUserInfo *auth.OAuthUserInfo,
 	token *oauth2.Token,
 ) (*models.User, error) {
+	// Normalize upstream fields once so downstream lookups, comparisons, and
+	// persistence are consistent and whitespace from the provider never causes
+	// spurious EmailVerified downgrades or unlinked duplicates.
+	oauthUserInfo.Email = strings.TrimSpace(oauthUserInfo.Email)
+	oauthUserInfo.Username = strings.TrimSpace(oauthUserInfo.Username)
+	oauthUserInfo.FullName = strings.TrimSpace(oauthUserInfo.FullName)
+
 	// Validate required fields
 	if oauthUserInfo.Email == "" {
 		return nil, errors.New("OAuth provider must return email")
@@ -351,8 +361,11 @@ func (s *UserService) AuthenticateWithOAuth(
 		return s.updateOAuthConnectionAndGetUser(ctx, connection, oauthUserInfo, token)
 	}
 
-	// 2. Check if user exists with same email
-	user, err := s.store.GetUserByEmail(oauthUserInfo.Email)
+	// 2. Check if user exists with same email. Use the whitespace-tolerant
+	// normalized lookup so legacy rows are still found and any ambiguity
+	// between duplicate whitespace variants blocks auto-link instead of
+	// letting the provider bind to a non-deterministic row.
+	user, err := s.store.FindUserByNormalizedEmail(oauthUserInfo.Email)
 	if err == nil {
 		if !user.IsActive {
 			return nil, ErrAccountDisabled
@@ -373,6 +386,17 @@ func (s *UserService) AuthenticateWithOAuth(
 			return nil, ErrOAuthEmailNotVerified
 		}
 		return s.createUserWithOAuth(ctx, provider, oauthUserInfo, token)
+	}
+	// Surface ambiguous-email errors explicitly: auto-registering would create
+	// yet another duplicate, and silently linking is unsafe because we cannot
+	// tell which of the existing rows the provider is vouching for.
+	if errors.Is(err, store.ErrAmbiguousEmail) {
+		log.Printf(
+			"[OAuth] Ambiguous email for provider=%s email=%s — manual dedup required",
+			provider,
+			oauthUserInfo.Email,
+		)
+		return nil, ErrAmbiguousEmail
 	}
 
 	// 3. Check if auto-registration is enabled
@@ -415,7 +439,10 @@ func (s *UserService) updateOAuthConnectionAndGetUser(
 		return nil, fmt.Errorf("failed to update OAuth connection: %w", err)
 	}
 
-	// Sync avatar and name if changed
+	// Sync avatar and name if changed. Also self-heal EmailVerified for
+	// existing connections so users migrated from before the column existed
+	// (or anyone whose earlier promotion write failed) eventually get their
+	// email verification flag set when the provider reports a verified match.
 	updated := false
 	if oauthUserInfo.AvatarURL != "" && user.AvatarURL != oauthUserInfo.AvatarURL {
 		user.AvatarURL = oauthUserInfo.AvatarURL
@@ -423,6 +450,16 @@ func (s *UserService) updateOAuthConnectionAndGetUser(
 	}
 	if oauthUserInfo.FullName != "" && user.FullName != oauthUserInfo.FullName {
 		user.FullName = oauthUserInfo.FullName
+		updated = true
+	}
+	// Only promote when the provider email still matches the stored email —
+	// otherwise a drifted provider account could assert verification for an
+	// address it does not own. Compare trimmed values so pre-existing rows
+	// with incidental whitespace still self-heal.
+	if !user.EmailVerified && oauthUserInfo.EmailVerified &&
+		oauthUserInfo.Email != "" &&
+		oauthUserInfo.Email == strings.TrimSpace(user.Email) {
+		user.EmailVerified = true
 		updated = true
 	}
 	if updated {
@@ -487,11 +524,22 @@ func (s *UserService) linkOAuthToExistingUser(
 		return nil, fmt.Errorf("failed to link OAuth: %w", err)
 	}
 
-	// Update user avatar if empty
+	// Update user avatar and email verification status.
+	// linkOAuthToExistingUser is only reached when the provider verified the
+	// email address (see AuthenticateWithOAuth), so we can safely promote the
+	// user's EmailVerified flag here.
+	updated := false
 	if user.AvatarURL == "" && oauthUserInfo.AvatarURL != "" {
 		user.AvatarURL = oauthUserInfo.AvatarURL
+		updated = true
+	}
+	if !user.EmailVerified && oauthUserInfo.EmailVerified {
+		user.EmailVerified = true
+		updated = true
+	}
+	if updated {
 		if err := s.store.UpdateUser(user); err != nil {
-			log.Printf("[OAuth] Failed to update user avatar: %v", err)
+			log.Printf("[OAuth] Failed to update user profile: %v", err)
 			// Continue with login even if update fails
 		}
 		s.InvalidateUserCache(user.ID)
@@ -525,20 +573,29 @@ func (s *UserService) createUserWithOAuth(
 	oauthUserInfo *auth.OAuthUserInfo,
 	token *oauth2.Token,
 ) (*models.User, error) {
+	// Defensive trim: AuthenticateWithOAuth normalizes upstream fields before
+	// reaching here, but this function is also callable directly (tests, future
+	// callers), so re-trim to keep stored rows and duplicate-email lookups
+	// consistent regardless of entry point.
+	email := strings.TrimSpace(oauthUserInfo.Email)
+	fullName := strings.TrimSpace(oauthUserInfo.FullName)
+	rawUsername := strings.TrimSpace(oauthUserInfo.Username)
+
 	// Generate unique username
-	username := s.generateUniqueUsername(oauthUserInfo.Username, provider)
+	username := s.generateUniqueUsername(rawUsername, provider)
 
 	// Create user (no password)
 	user := &models.User{
-		ID:           uuid.New().String(),
-		Username:     username,
-		Email:        oauthUserInfo.Email,
-		FullName:     oauthUserInfo.FullName,
-		AvatarURL:    oauthUserInfo.AvatarURL,
-		Role:         models.UserRoleUser,
-		AuthSource:   models.AuthSourceLocal,
-		IsActive:     true,
-		PasswordHash: "", // OAuth users have no password
+		ID:            uuid.New().String(),
+		Username:      username,
+		Email:         email,
+		FullName:      fullName,
+		AvatarURL:     oauthUserInfo.AvatarURL,
+		Role:          models.UserRoleUser,
+		AuthSource:    models.AuthSourceLocal,
+		IsActive:      true,
+		EmailVerified: oauthUserInfo.EmailVerified,
+		PasswordHash:  "", // OAuth users have no password
 	}
 
 	// Create OAuth connection
@@ -547,8 +604,8 @@ func (s *UserService) createUserWithOAuth(
 		UserID:           user.ID,
 		Provider:         provider,
 		ProviderUserID:   oauthUserInfo.ProviderUserID,
-		ProviderUsername: oauthUserInfo.Username,
-		ProviderEmail:    oauthUserInfo.Email,
+		ProviderUsername: rawUsername,
+		ProviderEmail:    email,
 		AvatarURL:        oauthUserInfo.AvatarURL,
 		AccessToken:      token.AccessToken,
 		RefreshToken:     token.RefreshToken,
@@ -560,7 +617,7 @@ func (s *UserService) createUserWithOAuth(
 	err := s.store.RunInTransaction(func(tx core.Store) error {
 		if err := tx.CreateUser(user); err != nil {
 			if errors.Is(err, gorm.ErrDuplicatedKey) {
-				return fmt.Errorf("email already in use: %s", oauthUserInfo.Email)
+				return fmt.Errorf("email already in use: %s", email)
 			}
 			return fmt.Errorf("failed to create user: %w", err)
 		}
@@ -702,6 +759,11 @@ func (s *UserService) UpdateUserProfile(
 		return err
 	}
 
+	// Normalize inputs to match CreateUserAdmin and keep accidental whitespace
+	// from clearing EmailVerified or masking no-op edits.
+	req.Email = strings.TrimSpace(req.Email)
+	req.FullName = strings.TrimSpace(req.FullName)
+
 	// Validate role
 	if req.Role != "" && req.Role != models.UserRoleAdmin && req.Role != models.UserRoleUser {
 		return ErrInvalidRole
@@ -717,7 +779,13 @@ func (s *UserService) UpdateUserProfile(
 		return ErrEmailRequired
 	}
 
-	// Check email conflict
+	// Run the uniqueness check whenever the stored raw value differs from
+	// the (already trimmed) input, even if the two agree after trimming.
+	// A pure normalization edit ("  a@b  " → "a@b") still rewrites the DB
+	// value; if another user already owns the trimmed form exactly, this
+	// would collide at the UNIQUE constraint — catch it here with a
+	// deterministic ErrEmailConflict instead of a raw DB error.
+	storedEmail := strings.TrimSpace(user.Email)
 	if req.Email != user.Email {
 		existing, lookupErr := s.store.GetUserByEmail(req.Email)
 		if lookupErr != nil {
@@ -744,6 +812,13 @@ func (s *UserService) UpdateUserProfile(
 
 	oldRole := user.Role
 	user.FullName = req.FullName
+	if req.Email != storedEmail {
+		// Admin edits do not verify the new address, so downgrade the claim
+		// until a trusted OAuth provider confirms it again.
+		user.EmailVerified = false
+	}
+	// Always persist the normalized email so legacy rows with incidental
+	// whitespace self-heal on the next admin edit.
 	user.Email = req.Email
 	if req.Role != "" {
 		user.Role = req.Role
@@ -980,7 +1055,10 @@ func (s *UserService) CreateUserAdmin(
 		return nil, "", fmt.Errorf("failed to check username uniqueness: %w", err)
 	}
 
-	// Check email uniqueness
+	// Check email uniqueness against the indexed exact value. Legacy
+	// whitespace-variant duplicates are not detected here by design —
+	// they'd show up for OAuth auto-link via FindUserByNormalizedEmail, but
+	// for admin creates a fast indexed check is the right trade-off.
 	if _, err := s.store.GetUserByEmail(req.Email); err == nil {
 		return nil, "", ErrEmailConflict
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1015,7 +1093,9 @@ func (s *UserService) CreateUserAdmin(
 
 	if err := s.store.CreateUser(user); err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			// Re-query to determine which unique constraint was violated (race condition).
+			// Re-query to determine which unique constraint was violated
+			// (race condition). An exact-email match means the email is
+			// the culprit; otherwise fall back to username conflict.
 			if _, emailErr := s.store.GetUserByEmail(req.Email); emailErr == nil {
 				return nil, "", ErrEmailConflict
 			}

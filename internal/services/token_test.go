@@ -932,6 +932,68 @@ func TestExchangeAuthorizationCode_IDToken_ContainsAtHash(t *testing.T) {
 		"at_hash in ID token must be the base64url-encoded left-half SHA-256 of the access token")
 }
 
+func TestExchangeAuthorizationCode_IDToken_EmailVerifiedMirrorsUser(t *testing.T) {
+	cases := []struct {
+		name     string
+		verified bool
+	}{
+		{name: "verified user", verified: true},
+		{name: "unverified user", verified: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := setupTestStore(t)
+			cfg := &config.Config{
+				JWTExpiration:          1 * time.Hour,
+				JWTSecret:              "test-secret",
+				BaseURL:                "http://localhost:8080",
+				EnableRefreshTokens:    true,
+				RefreshTokenExpiration: 30 * 24 * time.Hour,
+			}
+			tokenService := createTestTokenService(t, s, cfg)
+
+			client := createTestClient(t, s, true)
+			userID := uuid.New().String()
+			require.NoError(t, s.CreateUser(&models.User{
+				ID:            userID,
+				Username:      "verifieduser",
+				Email:         "verified@example.com",
+				FullName:      "Verified User",
+				EmailVerified: tc.verified,
+			}))
+
+			now := time.Now()
+			authCode := &models.AuthorizationCode{
+				UUID:          "test-uuid-" + uuid.New().String(),
+				CodeHash:      "hash-" + uuid.New().String(),
+				CodePrefix:    "testpfxv",
+				ApplicationID: client.ID,
+				ClientID:      client.ClientID,
+				UserID:        userID,
+				RedirectURI:   "https://app.example.com/callback",
+				Scopes:        "openid email",
+				ExpiresAt:     now.Add(10 * time.Minute),
+			}
+			require.NoError(t, s.CreateAuthorizationCode(authCode))
+
+			_, _, idToken, err := tokenService.ExchangeAuthorizationCode(
+				context.Background(),
+				authCode,
+				nil,
+			)
+			require.NoError(t, err)
+			require.NotEmpty(t, idToken)
+
+			localProvider, err := token.NewLocalTokenProvider(cfg)
+			require.NoError(t, err)
+			result, err := localProvider.ParseJWT(idToken)
+			require.NoError(t, err)
+			assert.Equal(t, tc.verified, result.Claims["email_verified"],
+				"email_verified claim must mirror User.EmailVerified")
+		})
+	}
+}
+
 // ============================================================
 // DisableToken / EnableToken — state transition checks
 // ============================================================

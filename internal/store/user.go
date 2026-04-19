@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/store/types"
@@ -44,6 +45,22 @@ func (s *Store) GetUserByExternalID(externalID, authSource string) (*models.User
 func (s *Store) UpsertExternalUser(
 	username, externalID, authSource, email, fullName string,
 ) (*models.User, error) {
+	// Normalize inputs so incidental whitespace from upstream providers does
+	// not pollute storage or spuriously downgrade EmailVerified on the next
+	// login. Matches the trimming performed by the admin create/update paths.
+	username = strings.TrimSpace(username)
+	externalID = strings.TrimSpace(externalID)
+	authSource = strings.TrimSpace(authSource)
+	email = strings.TrimSpace(email)
+	fullName = strings.TrimSpace(fullName)
+
+	// Username and the (externalID, authSource) lookup key are required on
+	// every call. A blank externalID would collapse unrelated external
+	// accounts onto whichever row it matched first, so reject early.
+	if username == "" || externalID == "" || authSource == "" {
+		return nil, ErrExternalUserMissingIdentity
+	}
+
 	var user models.User
 
 	// Try to find existing user by external ID
@@ -71,10 +88,24 @@ func (s *Store) UpsertExternalUser(
 			// Username available, continue with update
 		}
 
-		// Update user fields
 		user.Username = username
-		user.Email = email
-		user.FullName = fullName
+		// Only overwrite email/fullName when upstream actually provided a
+		// value — some external auth responses (e.g. HTTP API) return only
+		// username+external_id, and blanking the stored email would break
+		// the UNIQUE/NOT NULL constraint and wipe verification state.
+		if email != "" {
+			// An external system has no way to prove that the new email is
+			// verified, so downgrade whenever the stored email changes.
+			// Compare trimmed values so a legacy row with incidental
+			// whitespace does not look like a real change.
+			if strings.TrimSpace(user.Email) != email {
+				user.EmailVerified = false
+			}
+			user.Email = email
+		}
+		if fullName != "" {
+			user.FullName = fullName
+		}
 		if err := s.db.Save(&user).Error; err != nil {
 			return nil, fmt.Errorf("failed to update external user: %w", err)
 		}
@@ -84,6 +115,14 @@ func (s *Store) UpsertExternalUser(
 	// Handle query error
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("failed to query external user: %w", err)
+	}
+
+	// Email is required to create a new external user — it's a UNIQUE NOT NULL
+	// column, and blank rows would collide with each other. (The update branch
+	// above is intentionally lenient, since older rows already carry a valid
+	// email even when upstream omits it on subsequent logins.)
+	if email == "" {
+		return nil, ErrExternalUserMissingIdentity
 	}
 
 	// User doesn't exist - check if username is available
@@ -150,13 +189,56 @@ func (s *Store) GetUsersByIDs(userIDs []string) (map[string]*models.User, error)
 	return userMap, nil
 }
 
-// GetUserByEmail finds a user by email address
+// GetUserByEmail finds a user by the exact email address, using the UNIQUE
+// index on the column. The input is trimmed with strings.TrimSpace before
+// matching so callers can pass user-entered values safely, but the stored
+// side is not normalized — legacy rows whose stored email carries
+// incidental whitespace will NOT be found by this method. Callers that
+// must protect against ambiguous legacy duplicates (notably the OAuth
+// auto-link path) should use FindUserByNormalizedEmail instead; that path
+// pays for a non-indexed TRIM-based scan in exchange for whitespace
+// tolerance and ambiguity detection.
 func (s *Store) GetUserByEmail(email string) (*models.User, error) {
+	email = strings.TrimSpace(email)
+
 	var user models.User
 	if err := s.db.Where("email = ?", email).First(&user).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
+}
+
+// FindUserByNormalizedEmail looks up a user by email with whitespace-
+// tolerant matching on the stored side. When more than one row ties to
+// the normalized value, it returns ErrAmbiguousEmail instead of picking a
+// non-deterministic winner. Intended for the OAuth auto-link flow where
+// binding a verified provider to the wrong local user must be prevented.
+//
+// Performance: the lookup is a `TRIM(email) = ?` scan bounded by LIMIT 2,
+// which is NOT backed by the UNIQUE email index. Callers that do not need
+// whitespace tolerance (the common case — admin uniqueness checks, etc.)
+// should use GetUserByEmail instead.
+//
+// Known limitation: Go's strings.TrimSpace strips Unicode whitespace while
+// SQL TRIM() only removes ASCII spaces by default on SQLite and Postgres.
+// The write paths in this package trim on insert/update, so newly stored
+// rows stay free of both kinds; only pre-existing legacy rows containing
+// exotic whitespace (tabs, NBSP, …) would miss this lookup.
+func (s *Store) FindUserByNormalizedEmail(email string) (*models.User, error) {
+	email = strings.TrimSpace(email)
+
+	var matches []models.User
+	if err := s.db.Where("TRIM(email) = ?", email).Limit(2).Find(&matches).Error; err != nil {
+		return nil, err
+	}
+	switch len(matches) {
+	case 0:
+		return nil, gorm.ErrRecordNotFound
+	case 1:
+		return &matches[0], nil
+	default:
+		return nil, ErrAmbiguousEmail
+	}
 }
 
 // CreateUser creates a new user
