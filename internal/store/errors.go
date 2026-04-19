@@ -14,10 +14,11 @@ var (
 		"external user missing required identity field (username, external_id, auth_source, or email)",
 	)
 
-	// ErrAmbiguousEmail is returned when GetUserByEmail's whitespace-tolerant
-	// fallback lookup matches more than one row — a signal that legacy data
-	// contains duplicate emails differing only in whitespace, which must be
-	// deduped manually before the caller can proceed.
+	// ErrAmbiguousEmail is returned by FindUserByNormalizedEmail when more
+	// than one row matches the whitespace-normalized email — a signal that
+	// legacy data contains duplicates differing only in incidental
+	// whitespace, which must be deduped manually before the caller can
+	// proceed. GetUserByEmail (exact indexed match) never returns this.
 	ErrAmbiguousEmail = errors.New(
 		"multiple users match the normalized email; manual deduplication required",
 	)

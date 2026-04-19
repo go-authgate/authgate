@@ -1619,12 +1619,13 @@ func TestUpsertExternalUser_EmptyAuthSource_Rejects(t *testing.T) {
 	assert.ErrorIs(t, err, ErrExternalUserMissingIdentity)
 }
 
-// TestGetUserByEmail_ExactMatchPlusLegacyDuplicate_ReturnsError verifies that
-// even when a properly normalized row exists, the presence of any legacy
-// whitespace-variant duplicate still surfaces ErrAmbiguousEmail. The exact
-// match alone is not safe to return because the OAuth auto-link path would
-// otherwise silently pick it while another row owns the same logical email.
-func TestGetUserByEmail_ExactMatchPlusLegacyDuplicate_ReturnsError(t *testing.T) {
+// TestFindUserByNormalizedEmail_ExactMatchPlusLegacyDuplicate_ReturnsError
+// verifies that even when a properly normalized row exists, the presence of
+// any legacy whitespace-variant duplicate still surfaces ErrAmbiguousEmail.
+// The exact match alone is not safe to return because the OAuth auto-link
+// path would otherwise silently pick it while another row owns the same
+// logical email.
+func TestFindUserByNormalizedEmail_ExactMatchPlusLegacyDuplicate_ReturnsError(t *testing.T) {
 	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
@@ -1650,12 +1651,14 @@ func TestGetUserByEmail_ExactMatchPlusLegacyDuplicate_ReturnsError(t *testing.T)
 		"ambiguity must be surfaced even when an exact match exists alongside a legacy duplicate")
 }
 
-// TestGetUserByEmail_AmbiguousWhitespaceDuplicates_ReturnsError verifies that
-// when the TRIM fallback would match more than one legacy row the store
-// refuses to pick a non-deterministic winner and surfaces ErrAmbiguousEmail.
-// The OAuth auto-link path relies on this so it never links a verified
-// provider to the wrong local user.
-func TestGetUserByEmail_AmbiguousWhitespaceDuplicates_ReturnsError(t *testing.T) {
+// TestFindUserByNormalizedEmail_AmbiguousWhitespaceDuplicates_ReturnsError
+// verifies that when the TRIM-based lookup matches more than one legacy row
+// the store refuses to pick a non-deterministic winner and surfaces
+// ErrAmbiguousEmail. The OAuth auto-link path relies on this so it never
+// links a verified provider to the wrong local user.
+func TestFindUserByNormalizedEmail_AmbiguousWhitespaceDuplicates_ReturnsError(
+	t *testing.T,
+) {
 	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
@@ -1681,12 +1684,12 @@ func TestGetUserByEmail_AmbiguousWhitespaceDuplicates_ReturnsError(t *testing.T)
 		"ambiguous whitespace-variant duplicates must surface ErrAmbiguousEmail")
 }
 
-// TestGetUserByEmail_LegacyWhitespace_FallbackMatches verifies that a legacy
-// row whose stored Email contains incidental whitespace is still returned
-// when the caller looks it up with the trimmed address. Without the
-// TRIM-based fallback, the next OAuth login would miss this row and create
-// a duplicate account.
-func TestGetUserByEmail_LegacyWhitespace_FallbackMatches(t *testing.T) {
+// TestFindUserByNormalizedEmail_LegacyWhitespace_Matches verifies that a
+// legacy row whose stored Email contains incidental whitespace is still
+// returned when the caller looks it up with the trimmed address. Without
+// this whitespace-tolerant lookup, the next OAuth login would miss the row
+// and create a duplicate account.
+func TestFindUserByNormalizedEmail_LegacyWhitespace_Matches(t *testing.T) {
 	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
 	require.NoError(t, err)
 
