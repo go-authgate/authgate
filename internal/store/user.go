@@ -49,12 +49,15 @@ func (s *Store) UpsertExternalUser(
 	// not pollute storage or spuriously downgrade EmailVerified on the next
 	// login. Matches the trimming performed by the admin create/update paths.
 	username = strings.TrimSpace(username)
+	externalID = strings.TrimSpace(externalID)
+	authSource = strings.TrimSpace(authSource)
 	email = strings.TrimSpace(email)
 	fullName = strings.TrimSpace(fullName)
 
-	// Username is required as the primary identifier on every call; reject
-	// whitespace-only input before touching the DB.
-	if username == "" {
+	// Username and the (externalID, authSource) lookup key are required on
+	// every call. A blank externalID would collapse unrelated external
+	// accounts onto whichever row it matched first, so reject early.
+	if username == "" || externalID == "" || authSource == "" {
 		return nil, ErrExternalUserMissingIdentity
 	}
 
@@ -186,10 +189,26 @@ func (s *Store) GetUsersByIDs(userIDs []string) (map[string]*models.User, error)
 	return userMap, nil
 }
 
-// GetUserByEmail finds a user by email address
+// GetUserByEmail finds a user by email address. The lookup is resilient to
+// incidental whitespace on either side: the argument is trimmed, and if no
+// indexed exact match is found, a fallback scan on TRIM(email) lets callers
+// still locate legacy rows written before email normalization was enforced.
 func (s *Store) GetUserByEmail(email string) (*models.User, error) {
+	email = strings.TrimSpace(email)
+
 	var user models.User
-	if err := s.db.Where("email = ?", email).First(&user).Error; err != nil {
+	err := s.db.Where("email = ?", email).First(&user).Error
+	if err == nil {
+		return &user, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	// Fallback: legacy rows may have incidental whitespace in the stored
+	// value. This query bypasses the unique index but is only reached on a
+	// primary miss, so the cost stays bounded.
+	if err := s.db.Where("TRIM(email) = ?", email).First(&user).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil

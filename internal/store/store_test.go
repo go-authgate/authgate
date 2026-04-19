@@ -1585,6 +1585,66 @@ func TestUpsertExternalUser_EmptyUsername_Rejects(t *testing.T) {
 	assert.ErrorIs(t, err, ErrExternalUserMissingIdentity)
 }
 
+// TestUpsertExternalUser_EmptyExternalID_Rejects verifies that a
+// whitespace-only externalID is rejected — otherwise the (external_id,
+// auth_source) lookup key would collapse unrelated accounts onto the same
+// row.
+func TestUpsertExternalUser_EmptyExternalID_Rejects(t *testing.T) {
+	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
+	require.NoError(t, err)
+
+	_, err = store.UpsertExternalUser(
+		"someone",
+		"   ",
+		"http_api",
+		"someone@example.com",
+		"Someone",
+	)
+	assert.ErrorIs(t, err, ErrExternalUserMissingIdentity)
+}
+
+// TestUpsertExternalUser_EmptyAuthSource_Rejects verifies that an empty
+// authSource is rejected alongside the other identity fields.
+func TestUpsertExternalUser_EmptyAuthSource_Rejects(t *testing.T) {
+	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
+	require.NoError(t, err)
+
+	_, err = store.UpsertExternalUser(
+		"someone",
+		"ext-someone",
+		"   ",
+		"someone@example.com",
+		"Someone",
+	)
+	assert.ErrorIs(t, err, ErrExternalUserMissingIdentity)
+}
+
+// TestGetUserByEmail_LegacyWhitespace_FallbackMatches verifies that a legacy
+// row whose stored Email contains incidental whitespace is still returned
+// when the caller looks it up with the trimmed address. Without the
+// TRIM-based fallback, the next OAuth login would miss this row and create
+// a duplicate account.
+func TestGetUserByEmail_LegacyWhitespace_FallbackMatches(t *testing.T) {
+	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
+	require.NoError(t, err)
+
+	legacy := &models.User{
+		ID:           uuid.New().String(),
+		Username:     "legacy-email",
+		Email:        "  legacy@example.com  ",
+		PasswordHash: "",
+		Role:         models.UserRoleUser,
+		IsActive:     true,
+		AuthSource:   "http_api",
+	}
+	require.NoError(t, store.CreateUser(legacy))
+
+	got, err := store.GetUserByEmail("legacy@example.com")
+	require.NoError(t, err)
+	assert.Equal(t, legacy.ID, got.ID,
+		"GetUserByEmail must fall back to TRIM(email) to locate legacy rows")
+}
+
 // TestUpsertExternalUser_EmailUnchanged_PreservesEmailVerified verifies that
 // EmailVerified is preserved when the external sync keeps the same email.
 func TestUpsertExternalUser_EmailUnchanged_PreservesEmailVerified(t *testing.T) {
