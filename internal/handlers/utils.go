@@ -77,7 +77,7 @@ func clientToDisplay(app *models.OAuthApplication) *templates.ClientDisplay {
 		UserID:                      app.UserID,
 		Scopes:                      app.Scopes,
 		GrantTypes:                  app.GrantTypes,
-		RedirectURIs:                app.RedirectURIs.Join("\n"),
+		RedirectURIs:                app.RedirectURIs.Join(", "),
 		ClientType:                  app.ClientType,
 		EnableDeviceFlow:            app.EnableDeviceFlow,
 		EnableAuthCodeFlow:          app.EnableAuthCodeFlow,

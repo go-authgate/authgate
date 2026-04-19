@@ -26,10 +26,7 @@ func NewClientHandler(
 }
 
 func parseRedirectURIs(input string) []string {
-	if strings.TrimSpace(input) == "" {
-		return nil
-	}
-	var redirectURIs []string
+	redirectURIs := make([]string, 0)
 	for _, uri := range strings.FieldsFunc(input, func(r rune) bool {
 		return r == ',' || r == '\n' || r == '\r'
 	}) {
