@@ -454,7 +454,7 @@ templ clientRedirectURIPickerScript() {
 			}
 
 			function addMany(text) {
-				text.split(/[\s,]+/).forEach(function (u) {
+				text.split(/[,\r\n]+/).forEach(function (u) {
 					if (u) { addURI(u); }
 				});
 			}
@@ -472,7 +472,7 @@ templ clientRedirectURIPickerScript() {
 			function init() {
 				var v = hiddenInput.value;
 				if (v && v.trim()) {
-					v.split(/[\s,]+/).forEach(function (u) {
+					v.split(/[,\r\n]+/).forEach(function (u) {
 						u = u.trim();
 						if (u && selected.indexOf(u) === -1) { selected.push(u); }
 					});
