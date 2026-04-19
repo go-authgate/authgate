@@ -63,6 +63,7 @@ func (s *TokenService) ExchangeDeviceCode(
 		UserID:   dc.UserID,
 		ClientID: dc.ClientID,
 		Scopes:   dc.Scopes,
+		Client:   client,
 	})
 	if err != nil {
 		return nil, nil, err

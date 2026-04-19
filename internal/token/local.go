@@ -276,14 +276,22 @@ func (p *LocalTokenProvider) keyFunc(token *jwt.Token) (any, error) {
 	return p.verifyKey, nil
 }
 
-// GenerateToken creates a JWT token using local signing
+// GenerateToken creates a JWT access token using local signing.
+// If ttl > 0 it overrides p.config.JWTExpiration and no jitter is applied
+// (the caller has chosen an explicit lifetime per client profile).
 func (p *LocalTokenProvider) GenerateToken(
 	ctx context.Context,
 	userID, clientID, scopes string,
+	ttl time.Duration,
 ) (*Result, error) {
-	expiry := p.config.JWTExpiration
-	if p.config.JWTExpirationJitter > 0 {
-		expiry += time.Duration(rand.Int64N(int64(p.config.JWTExpirationJitter)))
+	var expiry time.Duration
+	if ttl > 0 {
+		expiry = ttl
+	} else {
+		expiry = p.config.JWTExpiration
+		if p.config.JWTExpirationJitter > 0 {
+			expiry += time.Duration(rand.Int64N(int64(p.config.JWTExpirationJitter)))
+		}
 	}
 	expiresAt := time.Now().Add(expiry)
 	return p.generateJWT(userID, clientID, scopes, TokenCategoryAccess, expiresAt)
@@ -313,23 +321,34 @@ func (p *LocalTokenProvider) Name() string {
 	return "local"
 }
 
-// GenerateClientCredentialsToken creates an access token for the client_credentials grant
-// using its own configurable expiry (CLIENT_CREDENTIALS_TOKEN_EXPIRATION).
+// GenerateClientCredentialsToken creates an access token for the client_credentials grant.
+// If ttl > 0 it overrides the default CLIENT_CREDENTIALS_TOKEN_EXPIRATION.
 // The userID field carries the synthetic machine identity "client:<clientID>".
 func (p *LocalTokenProvider) GenerateClientCredentialsToken(
 	ctx context.Context,
 	userID, clientID, scopes string,
+	ttl time.Duration,
 ) (*Result, error) {
-	expiresAt := time.Now().Add(p.config.ClientCredentialsTokenExpiration)
+	expiry := ttl
+	if expiry <= 0 {
+		expiry = p.config.ClientCredentialsTokenExpiration
+	}
+	expiresAt := time.Now().Add(expiry)
 	return p.generateJWT(userID, clientID, scopes, TokenCategoryAccess, expiresAt)
 }
 
-// GenerateRefreshToken creates a refresh token JWT with longer expiration
+// GenerateRefreshToken creates a refresh token JWT. If ttl > 0 it overrides
+// the default REFRESH_TOKEN_EXPIRATION.
 func (p *LocalTokenProvider) GenerateRefreshToken(
 	ctx context.Context,
 	userID, clientID, scopes string,
+	ttl time.Duration,
 ) (*Result, error) {
-	expiresAt := time.Now().Add(p.config.RefreshTokenExpiration)
+	expiry := ttl
+	if expiry <= 0 {
+		expiry = p.config.RefreshTokenExpiration
+	}
+	expiresAt := time.Now().Add(expiry)
 	return p.generateJWT(userID, clientID, scopes, TokenCategoryRefresh, expiresAt)
 }
 
@@ -355,10 +374,14 @@ func (p *LocalTokenProvider) ValidateRefreshToken(
 	return result, nil
 }
 
-// RefreshAccessToken generates new access token (and optionally new refresh token in rotation mode)
+// RefreshAccessToken generates new access token (and optionally new refresh token in rotation mode).
+// accessTTL and refreshTTL override the default expirations when > 0, allowing
+// the caller (TokenService) to apply the client's current TokenProfile at
+// refresh time rather than reusing the TTL the original tokens were issued with.
 func (p *LocalTokenProvider) RefreshAccessToken(
 	ctx context.Context,
 	refreshToken string,
+	accessTTL, refreshTTL time.Duration,
 ) (*RefreshResult, error) {
 	enableRotation := p.config.EnableTokenRotation
 	// Validate the refresh token
@@ -373,6 +396,7 @@ func (p *LocalTokenProvider) RefreshAccessToken(
 		validationResult.UserID,
 		validationResult.ClientID,
 		validationResult.Scopes,
+		accessTTL,
 	)
 	if err != nil {
 		return nil, err
@@ -391,6 +415,7 @@ func (p *LocalTokenProvider) RefreshAccessToken(
 			validationResult.UserID,
 			validationResult.ClientID,
 			validationResult.Scopes,
+			refreshTTL,
 		)
 		if err != nil {
 			return nil, err

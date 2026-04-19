@@ -68,11 +68,15 @@ func (s *TokenService) IssueClientCredentialsToken(
 	start := time.Now()
 	machineUserID := "client:" + clientID
 
+	// Reuse the client loaded above via GetClientWithSecret rather than letting
+	// resolveClientTTL trigger a second cached lookup.
+	ccTTL, _ := s.ttlForClient(client)
 	accessTokenResult, providerErr := s.tokenProvider.GenerateClientCredentialsToken(
 		ctx,
 		machineUserID,
 		clientID,
 		effectiveScopes,
+		ccTTL,
 	)
 	if providerErr != nil {
 		log.Printf(

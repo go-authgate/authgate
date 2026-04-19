@@ -56,19 +56,32 @@ type TokenRefreshResult struct {
 }
 
 // TokenProvider is the interface that token-generation backends must implement.
+// A ttl of 0 on any Generate* method means "use the provider's default expiry"
+// (typically derived from config). A non-zero ttl overrides the default and
+// disables any jitter the provider would normally apply.
 type TokenProvider interface {
-	GenerateToken(ctx context.Context, userID, clientID, scopes string) (*TokenResult, error)
-	GenerateRefreshToken(ctx context.Context, userID, clientID, scopes string) (*TokenResult, error)
+	GenerateToken(
+		ctx context.Context,
+		userID, clientID, scopes string,
+		ttl time.Duration,
+	) (*TokenResult, error)
+	GenerateRefreshToken(
+		ctx context.Context,
+		userID, clientID, scopes string,
+		ttl time.Duration,
+	) (*TokenResult, error)
 	// GenerateClientCredentialsToken generates a token for the client_credentials grant.
 	// May apply a different expiry or claim set than GenerateToken.
 	GenerateClientCredentialsToken(
 		ctx context.Context,
 		userID, clientID, scopes string,
+		ttl time.Duration,
 	) (*TokenResult, error)
 	ValidateToken(ctx context.Context, tokenString string) (*TokenValidationResult, error)
 	RefreshAccessToken(
 		ctx context.Context,
 		refreshToken string,
+		accessTTL, refreshTTL time.Duration,
 	) (*TokenRefreshResult, error)
 	Name() string
 }

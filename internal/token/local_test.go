@@ -72,6 +72,7 @@ func TestLocalTokenProvider_GenerateToken(t *testing.T) {
 		"user123",
 		"client456",
 		"read write",
+		0,
 	)
 
 	require.NoError(t, err)
@@ -99,6 +100,7 @@ func TestLocalTokenProvider_ValidateToken_Success(t *testing.T) {
 		"user123",
 		"client456",
 		"read write",
+		0,
 	)
 	require.NoError(t, err)
 
@@ -150,6 +152,7 @@ func TestLocalTokenProvider_ValidateToken_WrongSecret(t *testing.T) {
 		"user123",
 		"client456",
 		"read write",
+		0,
 	)
 	require.NoError(t, err)
 
@@ -185,6 +188,7 @@ func TestLocalTokenProvider_ValidateToken_ExpiredToken(t *testing.T) {
 		"user123",
 		"client456",
 		"read write",
+		0,
 	)
 	require.NoError(t, err)
 
@@ -238,6 +242,7 @@ func TestLocalTokenProvider_GenerateToken_VariousExpirations(t *testing.T) {
 				"user123",
 				"client456",
 				"read",
+				0,
 			)
 
 			require.NoError(t, err)
@@ -245,6 +250,44 @@ func TestLocalTokenProvider_GenerateToken_VariousExpirations(t *testing.T) {
 			assert.WithinDuration(t, expectedExpiry, result.ExpiresAt, 1*time.Second)
 		})
 	}
+}
+
+// An explicit ttl > 0 must override the config default and skip jitter so that
+// per-client TokenProfile values are honored exactly.
+func TestLocalTokenProvider_GenerateToken_TTLOverride(t *testing.T) {
+	cfg := &config.Config{
+		JWTSecret:           "test-secret-that-is-at-least-32b",
+		JWTExpiration:       10 * time.Hour,   // config default
+		JWTExpirationJitter: 30 * time.Minute, // jitter only applies to default
+		BaseURL:             "http://localhost:8080",
+	}
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
+
+	// Explicit 15-minute TTL must be applied verbatim (no jitter, no config).
+	result, err := provider.GenerateToken(
+		context.Background(), "u", "c", "s", 15*time.Minute,
+	)
+	require.NoError(t, err)
+	expected := time.Now().Add(15 * time.Minute)
+	assert.WithinDuration(t, expected, result.ExpiresAt, 2*time.Second)
+}
+
+func TestLocalTokenProvider_GenerateRefreshToken_TTLOverride(t *testing.T) {
+	cfg := &config.Config{
+		JWTSecret:              "test-secret-that-is-at-least-32b",
+		JWTExpiration:          time.Hour,
+		RefreshTokenExpiration: 720 * time.Hour,
+		BaseURL:                "http://localhost:8080",
+	}
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
+
+	result, err := provider.GenerateRefreshToken(
+		context.Background(), "u", "c", "s", 24*time.Hour,
+	)
+	require.NoError(t, err)
+	assert.WithinDuration(t, time.Now().Add(24*time.Hour), result.ExpiresAt, 2*time.Second)
 }
 
 // ============================================================
@@ -263,7 +306,7 @@ func TestValidateToken_RejectsRefreshToken(t *testing.T) {
 
 	// Generate a refresh token
 	refreshResult, err := provider.GenerateRefreshToken(
-		context.Background(), "user1", "client1", "read",
+		context.Background(), "user1", "client1", "read", 0,
 	)
 	require.NoError(t, err)
 
@@ -313,7 +356,7 @@ func TestValidateRefreshToken_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	genResult, err := provider.GenerateRefreshToken(
-		context.Background(), "user1", "client1", "read write",
+		context.Background(), "user1", "client1", "read write", 0,
 	)
 	require.NoError(t, err)
 
@@ -339,7 +382,7 @@ func TestValidateRefreshToken_RejectsAccessToken(t *testing.T) {
 
 	// Generate an access token
 	accessResult, err := provider.GenerateToken(
-		context.Background(), "user1", "client1", "read",
+		context.Background(), "user1", "client1", "read", 0,
 	)
 	require.NoError(t, err)
 
@@ -363,7 +406,7 @@ func TestValidateRefreshToken_ExpiredReturnsRefreshError(t *testing.T) {
 	require.NoError(t, err)
 
 	genResult, err := provider.GenerateRefreshToken(
-		context.Background(), "user1", "client1", "read",
+		context.Background(), "user1", "client1", "read", 0,
 	)
 	require.NoError(t, err)
 
@@ -656,7 +699,7 @@ func TestLocalTokenProvider_RS256_GenerateAndValidate(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read write")
+	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read write", 0)
 	require.NoError(t, err)
 	assert.NotEmpty(t, result.TokenString)
 
@@ -683,7 +726,7 @@ func TestLocalTokenProvider_ES256_GenerateAndValidate(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	result, err := provider.GenerateToken(context.Background(), "user2", "client2", "email")
+	result, err := provider.GenerateToken(context.Background(), "user2", "client2", "email", 0)
 	require.NoError(t, err)
 	assert.NotEmpty(t, result.TokenString)
 
@@ -734,14 +777,14 @@ func TestLocalTokenProvider_HS256_BackwardCompatible(t *testing.T) {
 	require.NoError(t, err)
 
 	// Access token
-	result, err := provider.GenerateToken(context.Background(), "u1", "c1", "r")
+	result, err := provider.GenerateToken(context.Background(), "u1", "c1", "r", 0)
 	require.NoError(t, err)
 	valResult, err := provider.ValidateToken(context.Background(), result.TokenString)
 	require.NoError(t, err)
 	assert.True(t, valResult.Valid)
 
 	// Refresh token
-	refreshResult, err := provider.GenerateRefreshToken(context.Background(), "u1", "c1", "r")
+	refreshResult, err := provider.GenerateRefreshToken(context.Background(), "u1", "c1", "r", 0)
 	require.NoError(t, err)
 	refreshVal, err := provider.ValidateRefreshToken(
 		context.Background(),
@@ -775,7 +818,7 @@ func TestLocalTokenProvider_KidHeader(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read")
+	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read", 0)
 	require.NoError(t, err)
 
 	// Parse the raw JWT to inspect header
@@ -795,7 +838,7 @@ func TestLocalTokenProvider_HS256_NoKidHeader(t *testing.T) {
 	provider, err := NewLocalTokenProvider(cfg)
 	require.NoError(t, err)
 
-	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read")
+	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read", 0)
 	require.NoError(t, err)
 
 	parser := jwt.NewParser()
@@ -824,7 +867,7 @@ func TestLocalTokenProvider_RS256_CrossValidationFails(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	result, err := provider1.GenerateToken(context.Background(), "u", "c", "r")
+	result, err := provider1.GenerateToken(context.Background(), "u", "c", "r", 0)
 	require.NoError(t, err)
 
 	_, err = provider2.ValidateToken(context.Background(), result.TokenString)
@@ -846,7 +889,7 @@ func TestLocalTokenProvider_RS256_RefreshToken(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	refreshResult, err := provider.GenerateRefreshToken(context.Background(), "u1", "c1", "r")
+	refreshResult, err := provider.GenerateRefreshToken(context.Background(), "u1", "c1", "r", 0)
 	require.NoError(t, err)
 
 	valResult, err := provider.ValidateRefreshToken(context.Background(), refreshResult.TokenString)
@@ -855,7 +898,12 @@ func TestLocalTokenProvider_RS256_RefreshToken(t *testing.T) {
 	assert.Equal(t, "u1", valResult.UserID)
 
 	// RefreshAccessToken
-	refreshed, err := provider.RefreshAccessToken(context.Background(), refreshResult.TokenString)
+	refreshed, err := provider.RefreshAccessToken(
+		context.Background(),
+		refreshResult.TokenString,
+		0,
+		0,
+	)
 	require.NoError(t, err)
 	assert.NotNil(t, refreshed.AccessToken)
 	assert.NotNil(t, refreshed.RefreshToken, "rotation mode should produce new refresh token")
@@ -985,7 +1033,7 @@ func TestGenerateToken_WithJitter(t *testing.T) {
 
 	var expirations []time.Time
 	for range 20 {
-		result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read")
+		result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read", 0)
 		require.NoError(t, err)
 		assert.True(t, result.ExpiresAt.After(minExpiry) || result.ExpiresAt.Equal(minExpiry),
 			"ExpiresAt %v should be >= %v", result.ExpiresAt, minExpiry)
@@ -1015,7 +1063,7 @@ func TestGenerateToken_WithoutJitter(t *testing.T) {
 	provider, err := NewLocalTokenProvider(cfg)
 	require.NoError(t, err)
 
-	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read")
+	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read", 0)
 	require.NoError(t, err)
 	assert.WithinDuration(t, time.Now().Add(1*time.Hour), result.ExpiresAt, 5*time.Second)
 }
@@ -1031,7 +1079,13 @@ func TestGenerateRefreshToken_NotAffectedByJitter(t *testing.T) {
 	provider, err := NewLocalTokenProvider(cfg)
 	require.NoError(t, err)
 
-	result, err := provider.GenerateRefreshToken(context.Background(), "user1", "client1", "read")
+	result, err := provider.GenerateRefreshToken(
+		context.Background(),
+		"user1",
+		"client1",
+		"read",
+		0,
+	)
 	require.NoError(t, err)
 	// Refresh token should use RefreshTokenExpiration, not affected by JWTExpirationJitter
 	assert.WithinDuration(t, time.Now().Add(720*time.Hour), result.ExpiresAt, 5*time.Second)

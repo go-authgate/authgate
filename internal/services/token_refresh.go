@@ -116,10 +116,16 @@ func (s *TokenService) RefreshAccessToken(
 		return nil, nil, token.ErrInvalidScope
 	}
 
-	// 6. Use provider to generate new tokens
+	// 6. Use provider to generate new tokens.
+	// Re-resolve TTLs at refresh time so that admin changes to the client's
+	// TokenProfile take effect immediately on the next refresh rather than
+	// being pinned to the TTL used when the original refresh token was issued.
+	accessTTL, refreshTTL := s.resolveClientTTL(ctx, refreshToken.ClientID)
 	refreshResult, providerErr := s.tokenProvider.RefreshAccessToken(
 		ctx,
 		refreshTokenString,
+		accessTTL,
+		refreshTTL,
 	)
 	if providerErr != nil {
 		log.Printf("[Token] Refresh failed provider=%s: %v", s.tokenProvider.Name(), providerErr)

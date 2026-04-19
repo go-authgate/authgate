@@ -252,3 +252,24 @@ func TestOAuthApplication_IsActive(t *testing.T) {
 		})
 	}
 }
+
+func TestIsValidTokenProfile(t *testing.T) {
+	tests := []struct {
+		in   string
+		want bool
+	}{
+		{in: TokenProfileShort, want: true},
+		{in: TokenProfileStandard, want: true},
+		{in: TokenProfileLong, want: true},
+		{in: "", want: false},
+		{in: "SHORT", want: false}, // case-sensitive
+		{in: "custom", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			if got := IsValidTokenProfile(tt.in); got != tt.want {
+				t.Errorf("IsValidTokenProfile(%q) = %v, want %v", tt.in, got, tt.want)
+			}
+		})
+	}
+}

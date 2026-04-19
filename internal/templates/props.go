@@ -158,6 +158,7 @@ type ClientDisplay struct {
 	EnableAuthCodeFlow          bool
 	EnableClientCredentialsFlow bool
 	Status                      string // "pending", "active", "inactive"
+	TokenProfile                string // "short", "standard", or "long"
 	CreatedAt                   time.Time
 	UpdatedAt                   time.Time
 }

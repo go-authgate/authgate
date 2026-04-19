@@ -109,6 +109,7 @@ In addition to Device Code Flow, AuthGate supports Authorization Code Flow with 
 
 - `OAuthApplication` - Supports both Device Flow and Auth Code Flow with per-client toggles (`EnableDeviceFlow`, `EnableAuthCodeFlow`)
 - `OAuthApplication.ClientType` - "confidential" (with secret) or "public" (PKCE only)
+- `OAuthApplication.TokenProfile` - Per-client token lifetime preset: `short` (15min / 1d), `standard` (default, 10h / 30d), or `long` (24h / 90d). Preset TTLs are defined in `config.TokenProfiles` and overridable via `TOKEN_PROFILE_*` env vars; hard caps are enforced via `JWT_EXPIRATION_MAX` / `REFRESH_TOKEN_EXPIRATION_MAX`. Changes to a client's profile take effect on the next token issuance and refresh.
 - `UserAuthorization` - Per-app consent grants (one record per user+app pair)
 - `AccessToken` - Unified storage for both access and refresh tokens (distinguished by `token_category` field)
 - `User.IsActive` - Boolean (default `true`) controlling whether a user may log in. Disabling revokes all of the user's tokens and `RequireAuth` clears any live session on the next request. Guards prevent self-disable and disabling the last *active* admin.

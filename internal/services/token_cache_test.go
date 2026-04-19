@@ -68,7 +68,7 @@ func TestValidateToken_CacheHit(t *testing.T) {
 	ctx := context.Background()
 
 	// Generate a real JWT token
-	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read")
+	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read", 0)
 	require.NoError(t, err)
 
 	// Store token in DB
@@ -105,7 +105,7 @@ func TestValidateToken_CacheInvalidatedOnRevoke(t *testing.T) {
 	ctx := context.Background()
 
 	// Generate a real JWT token
-	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read")
+	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read", 0)
 	require.NoError(t, err)
 
 	// Store token in DB
@@ -145,7 +145,7 @@ func TestValidateToken_CacheInvalidatedOnDisable(t *testing.T) {
 	ctx := context.Background()
 
 	// Generate a real JWT token
-	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read")
+	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read", 0)
 	require.NoError(t, err)
 
 	// Store token in DB
@@ -201,7 +201,7 @@ func TestValidateToken_NoopCache(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read")
+	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read", 0)
 	require.NoError(t, err)
 
 	tok := &models.AccessToken{
@@ -232,7 +232,7 @@ func TestValidateToken_CacheExpiredTokenRejected(t *testing.T) {
 	ctx := context.Background()
 
 	// Generate a real JWT token
-	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read")
+	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read", 0)
 	require.NoError(t, err)
 
 	// Store token with past expiration
@@ -260,7 +260,7 @@ func TestRevokeTokenByStatus_CacheInvalidated(t *testing.T) {
 	ctx := context.Background()
 
 	// Generate a real JWT token
-	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read")
+	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read", 0)
 	require.NoError(t, err)
 
 	// Store token in DB
@@ -300,7 +300,7 @@ func TestRevokeTokenByID_CacheInvalidated(t *testing.T) {
 	ctx := context.Background()
 
 	// Generate a real JWT token
-	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read")
+	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read", 0)
 	require.NoError(t, err)
 
 	// Store token in DB
@@ -340,7 +340,7 @@ func TestEnableToken_CacheInvalidated(t *testing.T) {
 	ctx := context.Background()
 
 	// Generate a real JWT token
-	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read")
+	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read", 0)
 	require.NoError(t, err)
 
 	// Store token in DB
@@ -382,9 +382,9 @@ func TestRevokeAllUserTokens_CacheInvalidated(t *testing.T) {
 	userID := "test-user-bulk"
 
 	// Generate two tokens for the same user
-	result1, err := svc.tokenProvider.GenerateToken(ctx, userID, "client-1", "read")
+	result1, err := svc.tokenProvider.GenerateToken(ctx, userID, "client-1", "read", 0)
 	require.NoError(t, err)
-	result2, err := svc.tokenProvider.GenerateToken(ctx, userID, "client-2", "write")
+	result2, err := svc.tokenProvider.GenerateToken(ctx, userID, "client-2", "write", 0)
 	require.NoError(t, err)
 
 	tok1 := &models.AccessToken{

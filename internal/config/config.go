@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-authgate/authgate/internal/models"
+
 	"github.com/joho/godotenv"
 )
 
@@ -35,6 +37,14 @@ const (
 	AlgRS256 = "RS256"
 	AlgES256 = "ES256"
 )
+
+// TokenProfile defines the access and refresh token lifetimes for a named preset.
+// Clients reference a profile by name via OAuthApplication.TokenProfile (see
+// models.TokenProfile* constants) and the TTL is resolved at token issuance.
+type TokenProfile struct {
+	AccessTokenTTL  time.Duration
+	RefreshTokenTTL time.Duration
+}
 
 type Config struct {
 	// Server settings
@@ -99,6 +109,17 @@ type Config struct {
 	RefreshTokenExpiration time.Duration // Refresh token lifetime (default: 720h = 30 days)
 	EnableRefreshTokens    bool          // Feature flag to enable/disable refresh tokens (default: true)
 	EnableTokenRotation    bool          // Enable token rotation mode (default: false, fixed mode)
+
+	// Token lifetime hard caps. Any TokenProfile value that exceeds these is rejected
+	// during Validate(). Prevents a misconfigured profile from silently extending token
+	// lifetime far beyond the security intent.
+	JWTExpirationMax          time.Duration // env: JWT_EXPIRATION_MAX (default: 24h)
+	RefreshTokenExpirationMax time.Duration // env: REFRESH_TOKEN_EXPIRATION_MAX (default: 2160h / 90d)
+
+	// TokenProfiles maps a profile name ("short" / "standard" / "long") to its TTLs.
+	// Populated in Load() from the TOKEN_PROFILE_*_ACCESS_TTL / TOKEN_PROFILE_*_REFRESH_TTL env
+	// vars; the "standard" profile falls back to JWTExpiration / RefreshTokenExpiration.
+	TokenProfiles map[string]TokenProfile
 
 	// Client Credentials Flow settings (RFC 6749 §4.4)
 	ClientCredentialsTokenExpiration time.Duration // Access token lifetime for client_credentials grant (default: 1h, same as JWTExpiration)
@@ -251,6 +272,31 @@ func Load() *Config {
 		dsn = getEnv("DATABASE_DSN", "")
 	}
 
+	// Resolve base JWT settings first — the "standard" profile inherits these,
+	// so the map must be built after the values are known.
+	jwtExpiration := getEnvDuration("JWT_EXPIRATION", 10*time.Hour)
+	refreshTokenExpiration := getEnvDuration("REFRESH_TOKEN_EXPIRATION", 720*time.Hour)
+	tokenProfiles := map[string]TokenProfile{
+		models.TokenProfileShort: {
+			AccessTokenTTL:  getEnvDuration("TOKEN_PROFILE_SHORT_ACCESS_TTL", 15*time.Minute),
+			RefreshTokenTTL: getEnvDuration("TOKEN_PROFILE_SHORT_REFRESH_TTL", 24*time.Hour),
+		},
+		models.TokenProfileStandard: {
+			AccessTokenTTL: getEnvDuration("TOKEN_PROFILE_STANDARD_ACCESS_TTL", jwtExpiration),
+			RefreshTokenTTL: getEnvDuration(
+				"TOKEN_PROFILE_STANDARD_REFRESH_TTL",
+				refreshTokenExpiration,
+			),
+		},
+		models.TokenProfileLong: {
+			AccessTokenTTL: getEnvDuration("TOKEN_PROFILE_LONG_ACCESS_TTL", 24*time.Hour),
+			RefreshTokenTTL: getEnvDuration(
+				"TOKEN_PROFILE_LONG_REFRESH_TTL",
+				2160*time.Hour,
+			), // 90 days
+		},
+	}
+
 	return &Config{
 		ServerAddr:  getEnv("SERVER_ADDR", ":8080"),
 		BaseURL:     getEnv("BASE_URL", "http://localhost:8080"),
@@ -259,7 +305,7 @@ func Load() *Config {
 		IsProduction: getEnvBool("ENVIRONMENT", false) ||
 			getEnv("ENVIRONMENT", "") == "production",
 		JWTSecret:           getEnv("JWT_SECRET", "your-256-bit-secret-change-in-production"),
-		JWTExpiration:       getEnvDuration("JWT_EXPIRATION", 10*time.Hour),
+		JWTExpiration:       jwtExpiration,
 		JWTSigningAlgorithm: getEnv("JWT_SIGNING_ALGORITHM", AlgHS256),
 		JWTPrivateKeyPath:   getEnv("JWT_PRIVATE_KEY_PATH", ""),
 		JWTKeyID:            getEnv("JWT_KEY_ID", ""),
@@ -302,12 +348,12 @@ func Load() *Config {
 		HTTPAPIMaxRetryDelay:      getEnvDuration("HTTP_API_MAX_RETRY_DELAY", 10*time.Second),
 
 		// Refresh Token settings
-		RefreshTokenExpiration: getEnvDuration(
-			"REFRESH_TOKEN_EXPIRATION",
-			720*time.Hour,
-		), // 30 days
-		EnableRefreshTokens: getEnvBool("ENABLE_REFRESH_TOKENS", true),
-		EnableTokenRotation: getEnvBool("ENABLE_TOKEN_ROTATION", false),
+		RefreshTokenExpiration:    refreshTokenExpiration,
+		EnableRefreshTokens:       getEnvBool("ENABLE_REFRESH_TOKENS", true),
+		EnableTokenRotation:       getEnvBool("ENABLE_TOKEN_ROTATION", false),
+		JWTExpirationMax:          getEnvDuration("JWT_EXPIRATION_MAX", 24*time.Hour),
+		RefreshTokenExpirationMax: getEnvDuration("REFRESH_TOKEN_EXPIRATION_MAX", 2160*time.Hour),
+		TokenProfiles:             tokenProfiles,
 
 		// Client Credentials Flow settings
 		ClientCredentialsTokenExpiration: getEnvDuration(
@@ -680,5 +726,67 @@ func (c *Config) Validate() error {
 		)
 	}
 
+	return c.validateTokenProfiles()
+}
+
+// validateTokenProfiles checks that every profile has positive TTLs and that
+// no profile's TTL exceeds the configured hard caps (JWT_EXPIRATION_MAX /
+// REFRESH_TOKEN_EXPIRATION_MAX). The standard / short / long profiles must all
+// be present. When TokenProfiles and both caps are left at their zero values
+// (e.g. a hand-built *Config used in an ad-hoc unit test) validation is
+// skipped — Load() always populates these, so this gate only affects real
+// startup, not consumers who only care about unrelated fields.
+func (c *Config) validateTokenProfiles() error {
+	if len(c.TokenProfiles) == 0 && c.JWTExpirationMax == 0 && c.RefreshTokenExpirationMax == 0 {
+		return nil
+	}
+	if c.JWTExpirationMax <= 0 {
+		return fmt.Errorf(
+			"JWT_EXPIRATION_MAX must be a positive duration (got %s)",
+			c.JWTExpirationMax,
+		)
+	}
+	if c.RefreshTokenExpirationMax <= 0 {
+		return fmt.Errorf(
+			"REFRESH_TOKEN_EXPIRATION_MAX must be a positive duration (got %s)",
+			c.RefreshTokenExpirationMax,
+		)
+	}
+
+	requiredProfiles := []string{
+		models.TokenProfileShort,
+		models.TokenProfileStandard,
+		models.TokenProfileLong,
+	}
+	for _, name := range requiredProfiles {
+		profile, ok := c.TokenProfiles[name]
+		if !ok {
+			return fmt.Errorf("token profile %q is missing from TokenProfiles", name)
+		}
+		if profile.AccessTokenTTL <= 0 {
+			return fmt.Errorf(
+				"token profile %q access TTL must be a positive duration (got %s)",
+				name, profile.AccessTokenTTL,
+			)
+		}
+		if profile.RefreshTokenTTL <= 0 {
+			return fmt.Errorf(
+				"token profile %q refresh TTL must be a positive duration (got %s)",
+				name, profile.RefreshTokenTTL,
+			)
+		}
+		if profile.AccessTokenTTL > c.JWTExpirationMax {
+			return fmt.Errorf(
+				"token profile %q access TTL %s exceeds JWT_EXPIRATION_MAX %s",
+				name, profile.AccessTokenTTL, c.JWTExpirationMax,
+			)
+		}
+		if profile.RefreshTokenTTL > c.RefreshTokenExpirationMax {
+			return fmt.Errorf(
+				"token profile %q refresh TTL %s exceeds REFRESH_TOKEN_EXPIRATION_MAX %s",
+				name, profile.RefreshTokenTTL, c.RefreshTokenExpirationMax,
+			)
+		}
+	}
 	return nil
 }

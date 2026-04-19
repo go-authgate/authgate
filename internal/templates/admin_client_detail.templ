@@ -57,6 +57,16 @@ templ AdminClientDetail(props ClientDetailPageProps) {
 							<div class="admin-detail-label">Grant Types</div>
 							<div class="admin-detail-value">{ props.Client.GrantTypes }</div>
 						</div>
+						<div class="admin-detail-row">
+							<div class="admin-detail-label">Token Lifetime</div>
+							<div class="admin-detail-value">
+								if props.Client.TokenProfile == "" {
+									standard
+								} else {
+									{ props.Client.TokenProfile }
+								}
+							</div>
+						</div>
 						if len(props.Client.RedirectURIs) > 0 {
 							<div class="admin-detail-row">
 								<div class="admin-detail-label">Redirect URIs</div>

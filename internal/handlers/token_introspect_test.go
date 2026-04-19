@@ -308,7 +308,7 @@ func TestIntrospect_UserToken_IncludesUsername(t *testing.T) {
 	})
 	require.NoError(t, err)
 	tokenResult, err := localProvider.GenerateToken(
-		context.Background(), testUser.ID, client.ClientID, "read",
+		context.Background(), testUser.ID, client.ClientID, "read", 0,
 	)
 	require.NoError(t, err)
 

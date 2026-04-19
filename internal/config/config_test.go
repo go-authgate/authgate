@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-authgate/authgate/internal/models"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -783,6 +785,119 @@ func TestTLSEnabled(t *testing.T) {
 			assert.Equal(t, tt.want, cfg.TLSEnabled())
 		})
 	}
+}
+
+func TestLoad_PopulatesTokenProfiles(t *testing.T) {
+	// Load() reads from env vars; we want deterministic defaults in this test.
+	t.Setenv("JWT_EXPIRATION", "2h")
+	t.Setenv("REFRESH_TOKEN_EXPIRATION", "48h")
+
+	cfg := Load()
+
+	require.NotNil(t, cfg.TokenProfiles)
+	short := cfg.TokenProfiles[models.TokenProfileShort]
+	standard := cfg.TokenProfiles[models.TokenProfileStandard]
+	long := cfg.TokenProfiles[models.TokenProfileLong]
+
+	assert.Equal(t, 15*time.Minute, short.AccessTokenTTL)
+	assert.Equal(t, 24*time.Hour, short.RefreshTokenTTL)
+	// standard inherits the base JWT/refresh expirations
+	assert.Equal(t, 2*time.Hour, standard.AccessTokenTTL)
+	assert.Equal(t, 48*time.Hour, standard.RefreshTokenTTL)
+	assert.Equal(t, 24*time.Hour, long.AccessTokenTTL)
+	assert.Equal(t, 2160*time.Hour, long.RefreshTokenTTL)
+
+	assert.Equal(t, 24*time.Hour, cfg.JWTExpirationMax)
+	assert.Equal(t, 2160*time.Hour, cfg.RefreshTokenExpirationMax)
+}
+
+func TestLoad_TokenProfileEnvOverride(t *testing.T) {
+	t.Setenv("TOKEN_PROFILE_SHORT_ACCESS_TTL", "5m")
+	t.Setenv("TOKEN_PROFILE_LONG_REFRESH_TTL", "720h") // 30d
+
+	cfg := Load()
+
+	assert.Equal(t, 5*time.Minute, cfg.TokenProfiles[models.TokenProfileShort].AccessTokenTTL)
+	assert.Equal(t, 720*time.Hour, cfg.TokenProfiles[models.TokenProfileLong].RefreshTokenTTL)
+}
+
+func TestValidate_TokenProfileExceedsMax(t *testing.T) {
+	tests := []struct {
+		name        string
+		mutate      func(*Config)
+		expectedMsg string
+	}{
+		{
+			name: "access TTL exceeds JWT_EXPIRATION_MAX",
+			mutate: func(c *Config) {
+				c.TokenProfiles[models.TokenProfileLong] = TokenProfile{
+					AccessTokenTTL:  48 * time.Hour, // > cap
+					RefreshTokenTTL: 24 * time.Hour,
+				}
+			},
+			expectedMsg: "exceeds JWT_EXPIRATION_MAX",
+		},
+		{
+			name: "refresh TTL exceeds REFRESH_TOKEN_EXPIRATION_MAX",
+			mutate: func(c *Config) {
+				c.TokenProfiles[models.TokenProfileLong] = TokenProfile{
+					AccessTokenTTL:  time.Hour,
+					RefreshTokenTTL: 5000 * time.Hour, // > cap
+				}
+			},
+			expectedMsg: "exceeds REFRESH_TOKEN_EXPIRATION_MAX",
+		},
+		{
+			name: "zero access TTL is rejected",
+			mutate: func(c *Config) {
+				c.TokenProfiles[models.TokenProfileShort] = TokenProfile{
+					AccessTokenTTL:  0,
+					RefreshTokenTTL: time.Hour,
+				}
+			},
+			expectedMsg: `"short" access TTL must be a positive duration`,
+		},
+		{
+			name: "missing profile is rejected",
+			mutate: func(c *Config) {
+				delete(c.TokenProfiles, models.TokenProfileLong)
+			},
+			expectedMsg: `token profile "long" is missing`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validBaseConfig()
+			cfg.JWTExpirationMax = 24 * time.Hour
+			cfg.RefreshTokenExpirationMax = 2160 * time.Hour
+			cfg.TokenProfiles = map[string]TokenProfile{
+				models.TokenProfileShort: {
+					AccessTokenTTL:  15 * time.Minute,
+					RefreshTokenTTL: 24 * time.Hour,
+				},
+				models.TokenProfileStandard: {
+					AccessTokenTTL:  time.Hour,
+					RefreshTokenTTL: 720 * time.Hour,
+				},
+				models.TokenProfileLong: {
+					AccessTokenTTL:  8 * time.Hour,
+					RefreshTokenTTL: 2160 * time.Hour,
+				},
+			}
+			tt.mutate(&cfg)
+			err := cfg.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.expectedMsg)
+		})
+	}
+}
+
+func TestValidate_TokenProfileSkippedWhenZeroValue(t *testing.T) {
+	// Hand-built test configs that don't care about token profiles must still pass
+	// Validate() (used by many pre-existing tests).
+	cfg := validBaseConfig()
+	// TokenProfiles, JWTExpirationMax, RefreshTokenExpirationMax all zero
+	require.NoError(t, cfg.Validate())
 }
 
 func TestValidate_TLSPartialConfig(t *testing.T) {

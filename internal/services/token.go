@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/config"
@@ -154,16 +155,67 @@ type tokenPairParams struct {
 	ClientID        string
 	Scopes          string
 	AuthorizationID *uint // nil when not linked to a UserAuthorization (e.g. device flow)
+	// Client is optional: when the caller already loaded it (e.g. for an
+	// active-status check), passing it here avoids a second cached lookup
+	// when resolving the TokenProfile TTLs.
+	Client *models.OAuthApplication
+}
+
+// ttlForClient returns the access/refresh TTLs dictated by the given client's
+// TokenProfile. A zero value means "fall back to provider default" — used when
+// the client is nil or its profile name is unknown (shouldn't normally happen,
+// but keeps issuance resilient to bad data).
+func (s *TokenService) ttlForClient(
+	client *models.OAuthApplication,
+) (accessTTL, refreshTTL time.Duration) {
+	if client == nil {
+		return 0, 0
+	}
+	name := client.TokenProfile
+	if name == "" {
+		name = models.TokenProfileStandard
+	}
+	profile, ok := s.config.TokenProfiles[name]
+	if !ok {
+		return 0, 0
+	}
+	return profile.AccessTokenTTL, profile.RefreshTokenTTL
+}
+
+// resolveClientTTL fetches the client by ID and returns its profile TTLs.
+// Use ttlForClient directly when the caller already has the client loaded.
+func (s *TokenService) resolveClientTTL(
+	ctx context.Context,
+	clientID string,
+) (accessTTL, refreshTTL time.Duration) {
+	if s.clientService == nil {
+		return 0, 0
+	}
+	client, err := s.clientService.GetClient(ctx, clientID)
+	if err != nil {
+		return 0, 0
+	}
+	return s.ttlForClient(client)
 }
 
 // generateAndPersistTokenPair generates access and refresh tokens via the
 // configured provider, builds database records, and persists them atomically.
+// The per-client TokenProfile is resolved here so that all issuance paths
+// (device flow, auth code flow) honor the current profile at issuance time.
 func (s *TokenService) generateAndPersistTokenPair(
 	ctx context.Context,
 	p tokenPairParams,
 ) (*models.AccessToken, *models.AccessToken, error) {
-	// Generate tokens via provider
-	accessResult, err := s.tokenProvider.GenerateToken(ctx, p.UserID, p.ClientID, p.Scopes)
+	var accessTTL, refreshTTL time.Duration
+	if p.Client != nil {
+		accessTTL, refreshTTL = s.ttlForClient(p.Client)
+	} else {
+		accessTTL, refreshTTL = s.resolveClientTTL(ctx, p.ClientID)
+	}
+
+	accessResult, err := s.tokenProvider.GenerateToken(
+		ctx, p.UserID, p.ClientID, p.Scopes, accessTTL,
+	)
 	if err != nil {
 		log.Printf(
 			"[Token] Access token generation failed provider=%s: %v",
@@ -172,7 +224,9 @@ func (s *TokenService) generateAndPersistTokenPair(
 		)
 		return nil, nil, fmt.Errorf("token generation failed: %w", err)
 	}
-	refreshResult, err := s.tokenProvider.GenerateRefreshToken(ctx, p.UserID, p.ClientID, p.Scopes)
+	refreshResult, err := s.tokenProvider.GenerateRefreshToken(
+		ctx, p.UserID, p.ClientID, p.Scopes, refreshTTL,
+	)
 	if err != nil {
 		log.Printf(
 			"[Token] Refresh token generation failed provider=%s: %v",
