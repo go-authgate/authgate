@@ -503,6 +503,35 @@ func TestUpdateUserProfile_EmailChange_ClearsEmailVerified(t *testing.T) {
 		"changing the email via admin edit must downgrade EmailVerified")
 }
 
+func TestUpdateUserProfile_EmailWhitespaceOnly_PreservesEmailVerified(t *testing.T) {
+	db := setupTestStore(t)
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockCache[models.User](ctrl)
+
+	u := makeTestUser(t, db)
+	u.EmailVerified = true
+	require.NoError(t, db.UpdateUser(u))
+
+	actor := makeTestUser(t, db)
+
+	mockCache.EXPECT().Delete(gomock.Any(), "user:"+u.ID).Return(nil).Times(1)
+
+	svc := newUserServiceWithStore(db, mockCache)
+	err := svc.UpdateUserProfile(context.Background(), u.ID, actor.ID, UpdateUserProfileRequest{
+		FullName: u.FullName,
+		Email:    "  " + u.Email + "  ", // only whitespace differs
+		Role:     u.Role,
+	})
+	require.NoError(t, err)
+
+	updated, err := db.GetUserByID(u.ID)
+	require.NoError(t, err)
+	assert.Equal(t, u.Email, updated.Email,
+		"trimmed email must be stored; trailing whitespace must not leak")
+	assert.True(t, updated.EmailVerified,
+		"accidental whitespace in req.Email must not downgrade EmailVerified")
+}
+
 func TestUpdateUserProfile_EmailUnchanged_PreservesEmailVerified(t *testing.T) {
 	db := setupTestStore(t)
 	ctrl := gomock.NewController(t)

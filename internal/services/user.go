@@ -725,6 +725,11 @@ func (s *UserService) UpdateUserProfile(
 		return err
 	}
 
+	// Normalize inputs to match CreateUserAdmin and keep accidental whitespace
+	// from clearing EmailVerified or masking no-op edits.
+	req.Email = strings.TrimSpace(req.Email)
+	req.FullName = strings.TrimSpace(req.FullName)
+
 	// Validate role
 	if req.Role != "" && req.Role != models.UserRoleAdmin && req.Role != models.UserRoleUser {
 		return ErrInvalidRole
