@@ -1483,6 +1483,108 @@ func TestUpsertExternalUser_EmailWhitespaceOnly_PreservesEmailVerified(t *testin
 		"whitespace-only differences must not downgrade EmailVerified")
 }
 
+// TestUpsertExternalUser_LegacyUnnormalizedEmail_SelfHeals verifies that a
+// pre-existing row with incidental whitespace in its stored email does not
+// trigger a spurious EmailVerified downgrade on the next sync, and that the
+// stored email is rewritten to the trimmed form.
+func TestUpsertExternalUser_LegacyUnnormalizedEmail_SelfHeals(t *testing.T) {
+	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
+	require.NoError(t, err)
+
+	legacy := &models.User{
+		ID:            uuid.New().String(),
+		Username:      "legacy",
+		Email:         "  legacy@example.com  ", // legacy whitespace
+		PasswordHash:  "",
+		Role:          models.UserRoleUser,
+		IsActive:      true,
+		ExternalID:    "ext-legacy",
+		AuthSource:    "http_api",
+		EmailVerified: true,
+	}
+	require.NoError(t, store.CreateUser(legacy))
+
+	updated, err := store.UpsertExternalUser(
+		"legacy",
+		"ext-legacy",
+		"http_api",
+		"legacy@example.com",
+		"Legacy",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "legacy@example.com", updated.Email,
+		"trimmed email must overwrite a legacy value with whitespace")
+	assert.True(t, updated.EmailVerified,
+		"self-heal must not downgrade EmailVerified when only whitespace differs")
+}
+
+// TestUpsertExternalUser_EmptyEmailOnUpdate_KeepsStoredEmail verifies that
+// when an external provider omits the email on a subsequent login, the
+// stored email and EmailVerified are preserved instead of blanked.
+func TestUpsertExternalUser_EmptyEmailOnUpdate_KeepsStoredEmail(t *testing.T) {
+	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
+	require.NoError(t, err)
+
+	user, err := store.UpsertExternalUser(
+		"flora",
+		"ext-flora",
+		"http_api",
+		"flora@example.com",
+		"Flora",
+	)
+	require.NoError(t, err)
+	user.EmailVerified = true
+	require.NoError(t, store.UpdateUser(user))
+
+	updated, err := store.UpsertExternalUser(
+		"flora",
+		"ext-flora",
+		"http_api",
+		"",
+		"",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "flora@example.com", updated.Email,
+		"stored email must be preserved when upstream omits it")
+	assert.Equal(t, "Flora", updated.FullName,
+		"stored full name must be preserved when upstream omits it")
+	assert.True(t, updated.EmailVerified,
+		"EmailVerified must not be cleared when upstream omits the email")
+}
+
+// TestUpsertExternalUser_EmptyEmailOnCreate_Rejects verifies that creating a
+// new external user without an email is rejected — the UNIQUE NOT NULL email
+// column cannot hold blank rows.
+func TestUpsertExternalUser_EmptyEmailOnCreate_Rejects(t *testing.T) {
+	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
+	require.NoError(t, err)
+
+	_, err = store.UpsertExternalUser(
+		"ghost",
+		"ext-ghost",
+		"http_api",
+		"",
+		"",
+	)
+	assert.ErrorIs(t, err, ErrExternalUserMissingIdentity)
+}
+
+// TestUpsertExternalUser_EmptyUsername_Rejects verifies that a whitespace-only
+// username is rejected before reaching the DB.
+func TestUpsertExternalUser_EmptyUsername_Rejects(t *testing.T) {
+	store, err := New(context.Background(), "sqlite", ":memory:", getTestConfig())
+	require.NoError(t, err)
+
+	_, err = store.UpsertExternalUser(
+		"   ",
+		"ext-empty",
+		"http_api",
+		"foo@example.com",
+		"Foo",
+	)
+	assert.ErrorIs(t, err, ErrExternalUserMissingIdentity)
+}
+
 // TestUpsertExternalUser_EmailUnchanged_PreservesEmailVerified verifies that
 // EmailVerified is preserved when the external sync keeps the same email.
 func TestUpsertExternalUser_EmailUnchanged_PreservesEmailVerified(t *testing.T) {

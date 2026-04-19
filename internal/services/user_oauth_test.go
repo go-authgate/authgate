@@ -220,6 +220,53 @@ func TestAuthenticateWithOAuth_ExistingConnection_PromotesEmailVerified(t *testi
 	)
 }
 
+// TestAuthenticateWithOAuth_ExistingConnection_LegacyWhitespaceEmail_Promotes
+// verifies that a pre-existing user row whose stored Email carries incidental
+// whitespace can still be promoted to EmailVerified=true when the (trimmed)
+// provider email matches — i.e. normalization is applied on both sides of
+// the comparison so legacy rows self-heal.
+func TestAuthenticateWithOAuth_ExistingConnection_LegacyWhitespaceEmail_Promotes(
+	t *testing.T,
+) {
+	svc := newOAuthUserService(t)
+
+	providerUserID := uuid.New().String()
+	// Seed user+connection via the normal (normalized) path.
+	user, err := svc.AuthenticateWithOAuth(
+		context.Background(),
+		"github",
+		&auth.OAuthUserInfo{
+			ProviderUserID: providerUserID,
+			Username:       "heidi",
+			Email:          "heidi@example.com",
+			EmailVerified:  false,
+		},
+		newOAuthToken(),
+	)
+	require.NoError(t, err)
+
+	// Simulate a legacy row whose stored email carries incidental whitespace.
+	user.Email = "  heidi@example.com  "
+	require.NoError(t, svc.store.UpdateUser(user))
+
+	// Re-authenticate with a verified flag; comparison must use trimmed
+	// values so the promotion path still fires.
+	promoted, err := svc.AuthenticateWithOAuth(
+		context.Background(),
+		"github",
+		&auth.OAuthUserInfo{
+			ProviderUserID: providerUserID,
+			Username:       "heidi",
+			Email:          "heidi@example.com",
+			EmailVerified:  true,
+		},
+		newOAuthToken(),
+	)
+	require.NoError(t, err)
+	assert.True(t, promoted.EmailVerified,
+		"legacy whitespace in stored email must not block promotion when trimmed values match")
+}
+
 // TestAuthenticateWithOAuth_ExistingConnection_DoesNotPromoteOnEmailMismatch
 // guards against a provider account whose email drifted away from the local
 // user's email: verification of a different address must not promote the

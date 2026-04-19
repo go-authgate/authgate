@@ -52,6 +52,12 @@ func (s *Store) UpsertExternalUser(
 	email = strings.TrimSpace(email)
 	fullName = strings.TrimSpace(fullName)
 
+	// Username is required as the primary identifier on every call; reject
+	// whitespace-only input before touching the DB.
+	if username == "" {
+		return nil, ErrExternalUserMissingIdentity
+	}
+
 	var user models.User
 
 	// Try to find existing user by external ID
@@ -79,15 +85,24 @@ func (s *Store) UpsertExternalUser(
 			// Username available, continue with update
 		}
 
-		// Update user fields. An external system has no way to prove that the
-		// new email address is verified, so downgrade EmailVerified whenever
-		// the stored email changes.
-		if user.Email != email {
-			user.EmailVerified = false
-		}
 		user.Username = username
-		user.Email = email
-		user.FullName = fullName
+		// Only overwrite email/fullName when upstream actually provided a
+		// value — some external auth responses (e.g. HTTP API) return only
+		// username+external_id, and blanking the stored email would break
+		// the UNIQUE/NOT NULL constraint and wipe verification state.
+		if email != "" {
+			// An external system has no way to prove that the new email is
+			// verified, so downgrade whenever the stored email changes.
+			// Compare trimmed values so a legacy row with incidental
+			// whitespace does not look like a real change.
+			if strings.TrimSpace(user.Email) != email {
+				user.EmailVerified = false
+			}
+			user.Email = email
+		}
+		if fullName != "" {
+			user.FullName = fullName
+		}
 		if err := s.db.Save(&user).Error; err != nil {
 			return nil, fmt.Errorf("failed to update external user: %w", err)
 		}
@@ -97,6 +112,14 @@ func (s *Store) UpsertExternalUser(
 	// Handle query error
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("failed to query external user: %w", err)
+	}
+
+	// Email is required to create a new external user — it's a UNIQUE NOT NULL
+	// column, and blank rows would collide with each other. (The update branch
+	// above is intentionally lenient, since older rows already carry a valid
+	// email even when upstream omits it on subsequent logins.)
+	if email == "" {
+		return nil, ErrExternalUserMissingIdentity
 	}
 
 	// User doesn't exist - check if username is available

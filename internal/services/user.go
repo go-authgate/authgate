@@ -336,6 +336,13 @@ func (s *UserService) AuthenticateWithOAuth(
 	oauthUserInfo *auth.OAuthUserInfo,
 	token *oauth2.Token,
 ) (*models.User, error) {
+	// Normalize upstream fields once so downstream lookups, comparisons, and
+	// persistence are consistent and whitespace from the provider never causes
+	// spurious EmailVerified downgrades or unlinked duplicates.
+	oauthUserInfo.Email = strings.TrimSpace(oauthUserInfo.Email)
+	oauthUserInfo.Username = strings.TrimSpace(oauthUserInfo.Username)
+	oauthUserInfo.FullName = strings.TrimSpace(oauthUserInfo.FullName)
+
 	// Validate required fields
 	if oauthUserInfo.Email == "" {
 		return nil, errors.New("OAuth provider must return email")
@@ -430,9 +437,11 @@ func (s *UserService) updateOAuthConnectionAndGetUser(
 	}
 	// Only promote when the provider email still matches the stored email —
 	// otherwise a drifted provider account could assert verification for an
-	// address it does not own.
+	// address it does not own. Compare trimmed values so pre-existing rows
+	// with incidental whitespace still self-heal.
 	if !user.EmailVerified && oauthUserInfo.EmailVerified &&
-		oauthUserInfo.Email != "" && oauthUserInfo.Email == user.Email {
+		oauthUserInfo.Email != "" &&
+		oauthUserInfo.Email == strings.TrimSpace(user.Email) {
 		user.EmailVerified = true
 		updated = true
 	}
@@ -547,15 +556,23 @@ func (s *UserService) createUserWithOAuth(
 	oauthUserInfo *auth.OAuthUserInfo,
 	token *oauth2.Token,
 ) (*models.User, error) {
+	// Defensive trim: AuthenticateWithOAuth normalizes upstream fields before
+	// reaching here, but this function is also callable directly (tests, future
+	// callers), so re-trim to keep stored rows and duplicate-email lookups
+	// consistent regardless of entry point.
+	email := strings.TrimSpace(oauthUserInfo.Email)
+	fullName := strings.TrimSpace(oauthUserInfo.FullName)
+	rawUsername := strings.TrimSpace(oauthUserInfo.Username)
+
 	// Generate unique username
-	username := s.generateUniqueUsername(oauthUserInfo.Username, provider)
+	username := s.generateUniqueUsername(rawUsername, provider)
 
 	// Create user (no password)
 	user := &models.User{
 		ID:            uuid.New().String(),
 		Username:      username,
-		Email:         oauthUserInfo.Email,
-		FullName:      oauthUserInfo.FullName,
+		Email:         email,
+		FullName:      fullName,
 		AvatarURL:     oauthUserInfo.AvatarURL,
 		Role:          models.UserRoleUser,
 		AuthSource:    models.AuthSourceLocal,
@@ -570,8 +587,8 @@ func (s *UserService) createUserWithOAuth(
 		UserID:           user.ID,
 		Provider:         provider,
 		ProviderUserID:   oauthUserInfo.ProviderUserID,
-		ProviderUsername: oauthUserInfo.Username,
-		ProviderEmail:    oauthUserInfo.Email,
+		ProviderUsername: rawUsername,
+		ProviderEmail:    email,
 		AvatarURL:        oauthUserInfo.AvatarURL,
 		AccessToken:      token.AccessToken,
 		RefreshToken:     token.RefreshToken,
@@ -583,7 +600,7 @@ func (s *UserService) createUserWithOAuth(
 	err := s.store.RunInTransaction(func(tx core.Store) error {
 		if err := tx.CreateUser(user); err != nil {
 			if errors.Is(err, gorm.ErrDuplicatedKey) {
-				return fmt.Errorf("email already in use: %s", oauthUserInfo.Email)
+				return fmt.Errorf("email already in use: %s", email)
 			}
 			return fmt.Errorf("failed to create user: %w", err)
 		}
@@ -745,8 +762,11 @@ func (s *UserService) UpdateUserProfile(
 		return ErrEmailRequired
 	}
 
-	// Check email conflict
-	if req.Email != user.Email {
+	// Check email conflict. Compare against the normalized stored value so a
+	// pre-existing row with incidental whitespace doesn't treat a no-op edit
+	// as a real change.
+	storedEmail := strings.TrimSpace(user.Email)
+	if req.Email != storedEmail {
 		existing, lookupErr := s.store.GetUserByEmail(req.Email)
 		if lookupErr != nil {
 			if !errors.Is(lookupErr, gorm.ErrRecordNotFound) {
@@ -772,11 +792,13 @@ func (s *UserService) UpdateUserProfile(
 
 	oldRole := user.Role
 	user.FullName = req.FullName
-	if req.Email != user.Email {
+	if req.Email != storedEmail {
 		// Admin edits do not verify the new address, so downgrade the claim
 		// until a trusted OAuth provider confirms it again.
 		user.EmailVerified = false
 	}
+	// Always persist the normalized email so legacy rows with incidental
+	// whitespace self-heal on the next admin edit.
 	user.Email = req.Email
 	if req.Role != "" {
 		user.Role = req.Role
