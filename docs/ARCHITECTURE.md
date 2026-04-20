@@ -339,6 +339,20 @@ AuthGate supports refresh tokens following RFC 6749 with configurable rotation m
 - `ENABLE_REFRESH_TOKENS=true` - Feature flag (default: enabled)
 - `ENABLE_TOKEN_ROTATION=false` - Enable rotation mode (default: disabled, uses fixed mode)
 
+### Per-Client Token Lifetime Profiles
+
+Each `OAuthApplication` carries a `token_profile` field (one of `short`, `standard`, `long`; defaults to `standard`) so admins can tune token lifetimes per client without editing base config. Resolution happens on every issuance and every refresh, so a profile change takes effect on the next token issued to that client — in-flight tokens keep the lifetime they were issued with.
+
+- **`short`** — 15m access / 24h refresh. For admin consoles and other high-value clients where a leaked token's blast radius must be tightly bounded.
+- **`standard`** — defaults to `JWT_EXPIRATION` / `REFRESH_TOKEN_EXPIRATION`. For typical web and SPA clients. Because it mirrors the base config by default, the token service returns `(0, 0)` from its TTL resolver here — which tells the local provider to take its normal issuance path, including `JWT_EXPIRATION_JITTER`. Explicit short/long profiles (and any `standard` that has been diverged from the base) bypass jitter and use the profile TTL exactly.
+- **`long`** — 24h access / 90d refresh. For CLI tools, IoT devices, and long-lived automation where frequent re-auth is user-hostile.
+
+All three profiles are bounded by `JWT_EXPIRATION_MAX` and `REFRESH_TOKEN_EXPIRATION_MAX`; the server refuses to start if any configured profile exceeds its cap.
+
+**Scope:** TokenProfile applies to access and refresh tokens issued through the device-code and authorization-code grants. The `client_credentials` grant is governed separately by `CLIENT_CREDENTIALS_TOKEN_EXPIRATION` so M2M token lifetimes can stay tight regardless of per-client profile choices made for user-facing flows.
+
+**Auditability:** Every profile change is logged at `WARNING` severity with the prior value (`previous_token_profile`) so incident response can trace lifetime changes across the fleet.
+
 ### Grant Type Support
 
 - `urn:ietf:params:oauth:grant-type:device_code` - Device authorization flow (returns access + refresh)

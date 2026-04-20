@@ -8,6 +8,7 @@ This guide covers all configuration options for AuthGate, including environment 
 - [TLS / HTTPS](#tls--https)
 - [Bootstrap and Shutdown Timeouts](#bootstrap-and-shutdown-timeouts)
 - [Generate Strong Secrets](#generate-strong-secrets)
+- [Token Lifetime Profiles](#token-lifetime-profiles)
 - [Default Test Data](#default-test-data)
 - [OAuth Third-Party Login](#oauth-third-party-login)
 - [Service-to-Service Authentication](#service-to-service-authentication)
@@ -83,6 +84,22 @@ ENABLE_TOKEN_ROTATION=false         # Enable rotation mode (default: fixed mode)
 # Client Credentials Flow (RFC 6749 §4.4)
 # CLIENT_CREDENTIALS_TOKEN_EXPIRATION=1h  # Access token lifetime for client_credentials grant (default: 1h)
 #                                           # Keep short — no refresh token means no rotation mechanism
+#                                           # Governed independently from per-client TokenProfile (see below)
+
+# Per-Client Token Lifetime Profiles
+# Each OAuth client selects one of three presets: "short", "standard" (default), or "long".
+# "standard" defaults to JWT_EXPIRATION / REFRESH_TOKEN_EXPIRATION above; overrides below
+# let you tailor the short/long presets without touching the base defaults.
+# TOKEN_PROFILE_SHORT_ACCESS_TTL=15m       # Short profile access token lifetime (default: 15m)
+# TOKEN_PROFILE_SHORT_REFRESH_TTL=24h      # Short profile refresh token lifetime (default: 24h)
+# TOKEN_PROFILE_STANDARD_ACCESS_TTL=10h    # Standard profile access TTL (default: JWT_EXPIRATION)
+# TOKEN_PROFILE_STANDARD_REFRESH_TTL=720h  # Standard profile refresh TTL (default: REFRESH_TOKEN_EXPIRATION)
+# TOKEN_PROFILE_LONG_ACCESS_TTL=24h        # Long profile access TTL (default: 24h)
+# TOKEN_PROFILE_LONG_REFRESH_TTL=2160h     # Long profile refresh TTL (default: 90 days)
+#
+# Hard caps — enforced at startup. No profile may exceed these values.
+# JWT_EXPIRATION_MAX=24h                   # Upper bound for any access-token profile (default: 24h)
+# REFRESH_TOKEN_EXPIRATION_MAX=2160h       # Upper bound for any refresh-token profile (default: 90d)
 
 # OAuth Configuration (optional - for third-party login)
 # GitHub OAuth
@@ -351,6 +368,38 @@ Use `JWT_KEY_ID` to set an explicit `kid` (Key ID) header in JWTs. This enables 
 > Multi-key JWKS is not currently supported.
 
 If `JWT_KEY_ID` is not set, it is automatically derived from the SHA-256 hash of the DER-encoded public key (base64url-encoded, 43 characters). This derivation is deterministic — the same key always produces the same `kid`.
+
+---
+
+## Token Lifetime Profiles
+
+AuthGate assigns every OAuth client one of three **token lifetime presets** so admins can tune access and refresh token durations to each client's risk profile without touching the base JWT configuration. The preset is selectable from the admin UI (**Admin → OAuth Clients → Token Lifetime**) and recorded on the client as `token_profile`.
+
+### Profiles
+
+| Profile      | When to use                                                    | Default access TTL           | Default refresh TTL           |
+| ------------ | -------------------------------------------------------------- | ---------------------------- | ----------------------------- |
+| `short`      | High-security apps (admin consoles, financial dashboards)      | 15 min                       | 24 h                          |
+| `standard`   | Typical web/SPA clients (default for new clients)              | `JWT_EXPIRATION` (10 h)      | `REFRESH_TOKEN_EXPIRATION` (30 d) |
+| `long`       | CLI tools, IoT devices, long-lived background jobs             | 24 h                         | 90 d                          |
+
+Defaults are overridable per environment via the `TOKEN_PROFILE_*` variables listed in [Environment Variables](#environment-variables).
+
+### Hard caps
+
+`JWT_EXPIRATION_MAX` and `REFRESH_TOKEN_EXPIRATION_MAX` bound every profile's TTL. The server refuses to start if any configured profile exceeds its cap — this guarantees that a stray env override cannot issue tokens longer than the operator intends.
+
+### Jitter behavior
+
+`JWT_EXPIRATION_JITTER` is applied only when the resolved access-token TTL matches the base `JWT_EXPIRATION` (the `standard`-profile default). Explicit `short`/`long` overrides — and a `standard` profile that has been explicitly diverged from the base config — use the profile's TTL exactly, with no jitter added. This keeps jitter working for the high-volume default path (preventing refresh thundering herds) while respecting operator-chosen short/long lifetimes precisely.
+
+### Client Credentials independence
+
+The `client_credentials` grant is governed by `CLIENT_CREDENTIALS_TOKEN_EXPIRATION` and **ignores** the client's TokenProfile. M2M tokens carry a larger blast radius than user-delegated tokens (no refresh, no user-revoke UI), so their lifetime is managed separately and is typically kept much shorter than user-facing tokens. If you need per-client M2M TTLs, open an issue — it will require a dedicated field on TokenProfile rather than overloading the existing access TTL.
+
+### Changing a profile
+
+Updates take effect on the **next token issuance or refresh**. Existing tokens retain the lifetime they were originally issued with; AuthGate does not retroactively shorten live tokens. Every TokenProfile change is recorded in the audit log at `WARNING` severity with the previous value (`previous_token_profile`) for forensic traceability.
 
 ---
 
