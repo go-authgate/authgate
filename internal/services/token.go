@@ -188,18 +188,24 @@ func (s *TokenService) ttlForClient(
 			client.ClientID,
 			client.TokenProfile,
 		)
-		profile, ok = s.config.TokenProfiles[models.TokenProfileStandard]
+		name = models.TokenProfileStandard
+		profile, ok = s.config.TokenProfiles[name]
 		if !ok {
 			return 0, 0
 		}
 	}
 	accessTTL = profile.AccessTokenTTL
 	refreshTTL = profile.RefreshTokenTTL
-	if accessTTL == s.config.JWTExpiration {
-		accessTTL = 0
-	}
-	if refreshTTL == s.config.RefreshTokenExpiration {
-		refreshTTL = 0
+	// Only the standard profile zeroes out to let jitter apply. Short/long are
+	// explicit admin choices and must use their TTLs exactly, even if they
+	// coincidentally match the base JWT config.
+	if name == models.TokenProfileStandard {
+		if accessTTL == s.config.JWTExpiration {
+			accessTTL = 0
+		}
+		if refreshTTL == s.config.RefreshTokenExpiration {
+			refreshTTL = 0
+		}
 	}
 	return accessTTL, refreshTTL
 }

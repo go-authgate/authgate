@@ -126,6 +126,26 @@ func TestResolveClientTTL_StandardProfileDivergentFromBaseConfig(t *testing.T) {
 	assert.Equal(t, 500*time.Hour, refreshTTL, "divergent standard refresh TTL")
 }
 
+func TestResolveClientTTL_ShortProfileNeverZeroes(t *testing.T) {
+	// If an operator happens to configure TOKEN_PROFILE_SHORT_ACCESS_TTL equal
+	// to JWT_EXPIRATION, the short profile must still return an explicit TTL
+	// (no jitter) so the admin's "short" choice is honored precisely. Zeroing
+	// is a standard-only affordance to preserve jitter on the default path.
+	cfg := configWithTokenProfiles()
+	cfg.TokenProfiles[models.TokenProfileShort] = config.TokenProfile{
+		AccessTokenTTL:  cfg.JWTExpiration,          // intentionally equal to base
+		RefreshTokenTTL: cfg.RefreshTokenExpiration, // intentionally equal to base
+	}
+	s := setupTestStore(t)
+	svc := createTestTokenService(t, s, cfg)
+
+	client := createTestClientWithProfile(t, svc, models.TokenProfileShort)
+
+	accessTTL, refreshTTL := svc.resolveClientTTL(context.Background(), client.ClientID)
+	assert.Equal(t, cfg.JWTExpiration, accessTTL, "short profile must not be zeroed out")
+	assert.Equal(t, cfg.RefreshTokenExpiration, refreshTTL, "short profile must not be zeroed out")
+}
+
 func TestResolveClientTTL_UnknownClientFallsBackToZero(t *testing.T) {
 	cfg := configWithTokenProfiles()
 	s := setupTestStore(t)

@@ -265,12 +265,14 @@ func TestLocalTokenProvider_GenerateToken_TTLOverride(t *testing.T) {
 	require.NoError(t, err)
 
 	// Explicit 15-minute TTL must be applied verbatim (no jitter, no config).
+	// Capture start before token generation so the assertion is robust on
+	// slower CI runners where time.Now() can drift between the two calls.
+	start := time.Now()
 	result, err := provider.GenerateToken(
 		context.Background(), "u", "c", "s", 15*time.Minute,
 	)
 	require.NoError(t, err)
-	expected := time.Now().Add(15 * time.Minute)
-	assert.WithinDuration(t, expected, result.ExpiresAt, 2*time.Second)
+	assert.WithinDuration(t, start.Add(15*time.Minute), result.ExpiresAt, 2*time.Second)
 }
 
 func TestLocalTokenProvider_GenerateRefreshToken_TTLOverride(t *testing.T) {
@@ -283,11 +285,12 @@ func TestLocalTokenProvider_GenerateRefreshToken_TTLOverride(t *testing.T) {
 	provider, err := NewLocalTokenProvider(cfg)
 	require.NoError(t, err)
 
+	start := time.Now()
 	result, err := provider.GenerateRefreshToken(
 		context.Background(), "u", "c", "s", 24*time.Hour,
 	)
 	require.NoError(t, err)
-	assert.WithinDuration(t, time.Now().Add(24*time.Hour), result.ExpiresAt, 2*time.Second)
+	assert.WithinDuration(t, start.Add(24*time.Hour), result.ExpiresAt, 2*time.Second)
 }
 
 // ============================================================
