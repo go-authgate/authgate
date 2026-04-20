@@ -63,8 +63,11 @@ var (
 	ErrInvalidClientStatus = errors.New(
 		"status must be \"active\", \"inactive\", or \"pending\"",
 	)
-	ErrInvalidTokenProfile = errors.New(
-		"token profile must be \"short\", \"standard\", or \"long\"",
+	ErrInvalidTokenProfile = fmt.Errorf(
+		"token profile must be %q, %q, or %q",
+		models.TokenProfileShort,
+		models.TokenProfileStandard,
+		models.TokenProfileLong,
 	)
 )
 
@@ -163,18 +166,14 @@ type UpdateClientRequest struct {
 }
 
 // normalizeTokenProfile validates and defaults an incoming token profile value.
-// Empty input is treated as "standard" to keep behavior predictable for older
-// callers and migrated rows. Surrounding whitespace (common from form posts
-// and API clients) is trimmed before validation.
+// Surrounding whitespace (common from form posts and API clients) is trimmed
+// before validation.
 func normalizeTokenProfile(p string) (string, error) {
-	trimmed := strings.TrimSpace(p)
-	if trimmed == "" {
-		return models.TokenProfileStandard, nil
-	}
-	if !models.IsValidTokenProfile(trimmed) {
+	resolved := models.ResolveTokenProfile(p)
+	if !models.IsValidTokenProfile(resolved) {
 		return "", ErrInvalidTokenProfile
 	}
-	return trimmed, nil
+	return resolved, nil
 }
 
 type ClientResponse struct {
@@ -379,17 +378,12 @@ func (s *ClientService) UpdateClient(
 		s.invalidatePendingCount(ctx)
 	}
 
-	// Log client update. A TokenProfile change is security-relevant (it can
-	// extend or shorten every future token issued to this client) so flag it
-	// at WARNING severity when the effective profile changes. Pre-migration
-	// rows may have previousTokenProfile == ""; normalize it the same way as
-	// the rest of the system ("" => standard) before comparing so "" → short/long
-	// still produces a WARNING. The raw previous value is recorded so the audit
-	// trail reflects actual stored data.
-	previousNormalized := previousTokenProfile
-	if previousNormalized == "" {
-		previousNormalized = models.TokenProfileStandard
-	}
+	// A TokenProfile change is security-relevant — it can extend or shorten
+	// every future token issued to this client — so flag it at WARNING when
+	// the effective value changes. Normalize the previous value the same way
+	// as the rest of the system so a pre-migration row moving "" → short/long
+	// still audits cleanly.
+	previousNormalized := models.ResolveTokenProfile(previousTokenProfile)
 	severity := models.SeverityInfo
 	details := models.AuditDetails{
 		"client_name":   client.ClientName,
@@ -400,7 +394,7 @@ func (s *ClientService) UpdateClient(
 	}
 	if previousNormalized != client.TokenProfile {
 		severity = models.SeverityWarning
-		details["previous_token_profile"] = previousTokenProfile
+		details["previous_token_profile"] = previousNormalized
 	}
 
 	s.auditService.Log(ctx, core.AuditLogEntry{

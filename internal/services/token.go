@@ -155,32 +155,43 @@ type tokenPairParams struct {
 	ClientID        string
 	Scopes          string
 	AuthorizationID *uint // nil when not linked to a UserAuthorization (e.g. device flow)
-	// Client is optional: when the caller already loaded it (e.g. for an
-	// active-status check), passing it here avoids a second cached lookup
-	// when resolving the TokenProfile TTLs.
+	// Client is the already-loaded OAuth client, used to resolve the
+	// TokenProfile TTLs without an extra cached lookup. Both issuance callers
+	// (device flow, auth-code flow) load the client up front for other
+	// validation, so this is always populated.
 	Client *models.OAuthApplication
 }
 
 // ttlForClient returns the access/refresh TTLs dictated by the given client's
-// TokenProfile. A zero value means "fall back to provider default" — returned
-// when the client is nil, its profile name is unknown, or the profile's TTL
-// matches the base JWT/refresh config. The last case is important: the local
-// provider only applies JWT_EXPIRATION_JITTER when ttl == 0, so returning 0
-// for "standard" (which by default mirrors the base config) preserves jitter
-// for the common case while still honoring explicit short/long overrides.
+// TokenProfile. Zero means "fall back to provider default" — returned when the
+// profile's TTL matches the base JWT/refresh config so that the local provider
+// still applies JWT_EXPIRATION_JITTER on the common path. Explicit short/long
+// overrides (and a standard profile diverged from base config) return the
+// profile's TTL exactly, no jitter.
+//
+// An unknown profile name on the client row is a data-integrity issue (GORM
+// default + admin UI should prevent it). We log a WARNING so the bad row can
+// be traced and fall back to the standard profile's TTLs; that's more
+// conservative than returning zero, which would silently grant base JWT
+// lifetime to a client the admin intended to restrict.
 func (s *TokenService) ttlForClient(
 	client *models.OAuthApplication,
 ) (accessTTL, refreshTTL time.Duration) {
 	if client == nil {
 		return 0, 0
 	}
-	name := client.TokenProfile
-	if name == "" {
-		name = models.TokenProfileStandard
-	}
+	name := models.ResolveTokenProfile(client.TokenProfile)
 	profile, ok := s.config.TokenProfiles[name]
 	if !ok {
-		return 0, 0
+		log.Printf(
+			"[Token] client %s has unknown token_profile=%q; falling back to standard",
+			client.ClientID,
+			client.TokenProfile,
+		)
+		profile, ok = s.config.TokenProfiles[models.TokenProfileStandard]
+		if !ok {
+			return 0, 0
+		}
 	}
 	accessTTL = profile.AccessTokenTTL
 	refreshTTL = profile.RefreshTokenTTL

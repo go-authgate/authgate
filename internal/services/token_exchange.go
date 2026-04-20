@@ -127,12 +127,22 @@ func (s *TokenService) ExchangeAuthorizationCode(
 	start := time.Now()
 	providerName := s.tokenProvider.Name()
 
+	// Load the client once and thread it through token-pair issuance so
+	// generateAndPersistTokenPair's TTL resolver doesn't do a second lookup.
+	// Failure here is surfaced to the caller — an auth code cannot be
+	// exchanged without its client record.
+	client, err := s.clientService.GetClient(ctx, authCode.ClientID)
+	if err != nil {
+		return nil, nil, "", err
+	}
+
 	// Generate and persist token pair (linked to UserAuthorization for cascade-revoke)
 	accessToken, refreshToken, err := s.generateAndPersistTokenPair(ctx, tokenPairParams{
 		UserID:          authCode.UserID,
 		ClientID:        authCode.ClientID,
 		Scopes:          authCode.Scopes,
 		AuthorizationID: authorizationID,
+		Client:          client,
 	})
 	if err != nil {
 		return nil, nil, "", err

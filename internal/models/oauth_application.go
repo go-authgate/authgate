@@ -40,6 +40,17 @@ func IsValidTokenProfile(v string) bool {
 	return false
 }
 
+// ResolveTokenProfile normalizes a stored or form-submitted profile name, treating
+// empty input as "standard" (the rule for pre-migration rows and older callers).
+// Unknown values pass through unchanged so callers can distinguish legitimate
+// defaults from bad data.
+func ResolveTokenProfile(v string) string {
+	if strings.TrimSpace(v) == "" {
+		return TokenProfileStandard
+	}
+	return v
+}
+
 // Base32 characters, but lowercased.
 const lowerBase32Chars = "abcdefghijklmnopqrstuvwxyz234567"
 

@@ -226,6 +226,7 @@ func (s *Store) seedData(ctx context.Context, cfg *config.Config) error {
 			EnableAuthCodeFlow: true,
 			EnableDeviceFlow:   true,
 			Status:             models.ClientStatusActive,
+			TokenProfile:       models.TokenProfileStandard,
 		}
 		clientSecret, err := client.GenerateClientSecret(ctx)
 		if err != nil {
