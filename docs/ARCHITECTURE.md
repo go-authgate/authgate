@@ -17,78 +17,89 @@ This document provides a detailed overview of AuthGate's architecture, design pa
 
 ```txt
 authgate/
-├── config/          # Configuration management (environment variables, defaults)
-├── handlers/        # HTTP request handlers
-│   ├── auth.go      # User login/logout endpoints
-│   ├── device.go    # Device authorization flow (/device, /device/verify)
-│   ├── token.go     # Token issuance (/oauth/token), verification (/oauth/tokeninfo), and revocation (/oauth/revoke)
-│   ├── oidc.go      # OIDC Discovery (/.well-known/openid-configuration) and UserInfo (/oauth/userinfo)
-│   ├── jwks.go      # JWKS endpoint (/.well-known/jwks.json) for RS256/ES256 public keys
-│   ├── session.go   # Session management (/account/sessions)
-│   ├── client.go    # Admin client management
-│   ├── oauth_handler.go  # OAuth third-party login handlers
-│   └── audit.go     # Audit log viewing and export (/admin/audit)
-├── middleware/      # HTTP middleware
-│   ├── auth.go      # Session authentication (RequireAuth, RequireAdmin)
-│   ├── csrf.go      # CSRF protection middleware
-│   └── ratelimit.go # Rate limiting middleware (memory/Redis store)
-├── models/          # Data models
-│   ├── user.go      # User accounts (includes IsActive flag for admin disable/enable)
-│   ├── client.go    # OAuth clients (OAuthClient)
-│   ├── device.go    # Device codes (DeviceCode)
-│   ├── token.go     # Access tokens (AccessToken)
-│   ├── oauth_connection.go  # OAuth provider connections
-│   └── audit_log.go # Audit log entries (AuditLog)
-├── auth/            # Authentication providers (pluggable design)
-│   ├── local.go     # Local authentication (database)
-│   ├── http_api.go  # External HTTP API authentication
-│   └── oauth_provider.go  # OAuth 2.0 provider implementations (GitHub, Gitea)
-├── token/           # Token provider
-│   ├── types.go     # Shared data structures (TokenResult, TokenValidationResult)
-│   ├── errors.go    # Provider-level error definitions
-│   ├── local.go     # Local JWT provider (HS256/RS256/ES256)
-│   └── key.go       # Asymmetric key loading (PEM) and key ID derivation
-├── services/        # Business logic layer (depends on store and providers)
-│   ├── user.go      # User management (integrates auth providers)
-│   ├── device.go    # Device code generation and validation
-│   ├── token.go     # Token service (integrates token providers)
-│   ├── client.go    # OAuth client management
-│   └── audit.go     # Audit logging service (async batch writing, sensitive data masking)
-├── store/           # Database layer (GORM)
-│   ├── driver.go    # Database driver factory (SQLite, PostgreSQL)
-│   ├── sqlite.go    # Database initialization, migrations, seed data, batch queries
-│   └── audit_filters.go  # Audit log filtering and pagination
-├── templates/       # Type-safe templ templates (compiled to Go code)
-│   ├── *.templ      # Templ template files (generate *_templ.go files)
-│   ├── props.go     # Type-safe template props structures
-│   ├── render.go    # Templ rendering helper for Gin
-│   └── generate.go  # Go generate directive for templ
-├── docker/          # Docker configuration
-│   └── Dockerfile   # Alpine-based multi-arch image
-├── docs/            # Documentation
-│   ├── ARCHITECTURE.md             # System architecture and design patterns
-│   ├── AUTHORIZATION_CODE_FLOW.md  # Auth Code Flow with PKCE guide
-│   ├── CLIENT_CREDENTIALS_FLOW.md  # Client Credentials Grant (M2M) guide
-│   ├── CONFIGURATION.md            # Environment variables and configuration
-│   ├── DEPLOYMENT.md               # Production deployment guide
-│   ├── DEVELOPMENT.md              # Developer guide and extension points
-│   ├── METRICS.md                  # Prometheus metrics documentation
-│   ├── MONITORING.md               # Monitoring, logging, and alerting
-│   ├── OAUTH_SETUP.md              # OAuth provider setup guide
-│   ├── PERFORMANCE.md              # Scalability and optimization
-│   ├── RATE_LIMITING.md            # Rate limiting configuration
-│   ├── SECURITY.md                 # Security best practices
-│   ├── TROUBLESHOOTING.md          # Common issues and FAQ
-│   └── USE_CASES.md                # Real-world examples
-├── _example/        # Example CLI client implementations
-│   ├── (Device Code Flow CLI → github.com/go-authgate/device-cli)
-│   └── (Authorization Code Flow CLI → github.com/go-authgate/oauth-cli)
-├── version/         # Version information (embedded at build time)
-├── Makefile         # Build automation and targets
-├── main.go          # Application entry point and router setup
-├── .env.example     # Environment configuration template
-└── CLAUDE.md        # AI assistant guidance (optional)
+├── main.go              # Application entry point (delegates to internal/bootstrap)
+├── api/                 # Generated Swagger/OpenAPI documentation
+├── internal/
+│   ├── bootstrap/       # Application startup, dependency wiring, router setup
+│   ├── core/            # Cross-cutting core utilities shared across packages
+│   ├── config/          # Configuration management (environment variables, defaults)
+│   ├── handlers/        # HTTP request handlers
+│   │   ├── auth.go              # User login/logout endpoints
+│   │   ├── device.go            # Device authorization flow (/device, /device/verify)
+│   │   ├── token.go             # Token issuance (/oauth/token) and verification (/oauth/tokeninfo)
+│   │   ├── token_admin.go       # Admin token management
+│   │   ├── authorization.go     # Authorization Code Flow endpoints (/oauth/authorize)
+│   │   ├── registration.go      # Dynamic Client Registration (RFC 7591)
+│   │   ├── oidc.go              # OIDC Discovery and UserInfo
+│   │   ├── jwks.go              # JWKS endpoint for RS256/ES256 public keys
+│   │   ├── session.go           # Session management (/account/sessions)
+│   │   ├── client.go            # Admin OAuth client management
+│   │   ├── user_admin.go        # Admin user management (create, disable/enable, connections)
+│   │   ├── user_client.go       # Per-user authorization management
+│   │   ├── dashboard.go         # Admin dashboard
+│   │   ├── oauth_handler.go     # Third-party OAuth login handlers
+│   │   └── audit.go             # Audit log viewing and CSV export
+│   ├── middleware/      # HTTP middleware
+│   │   ├── auth.go              # Session authentication (RequireAuth, RequireAdmin)
+│   │   ├── csrf.go              # CSRF protection
+│   │   ├── cors.go              # CORS for /oauth/* endpoints
+│   │   ├── security_headers.go  # Security response headers
+│   │   ├── metrics_auth.go      # Optional Bearer auth for /metrics
+│   │   └── ratelimit.go         # Rate limiting (memory/Redis)
+│   ├── models/          # GORM data models
+│   │   ├── user.go              # User accounts (IsActive flag for admin disable/enable)
+│   │   ├── oauth_application.go # OAuth clients (with TokenProfile, ClientType)
+│   │   ├── device_code.go       # Device codes
+│   │   ├── authorization_code.go# Auth codes with PKCE
+│   │   ├── token.go             # Unified access + refresh token storage
+│   │   ├── user_authorization.go# Per-app consent grants
+│   │   ├── oauth_connection.go  # Third-party OAuth provider connections
+│   │   └── audit_log.go         # Audit log entries
+│   ├── auth/            # Authentication providers (pluggable)
+│   │   ├── local.go             # Local database authentication
+│   │   ├── http_api.go          # External HTTP API authentication
+│   │   └── oauth_*.go           # GitHub / Gitea / GitLab / Microsoft providers
+│   ├── token/           # JWT token provider
+│   │   ├── local.go             # HS256/RS256/ES256 issuance and validation
+│   │   ├── idtoken.go           # OIDC ID token assembly
+│   │   └── key.go               # Asymmetric key loading (PEM)
+│   ├── services/        # Business logic layer
+│   │   ├── user.go              # User management
+│   │   ├── device.go            # Device code generation and validation
+│   │   ├── authorization.go     # Auth Code Flow orchestration
+│   │   ├── token*.go            # Token exchange, refresh, introspect, validate
+│   │   ├── token_client_credentials.go  # Client Credentials grant
+│   │   ├── client.go            # OAuth client management
+│   │   ├── client_user.go       # Per-user client views
+│   │   ├── dashboard.go         # Dashboard statistics
+│   │   ├── audit.go             # Async batch audit logging
+│   │   └── audit_noop.go        # No-op audit service when disabled
+│   ├── store/           # Database layer (GORM)
+│   │   ├── driver.go            # Driver factory (SQLite, PostgreSQL)
+│   │   ├── sqlite.go            # Initialization, migrations, seed data
+│   │   ├── cleanup.go           # Expired record cleanup
+│   │   ├── pagination.go        # Pagination helpers
+│   │   └── audit_filters.go     # Audit log filtering
+│   ├── cache/           # Cache implementations (memory, Redis, Redis-aside)
+│   ├── metrics/         # Prometheus metrics collection and caching
+│   ├── client/          # HTTP client with exponential backoff retry
+│   ├── templates/       # Type-safe templ templates (.templ → _templ.go)
+│   ├── util/            # Crypto helpers, context utilities
+│   └── version/         # Version info injected at build time
+├── docs/                # Documentation (see references below)
+├── docker/              # Docker build files
+├── images/              # Screenshots used in README
+├── scripts/             # Helper scripts
+├── Makefile             # Build automation
+├── .env.example         # Environment configuration template
+└── CLAUDE.md            # AI assistant guidance (optional)
 ```
+
+Example CLI clients live in separate repositories:
+
+- Device Code Flow — [github.com/go-authgate/device-cli](https://github.com/go-authgate/device-cli)
+- Authorization Code Flow (+ PKCE) — [github.com/go-authgate/oauth-cli](https://github.com/go-authgate/oauth-cli)
+- Hybrid (auto-detect) — [github.com/go-authgate/cli](https://github.com/go-authgate/cli)
 
 ---
 

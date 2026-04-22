@@ -149,6 +149,10 @@ AuthGate also serves as a lightweight **centralised identity gateway** for inter
 - **Multi-Auth Support**: Local authentication, external HTTP API, OAuth providers (GitHub, Gitea, Microsoft)
 - **Flexible Deployment**: Docker-ready, cloud-friendly, runs anywhere with context-aware lifecycle management
 - **Token Management**: Fixed and rotation refresh token modes, web UI for session management
+- **Per-Client Token Profiles**: Choose `short` (15 min / 1 day), `standard` (default), or `long` (24 h / 90 days) access/refresh TTLs per OAuth client; preset TTLs are configurable via `TOKEN_PROFILE_*` env vars and capped by `JWT_EXPIRATION_MAX` / `REFRESH_TOKEN_EXPIRATION_MAX`
+- **Optional HTTPS**: Serve TLS directly by setting `TLS_CERT_FILE` and `TLS_KEY_FILE`, or terminate TLS at a reverse proxy
+- **Admin User Management**: Create users, disable/enable accounts (revokes all tokens), reset passwords, and inspect or unlink each user's third-party OAuth connections and authorized apps from `/admin/users/:id`
+- **OIDC `email_verified`**: Persists and exposes `email_verified` claims from upstream OAuth providers in ID tokens and UserInfo responses
 - **Dynamic Client Registration ([RFC 7591][rfc7591])**: Programmatic client registration with admin approval workflow, protected by optional initial access token
 - **Token Introspection ([RFC 7662][rfc7662])**: RFC-compliant token metadata inspection with client credential authentication
 
@@ -409,6 +413,10 @@ Users can manage per-app consent grants at `/account/authorizations`:
 SERVER_ADDR=:8080
 BASE_URL=http://localhost:8080
 
+# Optional HTTPS — set both to enable TLS on SERVER_ADDR
+# TLS_CERT_FILE=/etc/authgate/tls/fullchain.pem
+# TLS_KEY_FILE=/etc/authgate/tls/privkey.pem
+
 # Security (REQUIRED - use openssl rand -hex 32)
 JWT_SECRET=your-256-bit-secret-change-in-production
 SESSION_SECRET=your-session-secret-change-in-production
@@ -417,8 +425,10 @@ SESSION_SECRET=your-session-secret-change-in-production
 DATABASE_DRIVER=sqlite          # or postgres
 DATABASE_DSN=oauth.db
 
-# Admin Password (REQUIRED in production)
-DEFAULT_ADMIN_PASSWORD=your-secure-password
+# Admin Password (optional)
+# If unset, a random 16-character password is auto-generated on first run
+# and written to authgate-credentials.txt (mode 0600). Delete after retrieval.
+# DEFAULT_ADMIN_PASSWORD=your-secure-password
 
 # Features
 ENABLE_RATE_LIMIT=true          # Brute force protection
@@ -460,21 +470,36 @@ ENABLE_AUDIT_LOGGING=true       # Comprehensive audit trails
 
 ```txt
 authgate/
-├── config/          # Configuration management
-├── handlers/        # HTTP request handlers
-├── middleware/      # Auth, CSRF, rate limiting
-├── models/          # Database models
-├── auth/            # Authentication providers
-├── token/           # Token providers
-├── services/        # Business logic
-├── store/           # Database layer (SQLite/PostgreSQL)
-├── templates/       # Type-safe templ templates
-├── docs/            # Documentation
-├── docker/          # Docker configuration
-└── _example/
-    ├── (Device Code Flow CLI → github.com/go-authgate/device-cli)
-    └── (Authorization Code Flow CLI → github.com/go-authgate/oauth-cli)
+├── main.go              # Entry point: wires store → providers → services → handlers
+├── api/                 # Generated Swagger/OpenAPI documentation
+├── internal/
+│   ├── bootstrap/       # Application startup and router wiring
+│   ├── core/            # Cross-cutting core utilities
+│   ├── config/          # Configuration management
+│   ├── handlers/        # HTTP request handlers
+│   ├── middleware/      # Auth, CSRF, rate limiting, CORS, security headers
+│   ├── models/          # GORM database models
+│   ├── auth/            # Authentication providers (local, HTTP API, OAuth)
+│   ├── token/           # JWT token provider (HS256/RS256/ES256)
+│   ├── services/        # Business logic layer
+│   ├── store/           # Database layer (SQLite/PostgreSQL)
+│   ├── cache/           # Cache implementations (memory, Redis, Redis-aside)
+│   ├── metrics/         # Prometheus metrics collection
+│   ├── client/          # HTTP client with exponential backoff retry
+│   ├── templates/       # Type-safe templ templates
+│   ├── util/            # Utility helpers (crypto, context)
+│   └── version/         # Version info injected at build time
+├── docs/                # Documentation
+├── docker/              # Docker configuration
+├── images/              # Screenshots used in README
+└── scripts/             # Helper scripts
 ```
+
+Example CLIs live in separate repositories:
+
+- Device Code Flow — [github.com/go-authgate/device-cli](https://github.com/go-authgate/device-cli)
+- Authorization Code Flow (+ PKCE) — [github.com/go-authgate/oauth-cli](https://github.com/go-authgate/oauth-cli)
+- Hybrid (auto-detect) — [github.com/go-authgate/cli](https://github.com/go-authgate/cli)
 
 **[Architecture Deep Dive →](docs/ARCHITECTURE.md)**
 
