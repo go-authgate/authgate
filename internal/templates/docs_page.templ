@@ -2,16 +2,17 @@ package templates
 
 templ DocsPage(props DocsPageProps) {
 	@Layout("Docs - "+props.Title, LayoutHasNavbar, &props.NavbarProps) {
-		<div class="docs-layout">
-			<aside class="docs-sidebar" aria-label="Documentation navigation">
+		<div class="docs-layout" lang={ props.Locale }>
+			<aside class="docs-sidebar" aria-label={ props.SidebarTitle }>
 				<div class="docs-sidebar-header">
-					<span class="docs-sidebar-title">Documentation</span>
+					<span class="docs-sidebar-title">{ props.SidebarTitle }</span>
+					@docsLangSwitcher(props)
 				</div>
 				<nav class="docs-sidebar-nav">
 					for _, entry := range props.Entries {
 						<a
-							href={ templ.URL("/docs/" + entry.Slug) }
-							class={ templ.Classes("docs-sidebar-link", templ.KV("active", entry.IsActive)) }
+							href={ templ.URL("/docs/" + props.Locale + "/" + entry.Slug) }
+							class={ templ.Classes("docs-sidebar-link", templ.KV("active", entry.Slug == props.CurrentSlug)) }
 						>
 							{ entry.Title }
 						</a>
@@ -34,72 +35,98 @@ templ DocsPage(props DocsPageProps) {
 		<!-- Mermaid diagrams -->
 		<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 		<script>
-		(function() {
-			// Mermaid destroys source text on render; preserve it for theme-switch re-rendering
-			document.querySelectorAll('.mermaid').forEach(function(el) {
-				el.setAttribute('data-mermaid-source', el.textContent);
-			});
-			var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-			mermaid.initialize({ startOnLoad: true, theme: isDark ? 'dark' : 'default' });
-		})();
+			(function() {
+				// Mermaid destroys source text on render; preserve it for theme-switch re-rendering
+				document.querySelectorAll('.mermaid').forEach(function(el) {
+					el.setAttribute('data-mermaid-source', el.textContent);
+				});
+				var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+				mermaid.initialize({ startOnLoad: true, theme: isDark ? 'dark' : 'default' });
+			})();
 		</script>
 		<!-- Code block enhancements: language badge + copy button -->
 		<script>
-		(function () {
-			document.querySelectorAll('.markdown-body pre').forEach(function (pre) {
-				var code = pre.querySelector('code[class*="language-"]');
-				var match = code && code.className.match(/language-(\w+)/);
-				var lang = match ? match[1] : null;
+			(function () {
+				document.querySelectorAll('.markdown-body pre').forEach(function (pre) {
+					var code = pre.querySelector('code[class*="language-"]');
+					var match = code && code.className.match(/language-(\w+)/);
+					var lang = match ? match[1] : null;
 
-				// Wrap pre in a relative container so badge/button sit outside
-				// the pre's overflow-x scroll region
-				var wrapper = document.createElement('div');
-				wrapper.className = 'code-block';
-				pre.parentNode.insertBefore(wrapper, pre);
-				wrapper.appendChild(pre);
+					// Wrap pre in a relative container so badge/button sit outside
+					// the pre's overflow-x scroll region
+					var wrapper = document.createElement('div');
+					wrapper.className = 'code-block';
+					pre.parentNode.insertBefore(wrapper, pre);
+					wrapper.appendChild(pre);
 
-				// Language badge (top-right, fades out on hover)
-				if (lang) {
-					var badge = document.createElement('span');
-					badge.className = 'code-lang-badge';
-					badge.textContent = lang;
-					wrapper.appendChild(badge);
-				}
-
-				// Copy button (top-right, fades in on hover)
-				var btn = document.createElement('button');
-				btn.className = 'code-copy-btn';
-				btn.setAttribute('aria-label', 'Copy code');
-				btn.textContent = 'copy';
-				wrapper.appendChild(btn);
-
-				btn.addEventListener('click', function () {
-					var text = code ? code.textContent : pre.textContent;
-
-					function onCopied() {
-						btn.textContent = 'copied!';
-						btn.classList.add('code-copy-btn--copied');
-						setTimeout(function () {
-							btn.textContent = 'copy';
-							btn.classList.remove('code-copy-btn--copied');
-						}, 2000);
+					// Language badge (top-right, fades out on hover)
+					if (lang) {
+						var badge = document.createElement('span');
+						badge.className = 'code-lang-badge';
+						badge.textContent = lang;
+						wrapper.appendChild(badge);
 					}
 
-					if (navigator.clipboard) {
-						navigator.clipboard.writeText(text).then(onCopied);
-					} else {
-						var ta = document.createElement('textarea');
-						ta.value = text;
-						ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none;';
-						document.body.appendChild(ta);
-						ta.select();
-						document.execCommand('copy');
-						document.body.removeChild(ta);
-						onCopied();
-					}
+					// Copy button (top-right, fades in on hover)
+					var btn = document.createElement('button');
+					btn.className = 'code-copy-btn';
+					btn.setAttribute('aria-label', 'Copy code');
+					btn.textContent = 'copy';
+					wrapper.appendChild(btn);
+
+					btn.addEventListener('click', function () {
+						var text = code ? code.textContent : pre.textContent;
+
+						function onCopied() {
+							btn.textContent = 'copied!';
+							btn.classList.add('code-copy-btn--copied');
+							setTimeout(function () {
+								btn.textContent = 'copy';
+								btn.classList.remove('code-copy-btn--copied');
+							}, 2000);
+						}
+
+						if (navigator.clipboard) {
+							navigator.clipboard.writeText(text).then(onCopied);
+						} else {
+							var ta = document.createElement('textarea');
+							ta.value = text;
+							ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none;';
+							document.body.appendChild(ta);
+							ta.select();
+							document.execCommand('copy');
+							document.body.removeChild(ta);
+							onCopied();
+						}
+					});
 				});
-			});
-		})();
+			})();
 		</script>
+	}
+}
+
+// docsLangSwitcher renders a segmented toggle between the supported docs
+// locales. Each option is a real anchor (crawlable, bookmarkable,
+// middle-clickable) that navigates to the same slug under the target locale.
+templ docsLangSwitcher(props DocsPageProps) {
+	if len(props.LocaleOptions) > 1 {
+		<div
+			class="docs-lang-switcher"
+			role="group"
+			aria-label={ props.LangLabel }
+		>
+			for _, opt := range props.LocaleOptions {
+				<a
+					href={ templ.URL("/docs/" + opt.Code + "/" + props.CurrentSlug) }
+					hreflang={ opt.Code }
+					class={ templ.Classes("docs-lang-option", templ.KV("active", opt.Code == props.Locale)) }
+					if opt.Code == props.Locale {
+						aria-current="true"
+					}
+				>
+					{ opt.Label }
+				</a>
+			}
+		</div>
 	}
 }

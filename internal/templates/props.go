@@ -257,19 +257,32 @@ type ClientAuthorizationsPageProps struct {
 	Error          string
 }
 
-// DocsEntry represents a single entry in the docs sidebar navigation
+// DocsEntry represents a single entry in the docs sidebar navigation.
+// The template derives active-state by comparing Slug to DocsPageProps.CurrentSlug.
 type DocsEntry struct {
-	Slug     string
-	Title    string
-	IsActive bool
+	Slug  string
+	Title string
+}
+
+// DocsLocaleOption represents a single choice in the docs language switcher.
+// The template derives selected-state by comparing Code to DocsPageProps.Locale
+// and builds the HRef from Code and DocsPageProps.CurrentSlug.
+type DocsLocaleOption struct {
+	Code  string // BCP-47 locale code, e.g. "en", "zh-TW"
+	Label string // human-readable label ("English", "繁體中文")
 }
 
 // DocsPageProps contains properties for the docs page
 type DocsPageProps struct {
 	NavbarProps
-	Title       string
-	ContentHTML string
-	Entries     []DocsEntry
+	Title         string
+	ContentHTML   string
+	CurrentSlug   string // slug being rendered; drives active/selected state in templ
+	Entries       []DocsEntry
+	Locale        string // BCP-47 code of the locale used to render this page
+	SidebarTitle  string // localized sidebar heading ("Documentation" / "技術文件")
+	LangLabel     string // aria-label for the language switcher group
+	LocaleOptions []DocsLocaleOption
 }
 
 // MyAppsPageProps contains properties for the user's own app list page

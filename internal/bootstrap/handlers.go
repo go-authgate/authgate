@@ -96,7 +96,7 @@ func initializeHandlers(deps handlerDeps) handlerSet {
 			deps.auditService,
 			deps.cfg,
 		),
-		docs: handlers.NewDocsHandler(deps.templatesFS),
+		docs: handlers.NewDocsHandler(deps.templatesFS, deps.cfg.IsProduction),
 		jwks: jwksHandler,
 		userAdmin: handlers.NewUserAdminHandler(
 			deps.services.user,

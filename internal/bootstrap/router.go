@@ -192,7 +192,10 @@ func setupAllRoutes(
 	// Documentation routes (public, optional auth for navbar)
 	optionalAuth := middleware.OptionalAuth(h.userService)
 	r.GET("/docs", optionalAuth, h.docs.ShowDocsIndex)
-	r.GET("/docs/:slug", optionalAuth, h.docs.ShowDocsPage)
+	// :lang is either a supported locale code (new canonical form) or, for
+	// backwards-compatibility, a legacy slug; ShowDocsEntry disambiguates.
+	r.GET("/docs/:lang", optionalAuth, h.docs.ShowDocsEntry)
+	r.GET("/docs/:lang/:slug", optionalAuth, h.docs.ShowDocsPage)
 
 	// Swagger documentation (development only)
 	if !cfg.IsProduction {
