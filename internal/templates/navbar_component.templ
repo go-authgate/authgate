@@ -30,13 +30,7 @@ templ Navbar(props *NavbarProps) {
 							@NavDropdownItem("/account/authorizations", "Authorized Apps", props.ActiveLink == "authorizations", false, false)
 							@NavDropdownItem("/apps", "My Apps", props.ActiveLink == "my-apps", false, false)
 						}
-						@NavDropdown("Docs", props.IsDocsActive()) {
-							@NavDropdownItem("/docs/getting-started", "Getting Started", props.ActiveLink == "docs-getting-started", false, false)
-							@NavDropdownItem("/docs/device-flow", "Device Flow", props.ActiveLink == "docs-device-flow", false, false)
-							@NavDropdownItem("/docs/auth-code-flow", "Auth Code Flow", props.ActiveLink == "docs-auth-code-flow", false, false)
-							@NavDropdownItem("/docs/client-credentials", "Client Credentials", props.ActiveLink == "docs-client-credentials", false, false)
-							@NavDropdownItem("/docs/jwt-verification", "JWT Verification", props.ActiveLink == "docs-jwt-verification", false, false)
-						}
+						@DocsNavDropdown(props)
 						@NavDropdown("API", props.ActiveLink == "apidocs") {
 							@NavDropdownItem("/swagger/index.html", "Swagger UI", props.ActiveLink == "apidocs", false, true)
 						}
@@ -58,13 +52,7 @@ templ Navbar(props *NavbarProps) {
 					</div>
 				} else {
 					<div class="navbar-links">
-						@NavDropdown("Docs", props.IsDocsActive()) {
-							@NavDropdownItem("/docs/getting-started", "Getting Started", props.ActiveLink == "docs-getting-started", false, false)
-							@NavDropdownItem("/docs/device-flow", "Device Flow", props.ActiveLink == "docs-device-flow", false, false)
-							@NavDropdownItem("/docs/auth-code-flow", "Auth Code Flow", props.ActiveLink == "docs-auth-code-flow", false, false)
-							@NavDropdownItem("/docs/client-credentials", "Client Credentials", props.ActiveLink == "docs-client-credentials", false, false)
-							@NavDropdownItem("/docs/jwt-verification", "JWT Verification", props.ActiveLink == "docs-jwt-verification", false, false)
-						}
+						@DocsNavDropdown(props)
 						@NavDropdown("API", props.ActiveLink == "apidocs") {
 							@NavDropdownItem("/swagger/index.html", "Swagger UI", props.ActiveLink == "apidocs", false, true)
 						}
@@ -76,6 +64,14 @@ templ Navbar(props *NavbarProps) {
 			</div>
 		</div>
 	</nav>
+}
+
+templ DocsNavDropdown(props *NavbarProps) {
+	@NavDropdown("Docs", props.IsDocsActive()) {
+		for _, entry := range props.DocsNavEntries {
+			@NavDropdownItem("/docs/"+entry.Slug, entry.Title, props.ActiveLink == "docs-"+entry.Slug, false, false)
+		}
+	}
 }
 
 templ NavLink(href, label string, isActive bool) {

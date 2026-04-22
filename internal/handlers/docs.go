@@ -31,6 +31,31 @@ const (
 // they should appear in the language switcher (first entry is the default).
 var DocsSupportedLocales = []Locale{LocaleEN, LocaleZHTW}
 
+// navbarDocsEntries is the per-locale slug+title list rendered inside the
+// navbar's Docs dropdown. Built once from DocsMeta at init so non-docs pages
+// (which don't have the DocsHandler wired in) can still show the dropdown
+// localized to the user's docs_lang cookie.
+var navbarDocsEntries = func() map[Locale][]templates.DocsEntry {
+	m := make(map[Locale][]templates.DocsEntry, len(DocsSupportedLocales))
+	for _, loc := range DocsSupportedLocales {
+		entries := make([]templates.DocsEntry, len(DocsMeta))
+		for i, meta := range DocsMeta {
+			entries[i] = templates.DocsEntry{Slug: meta.Slug, Title: docsTitleFor(meta, loc)}
+		}
+		m[loc] = entries
+	}
+	return m
+}()
+
+// NavbarDocsEntriesFor returns the docs dropdown entries for the given locale,
+// falling back to the default locale when the requested one isn't supported.
+func NavbarDocsEntriesFor(loc Locale) []templates.DocsEntry {
+	if entries, ok := navbarDocsEntries[loc]; ok {
+		return entries
+	}
+	return navbarDocsEntries[DocsDefaultLocale]
+}
+
 // docsMetaEntry describes a single documentation page with per-locale titles.
 type docsMetaEntry struct {
 	Slug   string
@@ -210,7 +235,7 @@ func docsTitleFor(m docsMetaEntry, loc Locale) string {
 // redirects to the canonical /docs/<locale>/<first-slug> URL so every rendered
 // page has the locale explicitly in its path.
 func (h *DocsHandler) ShowDocsIndex(c *gin.Context) {
-	loc := h.resolveLocale(c)
+	loc := resolveLocale(c)
 	pages := h.pages[loc]
 	if len(pages) == 0 {
 		c.Redirect(http.StatusFound, "/")
@@ -234,7 +259,7 @@ func (h *DocsHandler) ShowDocsEntry(c *gin.Context) {
 	}
 
 	if _, ok := h.pageMap[DocsDefaultLocale][raw]; ok {
-		loc := h.resolveLocale(c)
+		loc := resolveLocale(c)
 		// Ensure the redirect lands somewhere that actually renders: if the
 		// resolved locale lacks this slug for any reason, drop to default.
 		if _, ok := h.pageMap[loc][raw]; !ok {
@@ -289,7 +314,10 @@ func (h *DocsHandler) ShowDocsPage(c *gin.Context) {
 		h.setLangCookie(c, loc)
 	}
 
-	navbarProps := templates.NavbarProps{ActiveLink: "docs-" + slug}
+	navbarProps := templates.NavbarProps{
+		ActiveLink:     "docs-" + slug,
+		DocsNavEntries: h.sidebarEntries[loc],
+	}
 	if user := getUserFromContext(c); user != nil {
 		navbarProps.Username = user.Username
 		navbarProps.FullName = user.FullName
@@ -338,8 +366,9 @@ func docsLocaleLabel(l Locale, s docsStrings) string {
 //  3. DocsDefaultLocale.
 //
 // The canonical /docs/<lang>/<slug> route does not go through resolveLocale;
-// its locale comes straight from the URL path.
-func (h *DocsHandler) resolveLocale(c *gin.Context) Locale {
+// its locale comes straight from the URL path. The function is handler-state
+// free so buildNavbarProps can reuse it to localize the navbar dropdown.
+func resolveLocale(c *gin.Context) Locale {
 	if ck, err := c.Cookie(docsLangCookie); err == nil && ck != "" {
 		if loc, ok := matchLocaleTag(ck); ok {
 			return loc

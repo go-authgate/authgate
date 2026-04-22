@@ -111,6 +111,7 @@ func buildNavbarProps(c *gin.Context, user *models.User, activeLink string) temp
 		IsAdmin:             user.IsAdmin(),
 		ActiveLink:          activeLink,
 		PendingClientsCount: pendingCount,
+		DocsNavEntries:      NavbarDocsEntriesFor(resolveLocale(c)),
 	}
 }
 

@@ -45,8 +45,9 @@ type NavbarProps struct {
 	Username            string
 	FullName            string
 	IsAdmin             bool
-	ActiveLink          string // e.g. "device", "sessions", "clients", "audit", "docs-<slug>"
-	PendingClientsCount int    // Badge count for admin → OAuth Clients link
+	ActiveLink          string      // e.g. "device", "sessions", "clients", "audit", "docs-<slug>"
+	PendingClientsCount int         // Badge count for admin → OAuth Clients link
+	DocsNavEntries      []DocsEntry // Docs dropdown entries, localized per the user's docs_lang cookie
 }
 
 // IsDocsActive returns true if the current ActiveLink belongs to a docs page.

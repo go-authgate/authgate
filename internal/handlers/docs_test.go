@@ -208,35 +208,32 @@ func TestNewDocsHandlerFallsBackToDefault(t *testing.T) {
 
 func TestResolveLocale_CookieBeatsHeader(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	h := newTestDocsHandler(t)
 
 	c, _ := newDocsCtx(t, http.MethodGet, "/docs", map[string]string{
 		"Accept-Language": "en-US",
 		"Cookie":          docsLangCookie + "=zh-TW",
 	})
-	loc := h.resolveLocale(c)
+	loc := resolveLocale(c)
 	assert.Equal(t, LocaleZHTW, loc)
 }
 
 func TestResolveLocale_FallsBackToAcceptLanguage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	h := newTestDocsHandler(t)
 
 	c, _ := newDocsCtx(t, http.MethodGet, "/docs", map[string]string{
 		"Accept-Language": "zh-TW,zh;q=0.9,en;q=0.7",
 	})
-	loc := h.resolveLocale(c)
+	loc := resolveLocale(c)
 	assert.Equal(t, LocaleZHTW, loc)
 }
 
 func TestResolveLocale_DefaultWhenNothingMatches(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	h := newTestDocsHandler(t)
 
 	c, _ := newDocsCtx(t, http.MethodGet, "/docs", map[string]string{
 		"Accept-Language": "fr,de;q=0.9",
 	})
-	loc := h.resolveLocale(c)
+	loc := resolveLocale(c)
 	assert.Equal(t, DocsDefaultLocale, loc)
 }
 
