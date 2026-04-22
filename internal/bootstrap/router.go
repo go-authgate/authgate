@@ -362,14 +362,6 @@ func setupOAuthRoutes(
 }
 
 // createFaviconHandler creates favicon endpoint handler
-// favicon godoc
-//
-//	@Summary		Favicon
-//	@Description	Serve favicon.ico
-//	@Tags			System
-//	@Produce		image/x-icon
-//	@Success		200	{file}	binary	"Favicon file"
-//	@Router			/favicon.ico [get]
 func createFaviconHandler(templatesFS embed.FS, cacheMaxAge time.Duration) gin.HandlerFunc {
 	// Read favicon once at startup
 	faviconData, err := templatesFS.ReadFile("internal/templates/static/images/favicon.ico")
