@@ -99,7 +99,10 @@ func (h *AuthHandler) LoginPageWithOAuth(
 	errorMsg := loginErrorMessages[c.Query("error")]
 
 	templates.RenderTempl(c, http.StatusOK, templates.LoginPage(templates.LoginPageProps{
-		BaseProps:         templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+		NavbarProps: templates.NavbarProps{
+			DocsNavEntries: NavbarDocsEntriesFor(resolveLocale(c)),
+		},
 		Redirect:          redirectTo,
 		Error:             errorMsg,
 		OAuthProviders:    buildOAuthProviderList(oauthProviders),
@@ -145,7 +148,10 @@ func (h *AuthHandler) Login(c *gin.Context,
 			c,
 			http.StatusUnauthorized,
 			templates.LoginPage(templates.LoginPageProps{
-				BaseProps:         templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				NavbarProps: templates.NavbarProps{
+					DocsNavEntries: NavbarDocsEntriesFor(resolveLocale(c)),
+				},
 				Error:             errorMsg,
 				Redirect:          redirectTo,
 				OAuthProviders:    buildOAuthProviderList(oauthProviders),
@@ -196,7 +202,10 @@ func (h *AuthHandler) Login(c *gin.Context,
 			c,
 			http.StatusInternalServerError,
 			templates.LoginPage(templates.LoginPageProps{
-				BaseProps:         templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				BaseProps: templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				NavbarProps: templates.NavbarProps{
+					DocsNavEntries: NavbarDocsEntriesFor(resolveLocale(c)),
+				},
 				Error:             "Failed to create session",
 				RememberMeEnabled: h.cfg.SessionRememberMeEnabled,
 				RememberMeDays:    h.rememberMeDays(),
