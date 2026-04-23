@@ -121,6 +121,98 @@ func TestLoadSigningKey_MultiBlock_ECAfterUnknown(t *testing.T) {
 	assert.True(t, ok, "expected *ecdsa.PrivateKey from multi-block PEM")
 }
 
+func TestParseSigningKey_RSA_PKCS1(t *testing.T) {
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	pemBytes := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(rsaKey),
+	})
+
+	key, err := ParseSigningKey(pemBytes)
+	require.NoError(t, err)
+	_, ok := key.(*rsa.PrivateKey)
+	assert.True(t, ok, "expected *rsa.PrivateKey, got %T", key)
+}
+
+func TestParseSigningKey_RSA_PKCS8(t *testing.T) {
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	der, err := x509.MarshalPKCS8PrivateKey(rsaKey)
+	require.NoError(t, err)
+	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
+
+	key, err := ParseSigningKey(pemBytes)
+	require.NoError(t, err)
+	_, ok := key.(*rsa.PrivateKey)
+	assert.True(t, ok, "expected *rsa.PrivateKey, got %T", key)
+}
+
+func TestParseSigningKey_ECDSA_SEC1(t *testing.T) {
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	der, err := x509.MarshalECPrivateKey(ecKey)
+	require.NoError(t, err)
+	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der})
+
+	key, err := ParseSigningKey(pemBytes)
+	require.NoError(t, err)
+	loaded, ok := key.(*ecdsa.PrivateKey)
+	assert.True(t, ok, "expected *ecdsa.PrivateKey, got %T", key)
+	assert.Equal(t, elliptic.P256(), loaded.Curve)
+}
+
+func TestParseSigningKey_ECDSA_PKCS8(t *testing.T) {
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	der, err := x509.MarshalPKCS8PrivateKey(ecKey)
+	require.NoError(t, err)
+	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
+
+	key, err := ParseSigningKey(pemBytes)
+	require.NoError(t, err)
+	_, ok := key.(*ecdsa.PrivateKey)
+	assert.True(t, ok, "expected *ecdsa.PrivateKey, got %T", key)
+}
+
+func TestParseSigningKey_EmptyInput(t *testing.T) {
+	_, err := ParseSigningKey(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no PEM block found")
+}
+
+func TestParseSigningKey_InvalidPEM(t *testing.T) {
+	_, err := ParseSigningKey([]byte("not a pem blob"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no PEM block found")
+}
+
+func TestParseSigningKey_UnsupportedFormat(t *testing.T) {
+	pemBytes := pem.EncodeToMemory(
+		&pem.Block{Type: "UNKNOWN KEY", Bytes: []byte("garbage-key-data")},
+	)
+
+	_, err := ParseSigningKey(pemBytes)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no supported private key found")
+}
+
+func TestParseSigningKey_MultiBlock(t *testing.T) {
+	// PEM with a non-key block first (e.g. EC PARAMETERS), followed by the real EC key.
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	ecDER, err := x509.MarshalECPrivateKey(ecKey)
+	require.NoError(t, err)
+
+	buf := pem.EncodeToMemory(&pem.Block{Type: "EC PARAMETERS", Bytes: []byte("params")})
+	buf = append(buf, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: ecDER})...)
+
+	key, err := ParseSigningKey(buf)
+	require.NoError(t, err)
+	_, ok := key.(*ecdsa.PrivateKey)
+	assert.True(t, ok, "expected *ecdsa.PrivateKey from multi-block PEM")
+}
+
 func TestDeriveKeyID_RSA(t *testing.T) {
 	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)

@@ -101,6 +101,7 @@ func TestConfig_Validate_JWTSigningAlgorithm(t *testing.T) {
 		name        string
 		algorithm   string
 		keyPath     string
+		keyPEM      string
 		expectError bool
 		errorMsg    string
 	}{
@@ -115,10 +116,10 @@ func TestConfig_Validate_JWTSigningAlgorithm(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "RS256 requires key path",
+			name:        "RS256 requires key path or PEM",
 			algorithm:   "RS256",
 			expectError: true,
-			errorMsg:    "JWT_PRIVATE_KEY_PATH is required",
+			errorMsg:    "JWT_PRIVATE_KEY_PATH or JWT_PRIVATE_KEY_PEM is required",
 		},
 		{
 			name:        "RS256 with key path OK",
@@ -127,15 +128,34 @@ func TestConfig_Validate_JWTSigningAlgorithm(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "ES256 requires key path",
+			name:        "RS256 with inline PEM OK",
+			algorithm:   "RS256",
+			keyPEM:      "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n",
+			expectError: false,
+		},
+		{
+			name:        "RS256 with both path and PEM OK (PEM takes precedence at runtime)",
+			algorithm:   "RS256",
+			keyPath:     "/some/key.pem",
+			keyPEM:      "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n",
+			expectError: false,
+		},
+		{
+			name:        "ES256 requires key path or PEM",
 			algorithm:   "ES256",
 			expectError: true,
-			errorMsg:    "JWT_PRIVATE_KEY_PATH is required",
+			errorMsg:    "JWT_PRIVATE_KEY_PATH or JWT_PRIVATE_KEY_PEM is required",
 		},
 		{
 			name:        "ES256 with key path OK",
 			algorithm:   "ES256",
 			keyPath:     "/some/key.pem",
+			expectError: false,
+		},
+		{
+			name:        "ES256 with inline PEM OK",
+			algorithm:   "ES256",
+			keyPEM:      "-----BEGIN EC PRIVATE KEY-----\nabc\n-----END EC PRIVATE KEY-----\n",
 			expectError: false,
 		},
 		{
@@ -151,6 +171,7 @@ func TestConfig_Validate_JWTSigningAlgorithm(t *testing.T) {
 			cfg := validBaseConfig()
 			cfg.JWTSigningAlgorithm = tt.algorithm
 			cfg.JWTPrivateKeyPath = tt.keyPath
+			cfg.JWTPrivateKeyPEM = tt.keyPEM
 			err := cfg.Validate()
 			if tt.expectError {
 				require.Error(t, err)

@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"crypto"
 	"log"
 
 	"github.com/go-authgate/authgate/internal/auth"
@@ -52,10 +53,30 @@ func initializeTokenProvider(cfg *config.Config) *token.LocalTokenProvider {
 		log.Fatalf("Unsupported JWT_SIGNING_ALGORITHM: %q", cfg.JWTSigningAlgorithm)
 	}
 
-	// Load asymmetric key
-	privateKey, err := token.LoadSigningKey(cfg.JWTPrivateKeyPath)
+	// Load asymmetric key. Prefer inline PEM content over file path when both are set,
+	// so containerized deployments (K8s Secrets, GitHub Actions) can override an image-baked
+	// default without rewriting the file.
+	var (
+		privateKey crypto.Signer
+		source     string
+		err        error
+	)
+	switch {
+	case cfg.JWTPrivateKeyPEM != "":
+		if cfg.JWTPrivateKeyPath != "" {
+			log.Printf(
+				"Warning: JWT_PRIVATE_KEY_PEM is set, ignoring JWT_PRIVATE_KEY_PATH=%s",
+				cfg.JWTPrivateKeyPath,
+			)
+		}
+		source = "JWT_PRIVATE_KEY_PEM"
+		privateKey, err = token.ParseSigningKey([]byte(cfg.JWTPrivateKeyPEM))
+	default:
+		source = cfg.JWTPrivateKeyPath
+		privateKey, err = token.LoadSigningKey(cfg.JWTPrivateKeyPath)
+	}
 	if err != nil {
-		log.Fatalf("Failed to load JWT private key from %s: %v", cfg.JWTPrivateKeyPath, err)
+		log.Fatalf("Failed to load JWT private key from %s: %v", source, err)
 	}
 
 	// Derive kid if not explicitly set

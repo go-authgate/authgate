@@ -60,7 +60,8 @@ type Config struct {
 	JWTSecret           string
 	JWTExpiration       time.Duration
 	JWTSigningAlgorithm string        // "HS256" (default), "RS256", or "ES256"
-	JWTPrivateKeyPath   string        // PEM file path (required for RS256/ES256)
+	JWTPrivateKeyPath   string        // PEM file path (required for RS256/ES256 when PEM content is not set)
+	JWTPrivateKeyPEM    string        // PEM content (alternative to JWTPrivateKeyPath; takes precedence if both are set)
 	JWTKeyID            string        // "kid" header for JWKS key rotation (auto-generated if empty)
 	JWTExpirationJitter time.Duration // Max random jitter added to access token expiry (default: 30m)
 
@@ -308,6 +309,7 @@ func Load() *Config {
 		JWTExpiration:       jwtExpiration,
 		JWTSigningAlgorithm: getEnv("JWT_SIGNING_ALGORITHM", AlgHS256),
 		JWTPrivateKeyPath:   getEnv("JWT_PRIVATE_KEY_PATH", ""),
+		JWTPrivateKeyPEM:    getEnv("JWT_PRIVATE_KEY_PEM", ""),
 		JWTKeyID:            getEnv("JWT_KEY_ID", ""),
 		JWTExpirationJitter: getEnvDuration("JWT_EXPIRATION_JITTER", 30*time.Minute),
 		SessionSecret:       getEnv("SESSION_SECRET", "session-secret-change-in-production"),
@@ -604,9 +606,9 @@ func (c *Config) Validate() error {
 	case "", AlgHS256:
 		// default, no key file required
 	case AlgRS256, AlgES256:
-		if c.JWTPrivateKeyPath == "" {
+		if c.JWTPrivateKeyPath == "" && c.JWTPrivateKeyPEM == "" {
 			return fmt.Errorf(
-				"JWT_PRIVATE_KEY_PATH is required when JWT_SIGNING_ALGORITHM=%s",
+				"JWT_PRIVATE_KEY_PATH or JWT_PRIVATE_KEY_PEM is required when JWT_SIGNING_ALGORITHM=%s",
 				c.JWTSigningAlgorithm,
 			)
 		}
