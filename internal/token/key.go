@@ -8,19 +8,15 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
 )
 
-// LoadSigningKey reads a PEM file and returns the parsed private key.
+// ParseSigningKey parses PEM-encoded data into a supported private key.
 // Supports RSA (PKCS#1 / PKCS#8) and ECDSA (SEC1 / PKCS#8).
-// All PEM blocks in the file are tried in order until a supported key is found.
-func LoadSigningKey(path string) (crypto.Signer, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read key file: %w", err)
-	}
-
+// All PEM blocks are tried in order until a supported key is found.
+func ParseSigningKey(data []byte) (crypto.Signer, error) {
 	rest := data
 	foundBlocks := false
 	for {
@@ -56,9 +52,23 @@ func LoadSigningKey(path string) (crypto.Signer, error) {
 	}
 
 	if !foundBlocks {
-		return nil, fmt.Errorf("no PEM block found in %s", path)
+		return nil, errors.New("no PEM block found in key data")
 	}
-	return nil, fmt.Errorf("no supported private key found in %s", path)
+	return nil, errors.New("no supported private key found in key data")
+}
+
+// LoadSigningKey reads a PEM file and returns the parsed private key.
+// Supports RSA (PKCS#1 / PKCS#8) and ECDSA (SEC1 / PKCS#8).
+func LoadSigningKey(path string) (crypto.Signer, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read key file: %w", err)
+	}
+	key, err := ParseSigningKey(data)
+	if err != nil {
+		return nil, fmt.Errorf("parse key file %s: %w", path, err)
+	}
+	return key, nil
 }
 
 // DeriveKeyID computes a deterministic kid from the SHA-256 hash of the

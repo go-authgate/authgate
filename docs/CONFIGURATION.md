@@ -290,18 +290,30 @@ AuthGate supports three JWT signing algorithms:
 
 ### Configuration
 
+For RS256/ES256 you must supply the private key via **at least one** of two environment variables:
+
+| Variable               | Use when                                                           |
+| ---------------------- | ------------------------------------------------------------------ |
+| `JWT_PRIVATE_KEY_PATH` | Key is available as a file on disk (bare-metal, Docker volume)     |
+| `JWT_PRIVATE_KEY_PEM`  | Key is injected as a string (Kubernetes Secret, GitHub Actions, Fly.io, Cloud Run) |
+
+When both are set, `JWT_PRIVATE_KEY_PEM` wins and AuthGate logs a warning on startup.
+
 ```bash
 # HS256 (default — no additional config needed)
 JWT_SIGNING_ALGORITHM=HS256
 
-# RS256
+# RS256 — load key from disk
 JWT_SIGNING_ALGORITHM=RS256
 JWT_PRIVATE_KEY_PATH=/path/to/rsa-private.pem
 JWT_KEY_ID=                   # Optional: auto-generated from key fingerprint
 
-# ES256
+# ES256 — load key from inline PEM (env var holds the full PEM content incl. newlines)
 JWT_SIGNING_ALGORITHM=ES256
-JWT_PRIVATE_KEY_PATH=/path/to/ec-private.pem
+JWT_PRIVATE_KEY_PEM="-----BEGIN EC PRIVATE KEY-----
+MHcCAQEEI...<base64 body>...
+-----END EC PRIVATE KEY-----
+"
 JWT_KEY_ID=                   # Optional: auto-generated from key fingerprint
 ```
 
@@ -313,6 +325,62 @@ openssl genrsa -out rsa-private.pem 2048
 
 # ECDSA P-256 key for ES256
 openssl ecparam -genkey -name prime256v1 -noout -out ec-private.pem
+```
+
+### Loading Keys in Containerized Deployments
+
+`JWT_PRIVATE_KEY_PEM` lets you pass the full PEM string through environment variables,
+which is the native secret-delivery mechanism on most container platforms. Both
+GitHub Actions Secrets and Kubernetes Secrets preserve newlines, so no base64 encoding
+is required.
+
+**GitHub Actions**
+
+Store the PEM in a repository secret (e.g. `JWT_SIGNING_KEY`) — GitHub's secret editor
+preserves multi-line input as-is. Then inject it at runtime:
+
+```yaml
+- name: Run AuthGate
+  env:
+    JWT_SIGNING_ALGORITHM: RS256
+    JWT_PRIVATE_KEY_PEM: ${{ secrets.JWT_SIGNING_KEY }}
+  run: ./bin/authgate server
+```
+
+**Kubernetes**
+
+Store the PEM in a `Secret` and expose it via `env.valueFrom.secretKeyRef`:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: authgate-jwt
+type: Opaque
+stringData:
+  private-key.pem: |
+    -----BEGIN EC PRIVATE KEY-----
+    MHcCAQEEI...
+    -----END EC PRIVATE KEY-----
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authgate
+spec:
+  template:
+    spec:
+      containers:
+        - name: authgate
+          image: authgate:latest
+          env:
+            - name: JWT_SIGNING_ALGORITHM
+              value: ES256
+            - name: JWT_PRIVATE_KEY_PEM
+              valueFrom:
+                secretKeyRef:
+                  name: authgate-jwt
+                  key: private-key.pem
 ```
 
 ### JWKS Endpoint
