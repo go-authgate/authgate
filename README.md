@@ -179,8 +179,8 @@ cp .env.example .env
 echo "JWT_SECRET=$(openssl rand -hex 32)" >> .env
 echo "SESSION_SECRET=$(openssl rand -hex 32)" >> .env
 
-# Build the server
-make build
+# Build the server (runs `generate` then `build` via the default `all` target)
+make
 ```
 
 ### Run the Server
@@ -590,8 +590,8 @@ docker run -d \
 ### Build from Source
 
 ```bash
-# Build binary
-make build
+# Build binary (runs `generate` then `build` via the default `all` target)
+make
 
 # Run tests
 make test
