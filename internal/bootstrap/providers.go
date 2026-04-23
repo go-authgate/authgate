@@ -53,30 +53,25 @@ func initializeTokenProvider(cfg *config.Config) *token.LocalTokenProvider {
 		log.Fatalf("Unsupported JWT_SIGNING_ALGORITHM: %q", cfg.JWTSigningAlgorithm)
 	}
 
-	// Load asymmetric key. Prefer inline PEM content over file path when both are set,
-	// so containerized deployments (K8s Secrets, GitHub Actions) can override an image-baked
-	// default without rewriting the file.
+	// Prefer inline PEM over file path so containerized deployments (K8s Secrets,
+	// GitHub Actions) can override an image-baked default without rewriting the file.
 	var (
 		privateKey crypto.Signer
-		source     string
 		err        error
 	)
-	switch {
-	case cfg.JWTPrivateKeyPEM != "":
+	if cfg.JWTPrivateKeyPEM != "" {
 		if cfg.JWTPrivateKeyPath != "" {
-			log.Printf(
-				"Warning: JWT_PRIVATE_KEY_PEM is set, ignoring JWT_PRIVATE_KEY_PATH=%s",
-				cfg.JWTPrivateKeyPath,
-			)
+			log.Printf("Warning: both JWT_PRIVATE_KEY_PEM and JWT_PRIVATE_KEY_PATH are set; using PEM")
 		}
-		source = "JWT_PRIVATE_KEY_PEM"
 		privateKey, err = token.ParseSigningKey([]byte(cfg.JWTPrivateKeyPEM))
-	default:
-		source = cfg.JWTPrivateKeyPath
+		if err != nil {
+			log.Fatalf("Failed to parse JWT_PRIVATE_KEY_PEM: %v", err)
+		}
+	} else {
 		privateKey, err = token.LoadSigningKey(cfg.JWTPrivateKeyPath)
-	}
-	if err != nil {
-		log.Fatalf("Failed to load JWT private key from %s: %v", source, err)
+		if err != nil {
+			log.Fatalf("Failed to load JWT private key from %s: %v", cfg.JWTPrivateKeyPath, err)
+		}
 	}
 
 	// Derive kid if not explicitly set
