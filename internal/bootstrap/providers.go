@@ -61,7 +61,9 @@ func initializeTokenProvider(cfg *config.Config) *token.LocalTokenProvider {
 	)
 	if cfg.JWTPrivateKeyPEM != "" {
 		if cfg.JWTPrivateKeyPath != "" {
-			log.Printf("Warning: both JWT_PRIVATE_KEY_PEM and JWT_PRIVATE_KEY_PATH are set; using PEM")
+			log.Printf(
+				"Warning: both JWT_PRIVATE_KEY_PEM and JWT_PRIVATE_KEY_PATH are set; using PEM",
+			)
 		}
 		privateKey, err = token.ParseSigningKey([]byte(cfg.JWTPrivateKeyPEM))
 		if err != nil {
