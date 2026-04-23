@@ -290,7 +290,7 @@ AuthGate supports three JWT signing algorithms:
 
 ### Configuration
 
-For RS256/ES256 you must supply the private key via **one** of two environment variables:
+For RS256/ES256 you must supply the private key via **at least one** of two environment variables:
 
 | Variable               | Use when                                                           |
 | ---------------------- | ------------------------------------------------------------------ |
