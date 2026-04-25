@@ -72,8 +72,7 @@ func TestLocalTokenProvider_GenerateToken(t *testing.T) {
 		"user123",
 		"client456",
 		"read write",
-		0,
-	)
+		0, nil)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, result.TokenString)
@@ -100,8 +99,7 @@ func TestLocalTokenProvider_ValidateToken_Success(t *testing.T) {
 		"user123",
 		"client456",
 		"read write",
-		0,
-	)
+		0, nil)
 	require.NoError(t, err)
 
 	// Validate the token
@@ -152,8 +150,7 @@ func TestLocalTokenProvider_ValidateToken_WrongSecret(t *testing.T) {
 		"user123",
 		"client456",
 		"read write",
-		0,
-	)
+		0, nil)
 	require.NoError(t, err)
 
 	// Try to validate with different secret
@@ -188,8 +185,7 @@ func TestLocalTokenProvider_ValidateToken_ExpiredToken(t *testing.T) {
 		"user123",
 		"client456",
 		"read write",
-		0,
-	)
+		0, nil)
 	require.NoError(t, err)
 
 	// Wait for token to expire
@@ -242,8 +238,7 @@ func TestLocalTokenProvider_GenerateToken_VariousExpirations(t *testing.T) {
 				"user123",
 				"client456",
 				"read",
-				0,
-			)
+				0, nil)
 
 			require.NoError(t, err)
 			expectedExpiry := time.Now().Add(tt.expiration)
@@ -269,8 +264,7 @@ func TestLocalTokenProvider_GenerateToken_TTLOverride(t *testing.T) {
 	// slower CI runners where time.Now() can drift between the two calls.
 	start := time.Now()
 	result, err := provider.GenerateToken(
-		context.Background(), "u", "c", "s", 15*time.Minute,
-	)
+		context.Background(), "u", "c", "s", 15*time.Minute, nil)
 	require.NoError(t, err)
 	assert.WithinDuration(t, start.Add(15*time.Minute), result.ExpiresAt, 2*time.Second)
 }
@@ -287,8 +281,7 @@ func TestLocalTokenProvider_GenerateRefreshToken_TTLOverride(t *testing.T) {
 
 	start := time.Now()
 	result, err := provider.GenerateRefreshToken(
-		context.Background(), "u", "c", "s", 24*time.Hour,
-	)
+		context.Background(), "u", "c", "s", 24*time.Hour, nil)
 	require.NoError(t, err)
 	assert.WithinDuration(t, start.Add(24*time.Hour), result.ExpiresAt, 2*time.Second)
 }
@@ -309,8 +302,7 @@ func TestValidateToken_RejectsRefreshToken(t *testing.T) {
 
 	// Generate a refresh token
 	refreshResult, err := provider.GenerateRefreshToken(
-		context.Background(), "user1", "client1", "read", 0,
-	)
+		context.Background(), "user1", "client1", "read", 0, nil)
 	require.NoError(t, err)
 
 	// ValidateToken must reject it with a specific message
@@ -359,8 +351,7 @@ func TestValidateRefreshToken_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	genResult, err := provider.GenerateRefreshToken(
-		context.Background(), "user1", "client1", "read write", 0,
-	)
+		context.Background(), "user1", "client1", "read write", 0, nil)
 	require.NoError(t, err)
 
 	valResult, err := provider.ValidateRefreshToken(
@@ -385,8 +376,7 @@ func TestValidateRefreshToken_RejectsAccessToken(t *testing.T) {
 
 	// Generate an access token
 	accessResult, err := provider.GenerateToken(
-		context.Background(), "user1", "client1", "read", 0,
-	)
+		context.Background(), "user1", "client1", "read", 0, nil)
 	require.NoError(t, err)
 
 	// ValidateRefreshToken must reject it with a specific message
@@ -409,8 +399,7 @@ func TestValidateRefreshToken_ExpiredReturnsRefreshError(t *testing.T) {
 	require.NoError(t, err)
 
 	genResult, err := provider.GenerateRefreshToken(
-		context.Background(), "user1", "client1", "read", 0,
-	)
+		context.Background(), "user1", "client1", "read", 0, nil)
 	require.NoError(t, err)
 
 	time.Sleep(10 * time.Millisecond)
@@ -702,7 +691,14 @@ func TestLocalTokenProvider_RS256_GenerateAndValidate(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read write", 0)
+	result, err := provider.GenerateToken(
+		context.Background(),
+		"user1",
+		"client1",
+		"read write",
+		0,
+		nil,
+	)
 	require.NoError(t, err)
 	assert.NotEmpty(t, result.TokenString)
 
@@ -729,7 +725,7 @@ func TestLocalTokenProvider_ES256_GenerateAndValidate(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	result, err := provider.GenerateToken(context.Background(), "user2", "client2", "email", 0)
+	result, err := provider.GenerateToken(context.Background(), "user2", "client2", "email", 0, nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, result.TokenString)
 
@@ -780,14 +776,21 @@ func TestLocalTokenProvider_HS256_BackwardCompatible(t *testing.T) {
 	require.NoError(t, err)
 
 	// Access token
-	result, err := provider.GenerateToken(context.Background(), "u1", "c1", "r", 0)
+	result, err := provider.GenerateToken(context.Background(), "u1", "c1", "r", 0, nil)
 	require.NoError(t, err)
 	valResult, err := provider.ValidateToken(context.Background(), result.TokenString)
 	require.NoError(t, err)
 	assert.True(t, valResult.Valid)
 
 	// Refresh token
-	refreshResult, err := provider.GenerateRefreshToken(context.Background(), "u1", "c1", "r", 0)
+	refreshResult, err := provider.GenerateRefreshToken(
+		context.Background(),
+		"u1",
+		"c1",
+		"r",
+		0,
+		nil,
+	)
 	require.NoError(t, err)
 	refreshVal, err := provider.ValidateRefreshToken(
 		context.Background(),
@@ -821,7 +824,7 @@ func TestLocalTokenProvider_KidHeader(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read", 0)
+	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read", 0, nil)
 	require.NoError(t, err)
 
 	// Parse the raw JWT to inspect header
@@ -841,7 +844,7 @@ func TestLocalTokenProvider_HS256_NoKidHeader(t *testing.T) {
 	provider, err := NewLocalTokenProvider(cfg)
 	require.NoError(t, err)
 
-	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read", 0)
+	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read", 0, nil)
 	require.NoError(t, err)
 
 	parser := jwt.NewParser()
@@ -870,7 +873,7 @@ func TestLocalTokenProvider_RS256_CrossValidationFails(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	result, err := provider1.GenerateToken(context.Background(), "u", "c", "r", 0)
+	result, err := provider1.GenerateToken(context.Background(), "u", "c", "r", 0, nil)
 	require.NoError(t, err)
 
 	_, err = provider2.ValidateToken(context.Background(), result.TokenString)
@@ -892,7 +895,14 @@ func TestLocalTokenProvider_RS256_RefreshToken(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	refreshResult, err := provider.GenerateRefreshToken(context.Background(), "u1", "c1", "r", 0)
+	refreshResult, err := provider.GenerateRefreshToken(
+		context.Background(),
+		"u1",
+		"c1",
+		"r",
+		0,
+		nil,
+	)
 	require.NoError(t, err)
 
 	valResult, err := provider.ValidateRefreshToken(context.Background(), refreshResult.TokenString)
@@ -906,6 +916,7 @@ func TestLocalTokenProvider_RS256_RefreshToken(t *testing.T) {
 		refreshResult.TokenString,
 		0,
 		0,
+		nil,
 	)
 	require.NoError(t, err)
 	assert.NotNil(t, refreshed.AccessToken)
@@ -1036,7 +1047,14 @@ func TestGenerateToken_WithJitter(t *testing.T) {
 
 	var expirations []time.Time
 	for range 20 {
-		result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read", 0)
+		result, err := provider.GenerateToken(
+			context.Background(),
+			"user1",
+			"client1",
+			"read",
+			0,
+			nil,
+		)
 		require.NoError(t, err)
 		assert.True(t, result.ExpiresAt.After(minExpiry) || result.ExpiresAt.Equal(minExpiry),
 			"ExpiresAt %v should be >= %v", result.ExpiresAt, minExpiry)
@@ -1066,7 +1084,7 @@ func TestGenerateToken_WithoutJitter(t *testing.T) {
 	provider, err := NewLocalTokenProvider(cfg)
 	require.NoError(t, err)
 
-	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read", 0)
+	result, err := provider.GenerateToken(context.Background(), "user1", "client1", "read", 0, nil)
 	require.NoError(t, err)
 	assert.WithinDuration(t, time.Now().Add(1*time.Hour), result.ExpiresAt, 5*time.Second)
 }
@@ -1087,9 +1105,252 @@ func TestGenerateRefreshToken_NotAffectedByJitter(t *testing.T) {
 		"user1",
 		"client1",
 		"read",
-		0,
-	)
+		0, nil)
 	require.NoError(t, err)
 	// Refresh token should use RefreshTokenExpiration, not affected by JWTExpirationJitter
 	assert.WithinDuration(t, time.Now().Add(720*time.Hour), result.ExpiresAt, 5*time.Second)
+}
+
+// ============================================================
+// Audience claim — JWT_AUDIENCE config
+// ============================================================
+
+func TestGenerateToken_AudienceClaim(t *testing.T) {
+	tests := []struct {
+		name      string
+		audience  []string
+		expectAud any // nil means "claim should be absent"
+	}{
+		{name: "absent when config empty", audience: nil, expectAud: nil},
+		{name: "single value collapses to string", audience: []string{"oa"}, expectAud: "oa"},
+		{
+			name:      "multiple values become array",
+			audience:  []string{"oa", "swrd", "hwrd"},
+			expectAud: []string{"oa", "swrd", "hwrd"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				JWTSecret:     "test-secret-key-for-jwt-signing",
+				JWTExpiration: 1 * time.Hour,
+				BaseURL:       "http://localhost:8080",
+				JWTAudience:   tt.audience,
+			}
+			provider, err := NewLocalTokenProvider(cfg)
+			require.NoError(t, err)
+
+			result, err := provider.GenerateToken(
+				context.Background(), "u", "c", "read", 0, nil,
+			)
+			require.NoError(t, err)
+
+			aud, present := result.Claims["aud"]
+			if tt.expectAud == nil {
+				assert.False(t, present, "aud must be omitted when JWTAudience is empty")
+				return
+			}
+			assert.True(t, present, "aud must be present")
+			assert.Equal(t, tt.expectAud, aud)
+		})
+	}
+}
+
+func TestGenerateToken_AudiencePropagatesToValidate(t *testing.T) {
+	cfg := &config.Config{
+		JWTSecret:     "test-secret-key-for-jwt-signing",
+		JWTExpiration: 1 * time.Hour,
+		BaseURL:       "http://localhost:8080",
+		JWTAudience:   []string{"oa"},
+	}
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
+
+	gen, err := provider.GenerateToken(context.Background(), "u", "c", "read", 0, nil)
+	require.NoError(t, err)
+
+	val, err := provider.ValidateToken(context.Background(), gen.TokenString)
+	require.NoError(t, err)
+	// After round-trip through JSON the aud reads back as a string for single-value
+	assert.Equal(t, "oa", val.Claims["aud"])
+}
+
+// ============================================================
+// Extra claims — project / service_account injection
+// ============================================================
+
+func TestGenerateToken_ExtraClaimsInjected(t *testing.T) {
+	cfg := &config.Config{
+		JWTSecret:     "test-secret-key-for-jwt-signing",
+		JWTExpiration: 1 * time.Hour,
+		BaseURL:       "http://localhost:8080",
+	}
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
+
+	extra := map[string]any{
+		ClaimProject:        "payments-prod",
+		ClaimServiceAccount: "sa-payments@example.com",
+	}
+	result, err := provider.GenerateToken(
+		context.Background(), "u", "c", "read", 0, extra,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "payments-prod", result.Claims[ClaimProject])
+	assert.Equal(t, "sa-payments@example.com", result.Claims[ClaimServiceAccount])
+
+	val, err := provider.ValidateToken(context.Background(), result.TokenString)
+	require.NoError(t, err)
+	assert.Equal(t, "payments-prod", val.Claims[ClaimProject])
+	assert.Equal(t, "sa-payments@example.com", val.Claims[ClaimServiceAccount])
+}
+
+// Standard claims must not be silently overridden by extraClaims — that would
+// allow a misuse to fake the issuer or audience. The contract documented on
+// generateJWT is "standard claims always win".
+func TestGenerateToken_ExtraClaimsCannotOverrideStandard(t *testing.T) {
+	cfg := &config.Config{
+		JWTSecret:     "test-secret-key-for-jwt-signing",
+		JWTExpiration: 1 * time.Hour,
+		BaseURL:       "http://localhost:8080",
+		JWTAudience:   []string{"oa"},
+	}
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
+
+	extra := map[string]any{
+		"iss":       "https://attacker.example.com",
+		"aud":       "wrong-tenant",
+		"sub":       "spoofed-user",
+		"user_id":   "spoofed-user",
+		"client_id": "spoofed-client",
+		"scope":     "admin",
+		"type":      "refresh",
+	}
+	result, err := provider.GenerateToken(
+		context.Background(), "real-user", "real-client", "read", 0, extra,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, "http://localhost:8080", result.Claims["iss"])
+	assert.Equal(t, "oa", result.Claims["aud"])
+	assert.Equal(t, "real-user", result.Claims["sub"])
+	assert.Equal(t, "real-user", result.Claims["user_id"])
+	assert.Equal(t, "real-client", result.Claims["client_id"])
+	assert.Equal(t, "read", result.Claims["scope"])
+	assert.Equal(t, TokenCategoryAccess, result.Claims["type"])
+}
+
+// When JWTAudience is unset, an extraClaims map that smuggles in an "aud" must
+// not leak into the signed JWT — config is the single source of truth for the
+// aud claim. Regression coverage for a bug where extraClaims["aud"] survived
+// because the standard-claim write was conditional on JWTAudience being set.
+func TestGenerateToken_ExtraClaimsAudIgnoredWhenAudienceUnset(t *testing.T) {
+	cfg := &config.Config{
+		JWTSecret:     "test-secret-key-for-jwt-signing",
+		JWTExpiration: 1 * time.Hour,
+		BaseURL:       "http://localhost:8080",
+		// JWTAudience deliberately left empty
+	}
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
+
+	extra := map[string]any{"aud": "smuggled-tenant"}
+	result, err := provider.GenerateToken(
+		context.Background(), "u", "c", "read", 0, extra,
+	)
+	require.NoError(t, err)
+	_, present := result.Claims["aud"]
+	assert.False(
+		t,
+		present,
+		"aud must be omitted when JWTAudience is empty, even if extraClaims provides one",
+	)
+}
+
+func TestGenerateRefreshToken_ExtraClaimsInjected(t *testing.T) {
+	cfg := &config.Config{
+		JWTSecret:              "test-secret-key-for-jwt-signing",
+		JWTExpiration:          1 * time.Hour,
+		RefreshTokenExpiration: 30 * 24 * time.Hour,
+		BaseURL:                "http://localhost:8080",
+	}
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
+
+	extra := map[string]any{ClaimProject: "payments-prod"}
+	result, err := provider.GenerateRefreshToken(
+		context.Background(), "u", "c", "read", 0, extra,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "payments-prod", result.Claims[ClaimProject])
+	assert.Equal(t, TokenCategoryRefresh, result.Claims["type"])
+}
+
+func TestGenerateClientCredentialsToken_ExtraClaimsInjected(t *testing.T) {
+	cfg := &config.Config{
+		JWTSecret:                        "test-secret-key-for-jwt-signing",
+		ClientCredentialsTokenExpiration: 1 * time.Hour,
+		BaseURL:                          "http://localhost:8080",
+	}
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
+
+	extra := map[string]any{ClaimServiceAccount: "sa-batch@example.com"}
+	result, err := provider.GenerateClientCredentialsToken(
+		context.Background(), "client:abc", "abc", "read", 0, extra,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "sa-batch@example.com", result.Claims[ClaimServiceAccount])
+}
+
+// RefreshAccessToken must thread the caller-supplied extraClaims into the new
+// access token (and the rotated refresh token, if rotation is enabled). This is
+// the mechanism that lets project / service_account changes take effect at
+// refresh time rather than being frozen at original issuance.
+func TestRefreshAccessToken_AppliesExtraClaims(t *testing.T) {
+	cfg := &config.Config{
+		JWTSecret:              "test-secret-key-for-jwt-signing",
+		JWTExpiration:          1 * time.Hour,
+		RefreshTokenExpiration: 30 * 24 * time.Hour,
+		BaseURL:                "http://localhost:8080",
+		EnableTokenRotation:    true,
+	}
+	provider, err := NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
+
+	// Original refresh token issued with one project value
+	original, err := provider.GenerateRefreshToken(
+		context.Background(), "u", "c", "read", 0,
+		map[string]any{ClaimProject: "old-project"},
+	)
+	require.NoError(t, err)
+
+	// Refresh, supplying the *current* project value
+	refreshed, err := provider.RefreshAccessToken(
+		context.Background(),
+		original.TokenString,
+		0, 0,
+		map[string]any{ClaimProject: "new-project"},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "new-project", refreshed.AccessToken.Claims[ClaimProject])
+	require.NotNil(t, refreshed.RefreshToken, "rotation mode should produce a new refresh token")
+	assert.Equal(t, "new-project", refreshed.RefreshToken.Claims[ClaimProject])
+}
+
+// audienceClaim is exercised indirectly via TestGenerateToken_AudienceClaim, but
+// the helper has subtle list-copy semantics worth pinning explicitly.
+func TestAudienceClaim_HelperShape(t *testing.T) {
+	assert.Nil(t, audienceClaim(nil))
+	assert.Nil(t, audienceClaim([]string{}))
+	assert.Equal(t, "oa", audienceClaim([]string{"oa"}))
+
+	in := []string{"oa", "swrd"}
+	out := audienceClaim(in).([]string)
+	assert.Equal(t, in, out)
+	// Mutating the returned slice must not corrupt the caller's input.
+	out[0] = "mutated"
+	assert.Equal(t, "oa", in[0], "audienceClaim must defensively copy")
 }

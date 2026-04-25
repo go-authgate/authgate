@@ -11,6 +11,7 @@ import (
 	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/core"
 	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/token"
 	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/google/uuid"
@@ -226,6 +227,25 @@ func (s *TokenService) resolveClientTTL(
 	return s.ttlForClient(client)
 }
 
+// buildClientClaims returns the JWT extra claims sourced from the OAuth
+// application: project and service_account. Empty fields are omitted so we
+// never write meaningless empty-string claims into the JWT, and the map is
+// only allocated when at least one field has a value — this is on the token
+// issuance hot path and most clients won't set either field.
+func buildClientClaims(client *models.OAuthApplication) map[string]any {
+	if client == nil || (client.Project == "" && client.ServiceAccount == "") {
+		return nil
+	}
+	claims := make(map[string]any, 2)
+	if client.Project != "" {
+		claims[token.ClaimProject] = client.Project
+	}
+	if client.ServiceAccount != "" {
+		claims[token.ClaimServiceAccount] = client.ServiceAccount
+	}
+	return claims
+}
+
 // generateAndPersistTokenPair generates access and refresh tokens via the
 // configured provider, builds database records, and persists them atomically.
 // The per-client TokenProfile is resolved here so that all issuance paths
@@ -234,15 +254,35 @@ func (s *TokenService) generateAndPersistTokenPair(
 	ctx context.Context,
 	p tokenPairParams,
 ) (*models.AccessToken, *models.AccessToken, error) {
-	var accessTTL, refreshTTL time.Duration
-	if p.Client != nil {
-		accessTTL, refreshTTL = s.ttlForClient(p.Client)
-	} else {
-		accessTTL, refreshTTL = s.resolveClientTTL(ctx, p.ClientID)
+	var (
+		accessTTL, refreshTTL time.Duration
+		extraClaims           map[string]any
+	)
+	client := p.Client
+	if client == nil && s.clientService != nil {
+		// Defensive fallback — issuance callers normally populate p.Client.
+		// One lookup serves both the TTL profile and the JWT extra claims.
+		c, err := s.clientService.GetClient(ctx, p.ClientID)
+		if err != nil {
+			// p.Client unset is already an unexpected state for issuance; log
+			// the lookup failure so a missing TokenProfile / project /
+			// service_account on the issued token is diagnosable rather than
+			// silent.
+			log.Printf(
+				"[Token] Issuance client lookup failed, falling back to defaults client_id=%s: %v",
+				p.ClientID, err,
+			)
+		} else {
+			client = c
+		}
+	}
+	if client != nil {
+		accessTTL, refreshTTL = s.ttlForClient(client)
+		extraClaims = buildClientClaims(client)
 	}
 
 	accessResult, err := s.tokenProvider.GenerateToken(
-		ctx, p.UserID, p.ClientID, p.Scopes, accessTTL,
+		ctx, p.UserID, p.ClientID, p.Scopes, accessTTL, extraClaims,
 	)
 	if err != nil {
 		log.Printf(
@@ -253,7 +293,7 @@ func (s *TokenService) generateAndPersistTokenPair(
 		return nil, nil, fmt.Errorf("token generation failed: %w", err)
 	}
 	refreshResult, err := s.tokenProvider.GenerateRefreshToken(
-		ctx, p.UserID, p.ClientID, p.Scopes, refreshTTL,
+		ctx, p.UserID, p.ClientID, p.Scopes, refreshTTL, extraClaims,
 	)
 	if err != nil {
 		log.Printf(

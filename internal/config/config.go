@@ -64,6 +64,7 @@ type Config struct {
 	JWTPrivateKeyPEM    string        // PEM content (alternative to JWTPrivateKeyPath; takes precedence if both are set)
 	JWTKeyID            string        // "kid" header for JWKS key rotation (auto-generated if empty)
 	JWTExpirationJitter time.Duration // Max random jitter added to access token expiry (default: 30m)
+	JWTAudience         []string      // "aud" claim values for issued access/refresh tokens (comma-separated env). Single entry → string, multiple → array. Empty → claim omitted.
 
 	// Session settings
 	SessionSecret            string
@@ -312,6 +313,7 @@ func Load() *Config {
 		JWTPrivateKeyPEM:    getEnv("JWT_PRIVATE_KEY_PEM", ""),
 		JWTKeyID:            getEnv("JWT_KEY_ID", ""),
 		JWTExpirationJitter: getEnvDuration("JWT_EXPIRATION_JITTER", 30*time.Minute),
+		JWTAudience:         getEnvSlice("JWT_AUDIENCE", nil),
 		SessionSecret:       getEnv("SESSION_SECRET", "session-secret-change-in-production"),
 		SessionMaxAge:       getEnvInt("SESSION_MAX_AGE", 3600),      // 1 hour default
 		SessionIdleTimeout:  getEnvInt("SESSION_IDLE_TIMEOUT", 1800), // 30 minutes default

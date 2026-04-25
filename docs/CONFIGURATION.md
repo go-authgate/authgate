@@ -76,6 +76,15 @@ JWT_EXPIRATION_JITTER=30m            # Max random jitter on access token expiry 
                                      # Must be less than JWT_EXPIRATION. Prevents refresh thundering herd.
                                      # Example: JWT_EXPIRATION=8h + JWT_EXPIRATION_JITTER=30m → lifetime [8h, 8h30m)
 
+# JWT Audience Claim
+# Comma-separated values written to the "aud" claim on issued access and refresh tokens.
+# Single value emits "aud" as a string; multiple values as an array; empty omits the
+# claim entirely (RFC 7519 §4.1.3). ID tokens are not affected — their "aud" stays
+# the client_id per OIDC Core 1.0.
+# JWT_AUDIENCE=                      # Default: unset (no aud claim)
+# JWT_AUDIENCE=oa                    # → "aud": "oa"
+# JWT_AUDIENCE=oa,swrd,hwrd          # → "aud": ["oa", "swrd", "hwrd"]
+
 # Refresh Token Configuration
 REFRESH_TOKEN_EXPIRATION=720h        # Refresh token lifetime (default: 30 days)
 ENABLE_REFRESH_TOKENS=true          # Feature flag to enable/disable refresh tokens

@@ -79,6 +79,7 @@ func (s *TokenService) IssueClientCredentialsToken(
 		clientID,
 		effectiveScopes,
 		0,
+		buildClientClaims(client),
 	)
 	if providerErr != nil {
 		log.Printf(

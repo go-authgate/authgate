@@ -8,6 +8,7 @@ import (
 	"crypto/rsa"
 	"errors"
 	"fmt"
+	"maps"
 	"math/rand/v2"
 	"time"
 
@@ -183,21 +184,38 @@ func (p *LocalTokenProvider) signClaims(claims jwt.MapClaims) (string, error) {
 	return signed, nil
 }
 
-// generateJWT creates a signed JWT token with the given claims and expiration
+// generateJWT creates a signed JWT token with the given claims and expiration.
+//
+// extraClaims (optional) is merged into the JWT first, then standard claims are
+// applied on top — standard claims always win, so callers cannot override
+// iss/sub/exp/iat/jti/aud/type/scope/user_id/client_id by accident.
+//
+// The "aud" claim is sourced from p.config.JWTAudience: a single value is
+// emitted as a string, multiple values as an array, and an empty list omits
+// the claim entirely (RFC 7519 §4.1.3).
 func (p *LocalTokenProvider) generateJWT(
 	userID, clientID, scopes, tokenType string,
 	expiresAt time.Time,
+	extraClaims map[string]any,
 ) (*Result, error) {
-	claims := jwt.MapClaims{
-		"user_id":   userID,
-		"client_id": clientID,
-		"scope":     scopes,
-		"type":      tokenType,
-		"exp":       expiresAt.Unix(),
-		"iat":       time.Now().Unix(),
-		"iss":       p.config.BaseURL,
-		"sub":       userID,
-		"jti":       uuid.New().String(),
+	claims := jwt.MapClaims{}
+	maps.Copy(claims, extraClaims)
+	claims["user_id"] = userID
+	claims["client_id"] = clientID
+	claims["scope"] = scopes
+	claims["type"] = tokenType
+	claims["exp"] = expiresAt.Unix()
+	claims["iat"] = time.Now().Unix()
+	claims["iss"] = p.config.BaseURL
+	claims["sub"] = userID
+	claims["jti"] = uuid.New().String()
+	// "aud" is governed entirely by config. Drop any value an extraClaims caller
+	// may have copied in, then set it only when JWTAudience is configured —
+	// otherwise an empty config + a stray extraClaims["aud"] would silently
+	// leak into the signed JWT.
+	delete(claims, "aud")
+	if aud := audienceClaim(p.config.JWTAudience); aud != nil {
+		claims["aud"] = aud
 	}
 
 	tokenString, err := p.signClaims(claims)
@@ -211,6 +229,24 @@ func (p *LocalTokenProvider) generateJWT(
 		ExpiresAt:   expiresAt,
 		Claims:      claims,
 	}, nil
+}
+
+// audienceClaim returns the value to assign to the JWT "aud" claim, given the
+// configured audience list. A single entry collapses to a plain string (the
+// common case and most compatible with naive JWT consumers), multiple entries
+// stay as a slice, and an empty list returns nil so the caller can skip the
+// claim entirely.
+func audienceClaim(aud []string) any {
+	switch len(aud) {
+	case 0:
+		return nil
+	case 1:
+		return aud[0]
+	default:
+		out := make([]string, len(aud))
+		copy(out, aud)
+		return out
+	}
 }
 
 // ParseJWT parses a JWT token, verifies its signature, and extracts standard claims.
@@ -283,6 +319,7 @@ func (p *LocalTokenProvider) GenerateToken(
 	ctx context.Context,
 	userID, clientID, scopes string,
 	ttl time.Duration,
+	extraClaims map[string]any,
 ) (*Result, error) {
 	var expiry time.Duration
 	if ttl > 0 {
@@ -294,7 +331,7 @@ func (p *LocalTokenProvider) GenerateToken(
 		}
 	}
 	expiresAt := time.Now().Add(expiry)
-	return p.generateJWT(userID, clientID, scopes, TokenCategoryAccess, expiresAt)
+	return p.generateJWT(userID, clientID, scopes, TokenCategoryAccess, expiresAt, extraClaims)
 }
 
 // ValidateToken verifies a JWT access token using local verification.
@@ -328,13 +365,14 @@ func (p *LocalTokenProvider) GenerateClientCredentialsToken(
 	ctx context.Context,
 	userID, clientID, scopes string,
 	ttl time.Duration,
+	extraClaims map[string]any,
 ) (*Result, error) {
 	expiry := ttl
 	if expiry <= 0 {
 		expiry = p.config.ClientCredentialsTokenExpiration
 	}
 	expiresAt := time.Now().Add(expiry)
-	return p.generateJWT(userID, clientID, scopes, TokenCategoryAccess, expiresAt)
+	return p.generateJWT(userID, clientID, scopes, TokenCategoryAccess, expiresAt, extraClaims)
 }
 
 // GenerateRefreshToken creates a refresh token JWT. If ttl > 0 it overrides
@@ -343,13 +381,14 @@ func (p *LocalTokenProvider) GenerateRefreshToken(
 	ctx context.Context,
 	userID, clientID, scopes string,
 	ttl time.Duration,
+	extraClaims map[string]any,
 ) (*Result, error) {
 	expiry := ttl
 	if expiry <= 0 {
 		expiry = p.config.RefreshTokenExpiration
 	}
 	expiresAt := time.Now().Add(expiry)
-	return p.generateJWT(userID, clientID, scopes, TokenCategoryRefresh, expiresAt)
+	return p.generateJWT(userID, clientID, scopes, TokenCategoryRefresh, expiresAt, extraClaims)
 }
 
 // ValidateRefreshToken verifies a refresh token JWT
@@ -378,10 +417,15 @@ func (p *LocalTokenProvider) ValidateRefreshToken(
 // accessTTL and refreshTTL override the default expirations when > 0, allowing
 // the caller (TokenService) to apply the client's current TokenProfile at
 // refresh time rather than reusing the TTL the original tokens were issued with.
+//
+// extraClaims is also re-applied here, so callers (TokenService) can inject the
+// client's CURRENT project / service_account at refresh time rather than
+// freezing values from the original issuance.
 func (p *LocalTokenProvider) RefreshAccessToken(
 	ctx context.Context,
 	refreshToken string,
 	accessTTL, refreshTTL time.Duration,
+	extraClaims map[string]any,
 ) (*RefreshResult, error) {
 	enableRotation := p.config.EnableTokenRotation
 	// Validate the refresh token
@@ -397,6 +441,7 @@ func (p *LocalTokenProvider) RefreshAccessToken(
 		validationResult.ClientID,
 		validationResult.Scopes,
 		accessTTL,
+		extraClaims,
 	)
 	if err != nil {
 		return nil, err
@@ -416,6 +461,7 @@ func (p *LocalTokenProvider) RefreshAccessToken(
 			validationResult.ClientID,
 			validationResult.Scopes,
 			refreshTTL,
+			extraClaims,
 		)
 		if err != nil {
 			return nil, err

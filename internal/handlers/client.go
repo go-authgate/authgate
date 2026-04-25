@@ -120,6 +120,8 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 		EnableAuthCodeFlow:          c.PostForm("enable_auth_code_flow") == queryValueTrue,
 		EnableClientCredentialsFlow: c.PostForm("enable_client_credentials_flow") == queryValueTrue,
 		TokenProfile:                c.PostForm("token_profile"),
+		Project:                     c.PostForm("project"),
+		ServiceAccount:              c.PostForm("service_account"),
 		IsAdminCreated:              true, // admin-created clients are immediately active
 	}
 
@@ -138,6 +140,8 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 			EnableAuthCodeFlow:          req.EnableAuthCodeFlow,
 			EnableClientCredentialsFlow: req.EnableClientCredentialsFlow,
 			TokenProfile:                req.TokenProfile,
+			Project:                     req.Project,
+			ServiceAccount:              req.ServiceAccount,
 		}
 
 		templates.RenderTempl(
@@ -215,6 +219,8 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 		EnableAuthCodeFlow:          c.PostForm("enable_auth_code_flow") == queryValueTrue,
 		EnableClientCredentialsFlow: c.PostForm("enable_client_credentials_flow") == queryValueTrue,
 		TokenProfile:                c.PostForm("token_profile"),
+		Project:                     c.PostForm("project"),
+		ServiceAccount:              c.PostForm("service_account"),
 	}
 
 	userID := getUserIDFromContext(c)
@@ -238,6 +244,8 @@ func (h *ClientHandler) UpdateClient(c *gin.Context) {
 			EnableClientCredentialsFlow: req.EnableClientCredentialsFlow,
 			Status:                      req.Status,
 			TokenProfile:                req.TokenProfile,
+			Project:                     req.Project,
+			ServiceAccount:              req.ServiceAccount,
 			CreatedAt:                   client.CreatedAt,
 			UpdatedAt:                   client.UpdatedAt,
 		}

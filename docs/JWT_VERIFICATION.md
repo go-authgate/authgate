@@ -247,7 +247,36 @@ The `kid` (Key ID) header identifies which key was used to sign the token. Use t
    - `exp` — token is not expired
    - `iss` — matches your expected AuthGate URL
    - `type` — is `access` (not `refresh`)
+   - `aud` — when `JWT_AUDIENCE` is configured on AuthGate, verify the value matches your service's expected audience (see [Custom Claims](#custom-claims))
 6. **Check authorization** — verify `scope` and `client_id` match your requirements
+
+## Custom Claims
+
+In addition to the standard JWT claims, AuthGate may optionally populate the standard `aud` claim and may also emit two custom claims (`project`, `service_account`) that gateways and resource servers can use for routing and per-request authorization. All three are **optional** — they only appear when configured.
+
+| Claim             | Classification        | Type                  | Source                                              | When present                                                |
+| ----------------- | --------------------- | --------------------- | --------------------------------------------------- | ----------------------------------------------------------- |
+| `aud`             | Standard JWT claim    | `string` or `[]string` | `JWT_AUDIENCE` env var (deployment-wide)            | When `JWT_AUDIENCE` is non-empty                            |
+| `project`         | Custom AuthGate claim | `string`              | `OAuthApplication.Project` (per-client metadata)    | When the client has a non-empty `Project` value             |
+| `service_account` | Custom AuthGate claim | `string`              | `OAuthApplication.ServiceAccount` (per-client)      | When the client has a non-empty `ServiceAccount` value      |
+
+`aud` is the standard registered JWT claim defined by RFC 7519 §4.1.3. It is a single string when `JWT_AUDIENCE` has one entry and a `[]string` when it has multiple — verifiers must handle both shapes. Many JWT libraries (e.g. `golang-jwt/jwt`) normalize this for you via their `WithAudience` option.
+
+`project` and `service_account` are AuthGate-specific custom claims that reflect the OAuth client's current admin- or owner-configured metadata at issuance time. On refresh, AuthGate re-resolves these values from the database, so changes propagate to the next refreshed access token rather than being pinned to the values present when the original refresh token was issued.
+
+### Trust model
+
+`project` and `service_account` are **set by the OAuth client owner** (admin or end-user, depending on your deployment). Treat them as untrusted assertions: a successful JWT signature only proves AuthGate emitted the token, not that the asserted project/service account ownership has been independently verified.
+
+If your downstream service uses these claims to make access decisions:
+
+- Always verify the JWT signature first (everything below assumes a valid signature).
+- Apply your own access policies (e.g. an allowlist of `(client_id, project)` pairs) on top of the claim values.
+- Do not assume `service_account: "sa-prod@example.com"` proves anything about the operator behind the token; it only proves the OAuth client metadata was set to that value.
+
+For deployments that share AuthGate across multiple teams, consider configuring per-user whitelists outside this PR's scope, or restricting `Project` / `ServiceAccount` editing to admins only via your deployment process.
+
+ID tokens are **not** affected by this feature — their `aud` remains the OIDC-mandated `client_id` per OIDC Core 1.0.
 
 ## Code Examples
 

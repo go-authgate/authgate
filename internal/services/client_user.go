@@ -21,7 +21,9 @@ type UserUpdateClientRequest struct {
 	ClientType                  core.ClientType
 	EnableDeviceFlow            bool
 	EnableAuthCodeFlow          bool
-	EnableClientCredentialsFlow bool // Enable Client Credentials Grant (RFC 6749 §4.4); confidential clients only
+	EnableClientCredentialsFlow bool   // Enable Client Credentials Grant (RFC 6749 §4.4); confidential clients only
+	Project                     string // Optional; injected as JWT "project" claim. Validated by projectPattern.
+	ServiceAccount              string // Optional; injected as JWT "service_account" claim. Validated by serviceAccountPattern.
 }
 
 // validateUserScopes checks that all requested scopes are in the allowed set for user-created clients.
@@ -75,6 +77,15 @@ func (s *ClientService) UserUpdateClient(
 		return err
 	}
 
+	project := strings.TrimSpace(req.Project)
+	if err := validateProject(project); err != nil {
+		return err
+	}
+	serviceAccount := strings.TrimSpace(req.ServiceAccount)
+	if err := validateServiceAccount(serviceAccount); err != nil {
+		return err
+	}
+
 	client, err := s.store.GetClient(clientID)
 	if err != nil {
 		return ErrClientNotFound
@@ -89,6 +100,8 @@ func (s *ClientService) UserUpdateClient(
 	client.Scopes = strings.TrimSpace(req.Scopes)
 	client.RedirectURIs = models.StringArray(req.RedirectURIs)
 	client.ClientType = clientType.String()
+	client.Project = project
+	client.ServiceAccount = serviceAccount
 
 	client.EnableDeviceFlow = req.EnableDeviceFlow
 	client.EnableAuthCodeFlow = req.EnableAuthCodeFlow

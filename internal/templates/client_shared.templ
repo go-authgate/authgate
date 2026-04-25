@@ -289,6 +289,39 @@ templ ClientFormCommonFields(props ClientFormFieldsProps) {
 			Required when Authorization Code Flow is enabled.
 		</small>
 	</div>
+	<!-- JWT custom claims -->
+	<div class="admin-form-group">
+		<label for="project" class="admin-form-label">Project <span class="admin-form-optional">(optional)</span></label>
+		<input
+			type="text"
+			id="project"
+			name="project"
+			class="admin-form-input"
+			maxlength="64"
+			pattern="[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9_.\-]*[a-zA-Z0-9]"
+			if props.Client != nil {
+				value={ props.Client.Project }
+			}
+			placeholder="payments-prod"
+		/>
+		<small class="admin-form-hint">Injected as the JWT <code>project</code> claim. 1–64 characters, letters/digits/underscore/dot/hyphen, must start and end with a letter or digit. Leave blank to omit the claim.</small>
+	</div>
+	<div class="admin-form-group">
+		<label for="service_account" class="admin-form-label">Service Account <span class="admin-form-optional">(optional)</span></label>
+		<input
+			type="text"
+			id="service_account"
+			name="service_account"
+			class="admin-form-input"
+			maxlength="255"
+			pattern="[a-zA-Z0-9][a-zA-Z0-9_.@\-]{0,254}"
+			if props.Client != nil {
+				value={ props.Client.ServiceAccount }
+			}
+			placeholder="sa-payments@example.com"
+		/>
+		<small class="admin-form-hint">Injected as the JWT <code>service_account</code> claim. Up to 255 characters; bare ids and email-style addresses are both allowed. Leave blank to omit the claim.</small>
+	</div>
 	if props.ShowClientCredentials {
 		@clientCredentialsScript()
 	}
