@@ -262,7 +262,17 @@ func (s *TokenService) generateAndPersistTokenPair(
 	if client == nil && s.clientService != nil {
 		// Defensive fallback — issuance callers normally populate p.Client.
 		// One lookup serves both the TTL profile and the JWT extra claims.
-		if c, err := s.clientService.GetClient(ctx, p.ClientID); err == nil {
+		c, err := s.clientService.GetClient(ctx, p.ClientID)
+		if err != nil {
+			// p.Client unset is already an unexpected state for issuance; log
+			// the lookup failure so a missing TokenProfile / project /
+			// service_account on the issued token is diagnosable rather than
+			// silent.
+			log.Printf(
+				"[Token] Issuance client lookup failed, falling back to defaults client_id=%s: %v",
+				p.ClientID, err,
+			)
+		} else {
 			client = c
 		}
 	}

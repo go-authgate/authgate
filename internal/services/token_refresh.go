@@ -126,7 +126,17 @@ func (s *TokenService) RefreshAccessToken(
 		extraClaims           map[string]any
 	)
 	if s.clientService != nil {
-		if c, err := s.clientService.GetClient(ctx, refreshToken.ClientID); err == nil {
+		c, err := s.clientService.GetClient(ctx, refreshToken.ClientID)
+		if err != nil {
+			// Tolerate transient lookup failures — refresh proceeds with provider
+			// defaults rather than failing the user's request — but log so the
+			// silent loss of TokenProfile TTLs / project / service_account claims
+			// is at least diagnosable.
+			log.Printf(
+				"[Token] Refresh client lookup failed, falling back to defaults client_id=%s: %v",
+				refreshToken.ClientID, err,
+			)
+		} else {
 			accessTTL, refreshTTL = s.ttlForClient(c)
 			extraClaims = buildClientClaims(c)
 		}
