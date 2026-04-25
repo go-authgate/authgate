@@ -84,6 +84,8 @@ func clientToDisplay(app *models.OAuthApplication) *templates.ClientDisplay {
 		EnableClientCredentialsFlow: app.EnableClientCredentialsFlow,
 		Status:                      app.Status,
 		TokenProfile:                app.TokenProfile,
+		Project:                     app.Project,
+		ServiceAccount:              app.ServiceAccount,
 		CreatedAt:                   app.CreatedAt,
 		UpdatedAt:                   app.UpdatedAt,
 	}

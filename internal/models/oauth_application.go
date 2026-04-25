@@ -75,6 +75,8 @@ type OAuthApplication struct {
 	EnableClientCredentialsFlow bool        `gorm:"not null;default:false"`              // Client Credentials Grant (RFC 6749 §4.4); confidential clients only
 	Status                      string      `gorm:"not null;default:'active'"`           // ClientStatusPending / ClientStatusActive / ClientStatusInactive
 	TokenProfile                string      `gorm:"not null;default:'standard';size:20"` // "short" / "standard" / "long"; resolves to a TTL preset in config
+	Project                     string      `gorm:"size:64"`                             // Optional project identifier injected as JWT "project" claim. Format: ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}[a-zA-Z0-9]$ (validated in services).
+	ServiceAccount              string      `gorm:"size:255"`                            // Optional service account identifier injected as JWT "service_account" claim.
 	CreatedBy                   string
 	CreatedAt                   time.Time
 	UpdatedAt                   time.Time

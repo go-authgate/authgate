@@ -71,7 +71,7 @@ func newBenchEnv(b *testing.B, withCache bool) *benchTokenEnv {
 	)
 
 	ctx := context.Background()
-	result, err := localProvider.GenerateToken(ctx, "bench-user", "bench-client", "read", 0)
+	result, err := localProvider.GenerateToken(ctx, "bench-user", "bench-client", "read", 0, nil)
 	if err != nil {
 		b.Fatal(err)
 	}

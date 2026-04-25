@@ -80,6 +80,8 @@ func (h *UserClientHandler) CreateApp(c *gin.Context) {
 		EnableDeviceFlow:            c.PostForm("enable_device_flow") == queryValueTrue,
 		EnableAuthCodeFlow:          c.PostForm("enable_auth_code_flow") == queryValueTrue,
 		EnableClientCredentialsFlow: c.PostForm("enable_client_credentials_flow") == queryValueTrue,
+		Project:                     c.PostForm("project"),
+		ServiceAccount:              c.PostForm("service_account"),
 		IsAdminCreated:              false, // user-created: starts as pending
 	}
 
@@ -114,6 +116,8 @@ func (h *UserClientHandler) CreateApp(c *gin.Context) {
 			EnableDeviceFlow:            req.EnableDeviceFlow,
 			EnableAuthCodeFlow:          req.EnableAuthCodeFlow,
 			EnableClientCredentialsFlow: req.EnableClientCredentialsFlow,
+			Project:                     req.Project,
+			ServiceAccount:              req.ServiceAccount,
 		}
 		renderUserAppForm(c, userModel, clientData, "/apps", false, err.Error())
 		return
@@ -214,6 +218,8 @@ func (h *UserClientHandler) UpdateApp(c *gin.Context) {
 		EnableDeviceFlow:            c.PostForm("enable_device_flow") == queryValueTrue,
 		EnableAuthCodeFlow:          c.PostForm("enable_auth_code_flow") == queryValueTrue,
 		EnableClientCredentialsFlow: c.PostForm("enable_client_credentials_flow") == queryValueTrue,
+		Project:                     c.PostForm("project"),
+		ServiceAccount:              c.PostForm("service_account"),
 	}
 
 	err := h.clientService.UserUpdateClient(c.Request.Context(), clientID, userID, req)
@@ -233,6 +239,8 @@ func (h *UserClientHandler) UpdateApp(c *gin.Context) {
 			EnableDeviceFlow:            req.EnableDeviceFlow,
 			EnableAuthCodeFlow:          req.EnableAuthCodeFlow,
 			EnableClientCredentialsFlow: req.EnableClientCredentialsFlow,
+			Project:                     req.Project,
+			ServiceAccount:              req.ServiceAccount,
 		}
 		if client != nil {
 			clientData.ID = client.ID

@@ -160,6 +160,8 @@ type ClientDisplay struct {
 	EnableClientCredentialsFlow bool
 	Status                      string // "pending", "active", "inactive"
 	TokenProfile                string // "short", "standard", or "long"
+	Project                     string // Optional; emitted as JWT "project" claim
+	ServiceAccount              string // Optional; emitted as JWT "service_account" claim
 	CreatedAt                   time.Time
 	UpdatedAt                   time.Time
 }

@@ -76,6 +76,18 @@ templ UserAppDetail(props UserClientDetailPageProps) {
 								<div class="admin-detail-value">{ props.Client.RedirectURIs }</div>
 							</div>
 						}
+						if props.Client.Project != "" {
+							<div class="admin-detail-row">
+								<div class="admin-detail-label">Project</div>
+								<div class="admin-detail-value"><code>{ props.Client.Project }</code></div>
+							</div>
+						}
+						if props.Client.ServiceAccount != "" {
+							<div class="admin-detail-row">
+								<div class="admin-detail-label">Service Account</div>
+								<div class="admin-detail-value"><code>{ props.Client.ServiceAccount }</code></div>
+							</div>
+						}
 						<div class="admin-detail-row">
 							<div class="admin-detail-label">Active Tokens</div>
 							<div class="admin-detail-value">{ fmt.Sprintf("%d", props.ActiveTokens) }</div>

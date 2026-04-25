@@ -59,16 +59,22 @@ type TokenRefreshResult struct {
 // A ttl of 0 on any Generate* method means "use the provider's default expiry"
 // (typically derived from config). A non-zero ttl overrides the default and
 // disables any jitter the provider would normally apply.
+//
+// extraClaims (when non-empty) is merged into the generated JWT after standard
+// claims are set; standard claims (iss, sub, exp, iat, jti, aud, type, scope,
+// user_id, client_id) take precedence and cannot be overridden.
 type TokenProvider interface {
 	GenerateToken(
 		ctx context.Context,
 		userID, clientID, scopes string,
 		ttl time.Duration,
+		extraClaims map[string]any,
 	) (*TokenResult, error)
 	GenerateRefreshToken(
 		ctx context.Context,
 		userID, clientID, scopes string,
 		ttl time.Duration,
+		extraClaims map[string]any,
 	) (*TokenResult, error)
 	// GenerateClientCredentialsToken generates a token for the client_credentials grant.
 	// May apply a different expiry or claim set than GenerateToken.
@@ -76,12 +82,14 @@ type TokenProvider interface {
 		ctx context.Context,
 		userID, clientID, scopes string,
 		ttl time.Duration,
+		extraClaims map[string]any,
 	) (*TokenResult, error)
 	ValidateToken(ctx context.Context, tokenString string) (*TokenValidationResult, error)
 	RefreshAccessToken(
 		ctx context.Context,
 		refreshToken string,
 		accessTTL, refreshTTL time.Duration,
+		extraClaims map[string]any,
 	) (*TokenRefreshResult, error)
 	Name() string
 }

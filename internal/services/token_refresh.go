@@ -117,15 +117,26 @@ func (s *TokenService) RefreshAccessToken(
 	}
 
 	// 6. Use provider to generate new tokens.
-	// Re-resolve TTLs at refresh time so that admin changes to the client's
-	// TokenProfile take effect immediately on the next refresh rather than
-	// being pinned to the TTL used when the original refresh token was issued.
-	accessTTL, refreshTTL := s.resolveClientTTL(ctx, refreshToken.ClientID)
+	// Re-resolve TTLs and extra claims at refresh time so admin changes to the
+	// client's TokenProfile / Project / ServiceAccount take effect on the next
+	// refresh instead of being pinned to issuance-time values. One client
+	// fetch serves both: refresh is a hot path, so we don't repeat the lookup.
+	var (
+		accessTTL, refreshTTL time.Duration
+		extraClaims           map[string]any
+	)
+	if s.clientService != nil {
+		if c, err := s.clientService.GetClient(ctx, refreshToken.ClientID); err == nil {
+			accessTTL, refreshTTL = s.ttlForClient(c)
+			extraClaims = buildClientClaims(c)
+		}
+	}
 	refreshResult, providerErr := s.tokenProvider.RefreshAccessToken(
 		ctx,
 		refreshTokenString,
 		accessTTL,
 		refreshTTL,
+		extraClaims,
 	)
 	if providerErr != nil {
 		log.Printf("[Token] Refresh failed provider=%s: %v", s.tokenProvider.Name(), providerErr)

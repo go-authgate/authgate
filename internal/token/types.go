@@ -13,6 +13,14 @@ const (
 	TokenCategoryRefresh = "refresh"
 )
 
+// Custom JWT claim names injected from OAuthApplication metadata. These are
+// internal claims (not in the IANA JWT registry) used by the gateway for
+// routing and authorization decisions.
+const (
+	ClaimProject        = "project"
+	ClaimServiceAccount = "service_account"
+)
+
 // Result is an alias for core.TokenResult.
 // All existing callers using *token.Result continue to compile unchanged.
 type Result = core.TokenResult

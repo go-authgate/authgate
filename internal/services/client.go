@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -17,6 +18,21 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+)
+
+// projectPattern allows 1–64 characters of alnum / underscore / dot / hyphen,
+// with alnum at both ends so values like "-foo" or "foo-" are rejected. Single
+// alnum characters are also valid (the alternation handles the 1-char case).
+// Mirrors common project-id conventions (GCP project ids, k8s namespaces).
+var projectPattern = regexp.MustCompile(
+	`^[a-zA-Z0-9]$|^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}[a-zA-Z0-9]$`,
+)
+
+// serviceAccountPattern allows up to 255 characters of alnum / underscore /
+// dot / at-sign / hyphen so both bare ids and email-style addresses pass
+// (e.g. "sa-payments@example.com").
+var serviceAccountPattern = regexp.MustCompile(
+	`^[a-zA-Z0-9][a-zA-Z0-9_.@-]{0,254}$`,
 )
 
 const pendingClientsCountCacheKey = "clients:pending_count"
@@ -69,7 +85,38 @@ var (
 		models.TokenProfileStandard,
 		models.TokenProfileLong,
 	)
+	ErrInvalidProject = errors.New(
+		"project must be 1–64 characters of letters, digits, underscore, dot, or hyphen, " +
+			"and start/end with a letter or digit",
+	)
+	ErrInvalidServiceAccount = errors.New(
+		"service_account must be 1–255 characters of letters, digits, underscore, dot, at-sign, or hyphen",
+	)
 )
+
+// validateProject returns nil for an empty value (the field is optional) and
+// otherwise checks the regex. The trim happens at the caller so "  " is treated
+// as empty rather than as an invalid value.
+func validateProject(p string) error {
+	if p == "" {
+		return nil
+	}
+	if !projectPattern.MatchString(p) {
+		return ErrInvalidProject
+	}
+	return nil
+}
+
+// validateServiceAccount mirrors validateProject for the service account field.
+func validateServiceAccount(sa string) error {
+	if sa == "" {
+		return nil
+	}
+	if !serviceAccountPattern.MatchString(sa) {
+		return ErrInvalidServiceAccount
+	}
+	return nil
+}
 
 // validateRedirectURIs checks that every URI in the slice is an absolute http/https
 // URI without a fragment, as required by RFC 6749.
@@ -150,6 +197,8 @@ type CreateClientRequest struct {
 	EnableClientCredentialsFlow bool   // Enable Client Credentials Grant (RFC 6749 §4.4); confidential clients only
 	IsAdminCreated              bool   // When true: Status=active; when false: Status=pending
 	TokenProfile                string // "short" / "standard" / "long"; empty = standard
+	Project                     string // Optional; injected as JWT "project" claim. Validated by projectPattern.
+	ServiceAccount              string // Optional; injected as JWT "service_account" claim. Validated by serviceAccountPattern.
 }
 
 type UpdateClientRequest struct {
@@ -163,6 +212,8 @@ type UpdateClientRequest struct {
 	EnableAuthCodeFlow          bool
 	EnableClientCredentialsFlow bool   // Enable Client Credentials Grant (RFC 6749 §4.4); confidential clients only
 	TokenProfile                string // "short" / "standard" / "long"; empty = standard
+	Project                     string // Optional; injected as JWT "project" claim. Validated by projectPattern.
+	ServiceAccount              string // Optional; injected as JWT "service_account" claim. Validated by serviceAccountPattern.
 }
 
 // normalizeTokenProfile validates and defaults an incoming token profile value.
@@ -214,6 +265,15 @@ func (s *ClientService) CreateClient(
 		return nil, err
 	}
 
+	project := strings.TrimSpace(req.Project)
+	if err := validateProject(project); err != nil {
+		return nil, err
+	}
+	serviceAccount := strings.TrimSpace(req.ServiceAccount)
+	if err := validateServiceAccount(serviceAccount); err != nil {
+		return nil, err
+	}
+
 	// Generate client ID
 	clientID := uuid.New().String()
 
@@ -256,6 +316,8 @@ func (s *ClientService) CreateClient(
 		EnableClientCredentialsFlow: enableClientCredentials,
 		Status:                      clientStatus,
 		TokenProfile:                tokenProfile,
+		Project:                     project,
+		ServiceAccount:              serviceAccount,
 		CreatedBy:                   req.CreatedBy,
 	}
 
@@ -330,6 +392,15 @@ func (s *ClientService) UpdateClient(
 		return err
 	}
 
+	project := strings.TrimSpace(req.Project)
+	if err := validateProject(project); err != nil {
+		return err
+	}
+	serviceAccount := strings.TrimSpace(req.ServiceAccount)
+	if err := validateServiceAccount(serviceAccount); err != nil {
+		return err
+	}
+
 	client, err := s.store.GetClient(clientID)
 	if err != nil {
 		return ErrClientNotFound
@@ -355,6 +426,8 @@ func (s *ClientService) UpdateClient(
 	client.Status = req.Status
 	client.ClientType = clientType.String()
 	client.TokenProfile = tokenProfile
+	client.Project = project
+	client.ServiceAccount = serviceAccount
 
 	// Rebuild GrantTypes from enablement flags
 	enableClientCredentials := req.EnableClientCredentialsFlow
