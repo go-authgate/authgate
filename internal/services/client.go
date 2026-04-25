@@ -23,7 +23,8 @@ import (
 // projectPattern allows 1–64 characters of alnum / underscore / dot / hyphen,
 // with alnum at both ends so values like "-foo" or "foo-" are rejected. Single
 // alnum characters are also valid (the alternation handles the 1-char case).
-// Mirrors common project-id conventions (GCP project ids, k8s namespaces).
+// More permissive than GCP/k8s identifier rules (which forbid uppercase,
+// underscores, and dots) — keep your downstream consumers in mind.
 var projectPattern = regexp.MustCompile(
 	`^[a-zA-Z0-9]$|^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}[a-zA-Z0-9]$`,
 )

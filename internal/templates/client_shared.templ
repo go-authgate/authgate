@@ -314,6 +314,7 @@ templ ClientFormCommonFields(props ClientFormFieldsProps) {
 			name="service_account"
 			class="admin-form-input"
 			maxlength="255"
+			pattern="[a-zA-Z0-9][a-zA-Z0-9_.@\-]{0,254}"
 			if props.Client != nil {
 				value={ props.Client.ServiceAccount }
 			}
