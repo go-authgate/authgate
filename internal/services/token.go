@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"maps"
 	"time"
 
 	"github.com/go-authgate/authgate/internal/cache"
@@ -161,6 +162,11 @@ type tokenPairParams struct {
 	// (device flow, auth-code flow) load the client up front for other
 	// validation, so this is always populated.
 	Client *models.OAuthApplication
+	// ExtraClaims carries caller-supplied JWT claims parsed from the
+	// extra_claims form parameter. Reserved keys are rejected by the parser
+	// and overridden by generateJWT; system claims (project, service_account)
+	// from buildClientClaims are merged on top of these so admins always win.
+	ExtraClaims map[string]any
 }
 
 // ttlForClient returns the access/refresh TTLs dictated by the given client's
@@ -246,6 +252,20 @@ func buildClientClaims(client *models.OAuthApplication) map[string]any {
 	return claims
 }
 
+// mergeCallerExtraClaims merges caller-supplied claims into a base map of
+// system-managed claims. Caller values are written first so the system map
+// (project, service_account from buildClientClaims) overrides on collision —
+// admins always win over caller self-assertions.
+func mergeCallerExtraClaims(system, caller map[string]any) map[string]any {
+	if len(caller) == 0 {
+		return system
+	}
+	out := make(map[string]any, len(caller)+len(system))
+	maps.Copy(out, caller)
+	maps.Copy(out, system)
+	return out
+}
+
 // generateAndPersistTokenPair generates access and refresh tokens via the
 // configured provider, builds database records, and persists them atomically.
 // The per-client TokenProfile is resolved here so that all issuance paths
@@ -280,6 +300,7 @@ func (s *TokenService) generateAndPersistTokenPair(
 		accessTTL, refreshTTL = s.ttlForClient(client)
 		extraClaims = buildClientClaims(client)
 	}
+	extraClaims = mergeCallerExtraClaims(extraClaims, p.ExtraClaims)
 
 	accessResult, err := s.tokenProvider.GenerateToken(
 		ctx, p.UserID, p.ClientID, p.Scopes, accessTTL, extraClaims,

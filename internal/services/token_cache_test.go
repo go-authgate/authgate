@@ -454,7 +454,7 @@ func TestRefreshAccessToken_RotationMode_CacheInvalidated(t *testing.T) {
 	// Create client and get initial tokens via device flow
 	client := createTestClient(t, s, true)
 	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
-	_, initialRefresh, err := svc.ExchangeDeviceCode(ctx, dc.DeviceCode, client.ClientID)
+	_, initialRefresh, err := svc.ExchangeDeviceCode(ctx, dc.DeviceCode, client.ClientID, nil)
 	require.NoError(t, err)
 	require.NotNil(t, initialRefresh)
 
@@ -477,8 +477,8 @@ func TestRefreshAccessToken_RotationMode_CacheInvalidated(t *testing.T) {
 
 	// Refresh with rotation — old refresh token should be revoked and cache invalidated
 	_, newRefresh, err := svc.RefreshAccessToken(
-		ctx, initialRefresh.RawToken, client.ClientID, "read write",
-	)
+		ctx, initialRefresh.RawToken, client.ClientID, "read write", nil)
+
 	require.NoError(t, err)
 	require.NotNil(t, newRefresh)
 
@@ -507,8 +507,8 @@ func TestRevokeTokenFamily_CacheInvalidated(t *testing.T) {
 	client := createTestClient(t, s, true)
 	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
 	initialAccess, initialRefresh, err := svc.ExchangeDeviceCode(
-		ctx, dc.DeviceCode, client.ClientID,
-	)
+		ctx, dc.DeviceCode, client.ClientID, nil)
+
 	require.NoError(t, err)
 	require.NotNil(t, initialRefresh)
 
@@ -521,8 +521,8 @@ func TestRevokeTokenFamily_CacheInvalidated(t *testing.T) {
 
 	// Rotate: first refresh succeeds, old refresh token gets revoked
 	newAccess, newRefresh, err := svc.RefreshAccessToken(
-		ctx, initialRefresh.RawToken, client.ClientID, "read write",
-	)
+		ctx, initialRefresh.RawToken, client.ClientID, "read write", nil)
+
 	require.NoError(t, err)
 	require.NotNil(t, newRefresh)
 
@@ -535,8 +535,8 @@ func TestRevokeTokenFamily_CacheInvalidated(t *testing.T) {
 
 	// Replay attack: reuse old (revoked) refresh token → triggers family revocation
 	_, _, err = svc.RefreshAccessToken(
-		ctx, initialRefresh.RawToken, client.ClientID, "read write",
-	)
+		ctx, initialRefresh.RawToken, client.ClientID, "read write", nil)
+
 	require.Error(t, err, "replay should fail")
 
 	// Verify new access token cache entry is evicted (family revocation)

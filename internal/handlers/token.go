@@ -43,6 +43,7 @@ type TokenHandler struct {
 	tokenService         *services.TokenService
 	authorizationService *services.AuthorizationService
 	config               *config.Config
+	extraClaimsParser    *services.ExtraClaimsParser
 }
 
 func NewTokenHandler(
@@ -54,7 +55,20 @@ func NewTokenHandler(
 		tokenService:         ts,
 		authorizationService: as,
 		config:               cfg,
+		extraClaimsParser:    services.NewExtraClaimsParser(cfg),
 	}
+}
+
+// parseExtraClaims reads the optional extra_claims form parameter and writes
+// an invalid_request response on failure. On success returns (claims, true);
+// on failure the response is already written and callers must return.
+func (h *TokenHandler) parseExtraClaims(c *gin.Context) (map[string]any, bool) {
+	claims, err := h.extraClaimsParser.Parse(c.PostForm("extra_claims"))
+	if err != nil {
+		respondOAuthError(c, http.StatusBadRequest, errInvalidRequest, err.Error())
+		return nil, false
+	}
+	return claims, true
 }
 
 // buildTokenResponse constructs a standard OAuth 2.0 token response (RFC 6749 §5.1).
@@ -129,10 +143,16 @@ func (h *TokenHandler) handleDeviceCodeGrant(c *gin.Context) {
 		return
 	}
 
+	extraClaims, ok := h.parseExtraClaims(c)
+	if !ok {
+		return
+	}
+
 	accessToken, refreshToken, err := h.tokenService.ExchangeDeviceCode(
 		c.Request.Context(),
 		deviceCode,
 		clientID,
+		extraClaims,
 	)
 	if err != nil {
 		switch {
@@ -177,12 +197,18 @@ func (h *TokenHandler) handleRefreshTokenGrant(c *gin.Context) {
 		return
 	}
 
+	extraClaims, ok := h.parseExtraClaims(c)
+	if !ok {
+		return
+	}
+
 	// 3. Call service to refresh token
 	newAccessToken, newRefreshToken, err := h.tokenService.RefreshAccessToken(
 		c.Request.Context(),
 		refreshTokenString,
 		clientID,
 		requestedScopes,
+		extraClaims,
 	)
 	// 4. Error handling (RFC 6749 error codes)
 	if err != nil {
@@ -427,11 +453,17 @@ func (h *TokenHandler) handleClientCredentialsGrant(c *gin.Context) {
 
 	requestedScopes := c.PostForm("scope") // Optional
 
+	extraClaims, ok := h.parseExtraClaims(c)
+	if !ok {
+		return
+	}
+
 	accessToken, err := h.tokenService.IssueClientCredentialsToken(
 		c.Request.Context(),
 		clientID,
 		clientSecret,
 		requestedScopes,
+		extraClaims,
 	)
 	if err != nil {
 		switch {
@@ -488,6 +520,11 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 		return
 	}
 
+	extraClaims, ok := h.parseExtraClaims(c)
+	if !ok {
+		return
+	}
+
 	// Validate and consume the authorization code
 	authCode, err := h.authorizationService.ExchangeCode(
 		c.Request.Context(),
@@ -534,6 +571,7 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 		c.Request.Context(),
 		authCode,
 		authorizationID,
+		extraClaims,
 	)
 	if err != nil {
 		respondOAuthError(

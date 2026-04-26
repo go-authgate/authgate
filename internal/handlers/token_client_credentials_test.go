@@ -28,16 +28,22 @@ import (
 
 // ─── Test infrastructure ─────────────────────────────────────────────────────
 
-func setupCCTestEnv(t *testing.T) (*gin.Engine, *store.Store) {
-	t.Helper()
-	gin.SetMode(gin.TestMode)
-
-	cfg := &config.Config{
+// defaultTokenTestConfig returns the baseline config shared by token-endpoint
+// tests. Callers tweak fields before passing to newTokenTestEnv.
+func defaultTokenTestConfig() *config.Config {
+	return &config.Config{
 		JWTExpiration:                    1 * time.Hour,
 		ClientCredentialsTokenExpiration: 1 * time.Hour,
 		JWTSecret:                        "test-secret-32-chars-long!!!!!!!",
 		BaseURL:                          "http://localhost:8080",
 	}
+}
+
+// newTokenTestEnv wires the in-memory token endpoint that token-handler tests
+// share. It registers POST /oauth/token and GET /oauth/tokeninfo.
+func newTokenTestEnv(t *testing.T, cfg *config.Config) (*gin.Engine, *store.Store) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
 
 	s, err := store.New(context.Background(), "sqlite", ":memory:", &config.Config{})
 	require.NoError(t, err)
@@ -59,6 +65,10 @@ func setupCCTestEnv(t *testing.T) (*gin.Engine, *store.Store) {
 	r.GET("/oauth/tokeninfo", handler.TokenInfo)
 
 	return r, s
+}
+
+func setupCCTestEnv(t *testing.T) (*gin.Engine, *store.Store) {
+	return newTokenTestEnv(t, defaultTokenTestConfig())
 }
 
 // createCCClient creates a confidential client with CC flow enabled and returns

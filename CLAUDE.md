@@ -294,6 +294,14 @@ Key configuration categories (see `.env.example` and `docs/CONFIGURATION.md` for
 - `TOKEN_CACHE_TTL` - Cache lifetime (default: 10h, matches `JWT_EXPIRATION`); revocation uses explicit invalidation
 - `TOKEN_CACHE_CLIENT_TTL` - Redis-aside client-side TTL (default: 1h); RESP3 handles real-time invalidation
 
+**Caller-Supplied Extra JWT Claims**
+
+- `EXTRA_CLAIMS_ENABLED` - Master switch for the `extra_claims` form parameter on `/oauth/token` (default: true; set to false to refuse any non-empty `extra_claims`)
+- `EXTRA_CLAIMS_MAX_RAW_SIZE` / `EXTRA_CLAIMS_MAX_KEYS` / `EXTRA_CLAIMS_MAX_VAL_SIZE` - Size guards (defaults: 4096 bytes / 16 keys / 512 bytes per value; `0` disables each check)
+- Applies to all four grants (`authorization_code`, `device_code`, `client_credentials`, `refresh_token`); reserved JWT/OIDC keys are rejected upfront and overridden by `generateJWT` as second-line defence; system claims (`project`, `service_account`) on the OAuth client also override caller values
+- Stateless: claims are NOT persisted, so callers must re-supply `extra_claims` on every refresh request to retain them
+- Trust model: caller-supplied claims are self-asserted — downstream resource servers must not treat them as authority-attested
+
 **Observability**
 
 - `METRICS_ENABLED` - Prometheus metrics endpoint

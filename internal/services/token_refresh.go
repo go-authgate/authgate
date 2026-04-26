@@ -71,10 +71,16 @@ func (s *TokenService) revokeTokenFamilyWithAudit(
 	})
 }
 
-// RefreshAccessToken generates new access token (and optionally new refresh token in rotation mode)
+// RefreshAccessToken generates new access token (and optionally new refresh token in rotation mode).
+// callerExtra (optional) is freshly applied to the new token(s) and merged
+// with the client's system-managed claims (project, service_account); reserved
+// keys must already have been rejected by the handler. Custom claims are NOT
+// persisted server-side — callers must re-supply on every refresh request to
+// retain them.
 func (s *TokenService) RefreshAccessToken(
 	ctx context.Context,
 	refreshTokenString, clientID, requestedScopes string,
+	callerExtra map[string]any,
 ) (*models.AccessToken, *models.AccessToken, error) {
 	// 1. Get refresh token from database
 	refreshToken, err := s.store.GetAccessTokenByHash(util.SHA256Hex(refreshTokenString))
@@ -141,6 +147,7 @@ func (s *TokenService) RefreshAccessToken(
 			extraClaims = buildClientClaims(c)
 		}
 	}
+	extraClaims = mergeCallerExtraClaims(extraClaims, callerExtra)
 	refreshResult, providerErr := s.tokenProvider.RefreshAccessToken(
 		ctx,
 		refreshTokenString,

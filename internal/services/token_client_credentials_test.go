@@ -79,8 +79,7 @@ func TestIssueClientCredentialsToken_Success_DefaultScopes(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"",
-	)
+		"", nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, tok)
@@ -105,8 +104,7 @@ func TestIssueClientCredentialsToken_Success_SubsetScopes(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"read",
-	)
+		"read", nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, tok)
@@ -139,8 +137,8 @@ func TestIssueClientCredentialsToken_Error_PublicClient(t *testing.T) {
 		context.Background(),
 		publicClient.ClientID,
 		plainSecret,
-		"",
-	)
+		"", nil)
+
 	assert.ErrorIs(t, err, ErrClientNotConfidential)
 }
 
@@ -154,8 +152,8 @@ func TestIssueClientCredentialsToken_Error_FlowDisabled(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"",
-	)
+		"", nil)
+
 	assert.ErrorIs(t, err, ErrClientCredentialsFlowDisabled)
 }
 
@@ -169,8 +167,8 @@ func TestIssueClientCredentialsToken_Error_WrongSecret(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		"wrong-secret",
-		"",
-	)
+		"", nil)
+
 	assert.ErrorIs(t, err, ErrInvalidClientCredentials)
 }
 
@@ -188,8 +186,8 @@ func TestIssueClientCredentialsToken_Error_InactiveClient(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"",
-	)
+		"", nil)
+
 	assert.ErrorIs(t, err, ErrInvalidClientCredentials)
 }
 
@@ -203,8 +201,8 @@ func TestIssueClientCredentialsToken_Error_ScopeExceedsClient(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"read write admin",
-	)
+		"read write admin", nil)
+
 	assert.ErrorIs(t, err, token.ErrInvalidScope)
 }
 
@@ -218,8 +216,8 @@ func TestIssueClientCredentialsToken_Error_OpenIDScope(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"openid read",
-	)
+		"openid read", nil)
+
 	assert.ErrorIs(t, err, token.ErrInvalidScope)
 }
 
@@ -231,8 +229,8 @@ func TestIssueClientCredentialsToken_Error_OfflineAccessScope(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"offline_access read",
-	)
+		"offline_access read", nil)
+
 	assert.ErrorIs(t, err, token.ErrInvalidScope)
 }
 
@@ -246,8 +244,8 @@ func TestIssueClientCredentialsToken_TokenPersisted(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"",
-	)
+		"", nil)
+
 	require.NoError(t, err)
 
 	// Validate through the service — token must be in the database
@@ -298,8 +296,8 @@ func TestIssueClientCredentialsToken_IgnoresClientTokenProfile(t *testing.T) {
 	require.NoError(t, s.UpdateClient(client))
 
 	tok, err := svc.IssueClientCredentialsToken(
-		context.Background(), client.ClientID, plainSecret, "",
-	)
+		context.Background(), client.ClientID, plainSecret, "", nil)
+
 	require.NoError(t, err)
 
 	// Expires ~30m from now (CLIENT_CREDENTIALS_TOKEN_EXPIRATION), NOT ~15m
@@ -317,8 +315,8 @@ func TestIssueClientCredentialsToken_MachineUserIDPrefix(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"",
-	)
+		"", nil)
+
 	require.NoError(t, err)
 
 	assert.True(t, strings.HasPrefix(tok.UserID, "client:"),

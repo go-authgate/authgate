@@ -21,9 +21,14 @@ import (
 //
 // The resulting token carries a synthetic machine identity in UserID: "client:<clientID>".
 // This distinguishes M2M tokens from user-delegated tokens in all downstream lookups.
+//
+// callerExtra (optional) is merged into the issued token; reserved keys must
+// already have been rejected by the handler. System claims (project,
+// service_account from the OAuth client) override on collision.
 func (s *TokenService) IssueClientCredentialsToken(
 	ctx context.Context,
 	clientID, clientSecret, requestedScopes string,
+	callerExtra map[string]any,
 ) (*models.AccessToken, error) {
 	// 1. Look up client (uncached — needs secret for authentication)
 	client, err := s.clientService.GetClientWithSecret(ctx, clientID)
@@ -79,7 +84,7 @@ func (s *TokenService) IssueClientCredentialsToken(
 		clientID,
 		effectiveScopes,
 		0,
-		buildClientClaims(client),
+		mergeCallerExtraClaims(buildClientClaims(client), callerExtra),
 	)
 	if providerErr != nil {
 		log.Printf(

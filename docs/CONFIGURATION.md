@@ -9,6 +9,7 @@ This guide covers all configuration options for AuthGate, including environment 
 - [Bootstrap and Shutdown Timeouts](#bootstrap-and-shutdown-timeouts)
 - [Generate Strong Secrets](#generate-strong-secrets)
 - [Token Lifetime Profiles](#token-lifetime-profiles)
+- [Caller-Supplied Extra Claims](#caller-supplied-extra-claims)
 - [Default Test Data](#default-test-data)
 - [OAuth Third-Party Login](#oauth-third-party-login)
 - [Service-to-Service Authentication](#service-to-service-authentication)
@@ -162,6 +163,15 @@ ENABLE_AUDIT_LOGGING=true               # Enable audit logging (default: true)
 AUDIT_LOG_RETENTION=2160h               # Retention period: 90 days (default: 90 days = 2160h)
 AUDIT_LOG_BUFFER_SIZE=1000              # Async buffer size (default: 1000)
 AUDIT_LOG_CLEANUP_INTERVAL=24h          # Cleanup frequency (default: 24h)
+
+# Caller-Supplied Extra JWT Claims (extra_claims parameter on /oauth/token)
+# Enabled by default. Reserved JWT/OIDC keys are always rejected. Custom
+# claims are NOT persisted, so callers must re-supply extra_claims on every
+# refresh to retain them. See "Caller-Supplied Extra Claims" section below.
+EXTRA_CLAIMS_ENABLED=true               # Master switch (default: true)
+EXTRA_CLAIMS_MAX_RAW_SIZE=4096          # Max raw JSON payload bytes (0 disables)
+EXTRA_CLAIMS_MAX_KEYS=16                # Max top-level keys (0 disables)
+EXTRA_CLAIMS_MAX_VAL_SIZE=512           # Max bytes per value (0 disables)
 ```
 
 ---
@@ -477,6 +487,38 @@ The `client_credentials` grant is governed by `CLIENT_CREDENTIALS_TOKEN_EXPIRATI
 ### Changing a profile
 
 Updates take effect on the **next token issuance or refresh**. Existing tokens retain the lifetime they were originally issued with; AuthGate does not retroactively shorten live tokens. Every TokenProfile change is recorded in the audit log at `WARNING` severity with the previous value (`previous_token_profile`) for forensic traceability.
+
+---
+
+## Caller-Supplied Extra Claims
+
+OAuth clients can attach an arbitrary `map[string]any` of custom claims to issued JWTs by sending an `extra_claims` form parameter on `/oauth/token`. Enabled by default and applies to all four grant types (`authorization_code`, `urn:ietf:params:oauth:grant-type:device_code`, `client_credentials`, `refresh_token`).
+
+```bash
+curl -X POST https://authgate.example/oauth/token \
+  -d 'grant_type=client_credentials' \
+  -u 'CLIENT_ID:CLIENT_SECRET' \
+  --data-urlencode 'extra_claims={"tenant":"acme","trace_id":"abc-123","feature_flags":["beta"]}'
+```
+
+The supplied JSON object is merged into the JWT alongside standard claims. Reserved JWT/OIDC claim keys (`iss`, `sub`, `exp`, `iat`, `jti`, `aud`, `nbf`, `type`, `scope`, `user_id`, `client_id`, `azp`, `amr`, `acr`, `auth_time`, `nonce`, `at_hash`, `project`, `service_account`) are rejected with `invalid_request`; `generateJWT` additionally overrides them at sign time so callers cannot impersonate the issuer's authority. System claims set on the OAuth client (`project`, `service_account`) also override caller values on collision — admins always win.
+
+### Configuration
+
+| Variable                    | Default | Purpose                                                                                  |
+| --------------------------- | ------- | ---------------------------------------------------------------------------------------- |
+| `EXTRA_CLAIMS_ENABLED`      | `true`  | Master switch. Set to `false` to make any non-empty `extra_claims` parameter return 400. |
+| `EXTRA_CLAIMS_MAX_RAW_SIZE` | `4096`  | Maximum raw JSON payload size in bytes. `0` disables the check.                          |
+| `EXTRA_CLAIMS_MAX_KEYS`     | `16`    | Maximum number of top-level keys. `0` disables the check.                                |
+| `EXTRA_CLAIMS_MAX_VAL_SIZE` | `512`   | Maximum JSON-encoded size of any single value in bytes. `0` disables the check.          |
+
+### Stateless behaviour
+
+Custom claims are **not persisted** server-side. To keep them on a refreshed token, the caller must re-supply `extra_claims` on every refresh request. Omitting the parameter on refresh produces a token with no caller claims (system claims like `project` / `service_account` still flow through from the OAuth client record).
+
+### Trust model
+
+The signature only proves AuthGate emitted these values, not that they are authoritative. Downstream resource servers must treat caller-supplied claims as **self-asserted** and apply their own access policies — never make authorization decisions on `extra_claims` values without independent verification. See [`docs/JWT_VERIFICATION.md`](JWT_VERIFICATION.md) for the full trust model.
 
 ---
 

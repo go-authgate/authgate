@@ -169,8 +169,8 @@ func TestExchangeDeviceCode_HonorsShortProfile(t *testing.T) {
 	access, refresh, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID,
-	)
+		client.ClientID, nil)
+
 	require.NoError(t, err)
 
 	// The short profile is 15m access / 24h refresh — check within tolerance.

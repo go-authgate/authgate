@@ -191,8 +191,8 @@ func TestIntrospectToken_WithClientCredentialsFlow(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"",
-	)
+		"", nil)
+
 	require.NoError(t, err)
 
 	// Introspect it
