@@ -196,6 +196,7 @@ func TestDiscovery_ReturnsCorrectMetadata(t *testing.T) {
 	assert.Contains(t, claims, "aud")
 	assert.Contains(t, claims, "exp")
 	assert.Contains(t, claims, "iat")
+	assert.Contains(t, claims, "jti")
 	assert.Contains(t, claims, "auth_time")
 	assert.Contains(t, claims, "nonce")
 	assert.Contains(t, claims, "at_hash")
@@ -204,6 +205,19 @@ func TestDiscovery_ReturnsCorrectMetadata(t *testing.T) {
 	assert.Contains(t, claims, "preferred_username")
 	assert.Contains(t, claims, "picture")
 	assert.Contains(t, claims, "updated_at")
+
+	// Per OIDC Discovery 1.0, claims_supported lists claims emitted in ID
+	// tokens / UserInfo only. AuthGate's access/refresh JWT claims are
+	// documented in docs/JWT_VERIFICATION.md and must not leak in here.
+	for _, jwtOnly := range []string{"user_id", "client_id", "scope", "type", "project", "service_account"} {
+		assert.NotContains(
+			t,
+			claims,
+			jwtOnly,
+			"claims_supported must only list ID token / UserInfo claims; %q is access/refresh-token-only",
+			jwtOnly,
+		)
+	}
 }
 
 func TestDiscovery_StripsTrailingSlashFromBaseURL(t *testing.T) {
