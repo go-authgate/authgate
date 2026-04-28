@@ -116,12 +116,6 @@ func (h *OIDCHandler) Discovery(c *gin.Context) {
 			"email_verified",
 			"picture",
 			"updated_at",
-			"user_id",
-			"client_id",
-			"scope",
-			"type",
-			"project",
-			"service_account",
 		},
 		CodeChallengeMethodsSupported: []string{"S256"},
 	}
