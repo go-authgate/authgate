@@ -10,7 +10,7 @@ func TestIsReservedClaimKey(t *testing.T) {
 		"iss", "sub", "aud", "exp", "nbf", "iat", "jti",
 		"type", "scope", "user_id", "client_id",
 		"azp", "amr", "acr", "auth_time", "nonce", "at_hash",
-		ClaimProject, ClaimServiceAccount,
+		ClaimProject, ClaimServiceAccount, ClaimDomain,
 	}
 	for _, k := range reserved {
 		if !IsReservedClaimKey(k) {
@@ -52,6 +52,11 @@ func TestValidateExtraClaims(t *testing.T) {
 		{
 			name:    "rejects project (system claim)",
 			input:   map[string]any{ClaimProject: "fake"},
+			wantErr: true,
+		},
+		{
+			name:    "rejects domain (server claim)",
+			input:   map[string]any{ClaimDomain: "evil"},
 			wantErr: true,
 		},
 		{

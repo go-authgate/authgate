@@ -266,6 +266,46 @@ func mergeCallerExtraClaims(system, caller map[string]any) map[string]any {
 	return out
 }
 
+// buildServerClaims returns the JWT claims sourced from the AuthGate process
+// configuration (currently just `domain` from JWT_DOMAIN). Returns nil when no
+// server-wide claim is configured so callers skip an empty allocation.
+func buildServerClaims(cfg *config.Config) map[string]any {
+	if cfg == nil || cfg.JWTDomain == "" {
+		return nil
+	}
+	return map[string]any{token.ClaimDomain: cfg.JWTDomain}
+}
+
+// applyServerClaims overlays server-attested claims onto an already-merged
+// caller+client map. Server values win on collision so the deployment-level
+// invariant cannot be shadowed by caller extra_claims or per-client metadata.
+// claims must be owned by the caller — applyServerClaims may mutate it in
+// place. mergeCallerExtraClaims returns a freshly-allocated map when caller
+// claims are non-empty, and buildClientClaims always allocates fresh, so the
+// existing call sites already satisfy this.
+func applyServerClaims(claims, server map[string]any) map[string]any {
+	if len(server) == 0 {
+		return claims
+	}
+	if claims == nil {
+		claims = make(map[string]any, len(server))
+	}
+	maps.Copy(claims, server)
+	return claims
+}
+
+// composeIssuanceClaims builds the merged claim map handed to the token
+// provider on every issuance path (auth_code, device_code, client_credentials,
+// refresh). Precedence is caller → client → server, with server writing last
+// so JWT_DOMAIN cannot be shadowed.
+func (s *TokenService) composeIssuanceClaims(
+	client *models.OAuthApplication,
+	caller map[string]any,
+) map[string]any {
+	claims := mergeCallerExtraClaims(buildClientClaims(client), caller)
+	return applyServerClaims(claims, buildServerClaims(s.config))
+}
+
 // generateAndPersistTokenPair generates access and refresh tokens via the
 // configured provider, builds database records, and persists them atomically.
 // The per-client TokenProfile is resolved here so that all issuance paths
@@ -298,9 +338,8 @@ func (s *TokenService) generateAndPersistTokenPair(
 	}
 	if client != nil {
 		accessTTL, refreshTTL = s.ttlForClient(client)
-		extraClaims = buildClientClaims(client)
 	}
-	extraClaims = mergeCallerExtraClaims(extraClaims, p.ExtraClaims)
+	extraClaims = s.composeIssuanceClaims(client, p.ExtraClaims)
 
 	accessResult, err := s.tokenProvider.GenerateToken(
 		ctx, p.UserID, p.ClientID, p.Scopes, accessTTL, extraClaims,

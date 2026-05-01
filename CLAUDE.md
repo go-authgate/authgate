@@ -269,6 +269,7 @@ Key configuration categories (see `.env.example` and `docs/CONFIGURATION.md` for
 - `JWT_SECRET`, `SESSION_SECRET` - Must be changed in production (use `openssl rand -hex 32`)
 - `JWT_SIGNING_ALGORITHM` - HS256 (default), RS256, or ES256; asymmetric keys require `JWT_PRIVATE_KEY_PATH`
 - `JWT_EXPIRATION` - Access token lifetime (default: 1h); `JWT_EXPIRATION_JITTER` - Random expiry offset to prevent thundering herd
+- `JWT_DOMAIN` - Server-attested `domain` claim emitted on every issued JWT (default: empty = claim omitted). Server-set, validated at startup, re-resolved on refresh; not spoofable via `extra_claims` and not exposed in OIDC `claims_supported`
 - `DATABASE_DRIVER` (sqlite/postgres), `DATABASE_DSN` - Database configuration
 
 **Authentication & Authorization**

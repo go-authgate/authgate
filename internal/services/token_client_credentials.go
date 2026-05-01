@@ -84,7 +84,7 @@ func (s *TokenService) IssueClientCredentialsToken(
 		clientID,
 		effectiveScopes,
 		0,
-		mergeCallerExtraClaims(buildClientClaims(client), callerExtra),
+		s.composeIssuanceClaims(client, callerExtra),
 	)
 	if providerErr != nil {
 		log.Printf(

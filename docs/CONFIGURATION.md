@@ -86,6 +86,17 @@ JWT_EXPIRATION_JITTER=30m            # Max random jitter on access token expiry 
 # JWT_AUDIENCE=oa                    # → "aud": "oa"
 # JWT_AUDIENCE=oa,swrd,hwrd          # → "aud": ["oa", "swrd", "hwrd"]
 
+# JWT Domain Claim — server-attested
+# Server-set "domain" claim emitted on every issued access, refresh, and
+# client-credentials JWT. Identifies which AuthGate deployment minted a token.
+# Identifier shape: 1–64 chars of [A-Za-z0-9_.-], starting and ending with an
+# alphanumeric (same shape as the per-client `project` claim). Emitted verbatim
+# (case preserved). Empty → claim omitted entirely. Server-set: it cannot be
+# spoofed via /oauth/token's extra_claims and is re-resolved on every refresh,
+# so flipping the env var propagates on the next refresh request.
+# JWT_DOMAIN=                        # Default: unset (no domain claim)
+# JWT_DOMAIN=oa                      # → "domain": "oa"
+
 # Refresh Token Configuration
 REFRESH_TOKEN_EXPIRATION=720h        # Refresh token lifetime (default: 30 days)
 ENABLE_REFRESH_TOKENS=true          # Feature flag to enable/disable refresh tokens
@@ -311,9 +322,9 @@ AuthGate supports three JWT signing algorithms:
 
 For RS256/ES256 you must supply the private key via **at least one** of two environment variables:
 
-| Variable               | Use when                                                           |
-| ---------------------- | ------------------------------------------------------------------ |
-| `JWT_PRIVATE_KEY_PATH` | Key is available as a file on disk (bare-metal, Docker volume)     |
+| Variable               | Use when                                                                           |
+| ---------------------- | ---------------------------------------------------------------------------------- |
+| `JWT_PRIVATE_KEY_PATH` | Key is available as a file on disk (bare-metal, Docker volume)                     |
 | `JWT_PRIVATE_KEY_PEM`  | Key is injected as a string (Kubernetes Secret, GitHub Actions, Fly.io, Cloud Run) |
 
 When both are set, `JWT_PRIVATE_KEY_PEM` wins and AuthGate logs a warning on startup.
@@ -464,11 +475,11 @@ AuthGate assigns every OAuth client one of three **token lifetime presets** so a
 
 ### Profiles
 
-| Profile      | When to use                                                    | Default access TTL           | Default refresh TTL           |
-| ------------ | -------------------------------------------------------------- | ---------------------------- | ----------------------------- |
-| `short`      | High-security apps (admin consoles, financial dashboards)      | 15 min                       | 24 h                          |
-| `standard`   | Typical web/SPA clients (default for new clients)              | `JWT_EXPIRATION` (10 h)      | `REFRESH_TOKEN_EXPIRATION` (30 d) |
-| `long`       | CLI tools, IoT devices, long-lived background jobs             | 24 h                         | 90 d                          |
+| Profile    | When to use                                               | Default access TTL      | Default refresh TTL               |
+| ---------- | --------------------------------------------------------- | ----------------------- | --------------------------------- |
+| `short`    | High-security apps (admin consoles, financial dashboards) | 15 min                  | 24 h                              |
+| `standard` | Typical web/SPA clients (default for new clients)         | `JWT_EXPIRATION` (10 h) | `REFRESH_TOKEN_EXPIRATION` (30 d) |
+| `long`     | CLI tools, IoT devices, long-lived background jobs        | 24 h                    | 90 d                              |
 
 Defaults are overridable per environment via the `TOKEN_PROFILE_*` variables listed in [Environment Variables](#environment-variables).
 
@@ -1008,10 +1019,10 @@ The cache uses a **cache-aside pattern**:
 
 ### Cache Backends
 
-| Backend     | Env value          | Use case                                                                          |
-| ----------- | ------------------ | --------------------------------------------------------------------------------- |
-| Memory      | `memory` (default) | Single-instance, zero external dependencies                                       |
-| Redis       | `redis`            | 2–5 pods, shared cache across instances                                           |
+| Backend     | Env value          | Use case                                                                                   |
+| ----------- | ------------------ | ------------------------------------------------------------------------------------------ |
+| Memory      | `memory` (default) | Single-instance, zero external dependencies                                                |
+| Redis       | `redis`            | 2–5 pods, shared cache across instances                                                    |
 | Redis-aside | `redis-aside`      | 5+ pods, client-side caching with RESP3 real-time invalidation — **requires Redis >= 7.0** |
 
 ### Configuration
@@ -1046,10 +1057,10 @@ REDIS_DB=0
 
 ### TTL Trade-offs
 
-| Setting                   | Behaviour                                                                           |
-| ------------------------- | ----------------------------------------------------------------------------------- |
-| `TOKEN_CACHE_TTL=10h`     | Default — matches JWT expiry; cached tokens expire naturally alongside JWT          |
-| `TOKEN_CACHE_CLIENT_TTL=1h` | redis-aside client-side TTL; RESP3 invalidation fires immediately on revocation  |
+| Setting                     | Behaviour                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| `TOKEN_CACHE_TTL=10h`       | Default — matches JWT expiry; cached tokens expire naturally alongside JWT      |
+| `TOKEN_CACHE_CLIENT_TTL=1h` | redis-aside client-side TTL; RESP3 invalidation fires immediately on revocation |
 
 ### Multi-Pod Recommendation
 

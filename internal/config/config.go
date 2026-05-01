@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/joho/godotenv"
 )
@@ -65,6 +66,7 @@ type Config struct {
 	JWTKeyID            string        // "kid" header for JWKS key rotation (auto-generated if empty)
 	JWTExpirationJitter time.Duration // Max random jitter added to access token expiry (default: 30m)
 	JWTAudience         []string      // "aud" claim values for issued access/refresh tokens (comma-separated env). Single entry → string, multiple → array. Empty → claim omitted.
+	JWTDomain           string        // Server-attested "domain" claim emitted on every issued JWT. Empty → claim omitted (default). Validated at startup via util.IsValidProjectIdentifier.
 
 	// Session settings
 	SessionSecret            string
@@ -323,6 +325,7 @@ func Load() *Config {
 		JWTKeyID:            getEnv("JWT_KEY_ID", ""),
 		JWTExpirationJitter: getEnvDuration("JWT_EXPIRATION_JITTER", 30*time.Minute),
 		JWTAudience:         getEnvSlice("JWT_AUDIENCE", nil),
+		JWTDomain:           strings.TrimSpace(getEnv("JWT_DOMAIN", "")),
 		SessionSecret:       getEnv("SESSION_SECRET", "session-secret-change-in-production"),
 		SessionMaxAge:       getEnvInt("SESSION_MAX_AGE", 3600),      // 1 hour default
 		SessionIdleTimeout:  getEnvInt("SESSION_IDLE_TIMEOUT", 1800), // 30 minutes default
@@ -631,6 +634,18 @@ func (c *Config) Validate() error {
 		return fmt.Errorf(
 			"JWT_EXPIRATION_JITTER must be less than JWT_EXPIRATION (%s >= %s)",
 			c.JWTExpirationJitter, c.JWTExpiration,
+		)
+	}
+
+	// Validate JWT_DOMAIN identifier shape. Empty string is the documented
+	// "feature off" value and never errors; otherwise the value must satisfy
+	// the same identifier pattern as the per-client `project` claim so that
+	// downstream consumers can match it byte-for-byte.
+	if c.JWTDomain != "" && !util.IsValidProjectIdentifier(c.JWTDomain) {
+		return fmt.Errorf(
+			"invalid JWT_DOMAIN value: %q (must be 1–64 characters of letters, digits, "+
+				"underscore, dot, or hyphen, starting and ending with a letter or digit)",
+			c.JWTDomain,
 		)
 	}
 
