@@ -38,6 +38,9 @@ coverage.txt
 # Credentials file (generated on first run)
 authgate-credentials.txt
 
+# AI session planning docs (per-worktree, never committed)
+/plan.md
+
 # JWT signing keys (RS256/ES256)
 *.pem
 *.key
