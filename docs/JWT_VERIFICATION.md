@@ -254,12 +254,12 @@ The `kid` (Key ID) header identifies which key was used to sign the token. Use t
 
 In addition to the standard JWT claims, AuthGate may optionally populate the standard `aud` claim and may also emit three custom claims (`project`, `service_account`, `domain`) that gateways and resource servers can use for routing and per-request authorization. All four are **optional** — they only appear when configured.
 
-| Claim             | Classification        | Type                  | Source                                              | When present                                                |
-| ----------------- | --------------------- | --------------------- | --------------------------------------------------- | ----------------------------------------------------------- |
-| `aud`             | Standard JWT claim    | `string` or `[]string` | `JWT_AUDIENCE` env var (deployment-wide)            | When `JWT_AUDIENCE` is non-empty                            |
-| `project`         | Custom AuthGate claim | `string`              | `OAuthApplication.Project` (per-client metadata)    | When the client has a non-empty `Project` value             |
-| `service_account` | Custom AuthGate claim | `string`              | `OAuthApplication.ServiceAccount` (per-client)      | When the client has a non-empty `ServiceAccount` value      |
-| `domain`          | Custom AuthGate claim | `string`              | `JWT_DOMAIN` env var (deployment-wide, server-attested) | When `JWT_DOMAIN` is non-empty                          |
+| Claim             | Classification        | Type                   | Source                                                  | When present                                           |
+| ----------------- | --------------------- | ---------------------- | ------------------------------------------------------- | ------------------------------------------------------ |
+| `aud`             | Standard JWT claim    | `string` or `[]string` | `JWT_AUDIENCE` env var (deployment-wide)                | When `JWT_AUDIENCE` is non-empty                       |
+| `project`         | Custom AuthGate claim | `string`               | `OAuthApplication.Project` (per-client metadata)        | When the client has a non-empty `Project` value        |
+| `service_account` | Custom AuthGate claim | `string`               | `OAuthApplication.ServiceAccount` (per-client)          | When the client has a non-empty `ServiceAccount` value |
+| `domain`          | Custom AuthGate claim | `string`               | `JWT_DOMAIN` env var (deployment-wide, server-attested) | When `JWT_DOMAIN` is non-empty                         |
 
 `aud` is the standard registered JWT claim defined by RFC 7519 §4.1.3. It is a single string when `JWT_AUDIENCE` has one entry and a `[]string` when it has multiple — verifiers must handle both shapes. Many JWT libraries (e.g. `golang-jwt/jwt`) normalize this for you via their `WithAudience` option.
 
