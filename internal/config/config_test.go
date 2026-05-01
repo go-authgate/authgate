@@ -751,6 +751,80 @@ func TestConfig_Validate_ExtraClaimsLimits(t *testing.T) {
 	}
 }
 
+func TestConfig_Validate_JWTDomain(t *testing.T) {
+	tests := []struct {
+		name        string
+		domain      string
+		expectError bool
+		errorMsg    string
+	}{
+		{name: "empty (feature off)", domain: "", expectError: false},
+		{name: "single alnum", domain: "a", expectError: false},
+		{name: "lowercase identifier", domain: "oa", expectError: false},
+		{name: "with hyphen", domain: "swrd-prod", expectError: false},
+		{name: "with underscore", domain: "my_domain", expectError: false},
+		{name: "with dot", domain: "my.domain", expectError: false},
+		{name: "uppercase preserved", domain: "OA", expectError: false},
+
+		{
+			name:        "contains spaces",
+			domain:      "bad value with spaces",
+			expectError: true,
+			errorMsg:    `invalid JWT_DOMAIN value: "bad value with spaces"`,
+		},
+		{
+			name:        "leading hyphen",
+			domain:      "-foo",
+			expectError: true,
+			errorMsg:    `invalid JWT_DOMAIN value: "-foo"`,
+		},
+		{
+			name:        "trailing hyphen",
+			domain:      "foo-",
+			expectError: true,
+			errorMsg:    `invalid JWT_DOMAIN value: "foo-"`,
+		},
+		{
+			name:        "contains slash",
+			domain:      "foo/bar",
+			expectError: true,
+			errorMsg:    `invalid JWT_DOMAIN value: "foo/bar"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validBaseConfig()
+			cfg.JWTDomain = tt.domain
+			err := cfg.Validate()
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestLoad_JWTDomain(t *testing.T) {
+	t.Run("default empty", func(t *testing.T) {
+		cfg := Load()
+		assert.Empty(t, cfg.JWTDomain)
+	})
+
+	t.Run("env value loaded", func(t *testing.T) {
+		t.Setenv("JWT_DOMAIN", "oa")
+		cfg := Load()
+		assert.Equal(t, "oa", cfg.JWTDomain)
+	})
+
+	t.Run("env value trimmed", func(t *testing.T) {
+		t.Setenv("JWT_DOMAIN", "  swrd  ")
+		cfg := Load()
+		assert.Equal(t, "swrd", cfg.JWTDomain)
+	})
+}
+
 // ============================================================
 // Authorization Code Flow config (RFC 6749 + RFC 7636)
 // ============================================================

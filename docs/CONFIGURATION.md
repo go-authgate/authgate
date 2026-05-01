@@ -86,6 +86,17 @@ JWT_EXPIRATION_JITTER=30m            # Max random jitter on access token expiry 
 # JWT_AUDIENCE=oa                    # → "aud": "oa"
 # JWT_AUDIENCE=oa,swrd,hwrd          # → "aud": ["oa", "swrd", "hwrd"]
 
+# JWT Domain Claim — server-attested
+# Server-set "domain" claim emitted on every issued access, refresh, and
+# client-credentials JWT. Identifies which AuthGate deployment minted a token.
+# Identifier shape: 1–64 chars of [A-Za-z0-9_.-], starting and ending with an
+# alphanumeric (same shape as the per-client `project` claim). Emitted verbatim
+# (case preserved). Empty → claim omitted entirely. Server-set: it cannot be
+# spoofed via /oauth/token's extra_claims and is re-resolved on every refresh,
+# so flipping the env var propagates on the next refresh request.
+# JWT_DOMAIN=                        # Default: unset (no domain claim)
+# JWT_DOMAIN=oa                      # → "domain": "oa"
+
 # Refresh Token Configuration
 REFRESH_TOKEN_EXPIRATION=720h        # Refresh token lifetime (default: 30 days)
 ENABLE_REFRESH_TOKENS=true          # Feature flag to enable/disable refresh tokens

@@ -25,6 +25,11 @@ const (
 const (
 	ClaimProject        = "project"
 	ClaimServiceAccount = "service_account"
+	// ClaimDomain is server-attested: it is set from the AuthGate process
+	// configuration (JWT_DOMAIN), not from the OAuthApplication row, so callers
+	// and per-client metadata cannot influence it. Resource servers using the
+	// SDK's `AccessRule.Domains` allowlist match on this claim.
+	ClaimDomain = "domain"
 )
 
 // Result is an alias for core.TokenResult.

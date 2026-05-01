@@ -20,15 +20,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// projectPattern allows 1–64 characters of alnum / underscore / dot / hyphen,
-// with alnum at both ends so values like "-foo" or "foo-" are rejected. Single
-// alnum characters are also valid (the alternation handles the 1-char case).
-// More permissive than GCP/k8s identifier rules (which forbid uppercase,
-// underscores, and dots) — keep your downstream consumers in mind.
-var projectPattern = regexp.MustCompile(
-	`^[a-zA-Z0-9]$|^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}[a-zA-Z0-9]$`,
-)
-
 // serviceAccountPattern allows up to 255 characters of alnum / underscore /
 // dot / at-sign / hyphen so both bare ids and email-style addresses pass
 // (e.g. "sa-payments@example.com").
@@ -97,13 +88,14 @@ var (
 )
 
 // validateProject returns nil for an empty value (the field is optional) and
-// otherwise checks the regex. The trim happens at the caller so "  " is treated
-// as empty rather than as an invalid value.
+// otherwise checks against the shared util.ProjectIdentifierPattern. The trim
+// happens at the caller so "  " is treated as empty rather than as an invalid
+// value.
 func validateProject(p string) error {
 	if p == "" {
 		return nil
 	}
-	if !projectPattern.MatchString(p) {
+	if !util.IsValidProjectIdentifier(p) {
 		return ErrInvalidProject
 	}
 	return nil
@@ -199,7 +191,7 @@ type CreateClientRequest struct {
 	EnableClientCredentialsFlow bool   // Enable Client Credentials Grant (RFC 6749 §4.4); confidential clients only
 	IsAdminCreated              bool   // When true: Status=active; when false: Status=pending
 	TokenProfile                string // "short" / "standard" / "long"; empty = standard
-	Project                     string // Optional; injected as JWT "project" claim. Validated by projectPattern.
+	Project                     string // Optional; injected as JWT "project" claim. Validated by util.IsValidProjectIdentifier.
 	ServiceAccount              string // Optional; injected as JWT "service_account" claim. Validated by serviceAccountPattern.
 }
 
@@ -214,7 +206,7 @@ type UpdateClientRequest struct {
 	EnableAuthCodeFlow          bool
 	EnableClientCredentialsFlow bool   // Enable Client Credentials Grant (RFC 6749 §4.4); confidential clients only
 	TokenProfile                string // "short" / "standard" / "long"; empty = standard
-	Project                     string // Optional; injected as JWT "project" claim. Validated by projectPattern.
+	Project                     string // Optional; injected as JWT "project" claim. Validated by util.IsValidProjectIdentifier.
 	ServiceAccount              string // Optional; injected as JWT "service_account" claim. Validated by serviceAccountPattern.
 }
 

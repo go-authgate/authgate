@@ -52,6 +52,11 @@ var reservedClaimKeys = map[string]struct{}{
 	// row, callers cannot impersonate them via extra_claims.
 	ClaimProject:        {},
 	ClaimServiceAccount: {},
+
+	// Server-attested claim — set from JWT_DOMAIN on every issued token. The
+	// service layer overrides any caller-supplied value as a defense in depth,
+	// and admins cannot set it per-client either.
+	ClaimDomain: {},
 }
 
 // IsReservedClaimKey reports whether the given claim key is reserved.

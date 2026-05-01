@@ -129,7 +129,7 @@ func (s *TokenService) RefreshAccessToken(
 	// fetch serves both: refresh is a hot path, so we don't repeat the lookup.
 	var (
 		accessTTL, refreshTTL time.Duration
-		extraClaims           map[string]any
+		client                *models.OAuthApplication
 	)
 	if s.clientService != nil {
 		c, err := s.clientService.GetClient(ctx, refreshToken.ClientID)
@@ -144,10 +144,10 @@ func (s *TokenService) RefreshAccessToken(
 			)
 		} else {
 			accessTTL, refreshTTL = s.ttlForClient(c)
-			extraClaims = buildClientClaims(c)
+			client = c
 		}
 	}
-	extraClaims = mergeCallerExtraClaims(extraClaims, callerExtra)
+	extraClaims := s.composeIssuanceClaims(client, callerExtra)
 	refreshResult, providerErr := s.tokenProvider.RefreshAccessToken(
 		ctx,
 		refreshTokenString,

@@ -209,7 +209,7 @@ func TestDiscovery_ReturnsCorrectMetadata(t *testing.T) {
 	// Per OIDC Discovery 1.0, claims_supported lists claims emitted in ID
 	// tokens / UserInfo only. AuthGate's access/refresh JWT claims are
 	// documented in docs/JWT_VERIFICATION.md and must not leak in here.
-	for _, jwtOnly := range []string{"user_id", "client_id", "scope", "type", "project", "service_account"} {
+	for _, jwtOnly := range []string{"user_id", "client_id", "scope", "type", "project", "service_account", "domain"} {
 		assert.NotContains(
 			t,
 			claims,
@@ -218,6 +218,35 @@ func TestDiscovery_ReturnsCorrectMetadata(t *testing.T) {
 			jwtOnly,
 		)
 	}
+}
+
+// TestDiscovery_OmitsDomainEvenWhenSet asserts the server-attested `domain`
+// claim never appears in OIDC `claims_supported`, even after an operator sets
+// JWT_DOMAIN. domain is an access/refresh-token-only claim — the same trust
+// model as project / service_account — and OIDC discovery must not advertise
+// it.
+func TestDiscovery_OmitsDomainEvenWhenSet(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{BaseURL: "https://auth.example.com", JWTDomain: "oa"}
+	handler := NewOIDCHandler(nil, nil, cfg, false, true)
+
+	r := gin.New()
+	r.GET("/.well-known/openid-configuration", handler.Discovery)
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/openid-configuration", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var meta map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &meta))
+
+	claims, ok := meta["claims_supported"].([]any)
+	require.True(t, ok)
+	assert.NotContains(t, claims, "domain",
+		"claims_supported must not advertise the access-token-only `domain` claim")
 }
 
 func TestDiscovery_StripsTrailingSlashFromBaseURL(t *testing.T) {
