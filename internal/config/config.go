@@ -95,11 +95,21 @@ func StaticReservedClaimKeys() []string {
 // internal/token/types.go (the unexported privateClaims slice, exposed via
 // token.PrivateClaimRegistry()). Replicated here only for the startup
 // collision check; the canonical registry lives in the token package.
-// Keep these two lists in sync.
+// A cross-package drift guard test (TestPrivateClaimRegistryDrift in
+// internal/config/drift_test.go) fails the build if these diverge.
 var jwtPrivateClaimLogicalNames = []string{
 	"domain",
 	"project",
 	"service_account",
+}
+
+// PrivateClaimLogicalNames returns a defensive copy of the local
+// jwtPrivateClaimLogicalNames slice. Exported solely for the cross-package
+// drift guard test that compares this list against token.PrivateClaimRegistry().
+func PrivateClaimLogicalNames() []string {
+	out := make([]string, len(jwtPrivateClaimLogicalNames))
+	copy(out, jwtPrivateClaimLogicalNames)
+	return out
 }
 
 // TokenProfile defines the access and refresh token lifetimes for a named preset.
