@@ -143,9 +143,10 @@ type Config struct {
 	// JWTPrivateClaimPrefix is the namespace token AuthGate prepends (with an
 	// underscore separator AuthGate adds itself) to every AuthGate-emitted
 	// private JWT claim. With the default "extra", JWTs carry "extra_domain",
-	// "extra_project", "extra_service_account". Validated at startup: must
-	// match ^[a-zA-Z][a-zA-Z0-9_]*$, 1–15 chars, no trailing underscore, and
-	// none of the composed "<prefix>_<logical>" keys may collide with any
+	// "extra_project", "extra_service_account". Empty is normalized to the
+	// default ("extra") at validation time. Validated at startup: must match
+	// ^[a-zA-Z][a-zA-Z0-9_]*$, 1–15 chars, no trailing underscore, and none
+	// of the composed "<prefix>_<logical>" keys may collide with any
 	// RFC 7519 / OIDC / AuthGate-internal claim key.
 	JWTPrivateClaimPrefix string
 
