@@ -165,7 +165,10 @@ func TestServerDomainOverridesCallerExtraClaims(t *testing.T) {
 
 	domainKey := token.EmittedName(cfg.JWTPrivateClaimPrefix, "domain")
 	merged := mergeCallerExtraClaims(nil, map[string]any{domainKey: "evil"})
-	merged = applyServerClaims(merged, buildServerClaims(cfg))
+	merged = applyServerClaims(
+		merged,
+		buildServerClaims(cfg.JWTDomain, cfg.JWTPrivateClaimPrefix),
+	)
 
 	result, err := provider.GenerateToken(
 		context.Background(), "u", "c", "read", 0, merged,

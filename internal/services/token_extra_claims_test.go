@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/token"
 
@@ -65,35 +64,34 @@ func TestBuildClientClaims(t *testing.T) {
 func TestBuildServerClaims(t *testing.T) {
 	domainKey := token.EmittedName("extra", "domain")
 	tests := []struct {
-		name string
-		cfg  *config.Config
-		want map[string]any
+		name   string
+		domain string
+		prefix string
+		want   map[string]any
 	}{
-		{name: "nil config returns nil", cfg: nil, want: nil},
+		{name: "empty domain returns nil", domain: "", prefix: "extra", want: nil},
 		{
-			name: "empty JWTDomain returns nil",
-			cfg:  &config.Config{JWTPrivateClaimPrefix: "extra"},
-			want: nil,
+			name:   "populated domain returns prefixed claim",
+			domain: "oa",
+			prefix: "extra",
+			want:   map[string]any{domainKey: "oa"},
 		},
 		{
-			name: "populated JWTDomain returns prefixed domain claim",
-			cfg:  &config.Config{JWTDomain: "oa", JWTPrivateClaimPrefix: "extra"},
-			want: map[string]any{domainKey: "oa"},
+			name:   "verbatim case preserved",
+			domain: "OA",
+			prefix: "extra",
+			want:   map[string]any{domainKey: "OA"},
 		},
 		{
-			name: "verbatim case preserved",
-			cfg:  &config.Config{JWTDomain: "OA", JWTPrivateClaimPrefix: "extra"},
-			want: map[string]any{domainKey: "OA"},
-		},
-		{
-			name: "custom prefix produces acme_domain",
-			cfg:  &config.Config{JWTDomain: "oa", JWTPrivateClaimPrefix: "acme"},
-			want: map[string]any{token.EmittedName("acme", "domain"): "oa"},
+			name:   "custom prefix produces acme_domain",
+			domain: "oa",
+			prefix: "acme",
+			want:   map[string]any{token.EmittedName("acme", "domain"): "oa"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, buildServerClaims(tt.cfg))
+			assert.Equal(t, tt.want, buildServerClaims(tt.domain, tt.prefix))
 		})
 	}
 }

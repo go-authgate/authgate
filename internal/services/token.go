@@ -55,6 +55,13 @@ type TokenService struct {
 	metrics       core.Recorder
 	tokenCache    core.Cache[models.AccessToken]
 	clientService *ClientService
+	// privateClaimPrefix is cfg.JWTPrivateClaimPrefix normalized at
+	// construction time so that ad-hoc test configs that build Config{}
+	// directly (without going through Load()) get production-equivalent
+	// claim composition. Mirrors the same defaulting NewExtraClaimsParser
+	// and NewLocalTokenProvider apply, ensuring every layer sees the same
+	// prefix.
+	privateClaimPrefix string
 }
 
 func NewTokenService(
@@ -70,15 +77,20 @@ func NewTokenService(
 	if auditService == nil {
 		auditService = NewNoopAuditService()
 	}
+	prefix := cfg.JWTPrivateClaimPrefix
+	if prefix == "" {
+		prefix = config.DefaultJWTPrivateClaimPrefix
+	}
 	return &TokenService{
-		store:         s,
-		config:        cfg,
-		deviceService: ds,
-		tokenProvider: provider,
-		auditService:  auditService,
-		metrics:       m,
-		tokenCache:    tokenCache,
-		clientService: clientService,
+		store:              s,
+		config:             cfg,
+		deviceService:      ds,
+		tokenProvider:      provider,
+		auditService:       auditService,
+		metrics:            m,
+		tokenCache:         tokenCache,
+		clientService:      clientService,
+		privateClaimPrefix: prefix,
 	}
 }
 
@@ -270,16 +282,16 @@ func mergeCallerExtraClaims(system, caller map[string]any) map[string]any {
 
 // buildServerClaims returns the JWT claims sourced from the AuthGate process
 // configuration (currently just `domain` from JWT_DOMAIN), emitted under the
-// configured private-claim prefix (e.g. "extra_domain" with the default
-// prefix). Returns nil when no server-wide claim is configured so callers
-// skip an empty allocation.
-func buildServerClaims(cfg *config.Config) map[string]any {
-	if cfg == nil || cfg.JWTDomain == "" {
+// supplied private-claim prefix (e.g. "extra_domain" with the default
+// prefix). The caller is responsible for passing an already-normalized
+// prefix — ad-hoc empty inputs would compose "_domain" which never matches
+// downstream reserved/strip semantics. Returns nil when domain is empty so
+// callers skip an empty allocation.
+func buildServerClaims(domain, prefix string) map[string]any {
+	if domain == "" {
 		return nil
 	}
-	return map[string]any{
-		token.EmittedName(cfg.JWTPrivateClaimPrefix, "domain"): cfg.JWTDomain,
-	}
+	return map[string]any{token.EmittedName(prefix, "domain"): domain}
 }
 
 // applyServerClaims overlays server-attested claims onto an already-merged
@@ -308,9 +320,9 @@ func (s *TokenService) composeIssuanceClaims(
 	client *models.OAuthApplication,
 	caller map[string]any,
 ) map[string]any {
-	prefix := s.config.JWTPrivateClaimPrefix
+	prefix := s.privateClaimPrefix
 	claims := mergeCallerExtraClaims(buildClientClaims(client, prefix), caller)
-	return applyServerClaims(claims, buildServerClaims(s.config))
+	return applyServerClaims(claims, buildServerClaims(s.config.JWTDomain, prefix))
 }
 
 // generateAndPersistTokenPair generates access and refresh tokens via the
