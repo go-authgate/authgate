@@ -12,15 +12,16 @@ import (
 // and callers must not provide them via extra_claims.
 var ErrReservedClaimKey = errors.New("reserved claim key")
 
-// oidcStripKeys are RFC 7519 / OIDC ID-token claims that AuthGate never sets
-// or preserves on access/refresh tokens — generateJWT strips them from
-// extraClaims unconditionally to prevent caller smuggling.
-var oidcStripKeys = []string{"nbf", "azp", "amr", "acr", "auth_time", "nonce", "at_hash"}
+// jwtStripKeys are RFC 7519 registered claims and OIDC ID-token claims that
+// AuthGate never sets or preserves on access/refresh tokens — generateJWT
+// strips them from extraClaims unconditionally to prevent caller smuggling.
+var jwtStripKeys = []string{"nbf", "azp", "amr", "acr", "auth_time", "nonce", "at_hash"}
 
 // computeStripList builds the per-token-provider list of claim keys that
 // generateJWT must strip from extraClaims before signing. It includes:
 //
-//   - oidcStripKeys (RFC/OIDC ID-token keys that have no place in access tokens),
+//   - jwtStripKeys (RFC 7519 registered + OIDC ID-token keys that have no
+//     place in access tokens),
 //   - the bare logical names from the private-claim registry (legacy
 //     pre-prefix keys: domain / project / service_account),
 //   - the default-prefixed forms (extra_domain / extra_project /
@@ -34,8 +35,8 @@ var oidcStripKeys = []string{"nbf", "azp", "amr", "acr", "auth_time", "nonce", "
 // Computed once at provider construction so the hot path (every issued
 // token) walks a fixed slice without per-call allocation.
 func computeStripList(configuredPrefix string) []string {
-	out := make([]string, 0, len(oidcStripKeys)+2*len(privateClaims))
-	out = append(out, oidcStripKeys...)
+	out := make([]string, 0, len(jwtStripKeys)+2*len(privateClaims))
+	out = append(out, jwtStripKeys...)
 	for _, pc := range privateClaims {
 		out = append(out, pc.LogicalName)
 	}

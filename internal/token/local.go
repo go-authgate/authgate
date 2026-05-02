@@ -225,9 +225,9 @@ func (p *LocalTokenProvider) generateJWT(
 	// the signed token — bare logical names in particular would let a
 	// caller re-introduce the legacy `domain` / `project` / `service_account`
 	// keys an un-migrated downstream might still trust during the
-	// rolling-upgrade window. The server layer emits these claims under the
-	// configured prefix via buildClientClaims / buildServerClaims, and those
-	// prefixed keys are written after this strip step so they survive.
+	// rolling-upgrade window. The server layer's prefixed private claims
+	// (e.g. extra_domain) survive because computeStripList intentionally
+	// excludes the configured <prefix>_<logical> keys from the strip set.
 	for _, k := range p.stripList {
 		delete(claims, k)
 	}
