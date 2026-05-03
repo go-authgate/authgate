@@ -64,18 +64,37 @@ func TestBuildClientClaims(t *testing.T) {
 
 func TestBuildServerClaims(t *testing.T) {
 	domainKey := token.EmittedName("extra", "domain")
+	uidKey := token.EmittedName("extra", "uid")
 	tests := []struct {
-		name   string
-		domain string
-		prefix string
-		want   map[string]any
+		name     string
+		domain   string
+		username string
+		prefix   string
+		want     map[string]any
 	}{
-		{name: "empty domain returns nil", domain: "", prefix: "extra", want: nil},
 		{
-			name:   "populated domain returns prefixed claim",
+			name:   "empty domain and username returns nil",
+			prefix: "extra",
+			want:   nil,
+		},
+		{
+			name:   "domain only returns domain claim",
 			domain: "oa",
 			prefix: "extra",
 			want:   map[string]any{domainKey: "oa"},
+		},
+		{
+			name:     "username only returns uid claim",
+			username: "alice",
+			prefix:   "extra",
+			want:     map[string]any{uidKey: "alice"},
+		},
+		{
+			name:     "both populated returns both claims",
+			domain:   "oa",
+			username: "alice",
+			prefix:   "extra",
+			want:     map[string]any{domainKey: "oa", uidKey: "alice"},
 		},
 		{
 			name:   "verbatim case preserved",
@@ -84,15 +103,19 @@ func TestBuildServerClaims(t *testing.T) {
 			want:   map[string]any{domainKey: "OA"},
 		},
 		{
-			name:   "custom prefix produces acme_domain",
-			domain: "oa",
-			prefix: "acme",
-			want:   map[string]any{token.EmittedName("acme", "domain"): "oa"},
+			name:     "custom prefix produces acme_domain and acme_uid",
+			domain:   "oa",
+			username: "alice",
+			prefix:   "acme",
+			want: map[string]any{
+				token.EmittedName("acme", "domain"): "oa",
+				token.EmittedName("acme", "uid"):    "alice",
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, buildServerClaims(tt.domain, tt.prefix))
+			assert.Equal(t, tt.want, buildServerClaims(tt.domain, tt.username, tt.prefix))
 		})
 	}
 }

@@ -33,7 +33,7 @@ func (s *TokenService) IntrospectToken(
 	s.auditService.Log(ctx, core.AuditLogEntry{
 		EventType:    models.EventTokenIntrospected,
 		Severity:     models.SeverityInfo,
-		ActorUserID:  "client:" + callerClientID,
+		ActorUserID:  MachineUserID(callerClientID),
 		ResourceType: models.ResourceToken,
 		ResourceID:   tok.ID,
 		Action:       "Token introspected",

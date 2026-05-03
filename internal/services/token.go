@@ -280,18 +280,23 @@ func mergeCallerExtraClaims(system, caller map[string]any) map[string]any {
 	return out
 }
 
-// buildServerClaims returns the JWT claims sourced from the AuthGate process
-// configuration (currently just `domain` from JWT_DOMAIN), emitted under the
-// supplied private-claim prefix (e.g. "extra_domain" with the default
-// prefix). The caller is responsible for passing an already-normalized
-// prefix — ad-hoc empty inputs would compose "_domain" which never matches
-// downstream reserved/strip semantics. Returns nil when domain is empty so
-// callers skip an empty allocation.
-func buildServerClaims(domain, prefix string) map[string]any {
-	if domain == "" {
+// buildServerClaims returns the JWT claims sourced from server-attested state
+// (`<prefix>_domain` from JWT_DOMAIN, `<prefix>_uid` from User.Username),
+// emitted under the supplied (already-normalized) prefix. Each source is
+// independently optional; empty inputs are omitted. See token/types.go for
+// trust-model details.
+func buildServerClaims(domain, username, prefix string) map[string]any {
+	if domain == "" && username == "" {
 		return nil
 	}
-	return map[string]any{token.EmittedName(prefix, "domain"): domain}
+	out := make(map[string]any, 2)
+	if domain != "" {
+		out[token.EmittedName(prefix, "domain")] = domain
+	}
+	if username != "" {
+		out[token.EmittedName(prefix, "uid")] = username
+	}
+	return out
 }
 
 // applyServerClaims overlays server-attested claims onto an already-merged
@@ -312,17 +317,35 @@ func applyServerClaims(claims, server map[string]any) map[string]any {
 	return claims
 }
 
+// resolveUsernameForUID returns the User.Username to emit as `<prefix>_uid`,
+// or "" to omit the claim. Returns "" for empty / machine UserIDs and on
+// store-lookup failure (logged so the silent omission is diagnosable);
+// issuance never fails on a missing user.
+func (s *TokenService) resolveUsernameForUID(userID string) string {
+	if userID == "" || IsMachineUserID(userID) {
+		return ""
+	}
+	user, err := s.store.GetUserByID(userID)
+	if err != nil {
+		log.Printf("[Token] uid claim: GetUserByID failed user_id=%s: %v", userID, err)
+		return ""
+	}
+	return user.Username
+}
+
 // composeIssuanceClaims builds the merged claim map handed to the token
 // provider on every issuance path (auth_code, device_code, client_credentials,
 // refresh). Precedence is caller → client → server, with server writing last
-// so JWT_DOMAIN cannot be shadowed.
+// so server-attested claims cannot be shadowed by caller-supplied extra_claims.
 func (s *TokenService) composeIssuanceClaims(
 	client *models.OAuthApplication,
+	userID string,
 	caller map[string]any,
 ) map[string]any {
 	prefix := s.privateClaimPrefix
+	username := s.resolveUsernameForUID(userID)
 	claims := mergeCallerExtraClaims(buildClientClaims(client, prefix), caller)
-	return applyServerClaims(claims, buildServerClaims(s.config.JWTDomain, prefix))
+	return applyServerClaims(claims, buildServerClaims(s.config.JWTDomain, username, prefix))
 }
 
 // generateAndPersistTokenPair generates access and refresh tokens via the
@@ -358,7 +381,7 @@ func (s *TokenService) generateAndPersistTokenPair(
 	if client != nil {
 		accessTTL, refreshTTL = s.ttlForClient(client)
 	}
-	extraClaims = s.composeIssuanceClaims(client, p.ExtraClaims)
+	extraClaims = s.composeIssuanceClaims(client, p.UserID, p.ExtraClaims)
 
 	accessResult, err := s.tokenProvider.GenerateToken(
 		ctx, p.UserID, p.ClientID, p.Scopes, accessTTL, extraClaims,

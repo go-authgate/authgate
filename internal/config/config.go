@@ -101,6 +101,7 @@ var jwtPrivateClaimLogicalNames = []string{
 	"domain",
 	"project",
 	"service_account",
+	"uid",
 }
 
 // PrivateClaimLogicalNames returns a defensive copy of the local

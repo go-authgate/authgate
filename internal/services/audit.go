@@ -214,7 +214,7 @@ func (s *AuditService) buildAuditLog(
 	// client_credentials grant, which uses a "client:<clientID>" format and
 	// has no corresponding user row).
 	if entry.ActorUsername == "" && entry.ActorUserID != "" &&
-		!strings.HasPrefix(entry.ActorUserID, "client:") {
+		!IsMachineUserID(entry.ActorUserID) {
 		if user, err := s.store.GetUserByID(entry.ActorUserID); err == nil {
 			entry.ActorUsername = user.Username
 		}

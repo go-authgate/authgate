@@ -127,7 +127,7 @@ func TestPrivateClaimPrefix_CallerCannotImpersonatePrefixedClaim(t *testing.T) {
 	merged := mergeCallerExtraClaims(nil, map[string]any{domainKey: "evil"})
 	merged = applyServerClaims(
 		merged,
-		buildServerClaims(cfg.JWTDomain, cfg.JWTPrivateClaimPrefix),
+		buildServerClaims(cfg.JWTDomain, "", cfg.JWTPrivateClaimPrefix),
 	)
 
 	result, err := provider.GenerateToken(

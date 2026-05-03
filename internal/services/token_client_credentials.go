@@ -15,6 +15,25 @@ import (
 	"github.com/google/uuid"
 )
 
+// MachineUserIDPrefix marks the synthetic UserID used for client_credentials
+// tokens — they have no real user, so UserID is "client:<clientID>". Audit,
+// introspect, token issuance, and downstream authorization all use this
+// prefix to distinguish machine-to-machine tokens from user-delegated ones.
+const MachineUserIDPrefix = "client:"
+
+// MachineUserID returns the synthetic UserID for a client_credentials token.
+func MachineUserID(clientID string) string {
+	return MachineUserIDPrefix + clientID
+}
+
+// IsMachineUserID reports whether userID is the synthetic identity issued by
+// the client_credentials grant. A real User.Username cannot start with
+// MachineUserIDPrefix because `:` is not a permitted username character;
+// callers may rely on this discriminator without an additional store lookup.
+func IsMachineUserID(userID string) bool {
+	return strings.HasPrefix(userID, MachineUserIDPrefix)
+}
+
 // IssueClientCredentialsToken issues an access token for the client_credentials grant
 // (RFC 6749 §4.4). Only confidential clients with EnableClientCredentialsFlow=true may use
 // this flow. No refresh token is issued (per RFC 6749 §4.4.3).
@@ -71,7 +90,7 @@ func (s *TokenService) IssueClientCredentialsToken(
 
 	// 6. Generate access token — synthetic machine identity carries no real user
 	start := time.Now()
-	machineUserID := "client:" + clientID
+	machineUserID := MachineUserID(clientID)
 
 	// TokenProfile governs user-delegated access/refresh tokens only.
 	// Passing ttl=0 here keeps CLIENT_CREDENTIALS_TOKEN_EXPIRATION as the
@@ -84,7 +103,7 @@ func (s *TokenService) IssueClientCredentialsToken(
 		clientID,
 		effectiveScopes,
 		0,
-		s.composeIssuanceClaims(client, callerExtra),
+		s.composeIssuanceClaims(client, machineUserID, callerExtra),
 	)
 	if providerErr != nil {
 		log.Printf(

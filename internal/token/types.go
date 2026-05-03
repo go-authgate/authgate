@@ -20,6 +20,11 @@ const (
 // Trust levels differ across the registry:
 //   - `domain` is **server-attested**: sourced from the AuthGate process's
 //     JWT_DOMAIN configuration; cannot be set per-client or by a caller.
+//   - `uid` is **server-attested**: sourced from the User.Username row
+//     resolved at issuance/refresh time; cannot be set per-client or by a
+//     caller. Omitted when the issuance has no real user (client_credentials
+//     grant) or the user lookup fails. Reflects username-at-issuance — a
+//     subsequent admin rename surfaces on the next issuance/refresh.
 //   - `project` and `service_account` are **owner-set**: sourced from the
 //     OAuthApplication row (admin or client owner). A signed JWT only
 //     proves AuthGate emitted these values, not that the asserted project /
@@ -58,6 +63,7 @@ var privateClaims = []PrivateClaim{
 	{LogicalName: "domain"},
 	{LogicalName: "project"},
 	{LogicalName: "service_account"},
+	{LogicalName: "uid"},
 }
 
 // PrivateClaimRegistry returns a defensive copy of the AuthGate-emitted

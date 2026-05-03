@@ -38,19 +38,27 @@ func domainTestConfig(domain string) *config.Config {
 	}
 }
 
-// assertDomainClaim asserts the issued JWT carries the prefixed domain claim
-// (`<prefix>_domain: want`) when want is non-empty, or that the claim is
-// absent when want is empty.
-func assertDomainClaim(t *testing.T, cfg *config.Config, raw, want string) {
+// assertPrivateClaim asserts the issued JWT carries the prefixed claim
+// (`<prefix>_<logical>: want`) when want is non-empty, or that the claim is
+// absent when want is empty. Used across private-claim tests (domain, uid).
+func assertPrivateClaim(t *testing.T, cfg *config.Config, raw, logical, want string) {
 	t.Helper()
 	claims := decodeJWTClaims(t, raw)
-	key := token.EmittedName(cfg.JWTPrivateClaimPrefix, "domain")
+	key := token.EmittedName(cfg.JWTPrivateClaimPrefix, logical)
 	got, ok := claims[key]
 	if want == "" {
 		assert.False(t, ok, "expected %q claim to be omitted, got %v", key, got)
 		return
 	}
 	assert.Equal(t, want, got)
+}
+
+// assertDomainClaim is a thin wrapper retained for readable call sites in the
+// domain-specific tests; new private-claim tests should call assertPrivateClaim
+// directly.
+func assertDomainClaim(t *testing.T, cfg *config.Config, raw, want string) {
+	t.Helper()
+	assertPrivateClaim(t, cfg, raw, "domain", want)
 }
 
 // TestDeviceCodeFlow_DomainClaim covers both the present and absent cases for
@@ -167,7 +175,7 @@ func TestServerDomainOverridesCallerExtraClaims(t *testing.T) {
 	merged := mergeCallerExtraClaims(nil, map[string]any{domainKey: "evil"})
 	merged = applyServerClaims(
 		merged,
-		buildServerClaims(cfg.JWTDomain, cfg.JWTPrivateClaimPrefix),
+		buildServerClaims(cfg.JWTDomain, "", cfg.JWTPrivateClaimPrefix),
 	)
 
 	result, err := provider.GenerateToken(

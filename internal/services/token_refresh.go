@@ -147,7 +147,7 @@ func (s *TokenService) RefreshAccessToken(
 			client = c
 		}
 	}
-	extraClaims := s.composeIssuanceClaims(client, callerExtra)
+	extraClaims := s.composeIssuanceClaims(client, refreshToken.UserID, callerExtra)
 	refreshResult, providerErr := s.tokenProvider.RefreshAccessToken(
 		ctx,
 		refreshTokenString,

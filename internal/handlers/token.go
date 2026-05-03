@@ -286,7 +286,7 @@ func (h *TokenHandler) TokenInfo(c *gin.Context) {
 
 	// Identify whether this is a user-delegated token or a machine (client credentials) token
 	subjectType := "user"
-	if strings.HasPrefix(result.UserID, "client:") {
+	if services.IsMachineUserID(result.UserID) {
 		subjectType = "client"
 	}
 
@@ -379,7 +379,7 @@ func (h *TokenHandler) Introspect(c *gin.Context) {
 	}
 
 	// Add username for user-delegated tokens (not M2M / client credentials tokens)
-	if !strings.HasPrefix(tok.UserID, "client:") {
+	if !services.IsMachineUserID(tok.UserID) {
 		if user, err := h.tokenService.GetUserByID(tok.UserID); err == nil {
 			resp["username"] = user.Username
 		}
