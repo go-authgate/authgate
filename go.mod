@@ -1,6 +1,6 @@
 module github.com/go-authgate/authgate
 
-go 1.25.0
+go 1.25.10
 
 require (
 	github.com/a-h/templ v0.3.1001
