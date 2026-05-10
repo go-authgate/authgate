@@ -268,8 +268,8 @@ func (s *Store) ListUsersPaginated(
 	if params.Search != "" {
 		searchPattern := "%" + params.Search + "%"
 		query = query.Where(
-			"username LIKE ? OR email LIKE ? OR full_name LIKE ?",
-			searchPattern, searchPattern, searchPattern,
+			"id LIKE ? OR username LIKE ? OR email LIKE ? OR full_name LIKE ?",
+			searchPattern, searchPattern, searchPattern, searchPattern,
 		)
 	}
 
