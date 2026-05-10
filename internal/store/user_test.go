@@ -91,6 +91,33 @@ func TestListUsersPaginated(t *testing.T) {
 		assert.Contains(t, users[0].Username, needle)
 	})
 
+	t.Run("search by user id (uuid)", func(t *testing.T) {
+		store := createFreshStore(t, "sqlite", nil)
+
+		target := createTestUser(t, store, &models.User{
+			Username: "uuid-target-" + uuid.New().String()[:6],
+			Email:    uuid.New().String()[:8] + "@uuid.test",
+		})
+		createTestUser(t, store, &models.User{
+			Username: "uuid-other-" + uuid.New().String()[:6],
+			Email:    uuid.New().String()[:8] + "@uuid.test",
+		})
+
+		users, _, err := store.ListUsersPaginated(
+			PaginationParams{Page: 1, PageSize: 10, Search: target.ID},
+		)
+		require.NoError(t, err)
+		assert.Len(t, users, 1)
+		assert.Equal(t, target.ID, users[0].ID)
+
+		users, _, err = store.ListUsersPaginated(
+			PaginationParams{Page: 1, PageSize: 10, Search: target.ID[:8]},
+		)
+		require.NoError(t, err)
+		assert.Len(t, users, 1)
+		assert.Equal(t, target.ID, users[0].ID)
+	})
+
 	t.Run("filter by role", func(t *testing.T) {
 		store := createFreshStore(t, "sqlite", nil)
 		prefix := uuid.New().String()[:6]
