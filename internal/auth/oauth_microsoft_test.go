@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -23,18 +24,27 @@ func TestNewMicrosoftProvider(t *testing.T) {
 	assert.NotEmpty(t, p.config.Endpoint.AuthURL)
 	assert.NotEmpty(t, p.config.Endpoint.TokenURL)
 
-	// $select must list every property the response parser reads — verifying
-	// the URL guards against future field additions that forget to update it.
-	assert.Contains(t, p.apiURL, "$select=", "Graph /me request must use $select")
+	// Parse $select into an exact-membership set so the assertion fails when
+	// a required field is removed even if it is a substring of a remaining
+	// one (e.g. "mail" inside "mailNickname").
+	parsed, err := url.Parse(p.apiURL)
+	require.NoError(t, err, "apiURL must be parseable")
+	selectVal := parsed.Query().Get("$select")
+	require.NotEmpty(t, selectVal, "Graph /me request must use $select")
+	selected := make(map[string]struct{})
+	for f := range strings.SplitSeq(selectVal, ",") {
+		selected[f] = struct{}{}
+	}
 	for _, field := range []string{
 		"id", "userPrincipalName", "displayName", "mail",
 		"givenName", "surname",
 		"onPremisesSamAccountName", "onPremisesSyncEnabled", "mailNickname",
 	} {
-		assert.Contains(
-			t, p.apiURL, field,
-			"apiURL must $select %s for response parsing",
-			field,
+		_, ok := selected[field]
+		assert.True(
+			t, ok,
+			"apiURL must $select %q for response parsing; got fields %v",
+			field, selectVal,
 		)
 	}
 }
