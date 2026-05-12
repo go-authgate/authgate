@@ -621,6 +621,7 @@ AuthGate supports OAuth 2.0 authentication with third-party providers, allowing 
 - **Multiple Authentication Methods**: Users can have both password and OAuth authentication
 - **Profile Sync**: Avatar and profile information synced from OAuth providers
 - **Secure by Default**: CSRF protection via state parameter, TLS verification enabled
+- **Microsoft Username Derivation**: For Microsoft Entra ID, the local `Username` is derived from `onPremisesSamAccountName` (the on-prem AD logon name, e.g. `mtk12345`) when the tenant is hybrid-synced via Entra Connect. Cloud-only and guest accounts fall back to `mailNickname`, then the email local-part. Existing Microsoft-linked users are re-synced on their next login; if the target username is already taken by another account, the rename is skipped and login still succeeds. The JWT `sub` claim is the immutable user UUID, so token-based identity is stable across renames.
 
 ### Quick Setup
 

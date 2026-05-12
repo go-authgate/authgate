@@ -3,6 +3,8 @@ package auth
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,6 +23,30 @@ func TestNewMicrosoftProvider(t *testing.T) {
 	assert.Equal(t, "Microsoft", p.GetDisplayName())
 	assert.NotEmpty(t, p.config.Endpoint.AuthURL)
 	assert.NotEmpty(t, p.config.Endpoint.TokenURL)
+
+	// Parse $select into an exact-membership set so the assertion fails when
+	// a required field is removed even if it is a substring of a remaining
+	// one (e.g. "mail" inside "mailNickname").
+	parsed, err := url.Parse(p.apiURL)
+	require.NoError(t, err, "apiURL must be parseable")
+	selectVal := parsed.Query().Get("$select")
+	require.NotEmpty(t, selectVal, "Graph /me request must use $select")
+	selected := make(map[string]struct{})
+	for f := range strings.SplitSeq(selectVal, ",") {
+		selected[f] = struct{}{}
+	}
+	for _, field := range []string{
+		"id", "userPrincipalName", "displayName", "mail",
+		"givenName", "surname",
+		"onPremisesSamAccountName", "onPremisesSyncEnabled", "mailNickname",
+	} {
+		_, ok := selected[field]
+		assert.True(
+			t, ok,
+			"apiURL must $select %q for response parsing; got fields %v",
+			field, selectVal,
+		)
+	}
 }
 
 func TestGetMicrosoftUserInfo_Success_WithMail(t *testing.T) {
@@ -144,4 +170,102 @@ func TestGetMicrosoftUserInfo_InvalidJSON(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, info)
+}
+
+func boolPtr(b bool) *bool { return &b }
+
+// TestGetMicrosoftUserInfo_UsernameDerivation exercises pickMicrosoftUsername's
+// fallback chain through GetUserInfo: hybrid sAMAccountName → mailNickname →
+// email prefix. Also asserts that the request includes the $select clause so
+// these properties are actually returned by Graph.
+func TestGetMicrosoftUserInfo_UsernameDerivation(t *testing.T) {
+	tests := []struct {
+		name string
+		user microsoftUser
+		want string
+	}{
+		{
+			name: "hybrid sync returns sAMAccountName",
+			user: microsoftUser{
+				ID:                       "uuid-1",
+				UserPrincipalName:        "jane.doe@corp.onmicrosoft.com",
+				Mail:                     "jane.doe@corp.com",
+				OnPremisesSyncEnabled:    boolPtr(true),
+				OnPremisesSamAccountName: "mtk12345",
+				MailNickname:             "jane.doe",
+			},
+			want: "mtk12345",
+		},
+		{
+			name: "sync disabled falls back to mailNickname",
+			user: microsoftUser{
+				ID:                       "uuid-2",
+				UserPrincipalName:        "guest@corp.com",
+				Mail:                     "guest@external.com",
+				OnPremisesSyncEnabled:    boolPtr(false),
+				OnPremisesSamAccountName: "stale-sam", // present but must be ignored
+				MailNickname:             "guest_external#EXT#",
+			},
+			want: "guest_external#EXT#",
+		},
+		{
+			name: "sync null falls back to mailNickname",
+			user: microsoftUser{
+				ID:                "uuid-3",
+				UserPrincipalName: "alice@corp.com",
+				Mail:              "alice@corp.com",
+				// OnPremisesSyncEnabled left nil to model cloud-only accounts.
+				MailNickname: "alice",
+			},
+			want: "alice",
+		},
+		{
+			name: "no SAM, no mailNickname → email prefix",
+			user: microsoftUser{
+				ID:                "uuid-4",
+				UserPrincipalName: "bob@corp.com",
+				Mail:              "bob@corp.com",
+			},
+			want: "bob",
+		},
+		{
+			name: "sync enabled but SAM empty falls through",
+			user: microsoftUser{
+				ID:                    "uuid-5",
+				UserPrincipalName:     "carol@corp.com",
+				Mail:                  "carol@corp.com",
+				OnPremisesSyncEnabled: boolPtr(true),
+				// SAM empty — directory claims sync but did not populate the field.
+				MailNickname: "carol-nick",
+			},
+			want: "carol-nick",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedPath string
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				capturedPath = r.URL.RequestURI()
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(tt.user)
+			})
+
+			p := NewMicrosoftProvider(
+				OAuthProviderConfig{ClientID: "id", ClientSecret: "secret"},
+				"common",
+			)
+			info, err := p.GetUserInfo(contextWithMock(handler), newTestToken())
+			require.NoError(t, err)
+			require.NotNil(t, info)
+			assert.Equal(t, tt.want, info.Username)
+			assert.True(
+				t,
+				strings.Contains(capturedPath, "$select=") &&
+					strings.Contains(capturedPath, "onPremisesSamAccountName"),
+				"recorded request must include $select with onPremisesSamAccountName; got %q",
+				capturedPath,
+			)
+		})
+	}
 }

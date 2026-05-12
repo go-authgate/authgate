@@ -162,6 +162,7 @@ In addition to Device Code Flow, AuthGate supports Authorization Code Flow with 
 - Microsoft Entra ID (Azure AD), GitHub, Gitea
 - Auto-registration of users (configurable via `OAUTH_AUTO_REGISTER`)
 - Uses OAuth 2.0 authorization code flow
+- For Microsoft, `User.Username` derives from `onPremisesSamAccountName` (AD logon name like `mtk12345`) when the tenant is hybrid-synced; otherwise falls back to `mailNickname`, then the email local-part. Existing Microsoft-linked users are re-synced on next login; collisions are skipped (login still succeeds). JWT `sub` remains the user UUID and is unaffected.
 
 **Service-to-Service Authentication**
 

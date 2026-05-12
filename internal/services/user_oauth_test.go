@@ -503,3 +503,139 @@ func TestAuthenticateWithOAuth_UnverifiedEmail_AutoRegisterDisabled(t *testing.T
 	)
 	assert.ErrorIs(t, err, ErrOAuthEmailNotVerified)
 }
+
+// TestAuthenticateWithOAuth_Microsoft_UsernameResyncOnNextLogin verifies that
+// when an existing Microsoft-linked user re-authenticates and the provider
+// now emits a different username (the on-prem AD sAMAccountName), the local
+// user's Username is updated to match.
+func TestAuthenticateWithOAuth_Microsoft_UsernameResyncOnNextLogin(t *testing.T) {
+	svc := newOAuthUserService(t)
+
+	providerUserID := uuid.New().String()
+	// sanitizeUsername strips the "." from "jane.doe" on the create path,
+	// so the seeded row is "janedoe" — that's what we re-sync away from.
+	seeded, err := svc.AuthenticateWithOAuth(
+		context.Background(),
+		auth.ProviderMicrosoft,
+		&auth.OAuthUserInfo{
+			ProviderUserID: providerUserID,
+			Username:       "jane.doe",
+			Email:          "jane.doe@corp.com",
+			EmailVerified:  true,
+		},
+		newOAuthToken(),
+	)
+	require.NoError(t, err)
+	require.Equal(t, "janedoe", seeded.Username)
+
+	resynced, err := svc.AuthenticateWithOAuth(
+		context.Background(),
+		auth.ProviderMicrosoft,
+		&auth.OAuthUserInfo{
+			ProviderUserID: providerUserID,
+			Username:       "mtk12345",
+			Email:          "jane.doe@corp.com",
+			EmailVerified:  true,
+		},
+		newOAuthToken(),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, seeded.ID, resynced.ID, "must reuse the existing user row")
+	assert.Equal(t, "mtk12345", resynced.Username, "username must re-sync to provider value")
+
+	reloaded, err := svc.store.GetUserByID(seeded.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "mtk12345", reloaded.Username,
+		"persisted username must reflect the re-sync")
+}
+
+// TestAuthenticateWithOAuth_Microsoft_UsernameResyncSkipsOnCollision verifies
+// that when the AD sAMAccountName collides with another user's existing
+// username, the re-sync is skipped — login still succeeds with the old
+// username, no DB constraint error.
+func TestAuthenticateWithOAuth_Microsoft_UsernameResyncSkipsOnCollision(t *testing.T) {
+	svc := newOAuthUserService(t)
+
+	// Pre-existing user already owns the target username.
+	require.NoError(t, svc.store.CreateUser(&models.User{
+		ID:         uuid.New().String(),
+		Username:   "mtk12345",
+		Email:      "someone-else@corp.com",
+		Role:       models.UserRoleUser,
+		IsActive:   true,
+		AuthSource: "local",
+	}))
+
+	// Seed the Microsoft user we'll later try to re-sync.
+	providerUserID := uuid.New().String()
+	seeded, err := svc.AuthenticateWithOAuth(
+		context.Background(),
+		auth.ProviderMicrosoft,
+		&auth.OAuthUserInfo{
+			ProviderUserID: providerUserID,
+			Username:       "jane.doe",
+			Email:          "jane.doe@corp.com",
+			EmailVerified:  true,
+		},
+		newOAuthToken(),
+	)
+	require.NoError(t, err)
+
+	loggedIn, err := svc.AuthenticateWithOAuth(
+		context.Background(),
+		auth.ProviderMicrosoft,
+		&auth.OAuthUserInfo{
+			ProviderUserID: providerUserID,
+			Username:       "mtk12345",
+			Email:          "jane.doe@corp.com",
+			EmailVerified:  true,
+		},
+		newOAuthToken(),
+	)
+	require.NoError(t, err, "collision must not break login")
+	assert.Equal(t, seeded.ID, loggedIn.ID)
+	assert.Equal(t, "janedoe", loggedIn.Username,
+		"collision must leave the existing username unchanged")
+
+	reloaded, err := svc.store.GetUserByID(seeded.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "janedoe", reloaded.Username)
+}
+
+// TestAuthenticateWithOAuth_NonMicrosoft_DoesNotResyncUsername guards against
+// accidental scope creep — the username re-sync must only fire for the
+// Microsoft provider. Other providers continue to leave Username alone after
+// initial creation.
+func TestAuthenticateWithOAuth_NonMicrosoft_DoesNotResyncUsername(t *testing.T) {
+	svc := newOAuthUserService(t)
+
+	providerUserID := uuid.New().String()
+	seeded, err := svc.AuthenticateWithOAuth(
+		context.Background(),
+		auth.ProviderGitHub,
+		&auth.OAuthUserInfo{
+			ProviderUserID: providerUserID,
+			Username:       "octocat",
+			Email:          "octocat@example.com",
+			EmailVerified:  true,
+		},
+		newOAuthToken(),
+	)
+	require.NoError(t, err)
+
+	again, err := svc.AuthenticateWithOAuth(
+		context.Background(),
+		auth.ProviderGitHub,
+		&auth.OAuthUserInfo{
+			ProviderUserID: providerUserID,
+			Username:       "renamed-octo",
+			Email:          "octocat@example.com",
+			EmailVerified:  true,
+		},
+		newOAuthToken(),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, seeded.ID, again.ID)
+	assert.Equal(t, "octocat", again.Username,
+		"non-Microsoft providers must not re-sync Username")
+}
