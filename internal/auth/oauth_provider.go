@@ -80,11 +80,16 @@ func NewGiteaProvider(cfg OAuthProviderConfig, giteaURL string) *OAuthProvider {
 	}
 }
 
-// NewMicrosoftProvider creates a new Microsoft Entra ID OAuth provider
+// NewMicrosoftProvider creates a new Microsoft Entra ID OAuth provider.
+//
+// $select REPLACES Graph's default property set, so every property the
+// response parser reads must be listed; User.Read already covers them.
 func NewMicrosoftProvider(cfg OAuthProviderConfig, tenantID string) *OAuthProvider {
 	return &OAuthProvider{
 		provider: ProviderMicrosoft,
-		apiURL:   "https://graph.microsoft.com/v1.0/me",
+		apiURL: "https://graph.microsoft.com/v1.0/me?$select=" +
+			"id,userPrincipalName,displayName,mail,givenName,surname," +
+			"onPremisesSamAccountName,onPremisesSyncEnabled,mailNickname",
 		config: &oauth2.Config{
 			ClientID:     cfg.ClientID,
 			ClientSecret: cfg.ClientSecret,

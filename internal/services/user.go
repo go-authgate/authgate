@@ -462,6 +462,9 @@ func (s *UserService) updateOAuthConnectionAndGetUser(
 		user.EmailVerified = true
 		updated = true
 	}
+	if s.resyncMicrosoftUsername(ctx, user, connection, oauthUserInfo) {
+		updated = true
+	}
 	if updated {
 		if err := s.store.UpdateUser(user); err != nil {
 			log.Printf("[OAuth] Failed to update user info: %v", err)
@@ -489,6 +492,63 @@ func (s *UserService) updateOAuthConnectionAndGetUser(
 	})
 
 	return user, nil
+}
+
+// resyncMicrosoftUsername updates user.Username to the value the Microsoft
+// provider now reports (the AD sAMAccountName once Entra ID returns it), so
+// hybrid-synced tenants converge on the AD logon name. Returns true if the
+// caller should persist the change. Collisions are logged and skipped — the
+// DB UNIQUE constraint is the authority and we never want a rename to break
+// login. Reads oauthUserInfo.Username assuming AuthenticateWithOAuth already
+// trimmed it.
+func (s *UserService) resyncMicrosoftUsername(
+	ctx context.Context,
+	user *models.User,
+	connection *models.OAuthConnection,
+	oauthUserInfo *auth.OAuthUserInfo,
+) bool {
+	if connection.Provider != auth.ProviderMicrosoft {
+		return false
+	}
+	newUsername := oauthUserInfo.Username
+	if newUsername == "" || newUsername == user.Username {
+		return false
+	}
+	existing, lookupErr := s.store.GetUserByUsername(newUsername)
+	if lookupErr != nil && !errors.Is(lookupErr, gorm.ErrRecordNotFound) {
+		log.Printf(
+			"[OAuth] Microsoft username sync skipped (lookup failed): user=%s wants=%s err=%v",
+			user.Username, newUsername, lookupErr,
+		)
+		return false
+	}
+	if existing != nil && existing.ID != user.ID {
+		log.Printf(
+			"[OAuth] Microsoft username sync skipped (collision): user=%s wants=%s",
+			user.Username, newUsername,
+		)
+		return false
+	}
+
+	oldUsername := user.Username
+	user.Username = newUsername
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:     models.EventUserUpdated,
+		Severity:      models.SeverityInfo,
+		ActorUserID:   user.ID,
+		ActorUsername: newUsername,
+		ResourceType:  models.ResourceUser,
+		ResourceID:    user.ID,
+		ResourceName:  newUsername,
+		Action:        "Username re-synced from Microsoft provider",
+		Details: models.AuditDetails{
+			"provider":     connection.Provider,
+			"old_username": oldUsername,
+			"new_username": newUsername,
+		},
+		Success: true,
+	})
+	return true
 }
 
 // linkOAuthToExistingUser links OAuth to an existing user
