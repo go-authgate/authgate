@@ -467,16 +467,24 @@ func (s *UserService) updateOAuthConnectionAndGetUser(
 		updated = true
 	}
 	if updated {
-		if err := s.store.UpdateUser(user); err != nil {
-			log.Printf("[OAuth] Failed to update user info: %v", err)
-			// Persistence failed — revert the in-memory rename so callers,
-			// session state, and the OAuth success audit log all see the
-			// username actually on disk. Suppress the rename audit so we
-			// never claim a change that never happened.
-			if resync != nil {
-				user.Username = resync.oldUsername
-				resync = nil
+		err := s.store.UpdateUser(user)
+		if err != nil && resync != nil {
+			// Persistence failed with a rename staged. Revert the in-memory
+			// username so callers, session state, and the OAuth-success
+			// audit log all see what is actually on disk, and suppress the
+			// rename audit so we never claim a change that did not happen.
+			// If the failure was a UNIQUE-constraint collision (race
+			// between the pre-check and Save), retry once without the
+			// rename so the unrelated staged updates (avatar / full name /
+			// email verified) still land.
+			user.Username = resync.oldUsername
+			resync = nil
+			if errors.Is(err, gorm.ErrDuplicatedKey) {
+				err = s.store.UpdateUser(user)
 			}
+		}
+		if err != nil {
+			log.Printf("[OAuth] Failed to update user info: %v", err)
 		}
 		s.InvalidateUserCache(user.ID)
 	}
