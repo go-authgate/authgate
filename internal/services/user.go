@@ -462,15 +462,41 @@ func (s *UserService) updateOAuthConnectionAndGetUser(
 		user.EmailVerified = true
 		updated = true
 	}
-	if s.resyncMicrosoftUsername(ctx, user, connection, oauthUserInfo) {
+	resync := s.resyncMicrosoftUsername(user, connection, oauthUserInfo)
+	if resync != nil {
 		updated = true
 	}
 	if updated {
 		if err := s.store.UpdateUser(user); err != nil {
 			log.Printf("[OAuth] Failed to update user info: %v", err)
-			// Continue with login even if update fails
+			// Persistence failed — revert the in-memory rename so callers,
+			// session state, and the OAuth success audit log all see the
+			// username actually on disk. Suppress the rename audit so we
+			// never claim a change that never happened.
+			if resync != nil {
+				user.Username = resync.oldUsername
+				resync = nil
+			}
 		}
 		s.InvalidateUserCache(user.ID)
+	}
+	if resync != nil {
+		s.auditService.Log(ctx, core.AuditLogEntry{
+			EventType:     models.EventUserUpdated,
+			Severity:      models.SeverityInfo,
+			ActorUserID:   user.ID,
+			ActorUsername: resync.newUsername,
+			ResourceType:  models.ResourceUser,
+			ResourceID:    user.ID,
+			ResourceName:  resync.newUsername,
+			Action:        "Username re-synced from Microsoft provider",
+			Details: models.AuditDetails{
+				"provider":     resync.provider,
+				"old_username": resync.oldUsername,
+				"new_username": resync.newUsername,
+			},
+			Success: true,
+		})
 	}
 
 	log.Printf("[OAuth] User login: user=%s provider=%s", user.Username, connection.Provider)
@@ -494,25 +520,36 @@ func (s *UserService) updateOAuthConnectionAndGetUser(
 	return user, nil
 }
 
-// resyncMicrosoftUsername updates user.Username to the value the Microsoft
-// provider now reports (the AD sAMAccountName once Entra ID returns it), so
-// hybrid-synced tenants converge on the AD logon name. Returns true if the
-// caller should persist the change. Collisions are logged and skipped — the
-// DB UNIQUE constraint is the authority and we never want a rename to break
-// login. Reads oauthUserInfo.Username assuming AuthenticateWithOAuth already
-// trimmed it.
+// usernameResync captures a pending Microsoft username re-sync. The caller
+// stages the in-memory rename, persists the user, then either emits the
+// audit (on success) or rolls back via oldUsername (on UpdateUser failure).
+type usernameResync struct {
+	oldUsername string
+	newUsername string
+	provider    string
+}
+
+// resyncMicrosoftUsername stages a rename of user.Username to the value the
+// Microsoft provider now reports (the AD sAMAccountName once Entra ID
+// returns it), so hybrid-synced tenants converge on the AD logon name.
+// Returns nil when no rename is needed or a collision is detected; otherwise
+// mutates user.Username and returns the resync metadata for the caller to
+// commit (audit) or roll back after UpdateUser. The new name is run through
+// sanitizeUsername so it satisfies the same invariants as every other write
+// path (lowercase + [a-z0-9_-]); collisions are logged and skipped because
+// the DB UNIQUE constraint is the authority and a rename must never break
+// login. Assumes AuthenticateWithOAuth already trimmed oauthUserInfo.Username.
 func (s *UserService) resyncMicrosoftUsername(
-	ctx context.Context,
 	user *models.User,
 	connection *models.OAuthConnection,
 	oauthUserInfo *auth.OAuthUserInfo,
-) bool {
+) *usernameResync {
 	if connection.Provider != auth.ProviderMicrosoft {
-		return false
+		return nil
 	}
-	newUsername := oauthUserInfo.Username
+	newUsername := sanitizeUsername(oauthUserInfo.Username)
 	if newUsername == "" || newUsername == user.Username {
-		return false
+		return nil
 	}
 	existing, lookupErr := s.store.GetUserByUsername(newUsername)
 	if lookupErr != nil && !errors.Is(lookupErr, gorm.ErrRecordNotFound) {
@@ -520,35 +557,23 @@ func (s *UserService) resyncMicrosoftUsername(
 			"[OAuth] Microsoft username sync skipped (lookup failed): user=%s wants=%s err=%v",
 			user.Username, newUsername, lookupErr,
 		)
-		return false
+		return nil
 	}
 	if existing != nil && existing.ID != user.ID {
 		log.Printf(
 			"[OAuth] Microsoft username sync skipped (collision): user=%s wants=%s",
 			user.Username, newUsername,
 		)
-		return false
+		return nil
 	}
 
 	oldUsername := user.Username
 	user.Username = newUsername
-	s.auditService.Log(ctx, core.AuditLogEntry{
-		EventType:     models.EventUserUpdated,
-		Severity:      models.SeverityInfo,
-		ActorUserID:   user.ID,
-		ActorUsername: newUsername,
-		ResourceType:  models.ResourceUser,
-		ResourceID:    user.ID,
-		ResourceName:  newUsername,
-		Action:        "Username re-synced from Microsoft provider",
-		Details: models.AuditDetails{
-			"provider":     connection.Provider,
-			"old_username": oldUsername,
-			"new_username": newUsername,
-		},
-		Success: true,
-	})
-	return true
+	return &usernameResync{
+		oldUsername: oldUsername,
+		newUsername: newUsername,
+		provider:    connection.Provider,
+	}
 }
 
 // linkOAuthToExistingUser links OAuth to an existing user
