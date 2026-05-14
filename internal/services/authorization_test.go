@@ -245,6 +245,121 @@ func TestCreateAuthorizationCode_WithPKCE(t *testing.T) {
 // ExchangeCode
 // ============================================================
 
+// TestExchangeCode_Resource_SubsetAllowed asserts that a token-time resource
+// that is a strict subset of the authorize-time grant is accepted and the
+// code is consumed.
+func TestExchangeCode_Resource_SubsetAllowed(t *testing.T) {
+	svc := createTestAuthorizationService(t)
+	client := createAuthCodeFlowClient(t, svc, "confidential")
+	userID := uuid.New().String()
+
+	plainCode, _, err := svc.CreateAuthorizationCode(
+		context.Background(),
+		CreateAuthorizationCodeParams{
+			ApplicationID: client.ID,
+			ClientID:      client.ClientID,
+			UserID:        userID,
+			RedirectURI:   "https://app.example.com/callback",
+			Scopes:        "read",
+			Resource: []string{
+				"https://mcp1.example.com",
+				"https://mcp2.example.com",
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	authCode, err := svc.ExchangeCode(
+		context.Background(),
+		plainCode,
+		client.ClientID,
+		"https://app.example.com/callback",
+		testClientPlainSecret,
+		"",
+		[]string{"https://mcp1.example.com"},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, authCode)
+	assert.True(t, authCode.IsUsed())
+}
+
+// TestExchangeCode_Resource_SupersetRejected asserts that a token-time
+// resource not in the authorize-time grant is rejected with ErrInvalidTarget
+// AND the authorization code is NOT consumed (so a typo doesn't burn the
+// single-use code).
+func TestExchangeCode_Resource_SupersetRejected(t *testing.T) {
+	svc := createTestAuthorizationService(t)
+	client := createAuthCodeFlowClient(t, svc, "confidential")
+	userID := uuid.New().String()
+
+	plainCode, record, err := svc.CreateAuthorizationCode(
+		context.Background(),
+		CreateAuthorizationCodeParams{
+			ApplicationID: client.ID,
+			ClientID:      client.ClientID,
+			UserID:        userID,
+			RedirectURI:   "https://app.example.com/callback",
+			Scopes:        "read",
+			Resource:      []string{"https://mcp.example.com"},
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = svc.ExchangeCode(
+		context.Background(),
+		plainCode,
+		client.ClientID,
+		"https://app.example.com/callback",
+		testClientPlainSecret,
+		"",
+		[]string{"https://forbidden.example.com"},
+	)
+	require.ErrorIs(t, err, ErrInvalidTarget)
+
+	// The code must remain unconsumed: a malformed `resource` should never
+	// burn the single-use authorization code.
+	reloaded, err := svc.store.GetAuthorizationCodeByHash(record.CodeHash)
+	require.NoError(t, err)
+	assert.False(
+		t, reloaded.IsUsed(),
+		"authorization code must remain unconsumed after invalid_target",
+	)
+}
+
+// TestExchangeCode_Resource_EmptyGrantRejectsRequest asserts that when
+// /authorize bound no resource at all, /token cannot widen by passing one.
+// This matches the refresh-grant rule and prevents quietly granting a
+// specific audience after a no-audience consent.
+func TestExchangeCode_Resource_EmptyGrantRejectsRequest(t *testing.T) {
+	svc := createTestAuthorizationService(t)
+	client := createAuthCodeFlowClient(t, svc, "confidential")
+	userID := uuid.New().String()
+
+	plainCode, _, err := svc.CreateAuthorizationCode(
+		context.Background(),
+		CreateAuthorizationCodeParams{
+			ApplicationID: client.ID,
+			ClientID:      client.ClientID,
+			UserID:        userID,
+			RedirectURI:   "https://app.example.com/callback",
+			Scopes:        "read",
+			// No Resource bound at authorize-time.
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = svc.ExchangeCode(
+		context.Background(),
+		plainCode,
+		client.ClientID,
+		"https://app.example.com/callback",
+		testClientPlainSecret,
+		"",
+		[]string{"https://mcp.example.com"},
+	)
+	require.ErrorIs(t, err, ErrInvalidTarget)
+}
+
 func TestExchangeCode_Success_ConfidentialClient(t *testing.T) {
 	svc := createTestAuthorizationService(t)
 	client := createAuthCodeFlowClient(t, svc, "confidential")

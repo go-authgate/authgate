@@ -117,8 +117,19 @@ issued JWT's `aud` claim is **bound to the requested resource**. AuthGate:
 **Trust model:** the `aud` claim is server-attested. The MCP server must
 verify that `aud` matches its own resource identifier before accepting the
 token — token replay against a different MCP server with the same
-`iss`/signature must fail. Standard verification still applies: check JWT
-signature against JWKS, `iss` matches AuthGate, `exp` is in the future.
+`iss`/signature must fail. Standard verification still applies:
+
+- Check the JWT signature against JWKS.
+- `iss` matches AuthGate's configured `BASE_URL`.
+- `exp` is in the future.
+- **`type` claim equals `"access"`.** AuthGate also issues refresh tokens
+  signed with the same key, but they carry `type: "refresh"` and a
+  non-resource-server `aud`. A resource server that checks only
+  signature/`iss`/`exp`/`aud` would silently accept a refresh token as a
+  valid access token. Reject any JWT whose `type` is not `"access"`.
+- For tokens obtained via `client_credentials`, `sub` starts with `client:`
+  (machine identity) — treat these distinctly from user-delegated tokens
+  if your policy differs for them.
 
 ## curl walkthrough
 

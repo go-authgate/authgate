@@ -93,12 +93,23 @@ type TokenProvider interface {
 		audience []string,
 	) (*TokenResult, error)
 	ValidateToken(ctx context.Context, tokenString string) (*TokenValidationResult, error)
+	// RefreshAccessToken issues a new access token (and, in rotation mode, a
+	// new refresh token) from a valid refresh-token string.
+	//
+	// accessAudience and refreshAudience are kept separate so refresh tokens
+	// never carry a resource-server `aud`. A refresh token is presented to
+	// the AS, not the RS — emitting the same audience as the access token
+	// would let a downstream JWT validator that only checks
+	// signature/iss/exp/aud silently accept the refresh token as if it
+	// were an access token. Pass nil for refreshAudience to fall back to
+	// the static JWTAudience config (typically the AS itself).
 	RefreshAccessToken(
 		ctx context.Context,
 		refreshToken string,
 		accessTTL, refreshTTL time.Duration,
 		extraClaims map[string]any,
-		audience []string,
+		accessAudience []string,
+		refreshAudience []string,
 	) (*TokenRefreshResult, error)
 	Name() string
 }

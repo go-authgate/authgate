@@ -129,7 +129,7 @@ func TestRefreshAccessToken_AppliesFreshExtraClaims(t *testing.T) {
 	// Refresh with a different set of extras — old ones must NOT carry over.
 	refreshed, err := provider.RefreshAccessToken(
 		ctx, original.TokenString, 0, 0,
-		map[string]any{"tenant": "new-acme", "trace_id": "xyz"}, nil,
+		map[string]any{"tenant": "new-acme", "trace_id": "xyz"}, nil, nil,
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "new-acme", refreshed.AccessToken.Claims["tenant"])
@@ -138,6 +138,7 @@ func TestRefreshAccessToken_AppliesFreshExtraClaims(t *testing.T) {
 	// Refresh with nil extras — new token has no custom claims at all.
 	refreshed2, err := provider.RefreshAccessToken(
 		ctx, original.TokenString, 0, 0, nil, nil,
+		nil,
 	)
 	require.NoError(t, err)
 	_, hasTenant := refreshed2.AccessToken.Claims["tenant"]

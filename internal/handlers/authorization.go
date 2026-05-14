@@ -75,7 +75,7 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 		clientID, redirectURI, responseType, scope, codeChallenge, codeChallengeMethod, nonce,
 	)
 	if err != nil {
-		h.redirectWithError(c, redirectURI, state, oauthErrorCode(err), err.Error())
+		h.handleAuthorizeError(c, redirectURI, state, err)
 		return
 	}
 
@@ -167,7 +167,7 @@ func (h *AuthorizationHandler) HandleAuthorize(c *gin.Context) {
 		clientID, redirectURI, "code", scope, codeChallenge, codeChallengeMethod, nonce,
 	)
 	if err != nil {
-		h.redirectWithError(c, redirectURI, state, oauthErrorCode(err), err.Error())
+		h.handleAuthorizeError(c, redirectURI, state, err)
 		return
 	}
 
@@ -241,6 +241,32 @@ func (h *AuthorizationHandler) issueCodeAndRedirect(
 	}
 	u.RawQuery = q.Encode()
 	c.Redirect(http.StatusFound, u.String())
+}
+
+// handleAuthorizeError converts a ValidateAuthorizationRequest error into the
+// right response. Per RFC 6749 §3.1.2.4, when the redirect_uri is invalid or
+// the client is unauthorized, the AS MUST NOT redirect — otherwise the
+// caller's redirect_uri (still unverified at this stage) becomes an open
+// redirect. For other errors, the redirect_uri has been registered for the
+// client, so a redirect with the OAuth error is safe.
+func (h *AuthorizationHandler) handleAuthorizeError(
+	c *gin.Context,
+	redirectURI, state string,
+	err error,
+) {
+	if errors.Is(err, services.ErrInvalidRedirectURI) ||
+		errors.Is(err, services.ErrUnauthorizedClient) {
+		templates.RenderTempl(
+			c,
+			http.StatusBadRequest,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error:   oauthErrorCode(err),
+				Message: err.Error(),
+			}),
+		)
+		return
+	}
+	h.redirectWithError(c, redirectURI, state, oauthErrorCode(err), err.Error())
 }
 
 // redirectWithError sends an OAuth error response as a redirect to the client's redirect_uri.

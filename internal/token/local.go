@@ -474,16 +474,18 @@ func (p *LocalTokenProvider) ValidateRefreshToken(
 // client's CURRENT project / service_account at refresh time rather than
 // freezing values from the original issuance.
 //
-// When audience is non-empty, it binds the issued tokens' "aud" claim to the
-// supplied values (RFC 8707 Resource Indicators). The caller (TokenService)
-// is responsible for enforcing the §2.2 subset rule against the original
-// grant before invoking this method.
+// accessAudience binds the access token's `aud` claim (RFC 8707). The caller
+// (TokenService) is responsible for enforcing the §2.2 subset rule against
+// the original grant before invoking this method. refreshAudience is kept
+// separate so refresh tokens don't accidentally carry a resource-server
+// audience — pass nil to use the static JWTAudience config.
 func (p *LocalTokenProvider) RefreshAccessToken(
 	ctx context.Context,
 	refreshToken string,
 	accessTTL, refreshTTL time.Duration,
 	extraClaims map[string]any,
-	audience []string,
+	accessAudience []string,
+	refreshAudience []string,
 ) (*RefreshResult, error) {
 	enableRotation := p.config.EnableTokenRotation
 	// Validate the refresh token
@@ -500,7 +502,7 @@ func (p *LocalTokenProvider) RefreshAccessToken(
 		validationResult.Scopes,
 		accessTTL,
 		extraClaims,
-		audience,
+		accessAudience,
 	)
 	if err != nil {
 		return nil, err
@@ -521,7 +523,7 @@ func (p *LocalTokenProvider) RefreshAccessToken(
 			validationResult.Scopes,
 			refreshTTL,
 			extraClaims,
-			audience,
+			refreshAudience,
 		)
 		if err != nil {
 			return nil, err

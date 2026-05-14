@@ -149,12 +149,21 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		return nil, nil, "", err
 	}
 
+	// Defense in depth: re-enforce the RFC 8707 §2.2 subset rule at the
+	// service boundary. The handler also validates this via
+	// AuthorizationService.ExchangeCode, but ExchangeAuthorizationCode is
+	// exported and may be called from other entry points; the audience
+	// invariant must hold here too.
+	refreshResource := []string(authCode.Resource)
+	if !util.IsStringSliceSubset(refreshResource, resource) {
+		return nil, nil, "", ErrInvalidTarget
+	}
+
 	// The refresh token always carries the full /authorize-time grant so
 	// later refreshes can re-narrow against it. The access token gets
 	// whatever the /token request narrowed to (or the full grant when /token
 	// didn't pass `resource`).
 	accessResource := resource
-	refreshResource := []string(authCode.Resource)
 	if len(accessResource) == 0 {
 		accessResource = refreshResource
 	}

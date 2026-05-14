@@ -393,10 +393,6 @@ func (s *TokenService) generateAndPersistTokenPair(
 	}
 	extraClaims = s.composeIssuanceClaims(client, p.UserID, p.ExtraClaims)
 
-	refreshAudience := p.RefreshResource
-	if refreshAudience == nil {
-		refreshAudience = p.Resource
-	}
 	accessResult, err := s.tokenProvider.GenerateToken(
 		ctx, p.UserID, p.ClientID, p.Scopes, accessTTL, extraClaims, p.Resource,
 	)
@@ -408,8 +404,13 @@ func (s *TokenService) generateAndPersistTokenPair(
 		)
 		return nil, nil, fmt.Errorf("token generation failed: %w", err)
 	}
+	// Refresh tokens never carry a resource-server `aud` — they're presented
+	// to the AS, not the RS. Pass nil so the JWT audience falls back to the
+	// static JWTAudience config (typically the AS itself). The persisted
+	// Resource column on the refresh-token row still records the granted
+	// resource set, so future refresh requests can subset-check against it.
 	refreshResult, err := s.tokenProvider.GenerateRefreshToken(
-		ctx, p.UserID, p.ClientID, p.Scopes, refreshTTL, extraClaims, refreshAudience,
+		ctx, p.UserID, p.ClientID, p.Scopes, refreshTTL, extraClaims, nil,
 	)
 	if err != nil {
 		log.Printf(
@@ -436,6 +437,15 @@ func (s *TokenService) generateAndPersistTokenPair(
 		Resource:        models.StringArray(p.Resource),
 	}
 
+	// Persisted Resource on the refresh-token row drives RFC 8707 §2.2
+	// subset checks on subsequent refresh requests. When the caller wants
+	// the refresh token to remember the FULL grant (not the narrowed access
+	// audience), p.RefreshResource is passed; otherwise it falls back to
+	// p.Resource so non-narrowing flows keep working.
+	refreshDBResource := p.RefreshResource
+	if refreshDBResource == nil {
+		refreshDBResource = p.Resource
+	}
 	refreshTokenID := uuid.New().String()
 	refreshToken := &models.AccessToken{
 		ID:              refreshTokenID,
@@ -449,7 +459,7 @@ func (s *TokenService) generateAndPersistTokenPair(
 		Scopes:          p.Scopes,
 		ExpiresAt:       refreshResult.ExpiresAt,
 		AuthorizationID: p.AuthorizationID,
-		Resource:        models.StringArray(refreshAudience),
+		Resource:        models.StringArray(refreshDBResource),
 	}
 
 	// In rotation mode, set TokenFamilyID to the refresh token's own ID (family root)

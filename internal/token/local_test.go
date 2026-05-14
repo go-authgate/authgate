@@ -945,6 +945,7 @@ func TestLocalTokenProvider_RS256_RefreshToken(t *testing.T) {
 		0,
 		nil,
 		nil,
+		nil,
 	)
 	require.NoError(t, err)
 	assert.NotNil(t, refreshed.AccessToken)
@@ -1395,6 +1396,7 @@ func TestRefreshAccessToken_AppliesExtraClaims(t *testing.T) {
 		original.TokenString,
 		0, 0,
 		map[string]any{projectKey: "new-project"},
+		nil,
 		nil,
 	)
 	require.NoError(t, err)

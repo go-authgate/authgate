@@ -87,15 +87,14 @@ func (h *TokenHandler) parseResourceParam(c *gin.Context) ([]string, bool) {
 }
 
 // introspectAudience returns the value to emit as the `aud` field on an
-// introspection response. The persisted Resource on the token row wins (RFC
-// 8707 audience binding); otherwise the static JWTAudience config is used.
-// Returns nil when neither has a value (claim is omitted per RFC 7662 §2.2).
+// introspection response. Only the audience persisted at issuance is used —
+// the current JWTAudience config is NOT a fallback, because operators may
+// rotate `JWT_AUDIENCE` while older tokens are still live and reporting the
+// fresh config value would diverge from what the JWT actually carries.
+// Returns nil when nothing is persisted (claim is omitted per RFC 7662 §2.2).
 // A single-value list collapses to a plain string to match JWT `aud` conventions.
-func introspectAudience(tok *models.AccessToken, configAudience []string) any {
+func introspectAudience(tok *models.AccessToken) any {
 	values := []string(tok.Resource)
-	if len(values) == 0 {
-		values = configAudience
-	}
 	switch len(values) {
 	case 0:
 		return nil
@@ -432,11 +431,12 @@ func (h *TokenHandler) Introspect(c *gin.Context) {
 		"jti":        tok.ID,
 	}
 
-	// Audience binding: prefer the RFC 8707 resource set persisted at
-	// issuance; fall back to the static JWTAudience config when no resource
-	// was requested. Resource servers rely on this to enforce that a token
-	// minted for service A cannot be replayed against service B.
-	if aud := introspectAudience(tok, h.config.JWTAudience); aud != nil {
+	// Audience binding: emit the RFC 8707 resource set persisted at
+	// issuance so resource servers can enforce that a token minted for
+	// service A cannot be replayed against service B. Omitted when no
+	// resource was requested at issuance (current JWTAudience config is
+	// NOT a fallback — see introspectAudience for rationale).
+	if aud := introspectAudience(tok); aud != nil {
 		resp["aud"] = aud
 	}
 

@@ -1,13 +1,24 @@
 package handlers
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
+	"github.com/go-authgate/authgate/internal/store"
 	"github.com/go-authgate/authgate/internal/util"
 
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ============================================================
@@ -146,10 +157,125 @@ func TestScopesAreCovered_ExtraWhitespace(t *testing.T) {
 	assert.True(t, util.IsScopeSubset("read  write", "read"))
 }
 
-// RFC 8707 Resource Indicators fragment rejection is unit-tested at the
-// util layer in internal/util/resource_test.go (TestValidateResourceIndicators).
-// The handler-level error-mapping is covered by TestOauthErrorCode_InvalidTarget
-// above. We intentionally don't end-to-end test "invalid resource → redirect
-// to redirect_uri" at the handler layer because that path now requires a
-// registered client, and exercising it correctly belongs in the integration
-// suite where a real store is wired up.
+// ============================================================
+// RFC 8707 Resource Indicators — handler integration
+// ============================================================
+
+// setupAuthorizeTestEnv wires up a real authorization handler against an
+// in-memory SQLite store plus a registered confidential client and a real
+// user. The returned gin engine has only `/oauth/authorize` registered with
+// a test middleware that injects user_id into the gin context, simulating
+// what RequireAuth does in production.
+func setupAuthorizeTestEnv(
+	t *testing.T,
+) (engine *gin.Engine, client *models.OAuthApplication) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		BaseURL:            "http://localhost:8080",
+		AuthCodeExpiration: 10 * time.Minute,
+	}
+
+	s, err := store.New(context.Background(), "sqlite", ":memory:", &config.Config{})
+	require.NoError(t, err)
+
+	auditSvc := services.NewNoopAuditService()
+	clientSvc := services.NewClientService(s, auditSvc, nil, 0, nil, 0)
+	userSvc := services.NewUserService(s, nil, nil, "local", false, auditSvc, nil, 0)
+	authzSvc := services.NewAuthorizationService(s, cfg, auditSvc, nil, clientSvc)
+	handler := NewAuthorizationHandler(authzSvc, nil, userSvc, cfg)
+
+	// Register a confidential client with a fixed redirect URI.
+	client = &models.OAuthApplication{
+		ClientID:           uuid.New().String(),
+		ClientSecret:       "test-secret-hash",
+		ClientName:         "Resource Test Client",
+		UserID:             uuid.New().String(),
+		Scopes:             "read",
+		GrantTypes:         "authorization_code",
+		RedirectURIs:       models.StringArray{"https://app.example.com/callback"},
+		ClientType:         "confidential",
+		EnableAuthCodeFlow: true,
+		Status:             models.ClientStatusActive,
+	}
+	require.NoError(t, s.CreateClient(client))
+
+	// Create a real user the handler can resolve via userService.GetUserByID.
+	user := &models.User{
+		ID:       uuid.New().String(),
+		Username: "rsrc-test-user",
+		Email:    "rsrc-test@example.com",
+		IsActive: true,
+	}
+	require.NoError(t, s.CreateUser(user))
+
+	r := gin.New()
+	// Inject the simulated logged-in user into the gin context — bypasses
+	// the RequireAuth middleware that this handler relies on in production.
+	r.Use(func(c *gin.Context) {
+		c.Set("user_id", user.ID)
+		c.Set("user", user)
+		c.Next()
+	})
+	r.GET("/oauth/authorize", handler.ShowAuthorizePage)
+	return r, client
+}
+
+// TestAuthorize_InvalidResource_RedirectsAfterValidation verifies the
+// security invariant: an invalid `resource` only redirects AFTER the
+// authorization request has been validated (proving the redirect_uri is
+// registered). The redirect carries `error=invalid_target` and preserves
+// `state` per RFC 6749 §4.1.2.1.
+func TestAuthorize_InvalidResource_RedirectsAfterValidation(t *testing.T) {
+	r, client := setupAuthorizeTestEnv(t)
+
+	q := url.Values{
+		"client_id":     {client.ClientID},
+		"redirect_uri":  {"https://app.example.com/callback"},
+		"response_type": {"code"},
+		"scope":         {"read"},
+		"state":         {"xyz"},
+		"resource":      {"https://mcp.example.com/path#frag"},
+	}
+	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize?"+q.Encode(), nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusFound, w.Code)
+	loc := w.Header().Get("Location")
+	require.NotEmpty(t, loc)
+	assert.Contains(t, loc, "https://app.example.com/callback")
+	assert.Contains(t, loc, "error=invalid_target")
+	assert.Contains(t, loc, "state=xyz")
+}
+
+// TestAuthorize_InvalidResource_UnregisteredRedirectURI_NotReflected
+// asserts the open-redirect mitigation: when an invalid `resource` is
+// paired with an UNREGISTERED redirect_uri, the response must NOT redirect
+// to that attacker-controlled URI. The handler runs request validation
+// (which rejects the unregistered URI) before resource validation, so the
+// error is rendered locally rather than reflected.
+func TestAuthorize_InvalidResource_UnregisteredRedirectURI_NotReflected(t *testing.T) {
+	r, client := setupAuthorizeTestEnv(t)
+
+	q := url.Values{
+		"client_id":     {client.ClientID},
+		"redirect_uri":  {"https://evil.example.com/exfil"},
+		"response_type": {"code"},
+		"scope":         {"read"},
+		"state":         {"xyz"},
+		"resource":      {"https://mcp.example.com/path#frag"},
+	}
+	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize?"+q.Encode(), nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	// Even if the response IS a redirect (existing handler behavior on
+	// invalid_redirect_uri), it MUST NOT go to the attacker-controlled URI.
+	loc := w.Header().Get("Location")
+	assert.NotContains(
+		t, loc, "evil.example.com",
+		"unregistered redirect_uri must not be reflected as a redirect target",
+	)
+}

@@ -167,44 +167,25 @@ func (s *TokenService) RefreshAccessToken(
 		}
 	}
 	extraClaims := s.composeIssuanceClaims(client, refreshToken.UserID, callerExtra)
-	// Pass originalResource to the provider so the rotated refresh token (in
-	// rotation mode) carries the full original grant — its `aud` and the
-	// persisted Resource column both reflect the unchanged scope of what
-	// the user authorized. Without this, narrowing on one refresh would
-	// permanently shrink the refresh token's audience and the client could
-	// never recover the originally-granted resources on later refreshes.
+	// Access token's `aud` = effectiveResource (possibly narrowed).
+	// Refresh token's `aud` = nil → provider falls back to static
+	// JWTAudience config; the refresh JWT must not carry a resource-server
+	// audience because it's presented to the AS, not the RS. The persisted
+	// Resource column (set below) tracks the original grant for §2.2 subset
+	// checks on future refreshes.
 	refreshResult, providerErr := s.tokenProvider.RefreshAccessToken(
 		ctx,
 		refreshTokenString,
 		accessTTL,
 		refreshTTL,
 		extraClaims,
-		originalResource,
+		effectiveResource,
+		nil,
 	)
 	if providerErr != nil {
 		log.Printf("[Token] Refresh failed provider=%s: %v", s.tokenProvider.Name(), providerErr)
 		s.metrics.RecordTokenRefresh(false)
 		return nil, nil, providerErr
-	}
-	// If the caller narrowed audience at this refresh, re-issue the access
-	// token with the narrowed set so its `aud` matches the request. The
-	// refresh token continues to carry the full original grant.
-	if len(requestedResource) > 0 {
-		narrowedAccess, err := s.tokenProvider.GenerateToken(
-			ctx,
-			refreshToken.UserID,
-			refreshToken.ClientID,
-			refreshToken.Scopes,
-			accessTTL,
-			extraClaims,
-			effectiveResource,
-		)
-		if err != nil {
-			log.Printf("[Token] Refresh narrowed-access regeneration failed: %v", err)
-			s.metrics.RecordTokenRefresh(false)
-			return nil, nil, err
-		}
-		refreshResult.AccessToken = narrowedAccess
 	}
 
 	// 7. Save new tokens in transaction
