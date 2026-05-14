@@ -77,6 +77,7 @@ type oauthASMetadata struct {
 	IntrospectionEndpoint                  string   `json:"introspection_endpoint"`
 	RevocationEndpoint                     string   `json:"revocation_endpoint"`
 	RegistrationEndpoint                   string   `json:"registration_endpoint,omitempty"`
+	DeviceAuthorizationEndpoint            string   `json:"device_authorization_endpoint"`
 	JwksURI                                string   `json:"jwks_uri,omitempty"`
 	ResponseTypesSupported                 []string `json:"response_types_supported"`
 	ScopesSupported                        []string `json:"scopes_supported"`
@@ -85,6 +86,9 @@ type oauthASMetadata struct {
 	IntrospectionEndpointAuthMethods       []string `json:"introspection_endpoint_auth_methods_supported"`
 	GrantTypesSupported                    []string `json:"grant_types_supported"`
 	CodeChallengeMethodsSupported          []string `json:"code_challenge_methods_supported"`
+	// RFC 8707 §3 — advertise that the `resource` request parameter is
+	// honored on /authorize and /token. Always true for this server.
+	ResourceIndicatorsSupported bool `json:"resource_indicators_supported"`
 }
 
 // baseMetadata holds the shared core both Discovery and
@@ -92,20 +96,26 @@ type oauthASMetadata struct {
 // response types / grants / auth methods / scopes, and PKCE methods. OIDC- and
 // OAuth-specific decoration happens in the respective handlers.
 type baseMetadata struct {
-	Issuer                        string
-	AuthorizationEndpoint         string
-	TokenEndpoint                 string
-	UserinfoEndpoint              string
-	RevocationEndpoint            string
-	IntrospectionEndpoint         string
-	RegistrationEndpoint          string // empty when DCR disabled
-	JwksURI                       string // empty when no JWKS
-	ResponseTypesSupported        []string
-	ScopesSupported               []string
-	TokenEndpointAuthMethods      []string
-	GrantTypesSupported           []string
-	CodeChallengeMethodsSupported []string
-	IDTokenSigningAlgValues       []string // empty when ID token not supported
+	Issuer                      string
+	AuthorizationEndpoint       string
+	TokenEndpoint               string
+	UserinfoEndpoint            string
+	RevocationEndpoint          string
+	IntrospectionEndpoint       string
+	RegistrationEndpoint        string // empty when DCR disabled
+	DeviceAuthorizationEndpoint string
+	JwksURI                     string // empty when no JWKS
+	ResponseTypesSupported      []string
+	ScopesSupported             []string
+	TokenEndpointAuthMethods    []string
+	// IntrospectionEndpointAuthMethods is narrower than the token-endpoint
+	// set because /oauth/introspect requires client authentication — it
+	// rejects `none`. Advertising `none` here would invite unauthenticated
+	// introspection attempts that the server immediately 401s.
+	IntrospectionEndpointAuthMethods []string
+	GrantTypesSupported              []string
+	CodeChallengeMethodsSupported    []string
+	IDTokenSigningAlgValues          []string // empty when ID token not supported
 }
 
 // buildBaseMetadata returns the shared core used by both discovery endpoints.
@@ -123,18 +133,23 @@ func (h *OIDCHandler) buildBaseMetadata() baseMetadata {
 	}
 
 	m := baseMetadata{
-		Issuer:                 h.issuerURL,
-		AuthorizationEndpoint:  h.issuerURL + "/oauth/authorize",
-		TokenEndpoint:          h.issuerURL + "/oauth/token",
-		UserinfoEndpoint:       h.issuerURL + "/oauth/userinfo",
-		RevocationEndpoint:     h.issuerURL + "/oauth/revoke",
-		IntrospectionEndpoint:  h.issuerURL + "/oauth/introspect",
-		ResponseTypesSupported: []string{"code"},
-		ScopesSupported:        scopes,
+		Issuer:                      h.issuerURL,
+		AuthorizationEndpoint:       h.issuerURL + "/oauth/authorize",
+		TokenEndpoint:               h.issuerURL + "/oauth/token",
+		UserinfoEndpoint:            h.issuerURL + "/oauth/userinfo",
+		RevocationEndpoint:          h.issuerURL + "/oauth/revoke",
+		IntrospectionEndpoint:       h.issuerURL + "/oauth/introspect",
+		DeviceAuthorizationEndpoint: h.issuerURL + "/oauth/device/code",
+		ResponseTypesSupported:      []string{"code"},
+		ScopesSupported:             scopes,
 		TokenEndpointAuthMethods: []string{
 			"client_secret_basic",
 			"client_secret_post",
 			"none",
+		},
+		IntrospectionEndpointAuthMethods: []string{
+			"client_secret_basic",
+			"client_secret_post",
 		},
 		GrantTypesSupported: []string{
 			GrantTypeAuthorizationCode,
@@ -215,24 +230,25 @@ func (h *OIDCHandler) OAuthAuthorizationServerMetadata(c *gin.Context) {
 	base := h.baseMeta
 
 	meta := oauthASMetadata{
-		Issuer:                 base.Issuer,
-		AuthorizationEndpoint:  base.AuthorizationEndpoint,
-		TokenEndpoint:          base.TokenEndpoint,
-		IntrospectionEndpoint:  base.IntrospectionEndpoint,
-		RevocationEndpoint:     base.RevocationEndpoint,
-		RegistrationEndpoint:   base.RegistrationEndpoint,
-		JwksURI:                base.JwksURI,
-		ResponseTypesSupported: base.ResponseTypesSupported,
-		ScopesSupported:        base.ScopesSupported,
-		// Revocation and introspection share the token endpoint's auth-method
-		// list because all three endpoints accept the same client-authentication
-		// scheme. Split into dedicated fields here (rather than aliased to a
-		// single one) so the wire shape matches RFC 8414 §2 verbatim.
+		Issuer:                      base.Issuer,
+		AuthorizationEndpoint:       base.AuthorizationEndpoint,
+		TokenEndpoint:               base.TokenEndpoint,
+		IntrospectionEndpoint:       base.IntrospectionEndpoint,
+		RevocationEndpoint:          base.RevocationEndpoint,
+		RegistrationEndpoint:        base.RegistrationEndpoint,
+		DeviceAuthorizationEndpoint: base.DeviceAuthorizationEndpoint,
+		JwksURI:                     base.JwksURI,
+		ResponseTypesSupported:      base.ResponseTypesSupported,
+		ScopesSupported:             base.ScopesSupported,
+		// Token and revoke endpoints accept the same auth methods (including
+		// `none` for public-client PKCE). Introspection is narrower —
+		// /oauth/introspect requires client authentication.
 		TokenEndpointAuthMethodsSupported:      base.TokenEndpointAuthMethods,
 		RevocationEndpointAuthMethodsSupported: base.TokenEndpointAuthMethods,
-		IntrospectionEndpointAuthMethods:       base.TokenEndpointAuthMethods,
+		IntrospectionEndpointAuthMethods:       base.IntrospectionEndpointAuthMethods,
 		GrantTypesSupported:                    base.GrantTypesSupported,
 		CodeChallengeMethodsSupported:          base.CodeChallengeMethodsSupported,
+		ResourceIndicatorsSupported:            true,
 	}
 
 	c.Header("Cache-Control", "public, max-age=3600")

@@ -226,9 +226,14 @@ func (s *AuthorizationService) CreateAuthorizationCode(
 
 // ExchangeCode validates a plaintext authorization code and marks it as used.
 // The caller (TokenHandler) is responsible for issuing tokens after this returns successfully.
+// requestedResource (optional, RFC 8707) is checked against the resource set
+// bound at /authorize: when both are present, the request value MUST be a
+// subset, otherwise ErrInvalidTarget is returned BEFORE the code is consumed
+// so a client typo doesn't burn the single-use code.
 func (s *AuthorizationService) ExchangeCode(
 	ctx context.Context,
 	plainCode, clientID, redirectURI, clientSecret, codeVerifier string,
+	requestedResource []string,
 ) (*models.AuthorizationCode, error) {
 	// Hash the incoming code for lookup
 	codeHash := util.SHA256Hex(plainCode)
@@ -277,6 +282,14 @@ func (s *AuthorizationService) ExchangeCode(
 		if !verifyPKCE(record.CodeChallenge, record.CodeChallengeMethod, codeVerifier) {
 			return nil, ErrInvalidCodeVerifier
 		}
+	}
+
+	// RFC 8707 §2.2: when /authorize bound a resource and /token also passes
+	// one, the token-time set must be a subset. Validate BEFORE consuming the
+	// code so a malformed request doesn't burn the single-use code.
+	if len(record.Resource) > 0 && len(requestedResource) > 0 &&
+		!util.IsStringSliceSubset([]string(record.Resource), requestedResource) {
+		return nil, ErrInvalidTarget
 	}
 
 	// Mark as used atomically (WHERE used_at IS NULL ensures only one concurrent

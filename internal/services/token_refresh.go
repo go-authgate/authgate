@@ -167,18 +167,44 @@ func (s *TokenService) RefreshAccessToken(
 		}
 	}
 	extraClaims := s.composeIssuanceClaims(client, refreshToken.UserID, callerExtra)
+	// Pass originalResource to the provider so the rotated refresh token (in
+	// rotation mode) carries the full original grant — its `aud` and the
+	// persisted Resource column both reflect the unchanged scope of what
+	// the user authorized. Without this, narrowing on one refresh would
+	// permanently shrink the refresh token's audience and the client could
+	// never recover the originally-granted resources on later refreshes.
 	refreshResult, providerErr := s.tokenProvider.RefreshAccessToken(
 		ctx,
 		refreshTokenString,
 		accessTTL,
 		refreshTTL,
 		extraClaims,
-		effectiveResource,
+		originalResource,
 	)
 	if providerErr != nil {
 		log.Printf("[Token] Refresh failed provider=%s: %v", s.tokenProvider.Name(), providerErr)
 		s.metrics.RecordTokenRefresh(false)
 		return nil, nil, providerErr
+	}
+	// If the caller narrowed audience at this refresh, re-issue the access
+	// token with the narrowed set so its `aud` matches the request. The
+	// refresh token continues to carry the full original grant.
+	if len(requestedResource) > 0 {
+		narrowedAccess, err := s.tokenProvider.GenerateToken(
+			ctx,
+			refreshToken.UserID,
+			refreshToken.ClientID,
+			refreshToken.Scopes,
+			accessTTL,
+			extraClaims,
+			effectiveResource,
+		)
+		if err != nil {
+			log.Printf("[Token] Refresh narrowed-access regeneration failed: %v", err)
+			s.metrics.RecordTokenRefresh(false)
+			return nil, nil, err
+		}
+		refreshResult.AccessToken = narrowedAccess
 	}
 
 	// 7. Save new tokens in transaction
@@ -203,7 +229,11 @@ func (s *TokenService) RefreshAccessToken(
 	var newRefreshToken *models.AccessToken
 
 	if s.config.EnableTokenRotation && refreshResult.RefreshToken != nil {
-		// Rotation mode: create new refresh token, revoke old one
+		// Rotation mode: create new refresh token, revoke old one. The new
+		// refresh token's Resource is the original grant (not the narrowed
+		// access-token audience) — RFC 8707 §2.2 subset checks on future
+		// refreshes compare against this row, so narrowing must always be
+		// relative to the original grant.
 		newRefreshToken = &models.AccessToken{
 			ID:            uuid.New().String(),
 			TokenHash:     util.SHA256Hex(refreshResult.RefreshToken.TokenString),
@@ -217,7 +247,7 @@ func (s *TokenService) RefreshAccessToken(
 			ExpiresAt:     refreshResult.RefreshToken.ExpiresAt,
 			ParentTokenID: refreshToken.ID,
 			TokenFamilyID: refreshToken.TokenFamilyID, // Inherit family ID
-			Resource:      models.StringArray(effectiveResource),
+			Resource:      models.StringArray(originalResource),
 		}
 	}
 

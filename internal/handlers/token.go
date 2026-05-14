@@ -577,10 +577,12 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 		return
 	}
 
-	// Validate and consume the authorization code
+	// Validate and consume the authorization code. ExchangeCode now performs
+	// the RFC 8707 §2.2 subset check BEFORE marking the code as used so a
+	// rejected resource doesn't burn the single-use code.
 	authCode, err := h.authorizationService.ExchangeCode(
 		c.Request.Context(),
-		code, clientID, redirectURI, clientSecret, codeVerifier,
+		code, clientID, redirectURI, clientSecret, codeVerifier, resource,
 	)
 	if err != nil {
 		errCode := errInvalidGrant
@@ -601,6 +603,9 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 			description = "PKCE code_verifier is required for public clients"
 		case errors.Is(err, services.ErrInvalidCodeVerifier):
 			description = "PKCE code_verifier validation failed"
+		case errors.Is(err, services.ErrInvalidTarget):
+			errCode = errInvalidTarget
+			description = "Requested resource exceeds the audience granted at /authorize"
 		default:
 			log.Printf("[token] authorization code exchange error: %v", err)
 			description = "An internal error occurred"
@@ -618,25 +623,13 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 		authorizationID = &id
 	}
 
-	// RFC 8707: bind the issued tokens to the requested resource. When only
-	// /token specifies resources (no audience was recorded at /authorize),
-	// accept them as-is. When only /authorize bound resources, reuse them.
-	// When both, the token-time value MUST be a subset of the authorize-time
-	// grant.
+	// Resolve effective resource for the issued tokens. The §2.2 subset check
+	// already ran inside ExchangeCode, so by the time we're here either:
+	//   - /token sent its own resource (use it, possibly narrowed), OR
+	//   - /token sent none — reuse the resource bound at /authorize.
 	effectiveResource := resource
-	switch {
-	case len(authCode.Resource) == 0:
-		// already set above
-	case len(resource) == 0:
+	if len(effectiveResource) == 0 {
 		effectiveResource = []string(authCode.Resource)
-	case !util.IsStringSliceSubset([]string(authCode.Resource), resource):
-		respondOAuthError(
-			c,
-			http.StatusBadRequest,
-			errInvalidTarget,
-			"Requested resource exceeds the audience granted at /authorize",
-		)
-		return
 	}
 
 	// Issue access + refresh tokens (+ ID token when openid scope was granted)

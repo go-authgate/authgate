@@ -529,6 +529,13 @@ func TestOAuthASMetadata_Fields(t *testing.T) {
 	assert.Equal(t, "https://auth.example.com/oauth/introspect", meta["introspection_endpoint"])
 	assert.Equal(t, "https://auth.example.com/oauth/revoke", meta["revocation_endpoint"])
 	assert.Equal(t, "https://auth.example.com/oauth/register", meta["registration_endpoint"])
+	assert.Equal(
+		t,
+		"https://auth.example.com/oauth/device/code",
+		meta["device_authorization_endpoint"],
+	)
+	// RFC 8707 §3 — clients use this flag to know `resource` is honored.
+	assert.Equal(t, true, meta["resource_indicators_supported"])
 
 	// MCP-required PKCE method
 	codeChallenges, ok := meta["code_challenge_methods_supported"].([]any)
@@ -543,17 +550,27 @@ func TestOAuthASMetadata_Fields(t *testing.T) {
 	assert.Contains(t, grantTypes, GrantTypeRefreshToken)
 	assert.Contains(t, grantTypes, GrantTypeClientCredentials)
 
-	// Auth method mirrors for introspect / revoke / token
+	// Token and revoke endpoints accept `none` (for public-client PKCE);
+	// introspection must NOT advertise `none` because the endpoint rejects
+	// unauthenticated requests.
 	for _, k := range []string{
 		"token_endpoint_auth_methods_supported",
-		"introspection_endpoint_auth_methods_supported",
 		"revocation_endpoint_auth_methods_supported",
 	} {
 		methods, ok := meta[k].([]any)
 		require.True(t, ok, "missing %s", k)
 		assert.Contains(t, methods, "client_secret_basic")
 		assert.Contains(t, methods, "client_secret_post")
+		assert.Contains(t, methods, "none")
 	}
+	introspectMethods, ok := meta["introspection_endpoint_auth_methods_supported"].([]any)
+	require.True(t, ok)
+	assert.Contains(t, introspectMethods, "client_secret_basic")
+	assert.Contains(t, introspectMethods, "client_secret_post")
+	assert.NotContains(
+		t, introspectMethods, "none",
+		"introspection endpoint requires client auth; `none` must not be advertised",
+	)
 
 	// OIDC-only fields must NOT appear in OAuth AS metadata
 	for _, oidcOnly := range []string{
@@ -649,8 +666,10 @@ func TestOIDCDiscovery_UnaffectedByOAuthMetadataAddition(t *testing.T) {
 	for _, oauthOnly := range []string{
 		"introspection_endpoint",
 		"registration_endpoint",
+		"device_authorization_endpoint",
 		"introspection_endpoint_auth_methods_supported",
 		"revocation_endpoint_auth_methods_supported",
+		"resource_indicators_supported",
 	} {
 		_, present := meta[oauthOnly]
 		assert.Falsef(

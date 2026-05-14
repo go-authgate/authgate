@@ -280,6 +280,7 @@ func TestExchangeCode_Success_ConfidentialClient(t *testing.T) {
 		"https://app.example.com/callback",
 		testClientPlainSecret,
 		"",
+		nil,
 	)
 
 	require.NoError(t, err)
@@ -317,6 +318,7 @@ func TestExchangeCode_Success_PublicClient_PKCE_S256(t *testing.T) {
 		plainCode, client.ClientID,
 		"https://app.example.com/callback",
 		"", verifier,
+		nil,
 	)
 	require.NoError(t, err)
 }
@@ -340,12 +342,12 @@ func TestExchangeCode_ReplayAttack(t *testing.T) {
 
 	// First exchange succeeds
 	_, err = svc.ExchangeCode(context.Background(), plainCode, client.ClientID,
-		"https://app.example.com/callback", testClientPlainSecret, "")
+		"https://app.example.com/callback", testClientPlainSecret, "", nil)
 	require.NoError(t, err)
 
 	// Second exchange with same code must fail
 	_, err = svc.ExchangeCode(context.Background(), plainCode, client.ClientID,
-		"https://app.example.com/callback", testClientPlainSecret, "")
+		"https://app.example.com/callback", testClientPlainSecret, "", nil)
 	assert.ErrorIs(t, err, ErrAuthCodeAlreadyUsed)
 }
 
@@ -368,7 +370,7 @@ func TestExchangeCode_ExpiredCode(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = svc.ExchangeCode(context.Background(), plainCode, client.ClientID,
-		"https://app.example.com/callback", testClientPlainSecret, "")
+		"https://app.example.com/callback", testClientPlainSecret, "", nil)
 	assert.ErrorIs(t, err, ErrAuthCodeExpired)
 }
 
@@ -390,7 +392,7 @@ func TestExchangeCode_WrongRedirectURI(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = svc.ExchangeCode(context.Background(), plainCode, client.ClientID,
-		"https://other.example.com/callback", testClientPlainSecret, "")
+		"https://other.example.com/callback", testClientPlainSecret, "", nil)
 	assert.ErrorIs(t, err, ErrInvalidRedirectURI)
 }
 
@@ -412,7 +414,7 @@ func TestExchangeCode_WrongClientSecret(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = svc.ExchangeCode(context.Background(), plainCode, client.ClientID,
-		"https://app.example.com/callback", "wrong-secret", "")
+		"https://app.example.com/callback", "wrong-secret", "", nil)
 	assert.ErrorIs(t, err, ErrUnauthorizedClient)
 }
 
@@ -440,7 +442,7 @@ func TestExchangeCode_WrongCodeVerifier(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = svc.ExchangeCode(context.Background(), plainCode, client.ClientID,
-		"https://app.example.com/callback", "", "wrong-verifier")
+		"https://app.example.com/callback", "", "wrong-verifier", nil)
 	assert.ErrorIs(t, err, ErrInvalidCodeVerifier)
 }
 
@@ -710,6 +712,7 @@ func TestExchangeCode_NotFound(t *testing.T) {
 		"https://app.example.com/callback",
 		testClientPlainSecret,
 		"",
+		nil,
 	)
 	assert.ErrorIs(t, err, ErrAuthCodeNotFound)
 }
@@ -739,6 +742,7 @@ func TestExchangeCode_WrongClientID(t *testing.T) {
 		"https://app.example.com/callback",
 		testClientPlainSecret,
 		"",
+		nil,
 	)
 	assert.ErrorIs(t, err, ErrAuthCodeNotFound)
 }
@@ -767,6 +771,7 @@ func TestExchangeCode_PublicClientMissingCodeChallenge(t *testing.T) {
 		plainCode, client.ClientID,
 		"https://app.example.com/callback",
 		"", "some-verifier",
+		nil,
 	)
 	assert.ErrorIs(t, err, ErrPKCERequired)
 }

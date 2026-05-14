@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -85,6 +86,23 @@ func TestValidateResourceIndicators(t *testing.T) {
 		{
 			name:    "URI with fragment rejected",
 			input:   []string{"https://mcp.example.com/api#fragment"},
+			wantErr: true,
+		},
+		{
+			name:    "http with empty host rejected",
+			input:   []string{"http:/path"},
+			wantErr: true,
+		},
+		{
+			name:    "https with bare scheme-and-opaque rejected",
+			input:   []string{"https:foo"},
+			wantErr: true,
+		},
+		{
+			name: "URI over length limit rejected",
+			input: []string{
+				"https://mcp.example.com/" + strings.Repeat("a", MaxResourceURILength),
+			},
 			wantErr: true,
 		},
 		{

@@ -218,10 +218,24 @@ func setupAllRoutes(
 	// OIDC Discovery, OAuth 2.0 AS metadata (RFC 8414), and JWKS (public,
 	// no auth required). Browser-based MCP clients need cross-origin access
 	// to these endpoints, so CORS is applied here when enabled — the same
-	// middleware as /oauth/* uses.
+	// middleware as /oauth/* uses. Each route is registered for both GET
+	// (the actual fetch) and OPTIONS (the browser's CORS preflight). Without
+	// an OPTIONS route Gin would return 405 before the CORS middleware ever
+	// runs, breaking preflights.
 	wellKnown := r.Group("/.well-known")
 	if cfg.CORSEnabled {
 		wellKnown.Use(middleware.CORSMiddleware(cfg))
+	}
+	// preflightNoop is the OPTIONS handler body — the CORS middleware
+	// short-circuits the request with the correct ACAO/ACAM headers before
+	// reaching this function, so its body is irrelevant.
+	preflightNoop := func(c *gin.Context) {}
+	for _, path := range []string{
+		"/openid-configuration",
+		"/oauth-authorization-server",
+		"/jwks.json",
+	} {
+		wellKnown.OPTIONS(path, preflightNoop)
 	}
 	wellKnown.GET("/openid-configuration", h.oidc.Discovery)
 	wellKnown.GET("/oauth-authorization-server", h.oidc.OAuthAuthorizationServerMetadata)

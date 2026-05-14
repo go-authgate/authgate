@@ -131,8 +131,11 @@ curl -s http://localhost:8080/.well-known/oauth-authorization-server | jq '
 # Expect: code_challenge_methods_supported = ["S256"];
 # registration_endpoint present when ENABLE_DYNAMIC_CLIENT_REGISTRATION=true.
 
-# 2. Confirm CORS preflight on the metadata endpoint.
-curl -i -H "Origin: https://allowed.example.com" \
+# 2. Confirm CORS preflight on the metadata endpoint. A real browser preflight
+#    is an OPTIONS request carrying Access-Control-Request-Method.
+curl -i -X OPTIONS \
+  -H "Origin: https://allowed.example.com" \
+  -H "Access-Control-Request-Method: GET" \
   http://localhost:8080/.well-known/oauth-authorization-server \
   | grep -i access-control-allow-origin
 # Expect: Access-Control-Allow-Origin: https://allowed.example.com
