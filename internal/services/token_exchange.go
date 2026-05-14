@@ -16,10 +16,13 @@ import (
 // ExchangeDeviceCode exchanges an authorized device code for access and refresh tokens.
 // extraClaims (optional) is merged into both tokens as caller-supplied JWT
 // claims; reserved keys must already have been rejected by the handler.
+// resource (optional, RFC 8707) binds the issued tokens' "aud" claim to the
+// supplied resource indicators.
 func (s *TokenService) ExchangeDeviceCode(
 	ctx context.Context,
 	deviceCode, clientID string,
 	extraClaims map[string]any,
+	resource []string,
 ) (*models.AccessToken, *models.AccessToken, error) {
 	dc, err := s.deviceService.GetDeviceCode(deviceCode)
 	if err != nil {
@@ -68,6 +71,7 @@ func (s *TokenService) ExchangeDeviceCode(
 		Scopes:      dc.Scopes,
 		Client:      client,
 		ExtraClaims: extraClaims,
+		Resource:    resource,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -124,12 +128,14 @@ func (s *TokenService) ExchangeDeviceCode(
 // AuthorizationService.ExchangeCode before calling this method.
 // extraClaims (optional) is merged into both access and refresh tokens; it
 // does NOT affect ID Token claims (those are governed by OIDC scopes).
+// resource (optional, RFC 8707) overrides the audience on issued tokens.
 // Returns: accessToken, refreshToken, idToken (empty string when openid not requested), error.
 func (s *TokenService) ExchangeAuthorizationCode(
 	ctx context.Context,
 	authCode *models.AuthorizationCode,
 	authorizationID *uint,
 	extraClaims map[string]any,
+	resource []string,
 ) (*models.AccessToken, *models.AccessToken, string, error) {
 	start := time.Now()
 	providerName := s.tokenProvider.Name()
@@ -151,6 +157,7 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		AuthorizationID: authorizationID,
 		Client:          client,
 		ExtraClaims:     extraClaims,
+		Resource:        resource,
 	})
 	if err != nil {
 		return nil, nil, "", err

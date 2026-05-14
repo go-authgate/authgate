@@ -81,6 +81,7 @@ func TestValidateAuthorizationRequest_Success(t *testing.T) {
 		"code",
 		"read",
 		"", "", "",
+		nil,
 	)
 
 	require.NoError(t, err)
@@ -93,7 +94,7 @@ func TestValidateAuthorizationRequest_DefaultScope(t *testing.T) {
 	client := createAuthCodeFlowClient(t, svc, "confidential")
 
 	req, err := svc.ValidateAuthorizationRequest(context.Background(),
-		client.ClientID, "https://app.example.com/callback", "code", "", "", "", "",
+		client.ClientID, "https://app.example.com/callback", "code", "", "", "", "", nil,
 	)
 
 	require.NoError(t, err)
@@ -106,7 +107,7 @@ func TestValidateAuthorizationRequest_InvalidResponseType(t *testing.T) {
 	client := createAuthCodeFlowClient(t, svc, "confidential")
 
 	_, err := svc.ValidateAuthorizationRequest(context.Background(),
-		client.ClientID, "https://app.example.com/callback", "token", "", "", "", "",
+		client.ClientID, "https://app.example.com/callback", "token", "", "", "", "", nil,
 	)
 	assert.ErrorIs(t, err, ErrUnsupportedResponseType)
 }
@@ -115,7 +116,7 @@ func TestValidateAuthorizationRequest_UnknownClient(t *testing.T) {
 	svc := createTestAuthorizationService(t)
 
 	_, err := svc.ValidateAuthorizationRequest(context.Background(),
-		"nonexistent", "https://app.example.com/callback", "code", "", "", "", "",
+		"nonexistent", "https://app.example.com/callback", "code", "", "", "", "", nil,
 	)
 	assert.ErrorIs(t, err, ErrUnauthorizedClient)
 }
@@ -137,7 +138,7 @@ func TestValidateAuthorizationRequest_AuthCodeFlowDisabled(t *testing.T) {
 	require.NoError(t, svc.store.CreateClient(client))
 
 	_, err := svc.ValidateAuthorizationRequest(context.Background(),
-		client.ClientID, "https://app.example.com/callback", "code", "", "", "", "",
+		client.ClientID, "https://app.example.com/callback", "code", "", "", "", "", nil,
 	)
 	assert.ErrorIs(t, err, ErrUnauthorizedClient)
 }
@@ -147,7 +148,7 @@ func TestValidateAuthorizationRequest_InvalidRedirectURI(t *testing.T) {
 	client := createAuthCodeFlowClient(t, svc, "confidential")
 
 	_, err := svc.ValidateAuthorizationRequest(context.Background(),
-		client.ClientID, "https://evil.example.com/callback", "code", "", "", "", "",
+		client.ClientID, "https://evil.example.com/callback", "code", "", "", "", "", nil,
 	)
 	assert.ErrorIs(t, err, ErrInvalidRedirectURI)
 }
@@ -157,7 +158,7 @@ func TestValidateAuthorizationRequest_InvalidScope(t *testing.T) {
 	client := createAuthCodeFlowClient(t, svc, "confidential")
 
 	_, err := svc.ValidateAuthorizationRequest(context.Background(),
-		client.ClientID, "https://app.example.com/callback", "code", "admin", "", "", "",
+		client.ClientID, "https://app.example.com/callback", "code", "admin", "", "", "", nil,
 	)
 	assert.ErrorIs(t, err, ErrInvalidAuthCodeScope)
 }
@@ -168,7 +169,7 @@ func TestValidateAuthorizationRequest_PublicClientRequiresPKCE(t *testing.T) {
 
 	// No code_challenge_method → should fail for public client
 	_, err := svc.ValidateAuthorizationRequest(context.Background(),
-		client.ClientID, "https://app.example.com/callback", "code", "read", "", "", "",
+		client.ClientID, "https://app.example.com/callback", "code", "read", "", "", "", nil,
 	)
 	assert.ErrorIs(t, err, ErrPKCERequired)
 }
@@ -179,7 +180,7 @@ func TestValidateAuthorizationRequest_PKCEPlainRejected(t *testing.T) {
 
 	// "plain" method must be rejected (only S256 is accepted)
 	_, err := svc.ValidateAuthorizationRequest(context.Background(),
-		client.ClientID, "https://app.example.com/callback", "code", "read", "", "plain", "",
+		client.ClientID, "https://app.example.com/callback", "code", "read", "", "plain", "", nil,
 	)
 	assert.ErrorIs(t, err, ErrInvalidAuthCodeRequest)
 }
@@ -189,7 +190,7 @@ func TestValidateAuthorizationRequest_PublicClientWithPKCE(t *testing.T) {
 	client := createAuthCodeFlowClient(t, svc, "public")
 
 	req, err := svc.ValidateAuthorizationRequest(context.Background(),
-		client.ClientID, "https://app.example.com/callback", "code", "read", "", "S256", "",
+		client.ClientID, "https://app.example.com/callback", "code", "read", "", "S256", "", nil,
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "S256", req.CodeChallengeMethod)
@@ -671,13 +672,13 @@ func TestValidateAuthorizationRequest_GlobalPKCERequired(t *testing.T) {
 
 	// Without PKCE → must fail
 	_, err := svc.ValidateAuthorizationRequest(context.Background(),
-		client.ClientID, "https://app.example.com/callback", "code", "read", "", "", "",
+		client.ClientID, "https://app.example.com/callback", "code", "read", "", "", "", nil,
 	)
 	require.ErrorIs(t, err, ErrPKCERequired)
 
 	// With S256 → must succeed
 	req, err := svc.ValidateAuthorizationRequest(context.Background(),
-		client.ClientID, "https://app.example.com/callback", "code", "read", "", "S256", "",
+		client.ClientID, "https://app.example.com/callback", "code", "read", "", "S256", "", nil,
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "S256", req.CodeChallengeMethod)
@@ -689,7 +690,7 @@ func TestValidateAuthorizationRequest_UnsupportedChallengeMethod(t *testing.T) {
 
 	// "RS256" is not a valid code_challenge_method
 	_, err := svc.ValidateAuthorizationRequest(context.Background(),
-		client.ClientID, "https://app.example.com/callback", "code", "read", "", "RS256", "",
+		client.ClientID, "https://app.example.com/callback", "code", "read", "", "RS256", "", nil,
 	)
 	assert.ErrorIs(t, err, ErrInvalidAuthCodeRequest)
 }

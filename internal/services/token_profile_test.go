@@ -169,7 +169,7 @@ func TestExchangeDeviceCode_HonorsShortProfile(t *testing.T) {
 	access, refresh, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 

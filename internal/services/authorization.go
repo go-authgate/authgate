@@ -36,6 +36,7 @@ var (
 	ErrInvalidCodeVerifier     = errors.New("invalid code_verifier")
 	ErrPKCERequired            = errors.New("pkce required for public clients")
 	ErrAuthorizationNotFound   = errors.New("authorization not found")
+	ErrInvalidTarget           = errors.New("invalid_target")
 )
 
 // AuthorizationRequest holds validated parameters for an authorization request
@@ -47,6 +48,10 @@ type AuthorizationRequest struct {
 	CodeChallenge       string
 	CodeChallengeMethod string
 	Nonce               string
+	// Resource holds validated RFC 8707 Resource Indicator values requested
+	// at /authorize. Empty means the caller did not request a specific
+	// audience.
+	Resource []string
 }
 
 // AuthorizationService manages the OAuth 2.0 Authorization Code Flow (RFC 6749)
@@ -79,9 +84,12 @@ func NewAuthorizationService(
 
 // ValidateAuthorizationRequest validates all parameters of an incoming authorization request.
 // Returns the parsed AuthorizationRequest on success.
+// `resource` carries the already-validated RFC 8707 Resource Indicator values
+// (pass nil/empty when none were supplied).
 func (s *AuthorizationService) ValidateAuthorizationRequest(
 	ctx context.Context,
 	clientID, redirectURI, responseType, scope, codeChallenge, codeChallengeMethod, nonce string,
+	resource []string,
 ) (*AuthorizationRequest, error) {
 	// 1. response_type must be "code"
 	if responseType != "code" {
@@ -136,6 +144,7 @@ func (s *AuthorizationService) ValidateAuthorizationRequest(
 		CodeChallenge:       codeChallenge,
 		CodeChallengeMethod: codeChallengeMethod,
 		Nonce:               nonce,
+		Resource:            resource,
 	}, nil
 }
 
@@ -149,6 +158,10 @@ type CreateAuthorizationCodeParams struct {
 	CodeChallenge       string
 	CodeChallengeMethod string
 	Nonce               string
+	// Resource holds RFC 8707 Resource Indicator values to persist on the
+	// authorization code so the /token grant can bind them to the issued
+	// JWT's "aud" claim. Empty means no resource was requested.
+	Resource []string
 }
 
 // CreateAuthorizationCode generates a one-time authorization code and saves it to the database.
@@ -180,6 +193,7 @@ func (s *AuthorizationService) CreateAuthorizationCode(
 		CodeChallenge:       params.CodeChallenge,
 		CodeChallengeMethod: params.CodeChallengeMethod,
 		Nonce:               params.Nonce,
+		Resource:            models.StringArray(params.Resource),
 		ExpiresAt:           time.Now().Add(s.config.AuthCodeExpiration),
 	}
 
@@ -187,6 +201,15 @@ func (s *AuthorizationService) CreateAuthorizationCode(
 		return "", nil, fmt.Errorf("failed to save authorization code: %w", err)
 	}
 
+	details := models.AuditDetails{
+		"client_id":    params.ClientID,
+		"scopes":       params.Scopes,
+		"pkce":         params.CodeChallenge != "",
+		"redirect_uri": params.RedirectURI,
+	}
+	if len(params.Resource) > 0 {
+		details["resource"] = params.Resource
+	}
 	s.auditService.Log(ctx, core.AuditLogEntry{
 		EventType:    models.EventAuthorizationCodeGenerated,
 		Severity:     models.SeverityInfo,
@@ -194,13 +217,8 @@ func (s *AuthorizationService) CreateAuthorizationCode(
 		ResourceType: models.ResourceAuthorization,
 		ResourceID:   record.UUID,
 		Action:       "Authorization code generated",
-		Details: models.AuditDetails{
-			"client_id":    params.ClientID,
-			"scopes":       params.Scopes,
-			"pkce":         params.CodeChallenge != "",
-			"redirect_uri": params.RedirectURI,
-		},
-		Success: true,
+		Details:      details,
+		Success:      true,
 	})
 
 	return plainCode, record, nil

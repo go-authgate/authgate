@@ -39,6 +39,11 @@ type AccessToken struct {
 	ParentTokenID   string     `gorm:"index"`                                                        // Links access tokens to their refresh token
 	TokenFamilyID   string     `gorm:"index:idx_token_family_status,priority:1;default:'';not null"` // Stable root ID for rotation replay detection
 	AuthorizationID *uint      `gorm:"index:idx_token_auth_status,priority:1"`                       // FK → UserAuthorization.ID (nil for device_code grants)
+	// Resource Indicators (RFC 8707) bound to this token. Persisted so the
+	// refresh grant can enforce RFC 8707 §2.2 subset rules on subsequent
+	// refresh requests. Empty means no resource was requested at issuance —
+	// the JWT "aud" claim then comes from the static JWTAudience config.
+	Resource StringArray `gorm:"type:json"`
 }
 
 func (t *AccessToken) IsExpired() bool {

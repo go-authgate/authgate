@@ -54,6 +54,7 @@ func TestPrivateClaimPrefix_DefaultPrefix_HappyPath(t *testing.T) {
 
 	tok, err := svc.IssueClientCredentialsToken(
 		context.Background(), client.ClientID, plainSecret, "", nil,
+		nil,
 	)
 	require.NoError(t, err)
 
@@ -86,6 +87,7 @@ func TestPrivateClaimPrefix_CustomPrefix(t *testing.T) {
 
 	tok, err := svc.IssueClientCredentialsToken(
 		context.Background(), client.ClientID, plainSecret, "", nil,
+		nil,
 	)
 	require.NoError(t, err)
 
@@ -132,6 +134,7 @@ func TestPrivateClaimPrefix_CallerCannotImpersonatePrefixedClaim(t *testing.T) {
 
 	result, err := provider.GenerateToken(
 		context.Background(), "u", "c", "read", 0, merged,
+		nil,
 	)
 	require.NoError(t, err)
 	assert.Equal(t, cfg.JWTDomain, result.Claims[domainKey])
@@ -165,6 +168,7 @@ func TestPrivateClaimPrefix_CallerCannotInjectBareLegacyName(t *testing.T) {
 	}
 	result, err := provider.GenerateToken(
 		context.Background(), "u", "c", "read", 0, smuggled,
+		nil,
 	)
 	require.NoError(t, err)
 	for _, bare := range []string{"domain", "project", "service_account"} {
@@ -205,6 +209,7 @@ func TestPrivateClaimPrefix_CallerCannotInjectDefaultPrefixOnCustomDeployment(t 
 	}
 	result, err := provider.GenerateToken(
 		context.Background(), "u", "c", "read", 0, smuggled,
+		nil,
 	)
 	require.NoError(t, err)
 	for k := range smuggled {
@@ -233,11 +238,13 @@ func TestPrivateClaimPrefix_RefreshContinuity(t *testing.T) {
 
 	_, refresh, err := svc.ExchangeDeviceCode(
 		context.Background(), dc.DeviceCode, client.ClientID, nil,
+		nil,
 	)
 	require.NoError(t, err)
 
 	newAccess, newRefresh, err := svc.RefreshAccessToken(
 		context.Background(), refresh.RawToken, client.ClientID, "read write", nil,
+		nil,
 	)
 	require.NoError(t, err)
 

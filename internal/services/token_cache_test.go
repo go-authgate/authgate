@@ -68,7 +68,15 @@ func TestValidateToken_CacheHit(t *testing.T) {
 	ctx := context.Background()
 
 	// Generate a real JWT token
-	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read", 0, nil)
+	result, err := svc.tokenProvider.GenerateToken(
+		ctx,
+		"test-user",
+		"test-client",
+		"read",
+		0,
+		nil,
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Store token in DB
@@ -105,7 +113,15 @@ func TestValidateToken_CacheInvalidatedOnRevoke(t *testing.T) {
 	ctx := context.Background()
 
 	// Generate a real JWT token
-	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read", 0, nil)
+	result, err := svc.tokenProvider.GenerateToken(
+		ctx,
+		"test-user",
+		"test-client",
+		"read",
+		0,
+		nil,
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Store token in DB
@@ -145,7 +161,15 @@ func TestValidateToken_CacheInvalidatedOnDisable(t *testing.T) {
 	ctx := context.Background()
 
 	// Generate a real JWT token
-	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read", 0, nil)
+	result, err := svc.tokenProvider.GenerateToken(
+		ctx,
+		"test-user",
+		"test-client",
+		"read",
+		0,
+		nil,
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Store token in DB
@@ -201,7 +225,15 @@ func TestValidateToken_NoopCache(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read", 0, nil)
+	result, err := svc.tokenProvider.GenerateToken(
+		ctx,
+		"test-user",
+		"test-client",
+		"read",
+		0,
+		nil,
+		nil,
+	)
 	require.NoError(t, err)
 
 	tok := &models.AccessToken{
@@ -232,7 +264,15 @@ func TestValidateToken_CacheExpiredTokenRejected(t *testing.T) {
 	ctx := context.Background()
 
 	// Generate a real JWT token
-	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read", 0, nil)
+	result, err := svc.tokenProvider.GenerateToken(
+		ctx,
+		"test-user",
+		"test-client",
+		"read",
+		0,
+		nil,
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Store token with past expiration
@@ -260,7 +300,15 @@ func TestRevokeTokenByStatus_CacheInvalidated(t *testing.T) {
 	ctx := context.Background()
 
 	// Generate a real JWT token
-	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read", 0, nil)
+	result, err := svc.tokenProvider.GenerateToken(
+		ctx,
+		"test-user",
+		"test-client",
+		"read",
+		0,
+		nil,
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Store token in DB
@@ -300,7 +348,15 @@ func TestRevokeTokenByID_CacheInvalidated(t *testing.T) {
 	ctx := context.Background()
 
 	// Generate a real JWT token
-	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read", 0, nil)
+	result, err := svc.tokenProvider.GenerateToken(
+		ctx,
+		"test-user",
+		"test-client",
+		"read",
+		0,
+		nil,
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Store token in DB
@@ -340,7 +396,15 @@ func TestEnableToken_CacheInvalidated(t *testing.T) {
 	ctx := context.Background()
 
 	// Generate a real JWT token
-	result, err := svc.tokenProvider.GenerateToken(ctx, "test-user", "test-client", "read", 0, nil)
+	result, err := svc.tokenProvider.GenerateToken(
+		ctx,
+		"test-user",
+		"test-client",
+		"read",
+		0,
+		nil,
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Store token in DB
@@ -382,9 +446,9 @@ func TestRevokeAllUserTokens_CacheInvalidated(t *testing.T) {
 	userID := "test-user-bulk"
 
 	// Generate two tokens for the same user
-	result1, err := svc.tokenProvider.GenerateToken(ctx, userID, "client-1", "read", 0, nil)
+	result1, err := svc.tokenProvider.GenerateToken(ctx, userID, "client-1", "read", 0, nil, nil)
 	require.NoError(t, err)
-	result2, err := svc.tokenProvider.GenerateToken(ctx, userID, "client-2", "write", 0, nil)
+	result2, err := svc.tokenProvider.GenerateToken(ctx, userID, "client-2", "write", 0, nil, nil)
 	require.NoError(t, err)
 
 	tok1 := &models.AccessToken{
@@ -454,7 +518,7 @@ func TestRefreshAccessToken_RotationMode_CacheInvalidated(t *testing.T) {
 	// Create client and get initial tokens via device flow
 	client := createTestClient(t, s, true)
 	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
-	_, initialRefresh, err := svc.ExchangeDeviceCode(ctx, dc.DeviceCode, client.ClientID, nil)
+	_, initialRefresh, err := svc.ExchangeDeviceCode(ctx, dc.DeviceCode, client.ClientID, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, initialRefresh)
 
@@ -477,7 +541,7 @@ func TestRefreshAccessToken_RotationMode_CacheInvalidated(t *testing.T) {
 
 	// Refresh with rotation — old refresh token should be revoked and cache invalidated
 	_, newRefresh, err := svc.RefreshAccessToken(
-		ctx, initialRefresh.RawToken, client.ClientID, "read write", nil)
+		ctx, initialRefresh.RawToken, client.ClientID, "read write", nil, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, newRefresh)
@@ -507,7 +571,7 @@ func TestRevokeTokenFamily_CacheInvalidated(t *testing.T) {
 	client := createTestClient(t, s, true)
 	dc := createAuthorizedDeviceCode(t, s, client.ClientID)
 	initialAccess, initialRefresh, err := svc.ExchangeDeviceCode(
-		ctx, dc.DeviceCode, client.ClientID, nil)
+		ctx, dc.DeviceCode, client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, initialRefresh)
@@ -521,7 +585,7 @@ func TestRevokeTokenFamily_CacheInvalidated(t *testing.T) {
 
 	// Rotate: first refresh succeeds, old refresh token gets revoked
 	newAccess, newRefresh, err := svc.RefreshAccessToken(
-		ctx, initialRefresh.RawToken, client.ClientID, "read write", nil)
+		ctx, initialRefresh.RawToken, client.ClientID, "read write", nil, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, newRefresh)
@@ -535,7 +599,7 @@ func TestRevokeTokenFamily_CacheInvalidated(t *testing.T) {
 
 	// Replay attack: reuse old (revoked) refresh token → triggers family revocation
 	_, _, err = svc.RefreshAccessToken(
-		ctx, initialRefresh.RawToken, client.ClientID, "read write", nil)
+		ctx, initialRefresh.RawToken, client.ClientID, "read write", nil, nil)
 
 	require.Error(t, err, "replay should fail")
 

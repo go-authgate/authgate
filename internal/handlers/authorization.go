@@ -65,10 +65,18 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 		return
 	}
 
+	// RFC 8707 Resource Indicators (repeatable parameter)
+	resource, err := util.ValidateResourceIndicators(c.QueryArray("resource"))
+	if err != nil {
+		h.redirectWithError(c, redirectURI, state, errInvalidTarget, err.Error())
+		return
+	}
+
 	// Validate the authorization request parameters
 	req, err := h.authorizationService.ValidateAuthorizationRequest(
 		c.Request.Context(),
 		clientID, redirectURI, responseType, scope, codeChallenge, codeChallengeMethod, nonce,
+		resource,
 	)
 	if err != nil {
 		h.redirectWithError(c, redirectURI, state, oauthErrorCode(err), err.Error())
@@ -109,6 +117,7 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 		Nonce:               req.Nonce,
 		CodeChallenge:       req.CodeChallenge,
 		CodeChallengeMethod: req.CodeChallengeMethod,
+		Resource:            req.Resource,
 	}))
 }
 
@@ -140,10 +149,20 @@ func (h *AuthorizationHandler) HandleAuthorize(c *gin.Context) {
 		return
 	}
 
+	// RFC 8707 Resource Indicators (repeatable form parameter). The GET handler
+	// emits hidden <input name="resource"> per value so the POST round-trip
+	// preserves the original request's audience binding.
+	resource, err := util.ValidateResourceIndicators(c.PostFormArray("resource"))
+	if err != nil {
+		h.redirectWithError(c, redirectURI, state, errInvalidTarget, err.Error())
+		return
+	}
+
 	// Re-validate request on POST to prevent parameter tampering
 	req, err := h.authorizationService.ValidateAuthorizationRequest(
 		c.Request.Context(),
 		clientID, redirectURI, "code", scope, codeChallenge, codeChallengeMethod, nonce,
+		resource,
 	)
 	if err != nil {
 		h.redirectWithError(c, redirectURI, state, oauthErrorCode(err), err.Error())
@@ -184,6 +203,7 @@ func (h *AuthorizationHandler) issueCodeAndRedirect(
 			CodeChallenge:       req.CodeChallenge,
 			CodeChallengeMethod: req.CodeChallengeMethod,
 			Nonce:               req.Nonce,
+			Resource:            req.Resource,
 		},
 	)
 	if err != nil {
@@ -336,7 +356,7 @@ func (h *AuthorizationHandler) validateStateAndNonce(
 	return true
 }
 
-// oauthErrorCode maps service errors to RFC 6749 error codes.
+// oauthErrorCode maps service errors to RFC 6749 / RFC 8707 error codes.
 func oauthErrorCode(err error) string {
 	switch {
 	case errors.Is(err, services.ErrUnauthorizedClient):
@@ -345,6 +365,8 @@ func oauthErrorCode(err error) string {
 		return "unsupported_response_type"
 	case errors.Is(err, services.ErrInvalidAuthCodeScope):
 		return errInvalidScope
+	case errors.Is(err, services.ErrInvalidTarget):
+		return errInvalidTarget
 	default:
 		return errInvalidRequest
 	}

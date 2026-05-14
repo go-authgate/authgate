@@ -490,3 +490,173 @@ func TestDiscovery_EmptyAlgorithm_DefaultsToHS256(t *testing.T) {
 	_, hasJwksURI := meta["jwks_uri"]
 	assert.False(t, hasJwksURI)
 }
+
+// ============================================================
+// OAuthAuthorizationServerMetadata (RFC 8414)
+// ============================================================
+
+func TestOAuthASMetadata_Fields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		BaseURL:                         "https://auth.example.com",
+		EnableDynamicClientRegistration: true,
+	}
+	handler := NewOIDCHandler(nil, nil, cfg, false, true)
+
+	r := gin.New()
+	r.GET(
+		"/.well-known/oauth-authorization-server",
+		handler.OAuthAuthorizationServerMetadata,
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet, "/.well-known/oauth-authorization-server", nil,
+	)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "public, max-age=3600", w.Header().Get("Cache-Control"))
+
+	var meta map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &meta))
+
+	// Required OAuth fields
+	assert.Equal(t, "https://auth.example.com", meta["issuer"])
+	assert.Equal(t, "https://auth.example.com/oauth/authorize", meta["authorization_endpoint"])
+	assert.Equal(t, "https://auth.example.com/oauth/token", meta["token_endpoint"])
+	assert.Equal(t, "https://auth.example.com/oauth/introspect", meta["introspection_endpoint"])
+	assert.Equal(t, "https://auth.example.com/oauth/revoke", meta["revocation_endpoint"])
+	assert.Equal(t, "https://auth.example.com/oauth/register", meta["registration_endpoint"])
+
+	// MCP-required PKCE method
+	codeChallenges, ok := meta["code_challenge_methods_supported"].([]any)
+	require.True(t, ok)
+	assert.Equal(t, []any{"S256"}, codeChallenges)
+
+	// Grant types must include the four AuthGate supports
+	grantTypes, ok := meta["grant_types_supported"].([]any)
+	require.True(t, ok)
+	assert.Contains(t, grantTypes, "authorization_code")
+	assert.Contains(t, grantTypes, GrantTypeDeviceCode)
+	assert.Contains(t, grantTypes, GrantTypeRefreshToken)
+	assert.Contains(t, grantTypes, GrantTypeClientCredentials)
+
+	// Auth method mirrors for introspect / revoke / token
+	for _, k := range []string{
+		"token_endpoint_auth_methods_supported",
+		"introspection_endpoint_auth_methods_supported",
+		"revocation_endpoint_auth_methods_supported",
+	} {
+		methods, ok := meta[k].([]any)
+		require.True(t, ok, "missing %s", k)
+		assert.Contains(t, methods, "client_secret_basic")
+		assert.Contains(t, methods, "client_secret_post")
+	}
+
+	// OIDC-only fields must NOT appear in OAuth AS metadata
+	for _, oidcOnly := range []string{
+		"userinfo_endpoint",
+		"subject_types_supported",
+		"id_token_signing_alg_values_supported",
+		"claims_supported",
+	} {
+		_, present := meta[oidcOnly]
+		assert.False(
+			t, present,
+			"OAuth AS metadata must not advertise OIDC-only field %q",
+			oidcOnly,
+		)
+	}
+}
+
+func TestOAuthASMetadata_DCRDisabled_OmitsRegistrationEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		BaseURL:                         "https://auth.example.com",
+		EnableDynamicClientRegistration: false,
+	}
+	handler := NewOIDCHandler(nil, nil, cfg, false, true)
+
+	r := gin.New()
+	r.GET(
+		"/.well-known/oauth-authorization-server",
+		handler.OAuthAuthorizationServerMetadata,
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet, "/.well-known/oauth-authorization-server", nil,
+	)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var meta map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &meta))
+
+	_, present := meta["registration_endpoint"]
+	assert.False(
+		t, present,
+		"registration_endpoint must be omitted when DCR is disabled",
+	)
+}
+
+// TestOIDCDiscovery_UnaffectedByOAuthMetadataAddition pins the OIDC discovery
+// response shape so future edits cannot accidentally drop a field that
+// downstream OIDC clients depend on. The OAuth AS metadata endpoint is a
+// separate URL and must not change the OIDC payload.
+func TestOIDCDiscovery_UnaffectedByOAuthMetadataAddition(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{BaseURL: "https://auth.example.com"}
+	handler := NewOIDCHandler(nil, nil, cfg, false, true)
+
+	r := gin.New()
+	r.GET("/.well-known/openid-configuration", handler.Discovery)
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/openid-configuration", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var meta map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &meta))
+
+	required := []string{
+		"issuer",
+		"authorization_endpoint",
+		"token_endpoint",
+		"userinfo_endpoint",
+		"revocation_endpoint",
+		"response_types_supported",
+		"subject_types_supported",
+		"scopes_supported",
+		"token_endpoint_auth_methods_supported",
+		"grant_types_supported",
+		"claims_supported",
+		"code_challenge_methods_supported",
+	}
+	for _, k := range required {
+		_, ok := meta[k]
+		assert.Truef(t, ok, "OIDC discovery field %q regressed", k)
+	}
+
+	// OAuth-specific fields must NOT bleed into OIDC discovery
+	for _, oauthOnly := range []string{
+		"introspection_endpoint",
+		"registration_endpoint",
+		"introspection_endpoint_auth_methods_supported",
+		"revocation_endpoint_auth_methods_supported",
+	} {
+		_, present := meta[oauthOnly]
+		assert.Falsef(
+			t, present,
+			"OIDC discovery must not include OAuth-only field %q",
+			oauthOnly,
+		)
+	}
+}

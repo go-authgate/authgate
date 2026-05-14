@@ -11,6 +11,7 @@ import (
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/token"
+	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,7 +24,7 @@ const (
 	GrantTypeAuthorizationCode = "authorization_code"
 	GrantTypeClientCredentials = "client_credentials"
 
-	// OAuth 2.0 error codes (RFC 6749 §5.2, RFC 8628 §3.5)
+	// OAuth 2.0 error codes (RFC 6749 §5.2, RFC 8628 §3.5, RFC 8707 §2)
 	errInvalidGrant         = "invalid_grant"
 	errInvalidRequest       = "invalid_request"
 	errInvalidClient        = "invalid_client"
@@ -37,6 +38,7 @@ const (
 	errMissingToken         = "missing_token"
 	errInvalidToken         = "invalid_token"
 	errUnauthorizedClient   = "unauthorized_client"
+	errInvalidTarget        = "invalid_target"
 )
 
 type TokenHandler struct {
@@ -69,6 +71,19 @@ func (h *TokenHandler) parseExtraClaims(c *gin.Context) (map[string]any, bool) {
 		return nil, false
 	}
 	return claims, true
+}
+
+// parseResourceParam reads the optional repeatable `resource` form parameter
+// (RFC 8707) and writes an invalid_target response on failure. On success
+// returns (resources, true); on failure the response is already written and
+// callers must return.
+func (h *TokenHandler) parseResourceParam(c *gin.Context) ([]string, bool) {
+	values, err := util.ValidateResourceIndicators(c.PostFormArray("resource"))
+	if err != nil {
+		respondOAuthError(c, http.StatusBadRequest, errInvalidTarget, err.Error())
+		return nil, false
+	}
+	return values, true
 }
 
 // buildTokenResponse constructs a standard OAuth 2.0 token response (RFC 6749 §5.1).
@@ -148,11 +163,17 @@ func (h *TokenHandler) handleDeviceCodeGrant(c *gin.Context) {
 		return
 	}
 
+	resource, ok := h.parseResourceParam(c)
+	if !ok {
+		return
+	}
+
 	accessToken, refreshToken, err := h.tokenService.ExchangeDeviceCode(
 		c.Request.Context(),
 		deviceCode,
 		clientID,
 		extraClaims,
+		resource,
 	)
 	if err != nil {
 		switch {
@@ -202,6 +223,11 @@ func (h *TokenHandler) handleRefreshTokenGrant(c *gin.Context) {
 		return
 	}
 
+	resource, ok := h.parseResourceParam(c)
+	if !ok {
+		return
+	}
+
 	// 3. Call service to refresh token
 	newAccessToken, newRefreshToken, err := h.tokenService.RefreshAccessToken(
 		c.Request.Context(),
@@ -209,8 +235,9 @@ func (h *TokenHandler) handleRefreshTokenGrant(c *gin.Context) {
 		clientID,
 		requestedScopes,
 		extraClaims,
+		resource,
 	)
-	// 4. Error handling (RFC 6749 error codes)
+	// 4. Error handling (RFC 6749 / RFC 8707 error codes)
 	if err != nil {
 		switch {
 		case errors.Is(err, token.ErrInvalidRefreshToken),
@@ -236,6 +263,13 @@ func (h *TokenHandler) handleRefreshTokenGrant(c *gin.Context) {
 				http.StatusBadRequest,
 				errInvalidScope,
 				"Requested scope exceeds original grant",
+			)
+		case errors.Is(err, services.ErrInvalidTarget):
+			respondOAuthError(
+				c,
+				http.StatusBadRequest,
+				errInvalidTarget,
+				"Requested resource exceeds original grant",
 			)
 		default:
 			respondOAuthError(
@@ -458,12 +492,18 @@ func (h *TokenHandler) handleClientCredentialsGrant(c *gin.Context) {
 		return
 	}
 
+	resource, ok := h.parseResourceParam(c)
+	if !ok {
+		return
+	}
+
 	accessToken, err := h.tokenService.IssueClientCredentialsToken(
 		c.Request.Context(),
 		clientID,
 		clientSecret,
 		requestedScopes,
 		extraClaims,
+		resource,
 	)
 	if err != nil {
 		switch {
@@ -480,6 +520,13 @@ func (h *TokenHandler) handleClientCredentialsGrant(c *gin.Context) {
 		case errors.Is(err, services.ErrClientCredentialsFlowDisabled):
 			respondOAuthError(c, http.StatusBadRequest, errUnauthorizedClient,
 				"Client credentials flow is not enabled for this client")
+		case errors.Is(err, services.ErrInvalidTarget):
+			respondOAuthError(
+				c,
+				http.StatusBadRequest,
+				errInvalidTarget,
+				"Requested resource is not allowed for this client",
+			)
 		case errors.Is(err, token.ErrInvalidScope):
 			respondOAuthError(
 				c,
@@ -525,6 +572,11 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 		return
 	}
 
+	resource, ok := h.parseResourceParam(c)
+	if !ok {
+		return
+	}
+
 	// Validate and consume the authorization code
 	authCode, err := h.authorizationService.ExchangeCode(
 		c.Request.Context(),
@@ -566,12 +618,34 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 		authorizationID = &id
 	}
 
+	// RFC 8707: bind the issued tokens to the requested resource. When only
+	// /token specifies resources (no audience was recorded at /authorize),
+	// accept them as-is. When only /authorize bound resources, reuse them.
+	// When both, the token-time value MUST be a subset of the authorize-time
+	// grant.
+	effectiveResource := resource
+	switch {
+	case len(authCode.Resource) == 0:
+		// already set above
+	case len(resource) == 0:
+		effectiveResource = []string(authCode.Resource)
+	case !util.IsStringSliceSubset([]string(authCode.Resource), resource):
+		respondOAuthError(
+			c,
+			http.StatusBadRequest,
+			errInvalidTarget,
+			"Requested resource exceeds the audience granted at /authorize",
+		)
+		return
+	}
+
 	// Issue access + refresh tokens (+ ID token when openid scope was granted)
 	accessToken, refreshToken, idToken, err := h.tokenService.ExchangeAuthorizationCode(
 		c.Request.Context(),
 		authCode,
 		authorizationID,
 		extraClaims,
+		effectiveResource,
 	)
 	if err != nil {
 		respondOAuthError(

@@ -1,13 +1,19 @@
 package handlers
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/util"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ============================================================
@@ -46,6 +52,11 @@ func TestOauthErrorCode_UnsupportedResponseType(t *testing.T) {
 
 func TestOauthErrorCode_InvalidScope(t *testing.T) {
 	assert.Equal(t, "invalid_scope", oauthErrorCode(services.ErrInvalidAuthCodeScope))
+}
+
+func TestOauthErrorCode_InvalidTarget(t *testing.T) {
+	// RFC 8707 maps to "invalid_target".
+	assert.Equal(t, "invalid_target", oauthErrorCode(services.ErrInvalidTarget))
 }
 
 func TestOauthErrorCode_DefaultsToInvalidRequest(t *testing.T) {
@@ -139,4 +150,39 @@ func TestScopesAreCovered_DuplicateTokensInRequest(t *testing.T) {
 func TestScopesAreCovered_ExtraWhitespace(t *testing.T) {
 	// strings.Fields handles extra whitespace
 	assert.True(t, util.IsScopeSubset("read  write", "read"))
+}
+
+// ============================================================
+// RFC 8707 Resource Indicators — fragment rejection
+// ============================================================
+
+// TestAuthorize_RejectsResourceWithFragment is the RFC 8707 §2.1 negative path:
+// a `resource` value with a fragment must redirect to the client's redirect_uri
+// with `error=invalid_target`. The handler short-circuits before invoking
+// AuthorizationService, so nil services suffice for this test.
+func TestAuthorize_RejectsResourceWithFragment(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := NewAuthorizationHandler(nil, nil, nil, &config.Config{})
+
+	r := gin.New()
+	r.GET("/oauth/authorize", handler.ShowAuthorizePage)
+
+	// state passes length-validation, resource has a fragment → invalid_target.
+	q := url.Values{
+		"client_id":     {"abc"},
+		"redirect_uri":  {"https://app.example.com/callback"},
+		"response_type": {"code"},
+		"state":         {"xyz"},
+		"resource":      {"https://mcp.example.com/path#frag"},
+	}
+	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize?"+q.Encode(), nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusFound, w.Code)
+	loc := w.Header().Get("Location")
+	require.NotEmpty(t, loc)
+	assert.Contains(t, loc, "error=invalid_target")
+	// State must round-trip on the error response per RFC 6749 §4.1.2.1.
+	assert.Contains(t, loc, "state=xyz")
 }

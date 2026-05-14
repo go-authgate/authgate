@@ -82,48 +82,48 @@ func (m *MockTokenProvider) EXPECT() *MockTokenProviderMockRecorder {
 }
 
 // GenerateClientCredentialsToken mocks base method.
-func (m *MockTokenProvider) GenerateClientCredentialsToken(ctx context.Context, userID, clientID, scopes string, ttl time.Duration, extraClaims map[string]any) (*core.TokenResult, error) {
+func (m *MockTokenProvider) GenerateClientCredentialsToken(ctx context.Context, userID, clientID, scopes string, ttl time.Duration, extraClaims map[string]any, audience []string) (*core.TokenResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GenerateClientCredentialsToken", ctx, userID, clientID, scopes, ttl, extraClaims)
+	ret := m.ctrl.Call(m, "GenerateClientCredentialsToken", ctx, userID, clientID, scopes, ttl, extraClaims, audience)
 	ret0, _ := ret[0].(*core.TokenResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GenerateClientCredentialsToken indicates an expected call of GenerateClientCredentialsToken.
-func (mr *MockTokenProviderMockRecorder) GenerateClientCredentialsToken(ctx, userID, clientID, scopes, ttl, extraClaims any) *gomock.Call {
+func (mr *MockTokenProviderMockRecorder) GenerateClientCredentialsToken(ctx, userID, clientID, scopes, ttl, extraClaims, audience any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateClientCredentialsToken", reflect.TypeOf((*MockTokenProvider)(nil).GenerateClientCredentialsToken), ctx, userID, clientID, scopes, ttl, extraClaims)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateClientCredentialsToken", reflect.TypeOf((*MockTokenProvider)(nil).GenerateClientCredentialsToken), ctx, userID, clientID, scopes, ttl, extraClaims, audience)
 }
 
 // GenerateRefreshToken mocks base method.
-func (m *MockTokenProvider) GenerateRefreshToken(ctx context.Context, userID, clientID, scopes string, ttl time.Duration, extraClaims map[string]any) (*core.TokenResult, error) {
+func (m *MockTokenProvider) GenerateRefreshToken(ctx context.Context, userID, clientID, scopes string, ttl time.Duration, extraClaims map[string]any, audience []string) (*core.TokenResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GenerateRefreshToken", ctx, userID, clientID, scopes, ttl, extraClaims)
+	ret := m.ctrl.Call(m, "GenerateRefreshToken", ctx, userID, clientID, scopes, ttl, extraClaims, audience)
 	ret0, _ := ret[0].(*core.TokenResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GenerateRefreshToken indicates an expected call of GenerateRefreshToken.
-func (mr *MockTokenProviderMockRecorder) GenerateRefreshToken(ctx, userID, clientID, scopes, ttl, extraClaims any) *gomock.Call {
+func (mr *MockTokenProviderMockRecorder) GenerateRefreshToken(ctx, userID, clientID, scopes, ttl, extraClaims, audience any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateRefreshToken", reflect.TypeOf((*MockTokenProvider)(nil).GenerateRefreshToken), ctx, userID, clientID, scopes, ttl, extraClaims)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateRefreshToken", reflect.TypeOf((*MockTokenProvider)(nil).GenerateRefreshToken), ctx, userID, clientID, scopes, ttl, extraClaims, audience)
 }
 
 // GenerateToken mocks base method.
-func (m *MockTokenProvider) GenerateToken(ctx context.Context, userID, clientID, scopes string, ttl time.Duration, extraClaims map[string]any) (*core.TokenResult, error) {
+func (m *MockTokenProvider) GenerateToken(ctx context.Context, userID, clientID, scopes string, ttl time.Duration, extraClaims map[string]any, audience []string) (*core.TokenResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GenerateToken", ctx, userID, clientID, scopes, ttl, extraClaims)
+	ret := m.ctrl.Call(m, "GenerateToken", ctx, userID, clientID, scopes, ttl, extraClaims, audience)
 	ret0, _ := ret[0].(*core.TokenResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GenerateToken indicates an expected call of GenerateToken.
-func (mr *MockTokenProviderMockRecorder) GenerateToken(ctx, userID, clientID, scopes, ttl, extraClaims any) *gomock.Call {
+func (mr *MockTokenProviderMockRecorder) GenerateToken(ctx, userID, clientID, scopes, ttl, extraClaims, audience any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateToken", reflect.TypeOf((*MockTokenProvider)(nil).GenerateToken), ctx, userID, clientID, scopes, ttl, extraClaims)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateToken", reflect.TypeOf((*MockTokenProvider)(nil).GenerateToken), ctx, userID, clientID, scopes, ttl, extraClaims, audience)
 }
 
 // Name mocks base method.
@@ -141,18 +141,18 @@ func (mr *MockTokenProviderMockRecorder) Name() *gomock.Call {
 }
 
 // RefreshAccessToken mocks base method.
-func (m *MockTokenProvider) RefreshAccessToken(ctx context.Context, refreshToken string, accessTTL, refreshTTL time.Duration, extraClaims map[string]any) (*core.TokenRefreshResult, error) {
+func (m *MockTokenProvider) RefreshAccessToken(ctx context.Context, refreshToken string, accessTTL, refreshTTL time.Duration, extraClaims map[string]any, audience []string) (*core.TokenRefreshResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RefreshAccessToken", ctx, refreshToken, accessTTL, refreshTTL, extraClaims)
+	ret := m.ctrl.Call(m, "RefreshAccessToken", ctx, refreshToken, accessTTL, refreshTTL, extraClaims, audience)
 	ret0, _ := ret[0].(*core.TokenRefreshResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // RefreshAccessToken indicates an expected call of RefreshAccessToken.
-func (mr *MockTokenProviderMockRecorder) RefreshAccessToken(ctx, refreshToken, accessTTL, refreshTTL, extraClaims any) *gomock.Call {
+func (mr *MockTokenProviderMockRecorder) RefreshAccessToken(ctx, refreshToken, accessTTL, refreshTTL, extraClaims, audience any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshAccessToken", reflect.TypeOf((*MockTokenProvider)(nil).RefreshAccessToken), ctx, refreshToken, accessTTL, refreshTTL, extraClaims)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshAccessToken", reflect.TypeOf((*MockTokenProvider)(nil).RefreshAccessToken), ctx, refreshToken, accessTTL, refreshTTL, extraClaims, audience)
 }
 
 // ValidateToken mocks base method.

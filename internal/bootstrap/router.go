@@ -215,9 +215,17 @@ func setupAllRoutes(
 	// OAuth routes (public)
 	setupOAuthRoutes(r, oauthProviders, h.oauth)
 
-	// OIDC Discovery and JWKS (public, no auth required)
-	r.GET("/.well-known/openid-configuration", h.oidc.Discovery)
-	r.GET("/.well-known/jwks.json", h.jwks.JWKS)
+	// OIDC Discovery, OAuth 2.0 AS metadata (RFC 8414), and JWKS (public,
+	// no auth required). Browser-based MCP clients need cross-origin access
+	// to these endpoints, so CORS is applied here when enabled — the same
+	// middleware as /oauth/* uses.
+	wellKnown := r.Group("/.well-known")
+	if cfg.CORSEnabled {
+		wellKnown.Use(middleware.CORSMiddleware(cfg))
+	}
+	wellKnown.GET("/openid-configuration", h.oidc.Discovery)
+	wellKnown.GET("/oauth-authorization-server", h.oidc.OAuthAuthorizationServerMetadata)
+	wellKnown.GET("/jwks.json", h.jwks.JWKS)
 
 	// OAuth API routes (public, called by CLI)
 	oauth := r.Group("/oauth")

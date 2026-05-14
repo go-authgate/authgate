@@ -63,18 +63,25 @@ type TokenRefreshResult struct {
 // extraClaims (when non-empty) is merged into the generated JWT before standard
 // claims are set; standard claims (iss, sub, exp, iat, jti, aud, type, scope,
 // user_id, client_id) take precedence and cannot be overridden.
+//
+// audience (when non-empty) overrides the "aud" claim with the supplied values
+// (RFC 8707 Resource Indicators). When empty, the provider falls back to its
+// default audience configuration. Caller-supplied "aud" inside extraClaims is
+// always stripped — audience must be passed explicitly through this parameter.
 type TokenProvider interface {
 	GenerateToken(
 		ctx context.Context,
 		userID, clientID, scopes string,
 		ttl time.Duration,
 		extraClaims map[string]any,
+		audience []string,
 	) (*TokenResult, error)
 	GenerateRefreshToken(
 		ctx context.Context,
 		userID, clientID, scopes string,
 		ttl time.Duration,
 		extraClaims map[string]any,
+		audience []string,
 	) (*TokenResult, error)
 	// GenerateClientCredentialsToken generates a token for the client_credentials grant.
 	// May apply a different expiry or claim set than GenerateToken.
@@ -83,6 +90,7 @@ type TokenProvider interface {
 		userID, clientID, scopes string,
 		ttl time.Duration,
 		extraClaims map[string]any,
+		audience []string,
 	) (*TokenResult, error)
 	ValidateToken(ctx context.Context, tokenString string) (*TokenValidationResult, error)
 	RefreshAccessToken(
@@ -90,6 +98,7 @@ type TokenProvider interface {
 		refreshToken string,
 		accessTTL, refreshTTL time.Duration,
 		extraClaims map[string]any,
+		audience []string,
 	) (*TokenRefreshResult, error)
 	Name() string
 }

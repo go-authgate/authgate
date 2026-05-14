@@ -46,10 +46,13 @@ func IsMachineUserID(userID string) bool {
 // callerExtra (optional) is merged into the issued token; reserved keys must
 // already have been rejected by the handler. System claims (project,
 // service_account from the OAuth client) override on collision.
+// resource (optional, RFC 8707) binds the issued token's "aud" claim to the
+// supplied resource indicators.
 func (s *TokenService) IssueClientCredentialsToken(
 	ctx context.Context,
 	clientID, clientSecret, requestedScopes string,
 	callerExtra map[string]any,
+	resource []string,
 ) (*models.AccessToken, error) {
 	// 1. Look up client (uncached — needs secret for authentication)
 	client, err := s.clientService.GetClientWithSecret(ctx, clientID)
@@ -106,6 +109,7 @@ func (s *TokenService) IssueClientCredentialsToken(
 		effectiveScopes,
 		0,
 		s.composeIssuanceClaims(client, machineUserID, callerExtra),
+		resource,
 	)
 	if providerErr != nil {
 		log.Printf(
@@ -127,6 +131,7 @@ func (s *TokenService) IssueClientCredentialsToken(
 		ClientID:      clientID,
 		Scopes:        effectiveScopes,
 		ExpiresAt:     accessTokenResult.ExpiresAt,
+		Resource:      models.StringArray(resource),
 	}
 
 	if err := s.store.CreateAccessToken(accessToken); err != nil {

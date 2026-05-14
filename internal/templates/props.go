@@ -219,7 +219,11 @@ type AuthorizePageProps struct {
 	Nonce               string
 	CodeChallenge       string
 	CodeChallengeMethod string
-	Error               string
+	// Resource holds RFC 8707 Resource Indicator values requested at
+	// /authorize. The template renders one hidden <input name="resource">
+	// per value so the POST round-trip preserves them.
+	Resource []string
+	Error    string
 }
 
 // AuthorizationDisplay is a view model for a single user authorization entry

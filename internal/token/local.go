@@ -206,13 +206,16 @@ func (p *LocalTokenProvider) signClaims(claims jwt.MapClaims) (string, error) {
 // applied on top — standard claims always win, so callers cannot override
 // iss/sub/exp/iat/jti/aud/type/scope/user_id/client_id by accident.
 //
-// The "aud" claim is sourced from p.config.JWTAudience: a single value is
-// emitted as a string, multiple values as an array, and an empty list omits
-// the claim entirely (RFC 7519 §4.1.3).
+// When audienceOverride is non-empty, it replaces p.config.JWTAudience for
+// this issuance (RFC 8707 Resource Indicators). A single value is emitted as
+// a string, multiple values as an array, and an empty list (or empty
+// JWTAudience) omits the claim entirely (RFC 7519 §4.1.3). Caller-supplied
+// "aud" inside extraClaims is always stripped.
 func (p *LocalTokenProvider) generateJWT(
 	userID, clientID, scopes, tokenType string,
 	expiresAt time.Time,
 	extraClaims map[string]any,
+	audienceOverride []string,
 ) (*Result, error) {
 	claims := jwt.MapClaims{}
 	maps.Copy(claims, extraClaims)
@@ -240,12 +243,17 @@ func (p *LocalTokenProvider) generateJWT(
 	claims["iss"] = p.config.BaseURL
 	claims["sub"] = userID
 	claims["jti"] = uuid.New().String()
-	// "aud" is governed entirely by config. Drop any value an extraClaims caller
-	// may have copied in, then set it only when JWTAudience is configured —
-	// otherwise an empty config + a stray extraClaims["aud"] would silently
-	// leak into the signed JWT.
+	// "aud" is governed entirely by the audience override (when present) or
+	// the static config (when absent). Drop any value an extraClaims caller
+	// may have copied in, then set it from the override or config. A caller
+	// who wants to bind audience to a specific resource (RFC 8707) must pass
+	// audienceOverride explicitly — smuggling via extraClaims is rejected.
 	delete(claims, "aud")
-	if aud := audienceClaim(p.config.JWTAudience); aud != nil {
+	audSource := p.config.JWTAudience
+	if len(audienceOverride) > 0 {
+		audSource = audienceOverride
+	}
+	if aud := audienceClaim(audSource); aud != nil {
 		claims["aud"] = aud
 	}
 
@@ -346,11 +354,14 @@ func (p *LocalTokenProvider) keyFunc(token *jwt.Token) (any, error) {
 // GenerateToken creates a JWT access token using local signing.
 // If ttl > 0 it overrides p.config.JWTExpiration and no jitter is applied
 // (the caller has chosen an explicit lifetime per client profile).
+// When audience is non-empty, it overrides the static JWTAudience config
+// for this token (RFC 8707 Resource Indicators).
 func (p *LocalTokenProvider) GenerateToken(
 	ctx context.Context,
 	userID, clientID, scopes string,
 	ttl time.Duration,
 	extraClaims map[string]any,
+	audience []string,
 ) (*Result, error) {
 	var expiry time.Duration
 	if ttl > 0 {
@@ -362,7 +373,9 @@ func (p *LocalTokenProvider) GenerateToken(
 		}
 	}
 	expiresAt := time.Now().Add(expiry)
-	return p.generateJWT(userID, clientID, scopes, TokenCategoryAccess, expiresAt, extraClaims)
+	return p.generateJWT(
+		userID, clientID, scopes, TokenCategoryAccess, expiresAt, extraClaims, audience,
+	)
 }
 
 // ValidateToken verifies a JWT access token using local verification.
@@ -392,34 +405,42 @@ func (p *LocalTokenProvider) Name() string {
 // GenerateClientCredentialsToken creates an access token for the client_credentials grant.
 // If ttl > 0 it overrides the default CLIENT_CREDENTIALS_TOKEN_EXPIRATION.
 // The userID field carries the synthetic machine identity "client:<clientID>".
+// When audience is non-empty, it overrides the static JWTAudience config.
 func (p *LocalTokenProvider) GenerateClientCredentialsToken(
 	ctx context.Context,
 	userID, clientID, scopes string,
 	ttl time.Duration,
 	extraClaims map[string]any,
+	audience []string,
 ) (*Result, error) {
 	expiry := ttl
 	if expiry <= 0 {
 		expiry = p.config.ClientCredentialsTokenExpiration
 	}
 	expiresAt := time.Now().Add(expiry)
-	return p.generateJWT(userID, clientID, scopes, TokenCategoryAccess, expiresAt, extraClaims)
+	return p.generateJWT(
+		userID, clientID, scopes, TokenCategoryAccess, expiresAt, extraClaims, audience,
+	)
 }
 
 // GenerateRefreshToken creates a refresh token JWT. If ttl > 0 it overrides
-// the default REFRESH_TOKEN_EXPIRATION.
+// the default REFRESH_TOKEN_EXPIRATION. When audience is non-empty, it
+// overrides the static JWTAudience config.
 func (p *LocalTokenProvider) GenerateRefreshToken(
 	ctx context.Context,
 	userID, clientID, scopes string,
 	ttl time.Duration,
 	extraClaims map[string]any,
+	audience []string,
 ) (*Result, error) {
 	expiry := ttl
 	if expiry <= 0 {
 		expiry = p.config.RefreshTokenExpiration
 	}
 	expiresAt := time.Now().Add(expiry)
-	return p.generateJWT(userID, clientID, scopes, TokenCategoryRefresh, expiresAt, extraClaims)
+	return p.generateJWT(
+		userID, clientID, scopes, TokenCategoryRefresh, expiresAt, extraClaims, audience,
+	)
 }
 
 // ValidateRefreshToken verifies a refresh token JWT
@@ -452,11 +473,17 @@ func (p *LocalTokenProvider) ValidateRefreshToken(
 // extraClaims is also re-applied here, so callers (TokenService) can inject the
 // client's CURRENT project / service_account at refresh time rather than
 // freezing values from the original issuance.
+//
+// When audience is non-empty, it binds the issued tokens' "aud" claim to the
+// supplied values (RFC 8707 Resource Indicators). The caller (TokenService)
+// is responsible for enforcing the §2.2 subset rule against the original
+// grant before invoking this method.
 func (p *LocalTokenProvider) RefreshAccessToken(
 	ctx context.Context,
 	refreshToken string,
 	accessTTL, refreshTTL time.Duration,
 	extraClaims map[string]any,
+	audience []string,
 ) (*RefreshResult, error) {
 	enableRotation := p.config.EnableTokenRotation
 	// Validate the refresh token
@@ -473,6 +500,7 @@ func (p *LocalTokenProvider) RefreshAccessToken(
 		validationResult.Scopes,
 		accessTTL,
 		extraClaims,
+		audience,
 	)
 	if err != nil {
 		return nil, err
@@ -493,6 +521,7 @@ func (p *LocalTokenProvider) RefreshAccessToken(
 			validationResult.Scopes,
 			refreshTTL,
 			extraClaims,
+			audience,
 		)
 		if err != nil {
 			return nil, err

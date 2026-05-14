@@ -77,10 +77,16 @@ func (s *TokenService) revokeTokenFamilyWithAudit(
 // keys must already have been rejected by the handler. Custom claims are NOT
 // persisted server-side — callers must re-supply on every refresh request to
 // retain them.
+//
+// requestedResource (optional, RFC 8707 §2.2) narrows the audience on the
+// refreshed token(s) — it MUST be a subset of the original grant's resources.
+// When empty, the audience persisted at issuance is reused (no narrowing,
+// no widening). A non-subset value returns ErrInvalidTarget.
 func (s *TokenService) RefreshAccessToken(
 	ctx context.Context,
 	refreshTokenString, clientID, requestedScopes string,
 	callerExtra map[string]any,
+	requestedResource []string,
 ) (*models.AccessToken, *models.AccessToken, error) {
 	// 1. Get refresh token from database
 	refreshToken, err := s.store.GetAccessTokenByHash(util.SHA256Hex(refreshTokenString))
@@ -122,6 +128,19 @@ func (s *TokenService) RefreshAccessToken(
 		return nil, nil, token.ErrInvalidScope
 	}
 
+	// 5b. Resolve effective resource per RFC 8707 §2.2: the refresh request
+	// MAY narrow the audience but MUST NOT widen it. When the caller omits
+	// `resource`, reuse the original grant's bound resources unchanged.
+	originalResource := []string(refreshToken.Resource)
+	effectiveResource := originalResource
+	if len(requestedResource) > 0 {
+		if !util.IsStringSliceSubset(originalResource, requestedResource) {
+			s.metrics.RecordTokenRefresh(false)
+			return nil, nil, ErrInvalidTarget
+		}
+		effectiveResource = requestedResource
+	}
+
 	// 6. Use provider to generate new tokens.
 	// Re-resolve TTLs and extra claims at refresh time so admin changes to the
 	// client's TokenProfile / Project / ServiceAccount take effect on the next
@@ -154,6 +173,7 @@ func (s *TokenService) RefreshAccessToken(
 		accessTTL,
 		refreshTTL,
 		extraClaims,
+		effectiveResource,
 	)
 	if providerErr != nil {
 		log.Printf("[Token] Refresh failed provider=%s: %v", s.tokenProvider.Name(), providerErr)
@@ -176,6 +196,7 @@ func (s *TokenService) RefreshAccessToken(
 		ExpiresAt:     refreshResult.AccessToken.ExpiresAt,
 		ParentTokenID: refreshToken.ID,
 		TokenFamilyID: refreshToken.TokenFamilyID, // Inherit family ID
+		Resource:      models.StringArray(effectiveResource),
 	}
 
 	// 7.2 Handle refresh token based on mode
@@ -196,6 +217,7 @@ func (s *TokenService) RefreshAccessToken(
 			ExpiresAt:     refreshResult.RefreshToken.ExpiresAt,
 			ParentTokenID: refreshToken.ID,
 			TokenFamilyID: refreshToken.TokenFamilyID, // Inherit family ID
+			Resource:      models.StringArray(effectiveResource),
 		}
 	}
 

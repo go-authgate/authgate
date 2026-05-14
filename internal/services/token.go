@@ -179,6 +179,11 @@ type tokenPairParams struct {
 	// and overridden by generateJWT; system claims (project, service_account)
 	// from buildClientClaims are merged on top of these so admins always win.
 	ExtraClaims map[string]any
+	// Resource holds RFC 8707 Resource Indicator values to bind into the
+	// issued tokens' "aud" claim. Empty means fall back to the static
+	// JWTAudience config. Persisted on the token rows for refresh-time
+	// §2.2 subset enforcement.
+	Resource []string
 }
 
 // ttlForClient returns the access/refresh TTLs dictated by the given client's
@@ -384,7 +389,7 @@ func (s *TokenService) generateAndPersistTokenPair(
 	extraClaims = s.composeIssuanceClaims(client, p.UserID, p.ExtraClaims)
 
 	accessResult, err := s.tokenProvider.GenerateToken(
-		ctx, p.UserID, p.ClientID, p.Scopes, accessTTL, extraClaims,
+		ctx, p.UserID, p.ClientID, p.Scopes, accessTTL, extraClaims, p.Resource,
 	)
 	if err != nil {
 		log.Printf(
@@ -395,7 +400,7 @@ func (s *TokenService) generateAndPersistTokenPair(
 		return nil, nil, fmt.Errorf("token generation failed: %w", err)
 	}
 	refreshResult, err := s.tokenProvider.GenerateRefreshToken(
-		ctx, p.UserID, p.ClientID, p.Scopes, refreshTTL, extraClaims,
+		ctx, p.UserID, p.ClientID, p.Scopes, refreshTTL, extraClaims, p.Resource,
 	)
 	if err != nil {
 		log.Printf(
@@ -419,6 +424,7 @@ func (s *TokenService) generateAndPersistTokenPair(
 		Scopes:          p.Scopes,
 		ExpiresAt:       accessResult.ExpiresAt,
 		AuthorizationID: p.AuthorizationID,
+		Resource:        models.StringArray(p.Resource),
 	}
 
 	refreshTokenID := uuid.New().String()
@@ -434,6 +440,7 @@ func (s *TokenService) generateAndPersistTokenPair(
 		Scopes:          p.Scopes,
 		ExpiresAt:       refreshResult.ExpiresAt,
 		AuthorizationID: p.AuthorizationID,
+		Resource:        models.StringArray(p.Resource),
 	}
 
 	// In rotation mode, set TokenFamilyID to the refresh token's own ID (family root)

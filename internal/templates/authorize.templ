@@ -65,6 +65,9 @@ templ AuthorizePage(props AuthorizePageProps) {
 						<input type="hidden" name="nonce" value={ props.Nonce }/>
 						<input type="hidden" name="code_challenge" value={ props.CodeChallenge }/>
 						<input type="hidden" name="code_challenge_method" value={ props.CodeChallengeMethod }/>
+						for _, r := range props.Resource {
+							<input type="hidden" name="resource" value={ r }/>
+						}
 						<button type="submit" class="authorize-btn-allow">
 							Allow Access
 						</button>
