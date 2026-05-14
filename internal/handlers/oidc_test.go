@@ -534,8 +534,12 @@ func TestOAuthASMetadata_Fields(t *testing.T) {
 		"https://auth.example.com/oauth/device/code",
 		meta["device_authorization_endpoint"],
 	)
-	// RFC 8707 §3 — clients use this flag to know `resource` is honored.
+	// RFC 8707 §3 — clients use these flags to know `resource` is honored.
+	// Both field names are emitted because OAuth implementations historically
+	// split on the naming (the RFC draft used `resource_parameter_supported`;
+	// large providers ship `resource_indicators_supported`).
 	assert.Equal(t, true, meta["resource_indicators_supported"])
+	assert.Equal(t, true, meta["resource_parameter_supported"])
 
 	// MCP-required PKCE method
 	codeChallenges, ok := meta["code_challenge_methods_supported"].([]any)
@@ -670,6 +674,7 @@ func TestOIDCDiscovery_UnaffectedByOAuthMetadataAddition(t *testing.T) {
 		"introspection_endpoint_auth_methods_supported",
 		"revocation_endpoint_auth_methods_supported",
 		"resource_indicators_supported",
+		"resource_parameter_supported",
 	} {
 		_, present := meta[oauthOnly]
 		assert.Falsef(

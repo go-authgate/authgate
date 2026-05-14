@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // TestAuthCodeFlow_WithResource_PropagatesToAud is the RFC 8707 happy path:
@@ -122,6 +123,65 @@ func TestRefresh_RejectsResourceSupersetOfOriginal(t *testing.T) {
 	)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrInvalidTarget)
+}
+
+// TestClientCredentials_WithResource_PropagatesToAud confirms the
+// client_credentials grant honors RFC 8707 resource: the requested resource
+// becomes the issued JWT's `aud` and is persisted on the token row.
+func TestClientCredentials_WithResource_PropagatesToAud(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		BaseURL:                          "http://localhost:8080",
+		JWTSecret:                        "test-secret-cc-resource",
+		JWTAudience:                      []string{"static.example.com"},
+		ClientCredentialsTokenExpiration: 1 * time.Hour,
+	}
+	tokenService := createTestTokenService(t, s, cfg)
+
+	// Build a confidential client with client_credentials enabled. We have to
+	// generate the secret ourselves so the test can present it back.
+	plainSecret := "cc-test-secret-XYZ"
+	bcryptHash, err := bcrypt.GenerateFromPassword(
+		[]byte(plainSecret), bcrypt.MinCost,
+	)
+	require.NoError(t, err)
+	client := &models.OAuthApplication{
+		ClientID:                    uuid.New().String(),
+		ClientSecret:                string(bcryptHash),
+		ClientName:                  "CC Client",
+		UserID:                      uuid.New().String(),
+		Scopes:                      "read write",
+		GrantTypes:                  "client_credentials",
+		RedirectURIs:                models.StringArray{},
+		ClientType:                  "confidential",
+		EnableClientCredentialsFlow: true,
+		Status:                      models.ClientStatusActive,
+	}
+	require.NoError(t, s.CreateClient(client))
+
+	token, err := tokenService.IssueClientCredentialsToken(
+		context.Background(),
+		client.ClientID,
+		plainSecret,
+		"read",
+		nil,
+		[]string{"https://mcp.example.com"},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, token)
+
+	// JWT aud reflects the requested resource (not the static JWTAudience).
+	claims := decodeJWTClaims(t, token.RawToken)
+	aud, ok := claims["aud"].(string)
+	require.True(t, ok, "aud must be a string for a single-value resource")
+	assert.Equal(t, "https://mcp.example.com", aud)
+
+	// Persisted on the token row for forensic and audit completeness.
+	assert.Equal(
+		t,
+		models.StringArray{"https://mcp.example.com"},
+		token.Resource,
+	)
 }
 
 // TestRefresh_NarrowsResource_Subset confirms a strict subset is accepted.

@@ -65,23 +65,29 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 		return
 	}
 
-	// RFC 8707 Resource Indicators (repeatable parameter)
-	resource, err := util.ValidateResourceIndicators(c.QueryArray("resource"))
-	if err != nil {
-		h.redirectWithError(c, redirectURI, state, errInvalidTarget, err.Error())
-		return
-	}
-
-	// Validate the authorization request parameters
+	// Validate the authorization request parameters FIRST. This proves the
+	// redirect_uri is registered to the client. Validating resource (which
+	// can fail with a redirect to redirect_uri) before this would let an
+	// attacker craft an invalid `resource` plus a non-registered
+	// `redirect_uri` to coerce the server into an open redirect.
 	req, err := h.authorizationService.ValidateAuthorizationRequest(
 		c.Request.Context(),
 		clientID, redirectURI, responseType, scope, codeChallenge, codeChallengeMethod, nonce,
-		resource,
 	)
 	if err != nil {
 		h.redirectWithError(c, redirectURI, state, oauthErrorCode(err), err.Error())
 		return
 	}
+
+	// RFC 8707 Resource Indicators (repeatable parameter). Validated AFTER
+	// the redirect_uri has been confirmed registered, so an invalid_target
+	// redirect goes to a trusted destination.
+	resource, err := util.ValidateResourceIndicators(c.QueryArray("resource"))
+	if err != nil {
+		h.redirectWithError(c, redirectURI, state, errInvalidTarget, err.Error())
+		return
+	}
+	req.Resource = resource
 
 	userIDStr := getUserIDFromContext(c)
 
@@ -94,7 +100,11 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 
 	// If ConsentRemember is enabled and the user has already consented to all
 	// requested scopes, skip the consent page and issue a code immediately.
-	if h.config.ConsentRemember {
+	// Skip the shortcut when an RFC 8707 resource is requested — the resource
+	// (eventual JWT `aud`) is a new attribute not stored on UserAuthorization,
+	// and the user must explicitly approve which resource server they grant
+	// access to.
+	if h.config.ConsentRemember && len(req.Resource) == 0 {
 		existing, _ := h.authorizationService.GetUserAuthorization(userIDStr, req.Client.ID)
 		if existing != nil && util.IsScopeSubset(existing.Scopes, req.Scopes) {
 			h.issueCodeAndRedirect(c, req, userIDStr, state)
@@ -149,6 +159,18 @@ func (h *AuthorizationHandler) HandleAuthorize(c *gin.Context) {
 		return
 	}
 
+	// Re-validate request on POST to prevent parameter tampering. Must run
+	// BEFORE resource validation so the redirect_uri is proven registered —
+	// see GET handler for the open-redirect rationale.
+	req, err := h.authorizationService.ValidateAuthorizationRequest(
+		c.Request.Context(),
+		clientID, redirectURI, "code", scope, codeChallenge, codeChallengeMethod, nonce,
+	)
+	if err != nil {
+		h.redirectWithError(c, redirectURI, state, oauthErrorCode(err), err.Error())
+		return
+	}
+
 	// RFC 8707 Resource Indicators (repeatable form parameter). The GET handler
 	// emits hidden <input name="resource"> per value so the POST round-trip
 	// preserves the original request's audience binding.
@@ -157,17 +179,7 @@ func (h *AuthorizationHandler) HandleAuthorize(c *gin.Context) {
 		h.redirectWithError(c, redirectURI, state, errInvalidTarget, err.Error())
 		return
 	}
-
-	// Re-validate request on POST to prevent parameter tampering
-	req, err := h.authorizationService.ValidateAuthorizationRequest(
-		c.Request.Context(),
-		clientID, redirectURI, "code", scope, codeChallenge, codeChallengeMethod, nonce,
-		resource,
-	)
-	if err != nil {
-		h.redirectWithError(c, redirectURI, state, oauthErrorCode(err), err.Error())
-		return
-	}
+	req.Resource = resource
 
 	userIDStr := getUserIDFromContext(c)
 

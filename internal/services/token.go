@@ -180,10 +180,15 @@ type tokenPairParams struct {
 	// from buildClientClaims are merged on top of these so admins always win.
 	ExtraClaims map[string]any
 	// Resource holds RFC 8707 Resource Indicator values to bind into the
-	// issued tokens' "aud" claim. Empty means fall back to the static
-	// JWTAudience config. Persisted on the token rows for refresh-time
-	// §2.2 subset enforcement.
+	// access token's "aud" claim. Empty means fall back to the static
+	// JWTAudience config. Persisted on the access token row.
 	Resource []string
+	// RefreshResource overrides the audience on the refresh token when set.
+	// Used by auth-code exchange to preserve the full /authorize grant on
+	// the refresh token while issuing a narrowed access token, so future
+	// refresh requests can re-narrow against the original grant. When nil,
+	// the refresh token uses Resource (same audience as the access token).
+	RefreshResource []string
 }
 
 // ttlForClient returns the access/refresh TTLs dictated by the given client's
@@ -388,6 +393,10 @@ func (s *TokenService) generateAndPersistTokenPair(
 	}
 	extraClaims = s.composeIssuanceClaims(client, p.UserID, p.ExtraClaims)
 
+	refreshAudience := p.RefreshResource
+	if refreshAudience == nil {
+		refreshAudience = p.Resource
+	}
 	accessResult, err := s.tokenProvider.GenerateToken(
 		ctx, p.UserID, p.ClientID, p.Scopes, accessTTL, extraClaims, p.Resource,
 	)
@@ -400,7 +409,7 @@ func (s *TokenService) generateAndPersistTokenPair(
 		return nil, nil, fmt.Errorf("token generation failed: %w", err)
 	}
 	refreshResult, err := s.tokenProvider.GenerateRefreshToken(
-		ctx, p.UserID, p.ClientID, p.Scopes, refreshTTL, extraClaims, p.Resource,
+		ctx, p.UserID, p.ClientID, p.Scopes, refreshTTL, extraClaims, refreshAudience,
 	)
 	if err != nil {
 		log.Printf(
@@ -440,7 +449,7 @@ func (s *TokenService) generateAndPersistTokenPair(
 		Scopes:          p.Scopes,
 		ExpiresAt:       refreshResult.ExpiresAt,
 		AuthorizationID: p.AuthorizationID,
-		Resource:        models.StringArray(p.Resource),
+		Resource:        models.StringArray(refreshAudience),
 	}
 
 	// In rotation mode, set TokenFamilyID to the refresh token's own ID (family root)

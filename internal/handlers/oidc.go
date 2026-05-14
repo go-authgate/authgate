@@ -88,7 +88,13 @@ type oauthASMetadata struct {
 	CodeChallengeMethodsSupported          []string `json:"code_challenge_methods_supported"`
 	// RFC 8707 §3 — advertise that the `resource` request parameter is
 	// honored on /authorize and /token. Always true for this server.
+	// Two field names are emitted because the RFC 8707 draft used
+	// `resource_parameter_supported` while the IANA OAuth metadata registry
+	// (and most large OAuth providers — Auth0, Okta, AWS Cognito) settled
+	// on `resource_indicators_supported`. Emitting both keeps both client
+	// generations interoperable.
 	ResourceIndicatorsSupported bool `json:"resource_indicators_supported"`
+	ResourceParameterSupported  bool `json:"resource_parameter_supported"`
 }
 
 // baseMetadata holds the shared core both Discovery and
@@ -249,6 +255,7 @@ func (h *OIDCHandler) OAuthAuthorizationServerMetadata(c *gin.Context) {
 		GrantTypesSupported:                    base.GrantTypesSupported,
 		CodeChallengeMethodsSupported:          base.CodeChallengeMethodsSupported,
 		ResourceIndicatorsSupported:            true,
+		ResourceParameterSupported:             true,
 	}
 
 	c.Header("Cache-Control", "public, max-age=3600")

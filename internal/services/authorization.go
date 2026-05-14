@@ -83,13 +83,14 @@ func NewAuthorizationService(
 }
 
 // ValidateAuthorizationRequest validates all parameters of an incoming authorization request.
-// Returns the parsed AuthorizationRequest on success.
-// `resource` carries the already-validated RFC 8707 Resource Indicator values
-// (pass nil/empty when none were supplied).
+// Returns the parsed AuthorizationRequest on success. Resource indicators are
+// attached separately via AuthorizationRequest.Resource after this returns —
+// they cannot be validated here without first confirming the redirect URI is
+// registered (otherwise an invalid resource would be reflected to an
+// attacker-controlled URI, becoming an open redirect).
 func (s *AuthorizationService) ValidateAuthorizationRequest(
 	ctx context.Context,
 	clientID, redirectURI, responseType, scope, codeChallenge, codeChallengeMethod, nonce string,
-	resource []string,
 ) (*AuthorizationRequest, error) {
 	// 1. response_type must be "code"
 	if responseType != "code" {
@@ -144,7 +145,6 @@ func (s *AuthorizationService) ValidateAuthorizationRequest(
 		CodeChallenge:       codeChallenge,
 		CodeChallengeMethod: codeChallengeMethod,
 		Nonce:               nonce,
-		Resource:            resource,
 	}, nil
 }
 
@@ -284,10 +284,13 @@ func (s *AuthorizationService) ExchangeCode(
 		}
 	}
 
-	// RFC 8707 §2.2: when /authorize bound a resource and /token also passes
-	// one, the token-time set must be a subset. Validate BEFORE consuming the
-	// code so a malformed request doesn't burn the single-use code.
-	if len(record.Resource) > 0 && len(requestedResource) > 0 &&
+	// RFC 8707 §2.2: when /token passes a resource, it MUST be a subset of
+	// what was bound at /authorize. An empty authorize-time grant therefore
+	// rejects any token-time resource — matching the refresh-grant rule, and
+	// preventing widening from no-audience consent to a specific audience
+	// without re-consent. Validate BEFORE consuming the code so a malformed
+	// request doesn't burn the single-use code.
+	if len(requestedResource) > 0 &&
 		!util.IsStringSliceSubset([]string(record.Resource), requestedResource) {
 		return nil, ErrInvalidTarget
 	}

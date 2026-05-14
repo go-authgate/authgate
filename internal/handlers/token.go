@@ -86,6 +86,26 @@ func (h *TokenHandler) parseResourceParam(c *gin.Context) ([]string, bool) {
 	return values, true
 }
 
+// introspectAudience returns the value to emit as the `aud` field on an
+// introspection response. The persisted Resource on the token row wins (RFC
+// 8707 audience binding); otherwise the static JWTAudience config is used.
+// Returns nil when neither has a value (claim is omitted per RFC 7662 §2.2).
+// A single-value list collapses to a plain string to match JWT `aud` conventions.
+func introspectAudience(tok *models.AccessToken, configAudience []string) any {
+	values := []string(tok.Resource)
+	if len(values) == 0 {
+		values = configAudience
+	}
+	switch len(values) {
+	case 0:
+		return nil
+	case 1:
+		return values[0]
+	default:
+		return values
+	}
+}
+
 // buildTokenResponse constructs a standard OAuth 2.0 token response (RFC 6749 §5.1).
 func buildTokenResponse(accessToken, refreshToken *models.AccessToken, idToken string) gin.H {
 	expiresIn := max(int(time.Until(accessToken.ExpiresAt).Seconds()), 0)
@@ -412,6 +432,14 @@ func (h *TokenHandler) Introspect(c *gin.Context) {
 		"jti":        tok.ID,
 	}
 
+	// Audience binding: prefer the RFC 8707 resource set persisted at
+	// issuance; fall back to the static JWTAudience config when no resource
+	// was requested. Resource servers rely on this to enforce that a token
+	// minted for service A cannot be replayed against service B.
+	if aud := introspectAudience(tok, h.config.JWTAudience); aud != nil {
+		resp["aud"] = aud
+	}
+
 	// Add username for user-delegated tokens (not M2M / client credentials tokens)
 	if !services.IsMachineUserID(tok.UserID) {
 		if user, err := h.tokenService.GetUserByID(tok.UserID); err == nil {
@@ -623,22 +651,17 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 		authorizationID = &id
 	}
 
-	// Resolve effective resource for the issued tokens. The §2.2 subset check
-	// already ran inside ExchangeCode, so by the time we're here either:
-	//   - /token sent its own resource (use it, possibly narrowed), OR
-	//   - /token sent none — reuse the resource bound at /authorize.
-	effectiveResource := resource
-	if len(effectiveResource) == 0 {
-		effectiveResource = []string(authCode.Resource)
-	}
-
-	// Issue access + refresh tokens (+ ID token when openid scope was granted)
+	// Issue access + refresh tokens (+ ID token when openid scope was granted).
+	// The service uses `resource` (token-time, possibly narrowed) for the
+	// access token's audience and falls back to authCode.Resource for the
+	// refresh token, so future refreshes can re-narrow against the original
+	// /authorize-time grant rather than the narrowed access-token audience.
 	accessToken, refreshToken, idToken, err := h.tokenService.ExchangeAuthorizationCode(
 		c.Request.Context(),
 		authCode,
 		authorizationID,
 		extraClaims,
-		effectiveResource,
+		resource,
 	)
 	if err != nil {
 		respondOAuthError(

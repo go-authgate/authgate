@@ -149,6 +149,16 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		return nil, nil, "", err
 	}
 
+	// The refresh token always carries the full /authorize-time grant so
+	// later refreshes can re-narrow against it. The access token gets
+	// whatever the /token request narrowed to (or the full grant when /token
+	// didn't pass `resource`).
+	accessResource := resource
+	refreshResource := []string(authCode.Resource)
+	if len(accessResource) == 0 {
+		accessResource = refreshResource
+	}
+
 	// Generate and persist token pair (linked to UserAuthorization for cascade-revoke)
 	accessToken, refreshToken, err := s.generateAndPersistTokenPair(ctx, tokenPairParams{
 		UserID:          authCode.UserID,
@@ -157,7 +167,8 @@ func (s *TokenService) ExchangeAuthorizationCode(
 		AuthorizationID: authorizationID,
 		Client:          client,
 		ExtraClaims:     extraClaims,
-		Resource:        resource,
+		Resource:        accessResource,
+		RefreshResource: refreshResource,
 	})
 	if err != nil {
 		return nil, nil, "", err
