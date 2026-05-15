@@ -89,6 +89,20 @@ func TestValidateResourceIndicators(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "URI with empty fragment rejected (RFC 8707 §2.1 forbids any fragment)",
+			// url.Parse normalizes Fragment to "" here; checking the raw string
+			// for "#" is what enforces the rule.
+			input:   []string{"https://mcp.example.com/#"},
+			wantErr: true,
+		},
+		{
+			name: "https with port-only authority rejected (empty hostname)",
+			// u.Host == ":443" but u.Hostname() == "" — would otherwise burn
+			// a hostless audience into resource servers.
+			input:   []string{"https://:443/path"},
+			wantErr: true,
+		},
+		{
 			name:    "http with empty host rejected",
 			input:   []string{"http:/path"},
 			wantErr: true,

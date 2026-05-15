@@ -151,27 +151,32 @@ func (h *AuthorizationHandler) HandleAuthorize(c *gin.Context) {
 		return
 	}
 
-	// Deny path: redirect immediately with access_denied
-	if action != "approve" {
-		h.redirectWithError(
-			c,
-			redirectURI,
-			state,
-			errAccessDenied,
-			"User denied the authorization request",
-		)
-		return
-	}
-
 	// Re-validate request on POST to prevent parameter tampering. Must run
-	// BEFORE resource validation so the redirect_uri is proven registered —
-	// see GET handler for the open-redirect rationale.
+	// BEFORE both the deny branch and resource validation so the
+	// redirect_uri is proven registered for the client — otherwise a POST
+	// with action != "approve" plus an attacker-controlled redirect_uri
+	// would cause the AS to redirect off-site with `error=access_denied`,
+	// re-introducing the open-redirect that the approve/error paths
+	// already close. (RFC 6749 §3.1.2.4 / §4.1.2.1: error responses redirect
+	// only to a redirect_uri verified for the client.)
 	req, err := h.authorizationService.ValidateAuthorizationRequest(
 		c.Request.Context(),
 		clientID, redirectURI, "code", scope, codeChallenge, codeChallengeMethod, nonce,
 	)
 	if err != nil {
 		h.handleAuthorizeError(c, redirectURI, state, err)
+		return
+	}
+
+	// Deny path: redirect to the (now-validated) redirect_uri with access_denied
+	if action != "approve" {
+		h.redirectWithError(
+			c,
+			req.RedirectURI,
+			state,
+			errAccessDenied,
+			"User denied the authorization request",
+		)
 		return
 	}
 

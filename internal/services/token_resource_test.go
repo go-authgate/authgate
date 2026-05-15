@@ -372,6 +372,57 @@ func TestDeviceCode_LinksAuthorizationIDForCascadeRevoke(t *testing.T) {
 	assert.Equal(t, ua.ID, *refresh.AuthorizationID)
 }
 
+// TestClientCredentials_NoResource_SnapshotsJWTAudience confirms the
+// audience snapshot semantics: when a token is issued without a per-request
+// `resource` parameter but JWT_AUDIENCE is configured, the access-token
+// row's Resource column captures the configured audience. This is what lets
+// RFC 7662 introspection report `aud` consistently even after operators
+// rotate JWT_AUDIENCE — the persisted snapshot stays bound to what the JWT
+// was actually signed with.
+func TestClientCredentials_NoResource_SnapshotsJWTAudience(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		BaseURL:                          "http://localhost:8080",
+		JWTSecret:                        "test-secret-cc-snapshot",
+		JWTAudience:                      []string{"snapshot.example.com"},
+		ClientCredentialsTokenExpiration: 1 * time.Hour,
+	}
+	tokenService := createTestTokenService(t, s, cfg)
+
+	plainSecret := "cc-snapshot-secret"
+	bcryptHash, err := bcrypt.GenerateFromPassword([]byte(plainSecret), bcrypt.MinCost)
+	require.NoError(t, err)
+	client := &models.OAuthApplication{
+		ClientID:                    uuid.New().String(),
+		ClientSecret:                string(bcryptHash),
+		ClientName:                  "CC Snapshot Client",
+		UserID:                      uuid.New().String(),
+		Scopes:                      "read",
+		GrantTypes:                  "client_credentials",
+		ClientType:                  "confidential",
+		EnableClientCredentialsFlow: true,
+		Status:                      models.ClientStatusActive,
+	}
+	require.NoError(t, s.CreateClient(client))
+
+	// Caller does NOT pass `resource` — the JWT will fall back to JWTAudience.
+	tok, err := tokenService.IssueClientCredentialsToken(
+		context.Background(),
+		client.ClientID, plainSecret, "read", nil, nil,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, tok)
+
+	// JWT aud == JWTAudience (single value collapses to string).
+	claims := decodeJWTClaims(t, tok.RawToken)
+	assert.Equal(t, "snapshot.example.com", claims["aud"])
+
+	// And the row's Resource captures the same snapshot — so introspection
+	// later reads the persisted value rather than re-deriving from the live
+	// (possibly rotated) config.
+	assert.Equal(t, models.StringArray{"snapshot.example.com"}, tok.Resource)
+}
+
 // TestDeviceCode_RejectsResourceWhenNoneGranted asserts that a token-time
 // resource is rejected when the user authorized a device code without one —
 // the empty granted set means "no audience binding" and any resource on

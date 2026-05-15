@@ -196,7 +196,11 @@ func (s *TokenService) RefreshAccessToken(
 	}
 
 	// 7. Save new tokens in transaction
-	// 7.1 Create new access token
+	// 7.1 Create new access token. Resource is the audience the JWT was
+	// actually signed with (effectiveResource, or the static JWTAudience
+	// fallback when no per-request resource is in play) — snapshotting at
+	// issuance keeps RFC 7662 introspection consistent with the JWT even
+	// after operators rotate JWT_AUDIENCE.
 	newAccessToken := &models.AccessToken{
 		ID:            uuid.New().String(),
 		TokenHash:     util.SHA256Hex(refreshResult.AccessToken.TokenString),
@@ -210,7 +214,9 @@ func (s *TokenService) RefreshAccessToken(
 		ExpiresAt:     refreshResult.AccessToken.ExpiresAt,
 		ParentTokenID: refreshToken.ID,
 		TokenFamilyID: refreshToken.TokenFamilyID, // Inherit family ID
-		Resource:      models.StringArray(effectiveResource),
+		Resource: models.StringArray(
+			effectiveAudience(effectiveResource, s.config.JWTAudience),
+		),
 	}
 
 	// 7.2 Handle refresh token based on mode

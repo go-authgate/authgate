@@ -132,7 +132,11 @@ func (s *TokenService) IssueClientCredentialsToken(
 		)
 		return nil, fmt.Errorf("token generation failed: %w", providerErr)
 	}
-	// 7. Persist the token record (no AuthorizationID — no user consent)
+	// 7. Persist the token record (no AuthorizationID — no user consent).
+	// Resource is the audience the JWT was actually signed with (per-request
+	// RFC 8707 binding, or the static JWTAudience fallback) — snapshotting at
+	// issuance keeps RFC 7662 introspection consistent with the JWT even
+	// after operators rotate JWT_AUDIENCE.
 	accessToken := &models.AccessToken{
 		ID:            uuid.New().String(),
 		TokenHash:     util.SHA256Hex(accessTokenResult.TokenString),
@@ -144,7 +148,7 @@ func (s *TokenService) IssueClientCredentialsToken(
 		ClientID:      clientID,
 		Scopes:        effectiveScopes,
 		ExpiresAt:     accessTokenResult.ExpiresAt,
-		Resource:      models.StringArray(resource),
+		Resource:      models.StringArray(effectiveAudience(resource, s.config.JWTAudience)),
 	}
 
 	if err := s.store.CreateAccessToken(accessToken); err != nil {

@@ -3,6 +3,7 @@ package util
 import (
 	"errors"
 	"net/url"
+	"strings"
 )
 
 // ErrInvalidResource is returned by ValidateResourceIndicators when a
@@ -52,14 +53,25 @@ func ValidateResourceIndicators(values []string) ([]string, error) {
 		if v == "" || len(v) > MaxResourceURILength {
 			return nil, ErrInvalidResource
 		}
+		// Reject any fragment component before parsing — RFC 8707 §2.1 forbids
+		// fragments outright, and url.Parse normalizes "https://x/#" to a
+		// zero-length Fragment so checking u.Fragment alone misses the empty
+		// fragment case. Looking at the raw string for `#` catches both forms.
+		if strings.Contains(v, "#") {
+			return nil, ErrInvalidResource
+		}
 		u, err := url.Parse(v)
-		if err != nil || !u.IsAbs() || u.Fragment != "" {
+		if err != nil || !u.IsAbs() {
 			return nil, ErrInvalidResource
 		}
 		if u.Scheme != "https" && u.Scheme != "http" {
 			return nil, ErrInvalidResource
 		}
-		if u.Host == "" {
+		// Hostname() strips any port; checking u.Host alone would accept
+		// shapes like "https://:443/path" where Host is non-empty (":443")
+		// but the actual host is missing — that would let a caller burn an
+		// empty-host JWT audience into resource servers' aud checks.
+		if u.Hostname() == "" {
 			return nil, ErrInvalidResource
 		}
 	}

@@ -95,27 +95,24 @@ func (h *TokenHandler) parseResourceParam(c *gin.Context) ([]string, bool) {
 // `aud == its-own-id` cannot tell a refresh token apart from an access
 // token. Advertising any `aud` on a refresh token would let it be mistakenly
 // accepted as an access token whenever the configured `JWT_AUDIENCE` happens
-// to match a resource-server identifier. The signed refresh JWT itself does
-// carry whatever `JWT_AUDIENCE` is set to (or omits `aud`), but introspection
-// is the AS-mediated trust path and must not paper over that ambiguity.
+// to match a resource-server identifier.
 //
-// Access tokens carry the persisted Resource as `aud` when set, otherwise
-// fall back to the static JWTAudience config — matching what generateJWT
-// writes into the signed token. `defaultAud` is the current
-// `config.JWTAudience` snapshot (the live config is what JWT verifiers see
-// today; operators rotating `JWT_AUDIENCE` while older tokens are live
-// accept that the live config wins).
+// For access tokens, `tok.Resource` is the audience snapshot taken at
+// issuance — it is exactly what the JWT was signed with (per-request RFC
+// 8707 binding when supplied, or the static JWTAudience config that the
+// JWT provider fell back to). Reading the snapshot rather than re-deriving
+// from the live config means rotating `JWT_AUDIENCE` while older tokens are
+// active does NOT change what introspection reports — preventing resource
+// servers that trust introspection from accepting tokens that were never
+// minted for them.
 //
 // A single-value list collapses to a plain string to match JWT `aud`
 // conventions.
-func introspectAudience(tok *models.AccessToken, defaultAud []string) any {
+func introspectAudience(tok *models.AccessToken) any {
 	if !tok.IsAccessToken() {
 		return nil
 	}
-	values := defaultAud
-	if len(tok.Resource) > 0 {
-		values = []string(tok.Resource)
-	}
+	values := []string(tok.Resource)
 	switch len(values) {
 	case 0:
 		return nil
@@ -469,13 +466,14 @@ func (h *TokenHandler) Introspect(c *gin.Context) {
 		"jti":        tok.ID,
 	}
 
-	// Audience: for access tokens, report the persisted RFC 8707 resource
-	// set (or the static JWTAudience fallback). Refresh tokens always omit
-	// `aud` in the introspection response — the response's `token_type` is
-	// hard-coded "Bearer" so a resource server checking `active && aud=mine`
+	// Audience: for access tokens, report the audience snapshot taken at
+	// issuance (per-request RFC 8707 resource OR static JWTAudience config
+	// — whichever was actually written into the JWT). Refresh tokens always
+	// omit `aud` because the introspection response's `token_type` is
+	// hard-coded "Bearer" and a resource server checking `active && aud=mine`
 	// could otherwise be tricked into accepting a refresh token as an access
 	// token. See introspectAudience for the full rationale.
-	if aud := introspectAudience(tok, h.config.JWTAudience); aud != nil {
+	if aud := introspectAudience(tok); aud != nil {
 		resp["aud"] = aud
 	}
 

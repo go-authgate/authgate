@@ -279,30 +279,15 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 		return
 	}
 
-	err = h.deviceService.AuthorizeDeviceCode(
-		c.Request.Context(),
-		userCode,
-		userID.(string),
-		user.Username,
-	)
-	if err != nil {
-		renderDeviceErrorPage(
-			c,
-			user,
-			userCode,
-			clientName,
-			deviceCodeErrorMessage(err),
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	// Record that the user has consented to this application. The device
-	// code's resource set is part of the consent — UserAuthorization is
-	// resource-aware so the polling /oauth/token grant inherits the exact
-	// audience the user just approved, and /account/authorizations reflects
-	// what the user actually gave away (including any RFC 8707 audience
-	// binding) for both display and cascade-revoke.
+	// Record the user's consent BEFORE flipping the device code to authorized.
+	// AuthorizeDeviceCode unblocks the polling /oauth/token grant; if we ran
+	// it first, a fast polling client could exchange the device code in the
+	// window between AuthorizeDeviceCode and SaveUserAuthorization and
+	// receive tokens without an AuthorizationID FK — defeating the
+	// cascade-revoke this consent row exists to enable. The reverse order
+	// makes the UA visible to ExchangeDeviceCode no matter how tight the
+	// poll loop is. (UserAuthorization is also resource-aware, so the access
+	// token's `aud` matches the resource the user just approved.)
 	if _, err := h.authorizationService.SaveUserAuthorization(
 		c.Request.Context(),
 		userID.(string),
@@ -318,6 +303,24 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 			clientName,
 			"Failed to save authorization",
 			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	err = h.deviceService.AuthorizeDeviceCode(
+		c.Request.Context(),
+		userCode,
+		userID.(string),
+		user.Username,
+	)
+	if err != nil {
+		renderDeviceErrorPage(
+			c,
+			user,
+			userCode,
+			clientName,
+			deviceCodeErrorMessage(err),
+			http.StatusBadRequest,
 		)
 		return
 	}

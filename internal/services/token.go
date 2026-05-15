@@ -361,6 +361,29 @@ func (s *TokenService) composeIssuanceClaims(
 	return applyServerClaims(claims, buildServerClaims(s.config.JWTDomain, username, prefix))
 }
 
+// effectiveAudience returns the audience the JWT will actually be signed
+// with: the per-request RFC 8707 binding when set, otherwise the static
+// JWTAudience config (which is itself empty when unset — empty input
+// returns an empty result so the caller's `Resource` column stays empty
+// for deployments that use neither feature, exactly matching the JWT).
+//
+// Used to snapshot the issued aud onto access-token rows so introspection
+// (RFC 7662) can later report what the JWT carries, without depending on
+// the live JWTAudience config (which may have rotated since issuance).
+func effectiveAudience(requested, fallback []string) []string {
+	if len(requested) > 0 {
+		out := make([]string, len(requested))
+		copy(out, requested)
+		return out
+	}
+	if len(fallback) == 0 {
+		return nil
+	}
+	out := make([]string, len(fallback))
+	copy(out, fallback)
+	return out
+}
+
 // generateAndPersistTokenPair generates access and refresh tokens via the
 // configured provider, builds database records, and persists them atomically.
 // The per-client TokenProfile is resolved here so that all issuance paths
@@ -426,7 +449,14 @@ func (s *TokenService) generateAndPersistTokenPair(
 		return nil, nil, fmt.Errorf("refresh token generation failed: %w", err)
 	}
 
-	// Build token records
+	// The access-token row's Resource is the audience that was actually
+	// written into the JWT — the per-request RFC 8707 binding when the
+	// caller supplied one, otherwise a snapshot of the static JWTAudience
+	// config that the provider just fell back to. Persisting the snapshot
+	// (rather than re-deriving it from the live config at introspection
+	// time) means that operators rotating JWT_AUDIENCE while older tokens
+	// are still active won't cause RFC 7662 introspection to advertise an
+	// `aud` the JWT was never minted with.
 	accessToken := &models.AccessToken{
 		ID:              uuid.New().String(),
 		TokenHash:       util.SHA256Hex(accessResult.TokenString),
@@ -439,7 +469,7 @@ func (s *TokenService) generateAndPersistTokenPair(
 		Scopes:          p.Scopes,
 		ExpiresAt:       accessResult.ExpiresAt,
 		AuthorizationID: p.AuthorizationID,
-		Resource:        models.StringArray(p.Resource),
+		Resource:        models.StringArray(effectiveAudience(p.Resource, s.config.JWTAudience)),
 	}
 
 	// Persisted Resource on the refresh-token row drives RFC 8707 §2.2
