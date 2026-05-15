@@ -16,7 +16,6 @@ import (
 	"github.com/go-authgate/authgate/internal/metrics"
 	"github.com/go-authgate/authgate/internal/middleware"
 	"github.com/go-authgate/authgate/internal/store"
-	"github.com/go-authgate/authgate/internal/templates"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -47,6 +46,7 @@ func setupRouter(
 	r.Use(gin.Logger(), gin.Recovery())
 	r.Use(middleware.RequestContextMiddleware())
 	r.Use(middleware.SecurityHeaders(strings.HasPrefix(cfg.BaseURL, "https://")))
+	r.Use(middleware.InjectSwaggerEnabled(cfg.SwaggerEnabled))
 
 	// Setup session middleware
 	setupSessionMiddleware(r, cfg)
@@ -198,7 +198,6 @@ func setupAllRoutes(
 	r.GET("/docs/:lang", optionalAuth, h.docs.ShowDocsEntry)
 	r.GET("/docs/:lang/:slug", optionalAuth, h.docs.ShowDocsPage)
 
-	templates.SwaggerEnabled = cfg.SwaggerEnabled
 	if cfg.SwaggerEnabled {
 		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 		log.Printf("Swagger UI enabled at: %s/swagger/index.html", cfg.BaseURL)

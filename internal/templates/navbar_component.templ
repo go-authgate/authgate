@@ -31,10 +31,8 @@ templ Navbar(props *NavbarProps) {
 							@NavDropdownItem("/apps", "My Apps", props.ActiveLink == "my-apps", false, false)
 						}
 						@DocsNavDropdown(props)
-						if SwaggerEnabled {
-							@NavDropdown("API", props.ActiveLink == "apidocs") {
-								@NavDropdownItem("/swagger/index.html", "Swagger UI", props.ActiveLink == "apidocs", false, true)
-							}
+						if props.SwaggerEnabled {
+							@ApiNavDropdown()
 						}
 						if props.IsAdmin {
 							<div class="navbar-admin-divider" aria-hidden="true"></div>
@@ -55,10 +53,8 @@ templ Navbar(props *NavbarProps) {
 				} else {
 					<div class="navbar-links">
 						@DocsNavDropdown(props)
-						if SwaggerEnabled {
-							@NavDropdown("API", props.ActiveLink == "apidocs") {
-								@NavDropdownItem("/swagger/index.html", "Swagger UI", props.ActiveLink == "apidocs", false, true)
-							}
+						if props.SwaggerEnabled {
+							@ApiNavDropdown()
 						}
 					</div>
 					<div class="navbar-user">
@@ -75,6 +71,12 @@ templ DocsNavDropdown(props *NavbarProps) {
 		for _, entry := range props.DocsNavEntries {
 			@NavDropdownItem("/docs/"+entry.Slug, entry.Title, props.ActiveLink == "docs-"+entry.Slug, false, false)
 		}
+	}
+}
+
+templ ApiNavDropdown() {
+	@NavDropdown("API", false) {
+		@NavDropdownItem("/swagger/index.html", "Swagger UI", false, false, true)
 	}
 }
 

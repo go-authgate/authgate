@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/go-authgate/authgate/internal/middleware"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/store"
@@ -107,6 +108,12 @@ func buildNavbarProps(c *gin.Context, user *models.User, activeLink string) temp
 			pendingCount = count
 		}
 	}
+	swaggerEnabled := false
+	if v, exists := c.Get(middleware.ContextKeySwaggerEnabled); exists {
+		if enabled, ok := v.(bool); ok {
+			swaggerEnabled = enabled
+		}
+	}
 	return templates.NavbarProps{
 		Username:            user.Username,
 		FullName:            user.FullName,
@@ -114,6 +121,7 @@ func buildNavbarProps(c *gin.Context, user *models.User, activeLink string) temp
 		ActiveLink:          activeLink,
 		PendingClientsCount: pendingCount,
 		DocsNavEntries:      NavbarDocsEntriesFor(resolveLocale(c)),
+		SwaggerEnabled:      swaggerEnabled,
 	}
 }
 

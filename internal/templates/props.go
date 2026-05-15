@@ -9,11 +9,6 @@ import (
 	"github.com/go-authgate/authgate/internal/store"
 )
 
-// SwaggerEnabled mirrors cfg.SwaggerEnabled. Set once during bootstrap before
-// any template renders. Templates read this to hide Swagger UI links when
-// the /swagger route is not registered.
-var SwaggerEnabled bool
-
 // BaseProps contains common properties shared across all pages
 type BaseProps struct {
 	CSRFToken string
@@ -53,6 +48,7 @@ type NavbarProps struct {
 	ActiveLink          string      // e.g. "device", "sessions", "clients", "audit", "docs-<slug>"
 	PendingClientsCount int         // Badge count for admin → OAuth Clients link
 	DocsNavEntries      []DocsEntry // Docs dropdown entries, localized per the user's docs_lang cookie
+	SwaggerEnabled      bool        // Whether /swagger is registered; gates API dropdown / footer link
 }
 
 // IsDocsActive returns true if the current ActiveLink belongs to a docs page.
