@@ -148,6 +148,138 @@ func (s *AuthorizationService) ValidateAuthorizationRequest(
 	}, nil
 }
 
+// SaveConsentAndAuthorizeDeviceCode atomically persists the user's consent
+// and marks the linked device code as authorized. Both store mutations run
+// in a single transaction so:
+//
+//   - If AuthorizeDeviceCode fails (e.g., a concurrent submit already
+//     authorized the code, or the row disappeared between the GET lookup and
+//     this call), the UserAuthorization upsert rolls back — a never-granted
+//     consent does NOT linger in the DB to be auto-approved on a later
+//     request, returned by GetUserAuthorization, or displayed at
+//     /account/authorizations.
+//   - The original race the two-step ordering was guarding against also
+//     closes: a polling /oauth/token client cannot observe
+//     DeviceCode.Authorized=true while UserAuthorization is still missing,
+//     because both writes become visible at the same commit boundary.
+//
+// Audit events fire only after a successful commit so the audit log reflects
+// committed state. Metrics for device-code authorization (e.g., the
+// authorization duration histogram) remain the caller's responsibility —
+// record them after this returns nil.
+func (s *AuthorizationService) SaveConsentAndAuthorizeDeviceCode(
+	ctx context.Context,
+	userID string,
+	applicationID int64,
+	clientID, scopes string,
+	resource []string,
+	dc *models.DeviceCode,
+	username string,
+) (*models.UserAuthorization, error) {
+	auth := &models.UserAuthorization{
+		UUID:          uuid.New().String(),
+		UserID:        userID,
+		ApplicationID: applicationID,
+		ClientID:      clientID,
+		Scopes:        scopes,
+		Resource:      models.StringArray(resource),
+		GrantedAt:     time.Now(),
+		IsActive:      true,
+	}
+
+	if err := s.store.RunInTransaction(func(tx core.Store) error {
+		if err := tx.UpsertUserAuthorization(auth); err != nil {
+			return fmt.Errorf("failed to save user authorization: %w", err)
+		}
+		if err := tx.AuthorizeDeviceCode(dc.ID, userID); err != nil {
+			if errors.Is(err, store.ErrDeviceCodeAlreadyAuthorized) {
+				return ErrDeviceCodeAlreadyAuthorized
+			}
+			return fmt.Errorf("authorize device code: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	// Re-fetch to surface any DB-side mutations (UUID is the one we just set,
+	// but Updated/Created timestamps and IsActive default come from the DB).
+	stored, fetchErr := s.store.GetUserAuthorization(userID, applicationID)
+	if fetchErr != nil {
+		stored = auth
+	}
+
+	consentDetails := models.AuditDetails{
+		"client_id": clientID,
+		"scopes":    scopes,
+	}
+	if len(resource) > 0 {
+		consentDetails["resource"] = resource
+	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventUserAuthorizationGranted,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  userID,
+		ResourceType: models.ResourceAuthorization,
+		ResourceID:   stored.UUID,
+		Action:       "User granted authorization to application",
+		Details:      consentDetails,
+		Success:      true,
+	})
+
+	// Match DeviceService.AuthorizeDeviceCode's audit shape so admins see the
+	// same fields regardless of whether the device flow ran through this
+	// orchestrated path or a legacy direct call.
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:     models.EventDeviceCodeAuthorized,
+		Severity:      models.SeverityInfo,
+		ActorUserID:   userID,
+		ActorUsername: username,
+		ResourceType:  models.ResourceDeviceCode,
+		ResourceID:    dc.DeviceCodeID,
+		Action:        "Device code authorized by user",
+		Details: models.AuditDetails{
+			"client_id": dc.ClientID,
+			"scopes":    dc.Scopes,
+			"user_code": dc.UserCode,
+		},
+		Success: true,
+	})
+
+	return stored, nil
+}
+
+// ValidateClientRedirect performs the minimal validation needed to safely
+// redirect an OAuth error response back to the caller: it proves the client
+// exists, is active, has the Auth Code Flow enabled, and that redirect_uri is
+// registered for the client. It intentionally skips scope and PKCE checks
+// because the Deny consent form does not post `scope`, `code_challenge`, or
+// `code_challenge_method` — running the full ValidateAuthorizationRequest
+// against a Deny click would otherwise reject a public-client deny with a
+// PKCE error instead of redirecting `access_denied`. Per RFC 6749 §3.1.2.4
+// /§4.1.2.1, error responses are only safe to redirect once redirect_uri has
+// been confirmed registered for the client; this function returns that
+// confirmation without imposing additional checks irrelevant to a deny.
+func (s *AuthorizationService) ValidateClientRedirect(
+	ctx context.Context,
+	clientID, redirectURI string,
+) (string, error) {
+	client, err := s.clientService.GetClient(ctx, clientID)
+	if err != nil {
+		return "", ErrUnauthorizedClient
+	}
+	if !client.IsActive() {
+		return "", ErrUnauthorizedClient
+	}
+	if !client.EnableAuthCodeFlow {
+		return "", ErrUnauthorizedClient
+	}
+	if !s.isValidRedirectURI(client, redirectURI) {
+		return "", ErrInvalidRedirectURI
+	}
+	return redirectURI, nil
+}
+
 // CreateAuthorizationCodeParams bundles the inputs for authorization code creation.
 type CreateAuthorizationCodeParams struct {
 	ApplicationID       int64

@@ -86,6 +86,23 @@ func (h *TokenHandler) parseResourceParam(c *gin.Context) ([]string, bool) {
 	return values, true
 }
 
+// normalizeAudience collapses an audience value list into the JWT-shaped
+// `any` used in both /oauth/tokeninfo and /oauth/introspect responses:
+// nil for empty, a plain string for single-value, or []string for
+// multi-value (matching JWT `aud` conventions).
+func normalizeAudience(values []string) any {
+	switch len(values) {
+	case 0:
+		return nil
+	case 1:
+		return values[0]
+	default:
+		out := make([]string, len(values))
+		copy(out, values)
+		return out
+	}
+}
+
 // introspectAudience returns the value to emit as the `aud` field on an
 // RFC 7662 introspection response, or nil to omit the claim.
 //
@@ -105,24 +122,44 @@ func (h *TokenHandler) parseResourceParam(c *gin.Context) ([]string, bool) {
 // active does NOT change what introspection reports — preventing resource
 // servers that trust introspection from accepting tokens that were never
 // minted for them.
-//
-// A single-value list collapses to a plain string to match JWT `aud`
-// conventions.
 func introspectAudience(tok *models.AccessToken) any {
 	if !tok.IsAccessToken() {
 		return nil
 	}
-	values := []string(tok.Resource)
-	switch len(values) {
-	case 0:
+	return normalizeAudience([]string(tok.Resource))
+}
+
+// audienceFromClaims extracts the JWT `aud` claim from a decoded MapClaims
+// map and normalizes it to []string. The jwt library decodes single-string
+// aud claims as `string` and multi-value aud claims as `[]any` (via
+// json.Unmarshal); this helper folds both shapes into the same slice form
+// for `normalizeAudience`. Used by /oauth/tokeninfo, which validates the JWT
+// directly (no extra DB lookup) and therefore reads the aud snapshot from
+// the signed token rather than the persisted Resource column. Both sources
+// are taken at issuance and must agree.
+func audienceFromClaims(claims map[string]any) []string {
+	raw, ok := claims["aud"]
+	if !ok {
 		return nil
-	case 1:
-		return values[0]
-	default:
-		out := make([]string, len(values))
-		copy(out, values)
+	}
+	switch v := raw.(type) {
+	case string:
+		if v == "" {
+			return nil
+		}
+		return []string{v}
+	case []string:
+		return v
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok && s != "" {
+				out = append(out, s)
+			}
+		}
 		return out
 	}
+	return nil
 }
 
 // buildTokenResponse constructs a standard OAuth 2.0 token response (RFC 6749 §5.1).
@@ -349,7 +386,7 @@ func (h *TokenHandler) handleRefreshTokenGrant(c *gin.Context) {
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			Authorization	header		string																				true	"Bearer token (format: 'Bearer <token>')"
-//	@Success		200				{object}	object{active=bool,user_id=string,client_id=string,scope=string,exp=int,iss=string}	"Token is valid"
+//	@Success		200				{object}	object{active=bool,user_id=string,client_id=string,scope=string,exp=int,iss=string,subject_type=string,aud=object}	"Token is valid. `aud` mirrors the JWT's signed audience snapshot (per-request RFC 8707 resource, otherwise the static JWT_AUDIENCE the JWT was minted with); collapsed to a string for a single value, slice for multiple, omitted when the JWT carries no audience."
 //	@Failure		401				{object}	object{error=string,error_description=string}										"Token is invalid or expired (missing_token, invalid_token)"
 //	@Router			/oauth/tokeninfo [get]
 func (h *TokenHandler) TokenInfo(c *gin.Context) {
@@ -378,7 +415,7 @@ func (h *TokenHandler) TokenInfo(c *gin.Context) {
 		subjectType = "client"
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	resp := gin.H{
 		"active":       result.Valid,
 		"user_id":      result.UserID,
 		"client_id":    result.ClientID,
@@ -386,7 +423,20 @@ func (h *TokenHandler) TokenInfo(c *gin.Context) {
 		"exp":          result.ExpiresAt.Unix(),
 		"iss":          h.config.BaseURL,
 		"subject_type": subjectType,
-	})
+	}
+
+	// Emit the JWT's signed `aud` claim so callers using /oauth/tokeninfo see
+	// the same per-token audience that /oauth/introspect reports. Both sources
+	// are issuance-time snapshots: introspect reads the persisted Resource
+	// column, tokeninfo reads the verified JWT claim — they must agree because
+	// both are written at the same instant. Validation already rejects refresh
+	// tokens (only access tokens reach this point), so this never advertises
+	// a refresh-token aud the way it would on /oauth/introspect.
+	if aud := normalizeAudience(audienceFromClaims(result.Claims)); aud != nil {
+		resp["aud"] = aud
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 // Introspect godoc

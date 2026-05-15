@@ -151,32 +151,43 @@ func (h *AuthorizationHandler) HandleAuthorize(c *gin.Context) {
 		return
 	}
 
-	// Re-validate request on POST to prevent parameter tampering. Must run
-	// BEFORE both the deny branch and resource validation so the
-	// redirect_uri is proven registered for the client — otherwise a POST
-	// with action != "approve" plus an attacker-controlled redirect_uri
-	// would cause the AS to redirect off-site with `error=access_denied`,
-	// re-introducing the open-redirect that the approve/error paths
-	// already close. (RFC 6749 §3.1.2.4 / §4.1.2.1: error responses redirect
-	// only to a redirect_uri verified for the client.)
+	// Deny path runs FIRST with a lighter validator: the Deny consent form
+	// only posts (csrf_token, action, client_id, redirect_uri, state) — no
+	// scope/PKCE/nonce — so the full ValidateAuthorizationRequest would
+	// reject a deny on a public client (or any client when global PKCE is
+	// required) with a PKCE error instead of redirecting `access_denied`.
+	// ValidateClientRedirect proves redirect_uri is registered without
+	// imposing the parameter checks irrelevant to a deny, which keeps the
+	// open-redirect closure (RFC 6749 §3.1.2.4 / §4.1.2.1: error responses
+	// redirect only to a redirect_uri verified for the client) while letting
+	// users actually cancel.
+	if action != "approve" {
+		validatedURI, err := h.authorizationService.ValidateClientRedirect(
+			c.Request.Context(),
+			clientID, redirectURI,
+		)
+		if err != nil {
+			h.handleAuthorizeError(c, redirectURI, state, err)
+			return
+		}
+		h.redirectWithError(
+			c,
+			validatedURI,
+			state,
+			errAccessDenied,
+			"User denied the authorization request",
+		)
+		return
+	}
+
+	// Approve path: full validation prevents parameter tampering and
+	// enforces PKCE/scope before issuing a code.
 	req, err := h.authorizationService.ValidateAuthorizationRequest(
 		c.Request.Context(),
 		clientID, redirectURI, "code", scope, codeChallenge, codeChallengeMethod, nonce,
 	)
 	if err != nil {
 		h.handleAuthorizeError(c, redirectURI, state, err)
-		return
-	}
-
-	// Deny path: redirect to the (now-validated) redirect_uri with access_denied
-	if action != "approve" {
-		h.redirectWithError(
-			c,
-			req.RedirectURI,
-			state,
-			errAccessDenied,
-			"User denied the authorization request",
-		)
 		return
 	}
 

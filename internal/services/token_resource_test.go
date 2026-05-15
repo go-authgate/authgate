@@ -509,3 +509,101 @@ func TestRefresh_NarrowsResource_Subset(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "https://mcp1.example.com", aud)
 }
+
+// TestRefresh_NoResource_AudienceFrozenAtIssuance is the regression test for
+// the Copilot finding: when a grant omits RFC 8707 `resource` and falls back
+// to JWT_AUDIENCE, the refresh-token row MUST snapshot that effective
+// audience at issuance. Without the snapshot, a later refresh re-derives the
+// audience from the live JWT_AUDIENCE config — and rotating that config
+// would silently mint refreshed access tokens for a different audience than
+// the original grant authorized.
+//
+// The test verifies two invariants:
+//
+//  1. After issuance, the refresh-token row's Resource column equals the
+//     JWT_AUDIENCE in effect at issuance.
+//  2. After rotating JWT_AUDIENCE in config (simulating an operator change
+//     made between issuance and refresh), a refresh request that does NOT
+//     pass `resource` produces an access token whose `aud` is the ORIGINAL
+//     audience, not the rotated value.
+func TestRefresh_NoResource_AudienceFrozenAtIssuance(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		JWTExpiration:          1 * time.Hour,
+		JWTSecret:              "test-secret-refresh-snapshot",
+		BaseURL:                "http://localhost:8080",
+		JWTAudience:            []string{"original.example.com"},
+		EnableRefreshTokens:    true,
+		RefreshTokenExpiration: 30 * 24 * time.Hour,
+	}
+	tokenService := createTestTokenService(t, s, cfg)
+
+	client := createTestClient(t, s, true)
+	userID := uuid.New().String()
+	now := time.Now()
+	authCode := &models.AuthorizationCode{
+		UUID:          "test-uuid-" + uuid.New().String(),
+		CodeHash:      "hash-" + uuid.New().String(),
+		CodePrefix:    "snapshtx",
+		ApplicationID: client.ID,
+		ClientID:      client.ClientID,
+		UserID:        userID,
+		RedirectURI:   "https://app.example.com/callback",
+		Scopes:        "read",
+		// Critical: no Resource. The grant relies on JWT_AUDIENCE fallback.
+		ExpiresAt: now.Add(10 * time.Minute),
+	}
+	require.NoError(t, s.CreateAuthorizationCode(authCode))
+
+	accessToken, refreshToken, _, err := tokenService.ExchangeAuthorizationCode(
+		context.Background(),
+		authCode,
+		nil, nil,
+		nil, // No token-time resource either — pure JWT_AUDIENCE fallback path.
+	)
+	require.NoError(t, err)
+	require.NotNil(t, refreshToken)
+
+	// Invariant 1: both rows captured the JWT_AUDIENCE in effect at issuance.
+	assert.Equal(t,
+		models.StringArray{"original.example.com"}, accessToken.Resource,
+		"access token row must snapshot JWT_AUDIENCE",
+	)
+	assert.Equal(t,
+		models.StringArray{"original.example.com"}, refreshToken.Resource,
+		"refresh token row must snapshot JWT_AUDIENCE — without this, "+
+			"rotation of JWT_AUDIENCE silently retargets refreshed tokens",
+	)
+
+	// Simulate an operator rotating JWT_AUDIENCE while the refresh token is
+	// still active. After this point, the live config no longer matches the
+	// original grant's audience.
+	cfg.JWTAudience = []string{"rotated.example.com"}
+
+	// Invariant 2: refresh without `resource` must produce an access token
+	// whose `aud` is the ORIGINAL audience (read from the snapshot on the
+	// refresh-token row), NOT the rotated config value.
+	newAccess, _, err := tokenService.RefreshAccessToken(
+		context.Background(),
+		refreshToken.RawToken,
+		client.ClientID,
+		"",
+		nil,
+		nil, // refresh without explicit resource
+	)
+	require.NoError(t, err)
+	require.NotNil(t, newAccess)
+
+	claims := decodeJWTClaims(t, newAccess.RawToken)
+	aud, ok := claims["aud"].(string)
+	require.True(t, ok, "single-value aud should collapse to string")
+	assert.Equal(t,
+		"original.example.com", aud,
+		"refreshed access token must inherit the original-grant audience, "+
+			"not the rotated JWT_AUDIENCE config",
+	)
+	assert.Equal(t,
+		models.StringArray{"original.example.com"}, newAccess.Resource,
+		"refreshed access token's Resource column also tracks the original snapshot",
+	)
+}

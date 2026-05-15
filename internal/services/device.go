@@ -249,6 +249,16 @@ func (s *DeviceService) AuthorizeDeviceCode(
 	return nil
 }
 
+// RecordDeviceCodeAuthorized records the authorization-duration histogram
+// sample for a device code that has been marked authorized via an external
+// transactional path (see AuthorizationService.SaveConsentAndAuthorizeDeviceCode).
+// The legacy AuthorizeDeviceCode method records this metric inline; callers
+// that bypass it for atomicity reasons must invoke this after a successful
+// commit to keep the metric population complete.
+func (s *DeviceService) RecordDeviceCodeAuthorized(dc *models.DeviceCode) {
+	s.metrics.RecordOAuthDeviceCodeAuthorized(time.Since(dc.CreatedAt))
+}
+
 // GetClientByUserCode retrieves the OAuth client and device code associated with a user code
 func (s *DeviceService) GetClientByUserCode(
 	ctx context.Context,

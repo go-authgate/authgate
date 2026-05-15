@@ -301,6 +301,104 @@ func TestTokenInfo_SubjectType_Client(t *testing.T) {
 	assert.Equal(t, "client:"+client.ClientID, infoResp["user_id"])
 }
 
+// TestTokenInfo_IncludesAudFromResource verifies /oauth/tokeninfo emits the
+// JWT's signed `aud` claim for tokens with a per-request RFC 8707 resource.
+// The PR/security checklist promises tokeninfo reflects the per-token
+// audience; before this fix, the field was omitted entirely.
+func TestTokenInfo_IncludesAudFromResource(t *testing.T) {
+	r, s := setupCCTestEnv(t)
+	// Override the client to allow a specific resource on issuance.
+	client, plainSecret := createCCClient(t, s, true, core.ClientTypeConfidential)
+
+	form := url.Values{
+		"grant_type": {"client_credentials"},
+		"resource":   {"https://mcp.example.com"},
+	}
+	w := postToken(t, r, form, &[2]string{client.ClientID, plainSecret})
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var tokResp map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&tokResp))
+	accessToken := tokResp["access_token"].(string)
+
+	req, err := http.NewRequest(http.MethodGet, "/oauth/tokeninfo", nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, req)
+
+	require.Equal(t, http.StatusOK, w2.Code)
+	var infoResp map[string]any
+	require.NoError(t, json.NewDecoder(w2.Body).Decode(&infoResp))
+	// Single-value aud collapses to plain string (matches JWT conventions
+	// and the introspect handler's normalizeAudience semantics).
+	assert.Equal(t, "https://mcp.example.com", infoResp["aud"],
+		"tokeninfo must surface the per-token audience for resource-bound tokens")
+}
+
+// TestTokenInfo_IncludesAudFromJWTAudienceFallback exercises the case where
+// the caller omits `resource` but JWT_AUDIENCE is configured: the JWT itself
+// carries the static audience snapshot, and tokeninfo must reflect it so the
+// /oauth/tokeninfo response is no longer audience-blind for non-RFC-8707
+// callers.
+func TestTokenInfo_IncludesAudFromJWTAudienceFallback(t *testing.T) {
+	cfg := defaultTokenTestConfig()
+	cfg.JWTAudience = []string{"static.example.com"}
+	r, s := newTokenTestEnv(t, cfg)
+	client, plainSecret := createCCClient(t, s, true, core.ClientTypeConfidential)
+
+	form := url.Values{"grant_type": {"client_credentials"}}
+	w := postToken(t, r, form, &[2]string{client.ClientID, plainSecret})
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var tokResp map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&tokResp))
+	accessToken := tokResp["access_token"].(string)
+
+	req, err := http.NewRequest(http.MethodGet, "/oauth/tokeninfo", nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, req)
+
+	require.Equal(t, http.StatusOK, w2.Code)
+	var infoResp map[string]any
+	require.NoError(t, json.NewDecoder(w2.Body).Decode(&infoResp))
+	assert.Equal(t, "static.example.com", infoResp["aud"],
+		"tokeninfo must reflect the JWT_AUDIENCE fallback even when the caller "+
+			"omits RFC 8707 resource")
+}
+
+// TestTokenInfo_OmitsAudWhenNoAudienceClaim confirms the `aud` field is
+// dropped entirely when the JWT has no audience (no per-request resource AND
+// JWT_AUDIENCE unset) — matching the introspect handler's nil-aud behavior
+// rather than emitting an empty/null value.
+func TestTokenInfo_OmitsAudWhenNoAudienceClaim(t *testing.T) {
+	r, s := setupCCTestEnv(t) // defaultTokenTestConfig has no JWTAudience
+	client, plainSecret := createCCClient(t, s, true, core.ClientTypeConfidential)
+
+	form := url.Values{"grant_type": {"client_credentials"}}
+	w := postToken(t, r, form, &[2]string{client.ClientID, plainSecret})
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var tokResp map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&tokResp))
+	accessToken := tokResp["access_token"].(string)
+
+	req, err := http.NewRequest(http.MethodGet, "/oauth/tokeninfo", nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, req)
+
+	require.Equal(t, http.StatusOK, w2.Code)
+	var infoResp map[string]any
+	require.NoError(t, json.NewDecoder(w2.Body).Decode(&infoResp))
+	_, hasAud := infoResp["aud"]
+	assert.False(t, hasAud,
+		"tokeninfo must omit aud when the JWT carries no audience")
+}
+
 func TestTokenInfo_SubjectType_User(t *testing.T) {
 	// Regular user tokens should have subject_type=user
 	// We test by calling tokeninfo with a non-"client:" prefixed UserID

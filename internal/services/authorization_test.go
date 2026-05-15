@@ -934,3 +934,148 @@ func TestListClientAuthorizations_EmptyClient(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, auths)
 }
+
+// ============================================================
+// ValidateClientRedirect (deny-path lightweight validator)
+// ============================================================
+
+// TestValidateClientRedirect_SkipsPKCEAndScope confirms the lightweight
+// validator deliberately omits scope and PKCE checks (the Deny consent form
+// posts neither). It must still validate client existence + redirect_uri
+// registration to keep the open-redirect closure that the deny path relies on.
+func TestValidateClientRedirect_SkipsPKCEAndScope(t *testing.T) {
+	svc := createTestAuthorizationService(t)
+	// Public client → full ValidateAuthorizationRequest demands PKCE; this
+	// lightweight validator must NOT demand it.
+	client := createAuthCodeFlowClient(t, svc, "public")
+
+	uri, err := svc.ValidateClientRedirect(
+		context.Background(),
+		client.ClientID,
+		"https://app.example.com/callback",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "https://app.example.com/callback", uri)
+}
+
+func TestValidateClientRedirect_RejectsUnregisteredRedirectURI(t *testing.T) {
+	svc := createTestAuthorizationService(t)
+	client := createAuthCodeFlowClient(t, svc, "confidential")
+
+	_, err := svc.ValidateClientRedirect(
+		context.Background(),
+		client.ClientID,
+		"https://evil.example.com/exfil",
+	)
+	assert.ErrorIs(t, err, ErrInvalidRedirectURI)
+}
+
+func TestValidateClientRedirect_RejectsUnknownClient(t *testing.T) {
+	svc := createTestAuthorizationService(t)
+
+	_, err := svc.ValidateClientRedirect(
+		context.Background(),
+		"nonexistent-client",
+		"https://app.example.com/callback",
+	)
+	assert.ErrorIs(t, err, ErrUnauthorizedClient)
+}
+
+// ============================================================
+// SaveConsentAndAuthorizeDeviceCode (atomic save + authorize)
+// ============================================================
+
+// createTestDeviceCode persists a fresh, unauthorized DeviceCode for the given
+// client. Returns the model with .ID populated for use in the orchestration
+// test.
+func createTestDeviceCode(
+	t *testing.T,
+	svc *AuthorizationService,
+	clientID string,
+) *models.DeviceCode {
+	t.Helper()
+	uc := "ABCD" + uuid.New().String()[:4]
+	dc := &models.DeviceCode{
+		DeviceCodeHash: "hash-" + uuid.New().String(),
+		DeviceCodeSalt: "salt-" + uuid.New().String()[:8],
+		DeviceCodeID:   uuid.New().String()[:8],
+		UserCode:       uc,
+		ClientID:       clientID,
+		Scopes:         "read",
+		ExpiresAt:      time.Now().Add(30 * time.Minute),
+		Interval:       5,
+	}
+	require.NoError(t, svc.store.CreateDeviceCode(dc))
+	return dc
+}
+
+// TestSaveConsentAndAuthorizeDeviceCode_HappyPath asserts the atomic
+// orchestration commits both writes: the device code becomes authorized AND
+// the user authorization is persisted.
+func TestSaveConsentAndAuthorizeDeviceCode_HappyPath(t *testing.T) {
+	svc := createTestAuthorizationService(t)
+	client := createAuthCodeFlowClient(t, svc, "confidential")
+	dc := createTestDeviceCode(t, svc, client.ClientID)
+
+	userID := uuid.New().String()
+	ua, err := svc.SaveConsentAndAuthorizeDeviceCode(
+		context.Background(),
+		userID, client.ID, client.ClientID,
+		"read",
+		[]string{"https://mcp.example.com"},
+		dc,
+		"user-alice",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+	assert.Equal(t, "read", ua.Scopes)
+	assert.Equal(t, models.StringArray{"https://mcp.example.com"}, ua.Resource)
+
+	// Device code is now authorized for this user.
+	authorized, err := svc.store.GetDeviceCodeByUserCode(dc.UserCode)
+	require.NoError(t, err)
+	assert.True(t, authorized.Authorized)
+	assert.Equal(t, userID, authorized.UserID)
+
+	// Consent is queryable by (user, app).
+	loaded, err := svc.GetUserAuthorization(userID, client.ID)
+	require.NoError(t, err)
+	require.NotNil(t, loaded)
+	assert.Equal(t, ua.UUID, loaded.UUID)
+}
+
+// TestSaveConsentAndAuthorizeDeviceCode_RollsBackOnAlreadyAuthorized is the
+// regression test for the stale-consent leak Copilot flagged: when
+// AuthorizeDeviceCode fails (here, because a concurrent submit already
+// authorized the code), the UserAuthorization upsert MUST roll back. Without
+// the transactional wrapper, a stale consent row would persist and could be
+// auto-approved on a later request (or shown at /account/authorizations as a
+// grant the user never actually completed).
+func TestSaveConsentAndAuthorizeDeviceCode_RollsBackOnAlreadyAuthorized(t *testing.T) {
+	svc := createTestAuthorizationService(t)
+	client := createAuthCodeFlowClient(t, svc, "confidential")
+	dc := createTestDeviceCode(t, svc, client.ClientID)
+
+	// Simulate a concurrent submit winning the AuthorizeDeviceCode race by
+	// authorizing the code via the store directly. The next orchestrated call
+	// MUST fail and leave NO consent behind.
+	winnerID := uuid.New().String()
+	require.NoError(t, svc.store.AuthorizeDeviceCode(dc.ID, winnerID))
+
+	loserID := uuid.New().String()
+	_, err := svc.SaveConsentAndAuthorizeDeviceCode(
+		context.Background(),
+		loserID, client.ID, client.ClientID,
+		"read", nil,
+		dc,
+		"user-bob",
+	)
+	require.ErrorIs(t, err, ErrDeviceCodeAlreadyAuthorized)
+
+	// Critical invariant: the loser's consent must NOT exist. If the upsert
+	// were allowed to commit before AuthorizeDeviceCode failed, this lookup
+	// would return a stale row.
+	leaked, err := svc.GetUserAuthorization(loserID, client.ID)
+	require.NoError(t, err)
+	assert.Nil(t, leaked, "consent must roll back when AuthorizeDeviceCode fails")
+}

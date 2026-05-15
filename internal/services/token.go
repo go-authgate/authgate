@@ -473,13 +473,24 @@ func (s *TokenService) generateAndPersistTokenPair(
 	}
 
 	// Persisted Resource on the refresh-token row drives RFC 8707 §2.2
-	// subset checks on subsequent refresh requests. When the caller wants
-	// the refresh token to remember the FULL grant (not the narrowed access
-	// audience), p.RefreshResource is passed; otherwise it falls back to
-	// p.Resource so non-narrowing flows keep working.
+	// subset checks on subsequent refresh requests AND, when no per-request
+	// resource was bound, pins the audience the refresh grant should mint
+	// future access tokens for. When the caller wants the refresh token to
+	// remember the FULL grant (not the narrowed access audience),
+	// p.RefreshResource is passed; otherwise it falls back to p.Resource.
+	// If neither is set (the caller never bound an RFC 8707 resource), the
+	// effective audience snapshot (current JWTAudience config) is persisted
+	// so a future refresh uses the audience in effect at original issuance,
+	// not whatever JWT_AUDIENCE is at refresh time — matching the
+	// access-token row's snapshot semantics and preventing
+	// JWT_AUDIENCE rotation from silently retargeting refreshed access
+	// tokens to a different audience without a new grant.
 	refreshDBResource := p.RefreshResource
 	if refreshDBResource == nil {
 		refreshDBResource = p.Resource
+	}
+	if len(refreshDBResource) == 0 {
+		refreshDBResource = effectiveAudience(nil, s.config.JWTAudience)
 	}
 	refreshTokenID := uuid.New().String()
 	refreshToken := &models.AccessToken{

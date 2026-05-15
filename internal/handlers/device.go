@@ -279,23 +279,44 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 		return
 	}
 
-	// Record the user's consent BEFORE flipping the device code to authorized.
-	// AuthorizeDeviceCode unblocks the polling /oauth/token grant; if we ran
-	// it first, a fast polling client could exchange the device code in the
-	// window between AuthorizeDeviceCode and SaveUserAuthorization and
-	// receive tokens without an AuthorizationID FK — defeating the
-	// cascade-revoke this consent row exists to enable. The reverse order
-	// makes the UA visible to ExchangeDeviceCode no matter how tight the
-	// poll loop is. (UserAuthorization is also resource-aware, so the access
-	// token's `aud` matches the resource the user just approved.)
-	if _, err := h.authorizationService.SaveUserAuthorization(
+	// Persist the user's consent AND authorize the device code in a single
+	// transaction. Two failures the legacy two-step ordering left open are
+	// both closed by atomicity:
+	//
+	//  1. Stale-consent leak: if AuthorizeDeviceCode failed AFTER
+	//     SaveUserAuthorization (concurrent submit / expired code), the
+	//     consent row would persist, get auto-approved on a future request,
+	//     and show up at /account/authorizations even though the user never
+	//     actually granted tokens.
+	//  2. Orphan-token race: a fast polling /oauth/token client could
+	//     observe DeviceCode.Authorized=true between AuthorizeDeviceCode
+	//     and SaveUserAuthorization, mint tokens without the consent's
+	//     AuthorizationID FK, and defeat cascade-revoke.
+	//
+	// The single-transaction boundary commits both writes together (or
+	// neither). UserAuthorization stays resource-aware so the access token's
+	// `aud` matches the resource the user just approved.
+	if _, err := h.authorizationService.SaveConsentAndAuthorizeDeviceCode(
 		c.Request.Context(),
 		userID.(string),
 		client.ID,
 		client.ClientID,
 		dc.Scopes,
 		[]string(dc.Resource),
+		dc,
+		user.Username,
 	); err != nil {
+		if errors.Is(err, services.ErrDeviceCodeAlreadyAuthorized) {
+			renderDeviceErrorPage(
+				c,
+				user,
+				userCode,
+				clientName,
+				deviceCodeErrorMessage(err),
+				http.StatusBadRequest,
+			)
+			return
+		}
 		renderDeviceErrorPage(
 			c,
 			user,
@@ -306,24 +327,7 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 		)
 		return
 	}
-
-	err = h.deviceService.AuthorizeDeviceCode(
-		c.Request.Context(),
-		userCode,
-		userID.(string),
-		user.Username,
-	)
-	if err != nil {
-		renderDeviceErrorPage(
-			c,
-			user,
-			userCode,
-			clientName,
-			deviceCodeErrorMessage(err),
-			http.StatusBadRequest,
-		)
-		return
-	}
+	h.deviceService.RecordDeviceCodeAuthorized(dc)
 
 	templates.RenderTempl(c, http.StatusOK, templates.SuccessPage(templates.SuccessPageProps{
 		BaseProps:  templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
