@@ -1,3 +1,11 @@
+// Service-level RFC 8707 coverage. These tests drive TokenService directly
+// against a SQLite-backed test store (no Gin router, no HTTP layer) — the
+// goal is to pin the resource-binding invariants on the auth-code, refresh,
+// and client-credentials grants without paying the cost of full HTTP fixtures.
+//
+// Fragment-rejection of resource indicators is covered at the validator level
+// in internal/util/resource_test.go; HTTP-layer coverage of the auth-code
+// flow lives in internal/handlers and the bootstrap-level integration tests.
 package services
 
 import (
@@ -6,7 +14,9 @@ import (
 	"time"
 
 	"github.com/go-authgate/authgate/internal/config"
+	"github.com/go-authgate/authgate/internal/metrics"
 	"github.com/go-authgate/authgate/internal/models"
+	"github.com/go-authgate/authgate/internal/store"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -182,6 +192,160 @@ func TestClientCredentials_WithResource_PropagatesToAud(t *testing.T) {
 		models.StringArray{"https://mcp.example.com"},
 		token.Resource,
 	)
+}
+
+// authorizedDeviceCodeWithResource creates and authorizes a device code that
+// records the supplied RFC 8707 resource set, returning the authorized record
+// for use in token-exchange tests.
+func authorizedDeviceCodeWithResource(
+	t *testing.T,
+	s *store.Store,
+	clientID string,
+	resource []string,
+) *models.DeviceCode {
+	t.Helper()
+	cfg := &config.Config{
+		DeviceCodeExpiration: 30 * time.Minute,
+		PollingInterval:      5,
+	}
+	deviceService := NewDeviceService(
+		s,
+		cfg,
+		NewNoopAuditService(),
+		metrics.NewNoopMetrics(),
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0),
+	)
+	dc, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		clientID,
+		"read write",
+		resource,
+	)
+	require.NoError(t, err)
+	require.NoError(t, deviceService.AuthorizeDeviceCode(
+		context.Background(),
+		dc.UserCode,
+		uuid.New().String(),
+		"testuser",
+	))
+	// Re-load so dc.Resource is hydrated from the DB row that the token
+	// exchange path will see.
+	loaded, err := deviceService.GetDeviceCode(dc.DeviceCode)
+	require.NoError(t, err)
+	return loaded
+}
+
+// TestDeviceCode_WithResource_PropagatesToAud confirms that a resource bound
+// at /oauth/device/code is preserved through to the access token's aud claim
+// when the polling /oauth/token request omits its own resource parameter.
+func TestDeviceCode_WithResource_PropagatesToAud(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		DeviceCodeExpiration:   30 * time.Minute,
+		PollingInterval:        5,
+		JWTExpiration:          1 * time.Hour,
+		JWTSecret:              "test-secret-device-resource",
+		BaseURL:                "http://localhost:8080",
+		JWTAudience:            []string{"static.example.com"},
+		EnableRefreshTokens:    true,
+		RefreshTokenExpiration: 30 * 24 * time.Hour,
+	}
+	tokenService := createTestTokenService(t, s, cfg)
+
+	client := createTestClient(t, s, true)
+	dc := authorizedDeviceCodeWithResource(
+		t, s, client.ClientID, []string{"https://mcp.example.com"},
+	)
+
+	// No token-time resource → fall back to the granted set on the device code.
+	access, refresh, err := tokenService.ExchangeDeviceCode(
+		context.Background(),
+		dc.DeviceCode,
+		client.ClientID,
+		nil,
+		nil,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, access)
+
+	claims := decodeJWTClaims(t, access.RawToken)
+	aud, ok := claims["aud"].(string)
+	require.True(t, ok, "aud must be a string for a single-value resource")
+	assert.Equal(t, "https://mcp.example.com", aud)
+	assert.Equal(
+		t,
+		models.StringArray{"https://mcp.example.com"},
+		access.Resource,
+		"access-token row must persist the granted resource",
+	)
+
+	// Refresh row must also remember the granted resource so future refreshes
+	// can re-narrow against the original device-code grant.
+	require.NotNil(t, refresh)
+	assert.Equal(
+		t,
+		models.StringArray{"https://mcp.example.com"},
+		refresh.Resource,
+	)
+}
+
+// TestDeviceCode_RejectsResourceSupersetOfGrant exercises RFC 8707 §2.2 on
+// the device-code grant: a polling client must not be able to widen the
+// audience past what the user authorized at /oauth/device/code.
+func TestDeviceCode_RejectsResourceSupersetOfGrant(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		DeviceCodeExpiration: 30 * time.Minute,
+		PollingInterval:      5,
+		JWTExpiration:        1 * time.Hour,
+		JWTSecret:            "test-secret-device-superset",
+		BaseURL:              "http://localhost:8080",
+	}
+	tokenService := createTestTokenService(t, s, cfg)
+
+	client := createTestClient(t, s, true)
+	dc := authorizedDeviceCodeWithResource(
+		t, s, client.ClientID, []string{"https://mcp.example.com"},
+	)
+
+	_, _, err := tokenService.ExchangeDeviceCode(
+		context.Background(),
+		dc.DeviceCode,
+		client.ClientID,
+		nil,
+		[]string{"https://forbidden.example.com"},
+	)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidTarget)
+}
+
+// TestDeviceCode_RejectsResourceWhenNoneGranted asserts that a token-time
+// resource is rejected when the user authorized a device code without one —
+// the empty granted set means "no audience binding" and any resource on
+// /oauth/token would be a widening, not a narrowing.
+func TestDeviceCode_RejectsResourceWhenNoneGranted(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		DeviceCodeExpiration: 30 * time.Minute,
+		PollingInterval:      5,
+		JWTExpiration:        1 * time.Hour,
+		JWTSecret:            "test-secret-device-empty",
+		BaseURL:              "http://localhost:8080",
+	}
+	tokenService := createTestTokenService(t, s, cfg)
+
+	client := createTestClient(t, s, true)
+	dc := authorizedDeviceCodeWithResource(t, s, client.ClientID, nil)
+
+	_, _, err := tokenService.ExchangeDeviceCode(
+		context.Background(),
+		dc.DeviceCode,
+		client.ClientID,
+		nil,
+		[]string{"https://mcp.example.com"},
+	)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidTarget)
 }
 
 // TestRefresh_NarrowsResource_Subset confirms a strict subset is accepted.

@@ -10,6 +10,7 @@ import (
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/templates"
+	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -73,23 +74,29 @@ func NewDeviceHandler(
 //	@Produce		json
 //	@Param			client_id	formData	string																																true	"OAuth client ID"
 //	@Param			scope		formData	string																																false	"Requested scopes (space-separated, default: 'email profile')"
+//	@Param			resource	formData	[]string																															false	"RFC 8707 Resource Indicator(s) — bound to the issued JWT 'aud'. Repeat to send multiple."	collectionFormat(multi)
 //	@Success		200			{object}	object{device_code=string,user_code=string,verification_uri=string,verification_uri_complete=string,expires_in=int,interval=int}	"Device code generated successfully"
-//	@Failure		400			{object}	object{error=string,error_description=string}																						"Invalid request (invalid_client)"
+//	@Failure		400			{object}	object{error=string,error_description=string}																						"Invalid request (invalid_client, invalid_target)"
 //	@Failure		429			{object}	object{error=string,error_description=string}																						"Rate limit exceeded"
 //	@Failure		500			{object}	object{error=string,error_description=string}																						"Internal server error"
 //	@Router			/oauth/device/code [post]
 func (h *DeviceHandler) DeviceCodeRequest(c *gin.Context) {
 	clientID := c.PostForm("client_id")
+	resource := c.PostFormArray("resource")
 	if clientID == "" {
 		// Also try JSON body
 		var req struct {
-			ClientID string `json:"client_id"`
-			Scope    string `json:"scope"`
+			ClientID string   `json:"client_id"`
+			Scope    string   `json:"scope"`
+			Resource []string `json:"resource"`
 		}
 		if err := c.ShouldBindJSON(&req); err == nil {
 			clientID = req.ClientID
 			if req.Scope != "" {
 				c.Set("scope", req.Scope)
+			}
+			if len(req.Resource) > 0 {
+				resource = req.Resource
 			}
 		}
 	}
@@ -108,7 +115,22 @@ func (h *DeviceHandler) DeviceCodeRequest(c *gin.Context) {
 		}
 	}
 
-	dc, err := h.deviceService.GenerateDeviceCode(c.Request.Context(), clientID, scope)
+	// RFC 8707 Resource Indicators: bind the audience the user is about to
+	// authorize. Validating here (and persisting on the device code) prevents
+	// the polling client from later picking or changing the `aud` at
+	// /oauth/token after the user has already approved the device code.
+	validatedResource, err := util.ValidateResourceIndicators(resource)
+	if err != nil {
+		respondOAuthError(c, http.StatusBadRequest, errInvalidTarget, err.Error())
+		return
+	}
+
+	dc, err := h.deviceService.GenerateDeviceCode(
+		c.Request.Context(),
+		clientID,
+		scope,
+		validatedResource,
+	)
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidClient) {
 			respondOAuthError(c, http.StatusBadRequest, errInvalidClient, "Unknown client_id")

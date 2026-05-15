@@ -78,10 +78,17 @@ func (s *TokenService) revokeTokenFamilyWithAudit(
 // persisted server-side — callers must re-supply on every refresh request to
 // retain them.
 //
-// requestedResource (optional, RFC 8707 §2.2) narrows the audience on the
-// refreshed token(s) — it MUST be a subset of the original grant's resources.
-// When empty, the audience persisted at issuance is reused (no narrowing,
-// no widening). A non-subset value returns ErrInvalidTarget.
+// requestedResource (optional, RFC 8707 §2.2) narrows the new access token's
+// `aud` claim — it MUST be a subset of the original grant's resources. When
+// empty, the audience persisted at issuance is reused (no narrowing, no
+// widening). A non-subset value returns ErrInvalidTarget.
+//
+// The rotated refresh token's JWT `aud` is unaffected by this parameter:
+// refresh JWTs are signed with nil audience (falling back to the static
+// JWTAudience config) so they cannot be silently accepted as access tokens
+// by a resource server that only checks signature/iss/exp/aud. The new
+// refresh-token row's persisted Resource column keeps the original grant's
+// resource set for future §2.2 subset checks.
 func (s *TokenService) RefreshAccessToken(
 	ctx context.Context,
 	refreshTokenString, clientID, requestedScopes string,
@@ -168,11 +175,11 @@ func (s *TokenService) RefreshAccessToken(
 	}
 	extraClaims := s.composeIssuanceClaims(client, refreshToken.UserID, callerExtra)
 	// Access token's `aud` = effectiveResource (possibly narrowed).
-	// Refresh token's `aud` = nil → provider falls back to static
-	// JWTAudience config; the refresh JWT must not carry a resource-server
-	// audience because it's presented to the AS, not the RS. The persisted
-	// Resource column (set below) tracks the original grant for §2.2 subset
-	// checks on future refreshes.
+	// Refresh token's `aud` override = nil → provider falls back to the
+	// static JWTAudience config; the refresh JWT must not carry the
+	// per-request RFC 8707 resource because it's presented to the AS, not
+	// the RS. The persisted Resource column (set below) tracks the original
+	// grant for §2.2 subset checks on future refreshes.
 	refreshResult, providerErr := s.tokenProvider.RefreshAccessToken(
 		ctx,
 		refreshTokenString,

@@ -183,16 +183,32 @@ func (h *AuthorizationHandler) HandleAuthorize(c *gin.Context) {
 
 	userIDStr := getUserIDFromContext(c)
 
-	// Persist the consent record
-	if _, err := h.authorizationService.SaveUserAuthorization(
-		c.Request.Context(),
-		userIDStr,
-		req.Client.ID,
-		req.Client.ClientID,
-		req.Scopes,
-	); err != nil {
-		h.redirectWithError(c, redirectURI, state, errServerError, "Failed to save authorization")
-		return
+	// Persist the consent record only when no RFC 8707 resource was requested.
+	// UserAuthorization carries no resource dimension, so saving a
+	// resource-bound approval into the same row would let a later no-resource
+	// request match the GET-side "remembered consent" shortcut and skip the
+	// consent screen — even though the user only ever approved access to a
+	// specific resource server. Resource-bound approvals are therefore
+	// one-shot; the user re-consents on the next request. (Existing
+	// scope-only consent for this client+user, if any, is preserved
+	// untouched.)
+	if len(req.Resource) == 0 {
+		if _, err := h.authorizationService.SaveUserAuthorization(
+			c.Request.Context(),
+			userIDStr,
+			req.Client.ID,
+			req.Client.ClientID,
+			req.Scopes,
+		); err != nil {
+			h.redirectWithError(
+				c,
+				redirectURI,
+				state,
+				errServerError,
+				"Failed to save authorization",
+			)
+			return
+		}
 	}
 
 	h.issueCodeAndRedirect(c, req, userIDStr, state)
@@ -244,18 +260,27 @@ func (h *AuthorizationHandler) issueCodeAndRedirect(
 }
 
 // handleAuthorizeError converts a ValidateAuthorizationRequest error into the
-// right response. Per RFC 6749 §3.1.2.4, when the redirect_uri is invalid or
-// the client is unauthorized, the AS MUST NOT redirect — otherwise the
-// caller's redirect_uri (still unverified at this stage) becomes an open
-// redirect. For other errors, the redirect_uri has been registered for the
-// client, so a redirect with the OAuth error is safe.
+// right response. Per RFC 6749 §3.1.2.4, when redirect_uri has not yet been
+// proven registered for the client, the AS MUST NOT redirect — otherwise the
+// caller-supplied redirect_uri becomes an open redirect.
+//
+// ValidateAuthorizationRequest checks parameters in this order:
+//
+//	response_type → client lookup → client active → auth-code flow enabled →
+//	redirect_uri → scope → PKCE
+//
+// Anything that can fail BEFORE the redirect_uri match (response_type,
+// client lookup/active/flow-disabled, redirect_uri itself) must render an
+// error page locally; only failures after that point may safely redirect
+// the OAuth error to the now-validated redirect_uri.
 func (h *AuthorizationHandler) handleAuthorizeError(
 	c *gin.Context,
 	redirectURI, state string,
 	err error,
 ) {
 	if errors.Is(err, services.ErrInvalidRedirectURI) ||
-		errors.Is(err, services.ErrUnauthorizedClient) {
+		errors.Is(err, services.ErrUnauthorizedClient) ||
+		errors.Is(err, services.ErrUnsupportedResponseType) {
 		templates.RenderTempl(
 			c,
 			http.StatusBadRequest,

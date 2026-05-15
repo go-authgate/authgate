@@ -123,10 +123,14 @@ token — token replay against a different MCP server with the same
 - `iss` matches AuthGate's configured `BASE_URL`.
 - `exp` is in the future.
 - **`type` claim equals `"access"`.** AuthGate also issues refresh tokens
-  signed with the same key, but they carry `type: "refresh"` and a
-  non-resource-server `aud`. A resource server that checks only
-  signature/`iss`/`exp`/`aud` would silently accept a refresh token as a
-  valid access token. Reject any JWT whose `type` is not `"access"`.
+  signed with the same key, but they carry `type: "refresh"` and never the
+  per-request RFC 8707 resource as `aud` (refresh JWTs are signed with nil
+  audience override and fall back to the static `JWT_AUDIENCE` config). A
+  resource server that checks only signature/`iss`/`exp`/`aud` would silently
+  accept a refresh token as a valid access token whenever `JWT_AUDIENCE` is
+  configured to its own resource identifier. Reject any JWT whose `type` is
+  not `"access"`, and configure `JWT_AUDIENCE` either unset or to an AS-only
+  value (never a resource-server identifier).
 - For tokens obtained via `client_credentials`, `sub` starts with `client:`
   (machine identity) — treat these distinctly from user-delegated tokens
   if your policy differs for them.

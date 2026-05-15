@@ -16,13 +16,17 @@ import (
 // ExchangeDeviceCode exchanges an authorized device code for access and refresh tokens.
 // extraClaims (optional) is merged into both tokens as caller-supplied JWT
 // claims; reserved keys must already have been rejected by the handler.
-// resource (optional, RFC 8707) binds the issued tokens' "aud" claim to the
-// supplied resource indicators.
+// requestedResource (optional, RFC 8707 §2.2) narrows the access token's
+// "aud" — when set, it MUST be a subset of the audience the user authorized
+// at /oauth/device/code, otherwise ErrInvalidTarget is returned. When empty,
+// the device code's bound resource set is reused unchanged. The refresh
+// token always carries the full granted resource set on its DB row so future
+// /oauth/token refresh requests can re-narrow against the original grant.
 func (s *TokenService) ExchangeDeviceCode(
 	ctx context.Context,
 	deviceCode, clientID string,
 	extraClaims map[string]any,
-	resource []string,
+	requestedResource []string,
 ) (*models.AccessToken, *models.AccessToken, error) {
 	dc, err := s.deviceService.GetDeviceCode(deviceCode)
 	if err != nil {
@@ -60,18 +64,37 @@ func (s *TokenService) ExchangeDeviceCode(
 		return nil, nil, ErrAuthorizationPending
 	}
 
+	// RFC 8707 §2.2: the polling client may narrow the audience but MUST NOT
+	// widen it past what the user authorized at /oauth/device/code. An empty
+	// authorized set therefore rejects any token-time `resource` (matches the
+	// auth-code flow's rule).
+	grantedResource := []string(dc.Resource)
+	if len(requestedResource) > 0 &&
+		!util.IsStringSliceSubset(grantedResource, requestedResource) {
+		s.metrics.RecordOAuthDeviceCodeValidation("invalid")
+		return nil, nil, ErrInvalidTarget
+	}
+	accessResource := requestedResource
+	if len(accessResource) == 0 {
+		accessResource = grantedResource
+	}
+
 	// Record successful validation
 	s.metrics.RecordOAuthDeviceCodeValidation("success")
 
-	// Generate and persist token pair
+	// Generate and persist token pair. The refresh token's DB row carries the
+	// full granted resource set so future refresh requests can re-narrow
+	// against the original /oauth/device/code grant rather than the (possibly
+	// narrowed) access-token audience.
 	start := time.Now()
 	accessToken, refreshToken, err := s.generateAndPersistTokenPair(ctx, tokenPairParams{
-		UserID:      dc.UserID,
-		ClientID:    dc.ClientID,
-		Scopes:      dc.Scopes,
-		Client:      client,
-		ExtraClaims: extraClaims,
-		Resource:    resource,
+		UserID:          dc.UserID,
+		ClientID:        dc.ClientID,
+		Scopes:          dc.Scopes,
+		Client:          client,
+		ExtraClaims:     extraClaims,
+		Resource:        accessResource,
+		RefreshResource: grantedResource,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -128,7 +151,12 @@ func (s *TokenService) ExchangeDeviceCode(
 // AuthorizationService.ExchangeCode before calling this method.
 // extraClaims (optional) is merged into both access and refresh tokens; it
 // does NOT affect ID Token claims (those are governed by OIDC scopes).
-// resource (optional, RFC 8707) overrides the audience on issued tokens.
+// resource (optional, RFC 8707) narrows the access token's `aud` claim — it
+// MUST be a subset of the authorization code's bound resource set. The
+// refresh token's JWT `aud` is unaffected (it is signed with nil audience
+// and falls back to the static JWTAudience config); only the refresh-token
+// row's persisted Resource column tracks the granted set, for §2.2 subset
+// checks on subsequent refresh requests.
 // Returns: accessToken, refreshToken, idToken (empty string when openid not requested), error.
 func (s *TokenService) ExchangeAuthorizationCode(
 	ctx context.Context,

@@ -250,6 +250,37 @@ func TestAuthorize_InvalidResource_RedirectsAfterValidation(t *testing.T) {
 	assert.Contains(t, loc, "state=xyz")
 }
 
+// TestAuthorize_UnsupportedResponseType_UnregisteredRedirectURI_NotReflected
+// asserts the open-redirect mitigation for the unsupported_response_type
+// path: ValidateAuthorizationRequest checks response_type BEFORE the
+// redirect_uri match, so an attacker pairing response_type=token with an
+// unregistered redirect_uri must NOT cause AuthGate to redirect there with
+// the OAuth error. The handler renders an error page locally instead.
+func TestAuthorize_UnsupportedResponseType_UnregisteredRedirectURI_NotReflected(t *testing.T) {
+	r, client := setupAuthorizeTestEnv(t)
+
+	q := url.Values{
+		"client_id":     {client.ClientID},
+		"redirect_uri":  {"https://evil.example.com/exfil"},
+		"response_type": {"token"},
+		"scope":         {"read"},
+		"state":         {"xyz"},
+	}
+	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize?"+q.Encode(), nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.NotEqual(
+		t, http.StatusFound, w.Code,
+		"unsupported_response_type with an unregistered redirect_uri must not redirect",
+	)
+	loc := w.Header().Get("Location")
+	assert.NotContains(
+		t, loc, "evil.example.com",
+		"unregistered redirect_uri must not be reflected as a redirect target",
+	)
+}
+
 // TestAuthorize_InvalidResource_UnregisteredRedirectURI_NotReflected
 // asserts the open-redirect mitigation: when an invalid `resource` is
 // paired with an UNREGISTERED redirect_uri, the response must NOT redirect

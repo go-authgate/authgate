@@ -87,21 +87,45 @@ func (h *TokenHandler) parseResourceParam(c *gin.Context) ([]string, bool) {
 }
 
 // introspectAudience returns the value to emit as the `aud` field on an
-// introspection response. Only the audience persisted at issuance is used —
-// the current JWTAudience config is NOT a fallback, because operators may
-// rotate `JWT_AUDIENCE` while older tokens are still live and reporting the
-// fresh config value would diverge from what the JWT actually carries.
-// Returns nil when nothing is persisted (claim is omitted per RFC 7662 §2.2).
-// A single-value list collapses to a plain string to match JWT `aud` conventions.
-func introspectAudience(tok *models.AccessToken) any {
-	values := []string(tok.Resource)
+// introspection response. The goal is to match the actual `aud` claim carried
+// by the JWT — RFC 7662 §2.2 introspection responses must agree with what a
+// resource server would see if it parsed the JWT itself.
+//
+// Token-by-token rules:
+//
+//   - Refresh tokens are signed with nil audience override at issuance, so
+//     their JWT carries the static JWTAudience config (or omits `aud` when
+//     unset). The persisted Resource column on a refresh-token row only
+//     records the granted resource set for future RFC 8707 §2.2 subset
+//     checks; it is NOT the JWT audience and must not be reported as such.
+//   - Access tokens carry the persisted Resource as `aud` when set, otherwise
+//     they fall back to the static JWTAudience config — matching exactly
+//     what generateJWT writes into the signed token.
+//
+// `defaultAud` is the current static JWTAudience config snapshot. We use the
+// runtime config value rather than recording it per-token at issuance because
+// every issued JWT is signed with the live config, so the live config is what
+// the JWT verifier sees today. Operators rotating `JWT_AUDIENCE` while older
+// tokens are live should accept that the live config wins (consistent with
+// the signed JWT itself).
+//
+// Returns nil when no audience would be present (claim is omitted per
+// RFC 7662 §2.2). A single-value list collapses to a plain string to match
+// JWT `aud` conventions.
+func introspectAudience(tok *models.AccessToken, defaultAud []string) any {
+	values := defaultAud
+	if tok.IsAccessToken() && len(tok.Resource) > 0 {
+		values = []string(tok.Resource)
+	}
 	switch len(values) {
 	case 0:
 		return nil
 	case 1:
 		return values[0]
 	default:
-		return values
+		out := make([]string, len(values))
+		copy(out, values)
+		return out
 	}
 }
 
@@ -204,6 +228,13 @@ func (h *TokenHandler) handleDeviceCodeGrant(c *gin.Context) {
 			respondOAuthError(c, http.StatusBadRequest, errExpiredToken, "")
 		case errors.Is(err, services.ErrAccessDenied):
 			respondOAuthError(c, http.StatusBadRequest, errAccessDenied, "")
+		case errors.Is(err, services.ErrInvalidTarget):
+			respondOAuthError(
+				c,
+				http.StatusBadRequest,
+				errInvalidTarget,
+				"Requested resource exceeds the audience granted at /oauth/device/code",
+			)
 		default:
 			log.Printf("[token] device code exchange error: %v", err)
 			respondOAuthError(
@@ -431,12 +462,12 @@ func (h *TokenHandler) Introspect(c *gin.Context) {
 		"jti":        tok.ID,
 	}
 
-	// Audience binding: emit the RFC 8707 resource set persisted at
-	// issuance so resource servers can enforce that a token minted for
-	// service A cannot be replayed against service B. Omitted when no
-	// resource was requested at issuance (current JWTAudience config is
-	// NOT a fallback — see introspectAudience for rationale).
-	if aud := introspectAudience(tok); aud != nil {
+	// Audience: report exactly what the signed JWT carries. For access tokens
+	// that's the persisted RFC 8707 resource set when set, otherwise the
+	// static JWTAudience config; for refresh tokens it's always the static
+	// JWTAudience config (the persisted Resource column is for §2.2 subset
+	// checks, not the JWT `aud`). See introspectAudience for the full rules.
+	if aud := introspectAudience(tok, h.config.JWTAudience); aud != nil {
 		resp["aud"] = aud
 	}
 

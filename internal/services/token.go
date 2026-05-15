@@ -183,11 +183,14 @@ type tokenPairParams struct {
 	// access token's "aud" claim. Empty means fall back to the static
 	// JWTAudience config. Persisted on the access token row.
 	Resource []string
-	// RefreshResource overrides the audience on the refresh token when set.
-	// Used by auth-code exchange to preserve the full /authorize grant on
-	// the refresh token while issuing a narrowed access token, so future
-	// refresh requests can re-narrow against the original grant. When nil,
-	// the refresh token uses Resource (same audience as the access token).
+	// RefreshResource overrides what gets persisted on the refresh-token row's
+	// `Resource` column — it does NOT affect the refresh JWT's `aud` claim
+	// (the refresh token is always signed with nil audience override; see
+	// generateAndPersistTokenPair). Used by issuance flows that narrow the
+	// access token (auth-code, device-code) to record the FULL granted
+	// resource set on the refresh row so future RFC 8707 §2.2 subset checks
+	// re-narrow against the original grant rather than the already-narrowed
+	// access-token audience. When nil, the refresh row falls back to Resource.
 	RefreshResource []string
 }
 
@@ -404,11 +407,13 @@ func (s *TokenService) generateAndPersistTokenPair(
 		)
 		return nil, nil, fmt.Errorf("token generation failed: %w", err)
 	}
-	// Refresh tokens never carry a resource-server `aud` — they're presented
-	// to the AS, not the RS. Pass nil so the JWT audience falls back to the
-	// static JWTAudience config (typically the AS itself). The persisted
-	// Resource column on the refresh-token row still records the granted
-	// resource set, so future refresh requests can subset-check against it.
+	// Refresh tokens never carry the per-request RFC 8707 resource as `aud` —
+	// they're presented to the AS, not the RS. Pass nil so the JWT audience
+	// falls back to the static JWTAudience config (deployments must point
+	// `JWT_AUDIENCE` at an AS-only value or leave it unset; see
+	// core/token.go on RefreshAccessToken for why). The persisted Resource
+	// column on the refresh-token row still records the granted resource
+	// set, so future refresh requests can subset-check against it.
 	refreshResult, err := s.tokenProvider.GenerateRefreshToken(
 		ctx, p.UserID, p.ClientID, p.Scopes, refreshTTL, extraClaims, nil,
 	)

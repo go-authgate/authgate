@@ -96,13 +96,16 @@ type TokenProvider interface {
 	// RefreshAccessToken issues a new access token (and, in rotation mode, a
 	// new refresh token) from a valid refresh-token string.
 	//
-	// accessAudience and refreshAudience are kept separate so refresh tokens
-	// never carry a resource-server `aud`. A refresh token is presented to
-	// the AS, not the RS — emitting the same audience as the access token
-	// would let a downstream JWT validator that only checks
-	// signature/iss/exp/aud silently accept the refresh token as if it
-	// were an access token. Pass nil for refreshAudience to fall back to
-	// the static JWTAudience config (typically the AS itself).
+	// accessAudience and refreshAudience are kept separate so a refresh token
+	// never carries the per-request resource-server `aud`. A refresh token is
+	// presented to the AS, not the RS — emitting the same per-request audience
+	// as the access token would let a downstream JWT validator that only
+	// checks signature/iss/exp/aud silently accept the refresh token as if it
+	// were an access token. Pass nil for refreshAudience to fall back to the
+	// static JWTAudience config; deployments are expected to set
+	// `JWT_AUDIENCE` to an AS-only value (or leave it unset so the claim is
+	// omitted) — pointing it at a resource server would re-introduce the
+	// confusion this split is designed to prevent.
 	RefreshAccessToken(
 		ctx context.Context,
 		refreshToken string,

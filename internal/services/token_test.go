@@ -66,7 +66,7 @@ func createAuthorizedDeviceCode(t *testing.T, s *store.Store, clientID string) *
 	)
 
 	// Generate device code
-	dc, err := deviceService.GenerateDeviceCode(context.Background(), clientID, "read write")
+	dc, err := deviceService.GenerateDeviceCode(context.Background(), clientID, "read write", nil)
 	require.NoError(t, err)
 
 	// Authorize it
@@ -188,7 +188,12 @@ func TestExchangeDeviceCode_NotAuthorized(t *testing.T) {
 
 	// Create an active client and device code but don't authorize it
 	client := createTestClient(t, s, true)
-	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
+	dc, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client.ClientID,
+		"read write",
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Try to exchange without authorization
@@ -223,7 +228,12 @@ func TestExchangeDeviceCode_ExpiredCode(t *testing.T) {
 
 	// Create an active client and device code (it will be expired)
 	client := createTestClient(t, s, true)
-	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
+	dc, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client.ClientID,
+		"read write",
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Try to exchange expired device code
@@ -445,12 +455,17 @@ func TestGetUserTokens_Success(t *testing.T) {
 	userID := uuid.New().String()
 
 	// Generate and authorize multiple device codes
-	dc1, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read")
+	dc1, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read", nil)
 	require.NoError(t, err)
 	err = deviceService.AuthorizeDeviceCode(context.Background(), dc1.UserCode, userID, "testuser")
 	require.NoError(t, err)
 
-	dc2, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "write")
+	dc2, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client.ClientID,
+		"write",
+		nil,
+	)
 	require.NoError(t, err)
 	err = deviceService.AuthorizeDeviceCode(context.Background(), dc2.UserCode, userID, "testuser")
 	require.NoError(t, err)
@@ -507,12 +522,17 @@ func TestRevokeAllUserTokens_Success(t *testing.T) {
 	userID := uuid.New().String()
 
 	// Generate and authorize multiple device codes
-	dc1, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read")
+	dc1, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read", nil)
 	require.NoError(t, err)
 	err = deviceService.AuthorizeDeviceCode(context.Background(), dc1.UserCode, userID, "testuser")
 	require.NoError(t, err)
 
-	dc2, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "write")
+	dc2, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client.ClientID,
+		"write",
+		nil,
+	)
 	require.NoError(t, err)
 	err = deviceService.AuthorizeDeviceCode(context.Background(), dc2.UserCode, userID, "testuser")
 	require.NoError(t, err)
@@ -564,7 +584,12 @@ func TestGetUserTokensWithClient_Success(t *testing.T) {
 	userID := uuid.New().String()
 
 	// Generate and authorize device code
-	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
+	dc, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client.ClientID,
+		"read write",
+		nil,
+	)
 	require.NoError(t, err)
 	err = deviceService.AuthorizeDeviceCode(context.Background(), dc.UserCode, userID, "testuser")
 	require.NoError(t, err)
@@ -620,12 +645,22 @@ func TestGetUserTokensWithClient_MultipleClients(t *testing.T) {
 	userID := uuid.New().String()
 
 	// Generate and authorize tokens for both clients
-	dc1, err := deviceService.GenerateDeviceCode(context.Background(), client1.ClientID, "read")
+	dc1, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client1.ClientID,
+		"read",
+		nil,
+	)
 	require.NoError(t, err)
 	err = deviceService.AuthorizeDeviceCode(context.Background(), dc1.UserCode, userID, "testuser")
 	require.NoError(t, err)
 
-	dc2, err := deviceService.GenerateDeviceCode(context.Background(), client2.ClientID, "write")
+	dc2, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client2.ClientID,
+		"write",
+		nil,
+	)
 	require.NoError(t, err)
 	err = deviceService.AuthorizeDeviceCode(context.Background(), dc2.UserCode, userID, "testuser")
 	require.NoError(t, err)
