@@ -23,6 +23,15 @@ func IsStringSliceSubset(super, sub []string) bool {
 	return true
 }
 
+// IsStringSliceSetEqual reports whether `a` and `b` contain the same set of
+// strings (order-independent, duplicates collapsed). Used by RFC 8707 consent
+// matching where the resource set the user approved must exactly match the
+// set the next request is asking for — narrowing or widening should both
+// re-prompt, not silently match a remembered consent.
+func IsStringSliceSetEqual(a, b []string) bool {
+	return IsStringSliceSubset(a, b) && IsStringSliceSubset(b, a)
+}
+
 // UniqueKeys extracts unique non-empty string keys from a slice using keyFn.
 func UniqueKeys[T any](items []T, keyFn func(T) string) []string {
 	seen := make(map[string]bool, len(items))

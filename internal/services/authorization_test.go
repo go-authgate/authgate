@@ -561,7 +561,7 @@ func TestSaveUserAuthorization_CreateAndUpsert(t *testing.T) {
 
 	// First save – creates record
 	auth, err := svc.SaveUserAuthorization(
-		context.Background(), userID, client.ID, client.ClientID, "read",
+		context.Background(), userID, client.ID, client.ClientID, "read", nil,
 	)
 	require.NoError(t, err)
 	assert.True(t, auth.IsActive)
@@ -570,13 +570,37 @@ func TestSaveUserAuthorization_CreateAndUpsert(t *testing.T) {
 
 	// Second save with expanded scopes – should update, not duplicate
 	auth2, err := svc.SaveUserAuthorization(
-		context.Background(), userID, client.ID, client.ClientID, "read write",
+		context.Background(), userID, client.ID, client.ClientID, "read write", nil,
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "read write", auth2.Scopes)
 	assert.True(t, auth2.IsActive)
 	// UUID may differ (new UUID on upsert) but there should still be only one record
 	_ = firstUUID
+}
+
+// TestSaveUserAuthorization_PersistsResource confirms that the resource set
+// supplied at consent time is persisted on the row and survives the upsert
+// round-trip — this is what lets the GET-side remembered-consent shortcut do
+// an exact resource-set match before auto-approving (and what gives
+// resource-bound tokens an AuthorizationID for cascade-revoke).
+func TestSaveUserAuthorization_PersistsResource(t *testing.T) {
+	svc := createTestAuthorizationService(t)
+	client := createAuthCodeFlowClient(t, svc, "confidential")
+	userID := uuid.New().String()
+
+	resource := []string{"https://mcp.example.com"}
+	saved, err := svc.SaveUserAuthorization(
+		context.Background(), userID, client.ID, client.ClientID, "read", resource,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, models.StringArray(resource), saved.Resource)
+
+	// Re-load to confirm the resource survives the DB round-trip.
+	loaded, err := svc.GetUserAuthorization(userID, client.ID)
+	require.NoError(t, err)
+	require.NotNil(t, loaded)
+	assert.Equal(t, models.StringArray(resource), loaded.Resource)
 }
 
 func TestGetUserAuthorization_ExistsAndMissing(t *testing.T) {
@@ -591,7 +615,7 @@ func TestGetUserAuthorization_ExistsAndMissing(t *testing.T) {
 
 	// After saving
 	_, err = svc.SaveUserAuthorization(
-		context.Background(), userID, client.ID, client.ClientID, "read",
+		context.Background(), userID, client.ID, client.ClientID, "read", nil,
 	)
 	require.NoError(t, err)
 
@@ -607,7 +631,7 @@ func TestRevokeUserAuthorization_Success(t *testing.T) {
 	userID := uuid.New().String()
 
 	auth, err := svc.SaveUserAuthorization(
-		context.Background(), userID, client.ID, client.ClientID, "read write",
+		context.Background(), userID, client.ID, client.ClientID, "read write", nil,
 	)
 	require.NoError(t, err)
 
@@ -627,7 +651,7 @@ func TestRevokeUserAuthorization_WrongUser(t *testing.T) {
 	otherID := uuid.New().String()
 
 	auth, err := svc.SaveUserAuthorization(
-		context.Background(), ownerID, client.ID, client.ClientID, "read",
+		context.Background(), ownerID, client.ID, client.ClientID, "read", nil,
 	)
 	require.NoError(t, err)
 
@@ -654,7 +678,9 @@ func TestListUserAuthorizations_MultipleClients(t *testing.T) {
 			Status:             models.ClientStatusActive,
 		}
 		require.NoError(t, svc.store.CreateClient(c))
-		_, err := svc.SaveUserAuthorization(context.Background(), userID, c.ID, c.ClientID, "read")
+		_, err := svc.SaveUserAuthorization(
+			context.Background(), userID, c.ID, c.ClientID, "read", nil,
+		)
 		require.NoError(t, err)
 	}
 
@@ -675,7 +701,7 @@ func TestRevokeAllApplicationTokens_RevokesConsentRecords(t *testing.T) {
 	for range 2 {
 		userID := uuid.New().String()
 		_, err := svc.SaveUserAuthorization(
-			context.Background(), userID, client.ID, client.ClientID, "read",
+			context.Background(), userID, client.ID, client.ClientID, "read", nil,
 		)
 		require.NoError(t, err)
 	}
@@ -890,7 +916,7 @@ func TestListClientAuthorizations_MultipleUsers(t *testing.T) {
 	for i := range userIDs {
 		userIDs[i] = uuid.New().String()
 		_, err := svc.SaveUserAuthorization(
-			context.Background(), userIDs[i], client.ID, client.ClientID, "read",
+			context.Background(), userIDs[i], client.ID, client.ClientID, "read", nil,
 		)
 		require.NoError(t, err)
 	}

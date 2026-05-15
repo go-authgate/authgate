@@ -56,6 +56,14 @@ templ AuthorizationItem(auth AuthorizationDisplay, csrfToken string) {
 				<span class="authorization-date">{ auth.GrantedAt.Format("2006-01-02 15:04") }</span>
 				<span class="authorization-status active">Active</span>
 			</div>
+			if len(auth.Resource) > 0 {
+				<div class="authorization-resources">
+					<span class="authorization-resources-label">Resource(s):</span>
+					for _, r := range auth.Resource {
+						<code class="authorization-resource-item">{ r }</code>
+					}
+				</div>
+			}
 		</div>
 		<!-- Actions -->
 		<div class="authorization-actions">

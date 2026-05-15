@@ -9,13 +9,12 @@ import (
 )
 
 // TestIntrospectAudience covers the rules for the `aud` field on RFC 7662
-// introspection responses: it must mirror what the signed JWT actually
-// carries, NOT just whatever happens to be persisted on the row. In
-// particular, refresh-token rows persist the granted resource for §2.2
-// subset checks, but the refresh JWT itself is signed with nil audience and
-// falls back to JWTAudience — reporting the persisted Resource as `aud`
-// would diverge from the JWT and let resource servers wrongly treat a
-// refresh token as if it had been issued for them.
+// introspection responses. Refresh tokens always omit `aud`: the response's
+// `token_type` is hard-coded "Bearer" (matching access tokens), so any
+// reported `aud` could be misread by a resource server doing an
+// `active && aud=mine` check, accepting a refresh token as if it were an
+// access token. Access tokens report the persisted Resource when set,
+// otherwise fall back to the configured JWTAudience.
 func TestIntrospectAudience(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -64,22 +63,21 @@ func TestIntrospectAudience(t *testing.T) {
 			want:       nil,
 		},
 		{
-			name: "refresh token with persisted resource still reports JWTAudience",
+			name: "refresh token always omits aud (token_type=Bearer would mislead RS)",
 			token: &models.AccessToken{
 				TokenCategory: models.TokenCategoryRefresh,
-				// Persisted for §2.2 subset checks; NOT the JWT aud.
+				// Persisted for §2.2 subset checks; never reported as aud.
 				Resource: models.StringArray{"https://mcp.example.com"},
 			},
 			defaultAud: []string{"static.example.com"},
-			want:       "static.example.com",
+			want:       nil,
 		},
 		{
-			name: "refresh token with persisted resource and empty JWTAudience → nil",
+			name: "refresh token without resource also omits aud",
 			token: &models.AccessToken{
 				TokenCategory: models.TokenCategoryRefresh,
-				Resource:      models.StringArray{"https://mcp.example.com"},
 			},
-			defaultAud: nil,
+			defaultAud: []string{"static.example.com"},
 			want:       nil,
 		},
 	}

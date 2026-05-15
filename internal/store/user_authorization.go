@@ -51,7 +51,8 @@ func (s *Store) UpsertUserAuthorization(auth *models.UserAuthorization) error {
 			{Name: "application_id"},
 		},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"uuid", "client_id", "scopes", "granted_at", "revoked_at", "is_active", "updated_at",
+			"uuid", "client_id", "scopes", "resource",
+			"granted_at", "revoked_at", "is_active", "updated_at",
 		}),
 	}).Create(auth).Error
 }

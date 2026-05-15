@@ -98,15 +98,19 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 		return
 	}
 
-	// If ConsentRemember is enabled and the user has already consented to all
-	// requested scopes, skip the consent page and issue a code immediately.
-	// Skip the shortcut when an RFC 8707 resource is requested — the resource
-	// (eventual JWT `aud`) is a new attribute not stored on UserAuthorization,
-	// and the user must explicitly approve which resource server they grant
-	// access to.
-	if h.config.ConsentRemember && len(req.Resource) == 0 {
+	// If ConsentRemember is enabled and the user has already consented to
+	// the same client+scopes+resource set, skip the consent page and issue
+	// a code immediately. The resource set must match EXACTLY — neither a
+	// no-resource request matching a resource-bound consent nor a
+	// resource-bound request matching a no-resource consent qualifies, since
+	// the user only ever approved a specific audience binding (or its
+	// absence) and silently widening/narrowing it would shift trust they
+	// never granted.
+	if h.config.ConsentRemember {
 		existing, _ := h.authorizationService.GetUserAuthorization(userIDStr, req.Client.ID)
-		if existing != nil && util.IsScopeSubset(existing.Scopes, req.Scopes) {
+		if existing != nil &&
+			util.IsScopeSubset(existing.Scopes, req.Scopes) &&
+			util.IsStringSliceSetEqual([]string(existing.Resource), req.Resource) {
 			h.issueCodeAndRedirect(c, req, userIDStr, state)
 			return
 		}
@@ -183,32 +187,31 @@ func (h *AuthorizationHandler) HandleAuthorize(c *gin.Context) {
 
 	userIDStr := getUserIDFromContext(c)
 
-	// Persist the consent record only when no RFC 8707 resource was requested.
-	// UserAuthorization carries no resource dimension, so saving a
-	// resource-bound approval into the same row would let a later no-resource
-	// request match the GET-side "remembered consent" shortcut and skip the
-	// consent screen — even though the user only ever approved access to a
-	// specific resource server. Resource-bound approvals are therefore
-	// one-shot; the user re-consents on the next request. (Existing
-	// scope-only consent for this client+user, if any, is preserved
-	// untouched.)
-	if len(req.Resource) == 0 {
-		if _, err := h.authorizationService.SaveUserAuthorization(
-			c.Request.Context(),
-			userIDStr,
-			req.Client.ID,
-			req.Client.ClientID,
-			req.Scopes,
-		); err != nil {
-			h.redirectWithError(
-				c,
-				redirectURI,
-				state,
-				errServerError,
-				"Failed to save authorization",
-			)
-			return
-		}
+	// Persist the consent record (with the approved resource set, if any).
+	// UserAuthorization is now resource-aware: the GET-side remembered-consent
+	// shortcut requires an exact resource-set match before auto-approving, so
+	// saving a resource-bound consent here cannot accidentally widen a later
+	// no-resource request — it just makes the (client, scopes, resource)
+	// triple a re-usable shortcut. Persisting also means the issued tokens
+	// get an AuthorizationID FK so the user can revoke them from
+	// /account/authorizations and so admin-initiated client revocations
+	// cascade to them.
+	if _, err := h.authorizationService.SaveUserAuthorization(
+		c.Request.Context(),
+		userIDStr,
+		req.Client.ID,
+		req.Client.ClientID,
+		req.Scopes,
+		req.Resource,
+	); err != nil {
+		h.redirectWithError(
+			c,
+			redirectURI,
+			state,
+			errServerError,
+			"Failed to save authorization",
+		)
+		return
 	}
 
 	h.issueCodeAndRedirect(c, req, userIDStr, state)
@@ -390,29 +393,40 @@ const (
 	maxNonceLength = 1024
 )
 
-// validateStateAndNonce checks that state and nonce parameters don't exceed maximum lengths.
-// Returns true if validation passes, false if an error redirect was sent.
+// validateStateAndNonce checks that state and nonce parameters don't exceed
+// maximum lengths. Returns true if validation passes, false if an error
+// response was written.
+//
+// This runs BEFORE ValidateAuthorizationRequest, so the redirect_uri has not
+// yet been proven registered for the client. Reflecting the OAuth error to
+// the caller-supplied redirect_uri here would be an open redirect — an
+// attacker could pair an oversized state/nonce with an attacker-controlled
+// redirect_uri to coerce the AS into redirecting off-site. We render the
+// error page locally instead. Per RFC 6749 §3.1.2.4 the AS MUST NOT redirect
+// to an unverified redirect_uri.
 func (h *AuthorizationHandler) validateStateAndNonce(
 	c *gin.Context,
-	redirectURI, state, nonce string,
+	_, state, nonce string,
 ) bool {
 	if len(state) > maxStateLength {
-		h.redirectWithError(
+		templates.RenderTempl(
 			c,
-			redirectURI,
-			"",
-			errInvalidRequest,
-			"state parameter exceeds maximum length",
+			http.StatusBadRequest,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error:   errInvalidRequest,
+				Message: "state parameter exceeds maximum length",
+			}),
 		)
 		return false
 	}
 	if len(nonce) > maxNonceLength {
-		h.redirectWithError(
+		templates.RenderTempl(
 			c,
-			redirectURI,
-			state,
-			errInvalidRequest,
-			"nonce parameter exceeds maximum length",
+			http.StatusBadRequest,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error:   errInvalidRequest,
+				Message: "nonce parameter exceeds maximum length",
+			}),
 		)
 		return false
 	}

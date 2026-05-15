@@ -87,34 +87,33 @@ func (h *TokenHandler) parseResourceParam(c *gin.Context) ([]string, bool) {
 }
 
 // introspectAudience returns the value to emit as the `aud` field on an
-// introspection response. The goal is to match the actual `aud` claim carried
-// by the JWT — RFC 7662 §2.2 introspection responses must agree with what a
-// resource server would see if it parsed the JWT itself.
+// RFC 7662 introspection response, or nil to omit the claim.
 //
-// Token-by-token rules:
+// Refresh tokens always return nil. The introspection response's `token_type`
+// field is hard-coded to "Bearer" (matching how access tokens are presented),
+// so a resource server that authenticates with `active=true` AND
+// `aud == its-own-id` cannot tell a refresh token apart from an access
+// token. Advertising any `aud` on a refresh token would let it be mistakenly
+// accepted as an access token whenever the configured `JWT_AUDIENCE` happens
+// to match a resource-server identifier. The signed refresh JWT itself does
+// carry whatever `JWT_AUDIENCE` is set to (or omits `aud`), but introspection
+// is the AS-mediated trust path and must not paper over that ambiguity.
 //
-//   - Refresh tokens are signed with nil audience override at issuance, so
-//     their JWT carries the static JWTAudience config (or omits `aud` when
-//     unset). The persisted Resource column on a refresh-token row only
-//     records the granted resource set for future RFC 8707 §2.2 subset
-//     checks; it is NOT the JWT audience and must not be reported as such.
-//   - Access tokens carry the persisted Resource as `aud` when set, otherwise
-//     they fall back to the static JWTAudience config — matching exactly
-//     what generateJWT writes into the signed token.
+// Access tokens carry the persisted Resource as `aud` when set, otherwise
+// fall back to the static JWTAudience config — matching what generateJWT
+// writes into the signed token. `defaultAud` is the current
+// `config.JWTAudience` snapshot (the live config is what JWT verifiers see
+// today; operators rotating `JWT_AUDIENCE` while older tokens are live
+// accept that the live config wins).
 //
-// `defaultAud` is the current static JWTAudience config snapshot. We use the
-// runtime config value rather than recording it per-token at issuance because
-// every issued JWT is signed with the live config, so the live config is what
-// the JWT verifier sees today. Operators rotating `JWT_AUDIENCE` while older
-// tokens are live should accept that the live config wins (consistent with
-// the signed JWT itself).
-//
-// Returns nil when no audience would be present (claim is omitted per
-// RFC 7662 §2.2). A single-value list collapses to a plain string to match
-// JWT `aud` conventions.
+// A single-value list collapses to a plain string to match JWT `aud`
+// conventions.
 func introspectAudience(tok *models.AccessToken, defaultAud []string) any {
+	if !tok.IsAccessToken() {
+		return nil
+	}
 	values := defaultAud
-	if tok.IsAccessToken() && len(tok.Resource) > 0 {
+	if len(tok.Resource) > 0 {
 		values = []string(tok.Resource)
 	}
 	switch len(values) {
@@ -462,11 +461,12 @@ func (h *TokenHandler) Introspect(c *gin.Context) {
 		"jti":        tok.ID,
 	}
 
-	// Audience: report exactly what the signed JWT carries. For access tokens
-	// that's the persisted RFC 8707 resource set when set, otherwise the
-	// static JWTAudience config; for refresh tokens it's always the static
-	// JWTAudience config (the persisted Resource column is for §2.2 subset
-	// checks, not the JWT `aud`). See introspectAudience for the full rules.
+	// Audience: for access tokens, report the persisted RFC 8707 resource
+	// set (or the static JWTAudience fallback). Refresh tokens always omit
+	// `aud` in the introspection response — the response's `token_type` is
+	// hard-coded "Bearer" so a resource server checking `active && aud=mine`
+	// could otherwise be tricked into accepting a refresh token as an access
+	// token. See introspectAudience for the full rationale.
 	if aud := introspectAudience(tok, h.config.JWTAudience); aud != nil {
 		resp["aud"] = aud
 	}

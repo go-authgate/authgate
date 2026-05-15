@@ -114,10 +114,13 @@ issued JWT's `aud` claim is **bound to the requested resource**. AuthGate:
 - On `authorization_code` token exchange, validates that any token-time
   `resource` is a subset of what was bound at `/authorize`.
 
-**Trust model:** the `aud` claim is server-attested. The MCP server must
-verify that `aud` matches its own resource identifier before accepting the
-token — token replay against a different MCP server with the same
-`iss`/signature must fail. Standard verification still applies:
+**Trust model:** the `aud` claim is server-attested for the user-delegated
+grants (`authorization_code`, `device_code`, `refresh_token`) — the user
+explicitly authorized that resource at consent time, and the access token's
+`aud` matches what they approved. The MCP server must verify that `aud`
+matches its own resource identifier before accepting the token — token
+replay against a different MCP server with the same `iss`/signature must
+fail. Standard verification still applies:
 
 - Check the JWT signature against JWKS.
 - `iss` matches AuthGate's configured `BASE_URL`.
@@ -134,6 +137,23 @@ token — token replay against a different MCP server with the same
 - For tokens obtained via `client_credentials`, `sub` starts with `client:`
   (machine identity) — treat these distinctly from user-delegated tokens
   if your policy differs for them.
+
+### Multi-resource-server caveat for `client_credentials`
+
+There is currently no per-client allowed-resources allowlist on the
+`client_credentials` grant. Any confidential client with this grant enabled
+may request any syntactically valid `resource` indicator and have it become
+the JWT `aud`. In a deployment where multiple MCP / resource servers trust
+the same AuthGate issuer, this means an MCP server **MUST NOT** treat
+`aud == its-own-id` as evidence that AuthGate authorized this specific
+client to reach it — the resource server is responsible for validating the
+`(client_id, sub, aud)` tuple against its own policy (typically a
+per-client API allowlist on the resource server, or a network-level
+allowlist). For user-delegated grants (`authorization_code`,
+`device_code`), the user's consent screen displays the requested resource
+so the binding is user-attested; the `client_credentials` path has no such
+human gate. A future change may add a per-client `AllowedResources` column
+to AuthGate so the AS can enforce this directly.
 
 ## curl walkthrough
 

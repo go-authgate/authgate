@@ -187,10 +187,12 @@ func (h *DeviceHandler) DevicePage(c *gin.Context) {
 	}
 
 	clientName := ""
+	var resource []string
 	if userCode != "" {
-		client, _, err := h.deviceService.GetClientByUserCode(c.Request.Context(), userCode)
+		client, dc, err := h.deviceService.GetClientByUserCode(c.Request.Context(), userCode)
 		if err == nil {
 			clientName = client.ClientName
+			resource = []string(dc.Resource)
 		}
 	}
 
@@ -200,6 +202,7 @@ func (h *DeviceHandler) DevicePage(c *gin.Context) {
 		Username:    user.Username,
 		UserCode:    userCode,
 		ClientName:  clientName,
+		Resource:    resource,
 		Error:       "",
 	}))
 }
@@ -270,13 +273,19 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 		return
 	}
 
-	// Record that the user has consented to this application
+	// Record that the user has consented to this application. The device
+	// code's resource set is part of the consent — UserAuthorization is
+	// resource-aware so the polling /oauth/token grant inherits the exact
+	// audience the user just approved, and /account/authorizations reflects
+	// what the user actually gave away (including any RFC 8707 audience
+	// binding) for both display and cascade-revoke.
 	if _, err := h.authorizationService.SaveUserAuthorization(
 		c.Request.Context(),
 		userID.(string),
 		client.ID,
 		client.ClientID,
 		dc.Scopes,
+		[]string(dc.Resource),
 	); err != nil {
 		renderDeviceErrorPage(
 			c,

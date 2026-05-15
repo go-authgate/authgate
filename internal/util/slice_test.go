@@ -26,3 +26,28 @@ func TestIsStringSliceSubset(t *testing.T) {
 		})
 	}
 }
+
+func TestIsStringSliceSetEqual(t *testing.T) {
+	tests := []struct {
+		name string
+		a, b []string
+		want bool
+	}{
+		{"both empty are equal", nil, nil, true},
+		{"empty vs nil are equal", []string{}, nil, true},
+		{"empty vs non-empty differs", nil, []string{"a"}, false},
+		{"identical single", []string{"a"}, []string{"a"}, true},
+		{"identical multiple, same order", []string{"a", "b"}, []string{"a", "b"}, true},
+		{"identical multiple, different order", []string{"a", "b"}, []string{"b", "a"}, true},
+		{"superset vs subset differs", []string{"a", "b"}, []string{"a"}, false},
+		{"duplicates collapse to set equality", []string{"a", "a", "b"}, []string{"a", "b"}, true},
+		{"different elements differs", []string{"a"}, []string{"b"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsStringSliceSetEqual(tt.a, tt.b); got != tt.want {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -16,6 +16,16 @@ templ DevicePage(props DevicePageProps) {
 							<span class="device-client-label">Requesting Access</span>
 							<span class="device-client-name">{ props.ClientName }</span>
 							<span class="device-client-desc">This application is requesting authorization to access your account</span>
+							if len(props.Resource) > 0 {
+								<div class="device-resource-list">
+									<span class="device-resource-label">Access will be granted to:</span>
+									<ul class="device-resource-items">
+										for _, r := range props.Resource {
+											<li><code>{ r }</code></li>
+										}
+									</ul>
+								</div>
+							}
 						</div>
 					}
 					<!-- Error Alert -->

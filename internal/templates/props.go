@@ -111,7 +111,13 @@ type DevicePageProps struct {
 	Username   string
 	UserCode   string
 	ClientName string
-	Error      string
+	// Resource holds the RFC 8707 Resource Indicator(s) the CLI requested
+	// at /oauth/device/code. When non-empty, the verification UI displays
+	// them so the user can see which resource server they are about to
+	// authorize access to — without this surface, the audience binding
+	// would not be user-consented in any meaningful way.
+	Resource []string
+	Error    string
 }
 
 // SessionsPageProps contains properties for the sessions page
@@ -232,8 +238,14 @@ type AuthorizationDisplay struct {
 	ClientID   string
 	ClientName string
 	Scopes     string
-	GrantedAt  time.Time
-	IsActive   bool
+	// Resource holds the RFC 8707 Resource Indicator(s) the user approved
+	// when granting this authorization. Empty means the consent had no
+	// audience binding; non-empty values are shown alongside the scope
+	// list so the user can see which resource server(s) they granted
+	// access to.
+	Resource  []string
+	GrantedAt time.Time
+	IsActive  bool
 }
 
 // AuthorizationsPageProps contains properties for the account authorizations page

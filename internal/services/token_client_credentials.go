@@ -46,8 +46,21 @@ func IsMachineUserID(userID string) bool {
 // callerExtra (optional) is merged into the issued token; reserved keys must
 // already have been rejected by the handler. System claims (project,
 // service_account from the OAuth client) override on collision.
+//
 // resource (optional, RFC 8707) binds the issued token's "aud" claim to the
-// supplied resource indicators.
+// supplied resource indicators. There is currently NO per-client
+// allowed-resources allowlist on the client_credentials grant: any
+// confidential client with this grant enabled may request any
+// syntactically valid resource indicator and have it become the JWT `aud`.
+// In multi-resource-server deployments where many resource servers trust
+// the same AS issuer, this means a resource server MUST NOT treat
+// `aud == its-own-id` as evidence the AS authorized this specific client to
+// reach it — the resource server is responsible for validating the (client,
+// resource) pair against its own policy (e.g., per-client API allowlists at
+// the resource server, or a network-level allowlist). A future change may
+// add a per-client AllowedResources column to OAuthApplication; until then
+// treat the resource indicator as caller-asserted intent rather than
+// AS-attested authorization. See docs/MCP.md "Multi-resource-server caveat".
 func (s *TokenService) IssueClientCredentialsToken(
 	ctx context.Context,
 	clientID, clientSecret, requestedScopes string,

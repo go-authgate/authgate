@@ -336,12 +336,18 @@ func (s *AuthorizationService) GetUserAuthorization(
 	return auth, nil
 }
 
-// SaveUserAuthorization creates or updates the consent record for a user+application pair.
+// SaveUserAuthorization creates or updates the consent record for a
+// user+application pair. resource (RFC 8707) is persisted on the record so
+// the GET-side remembered-consent shortcut can require an EXACT resource-set
+// match before auto-approving — empty `resource` means "no audience binding
+// approved", and a later resource-bound request must NOT auto-approve off
+// that record (and vice versa).
 func (s *AuthorizationService) SaveUserAuthorization(
 	ctx context.Context,
 	userID string,
 	applicationID int64,
 	clientID, scopes string,
+	resource []string,
 ) (*models.UserAuthorization, error) {
 	auth := &models.UserAuthorization{
 		UUID:          uuid.New().String(),
@@ -349,6 +355,7 @@ func (s *AuthorizationService) SaveUserAuthorization(
 		ApplicationID: applicationID,
 		ClientID:      clientID,
 		Scopes:        scopes,
+		Resource:      models.StringArray(resource),
 		GrantedAt:     time.Now(),
 		IsActive:      true,
 	}
@@ -363,6 +370,13 @@ func (s *AuthorizationService) SaveUserAuthorization(
 		return auth, nil // Return what we built; non-fatal
 	}
 
+	details := models.AuditDetails{
+		"client_id": clientID,
+		"scopes":    scopes,
+	}
+	if len(resource) > 0 {
+		details["resource"] = resource
+	}
 	s.auditService.Log(ctx, core.AuditLogEntry{
 		EventType:    models.EventUserAuthorizationGranted,
 		Severity:     models.SeverityInfo,
@@ -370,11 +384,8 @@ func (s *AuthorizationService) SaveUserAuthorization(
 		ResourceType: models.ResourceAuthorization,
 		ResourceID:   stored.UUID,
 		Action:       "User granted authorization to application",
-		Details: models.AuditDetails{
-			"client_id": clientID,
-			"scopes":    scopes,
-		},
-		Success: true,
+		Details:      details,
+		Success:      true,
 	})
 
 	return stored, nil
