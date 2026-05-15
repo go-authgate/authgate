@@ -197,10 +197,9 @@ func setupAllRoutes(
 	r.GET("/docs/:lang", optionalAuth, h.docs.ShowDocsEntry)
 	r.GET("/docs/:lang/:slug", optionalAuth, h.docs.ShowDocsPage)
 
-	// Swagger documentation (development only)
-	if !cfg.IsProduction {
+	if cfg.SwaggerEnabled {
 		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-		log.Println("Swagger UI enabled at: http://localhost:8080/swagger/index.html")
+		log.Printf("Swagger UI enabled at: %s/swagger/index.html", cfg.BaseURL)
 	}
 
 	// Login routes

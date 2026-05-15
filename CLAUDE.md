@@ -258,7 +258,7 @@ In addition to Device Code Flow, AuthGate supports Authorization Code Flow with 
 - `GET /.well-known/jwks.json` - JWKS public keys (for RS256/ES256)
 - `GET /health` - Health check with database connection test
 - `GET /metrics` - Prometheus metrics (optional Bearer token auth)
-- `GET /api/swagger/*` - Swagger/OpenAPI documentation
+- `GET /swagger/*` - Swagger/OpenAPI documentation (opt-in via `ENABLE_SWAGGER=true`, default off)
 
 ## Configuration
 
