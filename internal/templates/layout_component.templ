@@ -52,7 +52,9 @@ templ Layout(title string, layoutType LayoutType, navbar *NavbarProps) {
 					</div>
 					<nav class="footer-links" aria-label="Footer navigation">
 						<a href="/docs/getting-started" class="footer-link">Docs</a>
-						<a href="/swagger/index.html" class="footer-link" target="_blank" rel="noopener noreferrer">API</a>
+						if SwaggerEnabled {
+							<a href="/swagger/index.html" class="footer-link" target="_blank" rel="noopener noreferrer">API</a>
+						}
 						<a href="/health" class="footer-link">Health</a>
 					</nav>
 				</div>
