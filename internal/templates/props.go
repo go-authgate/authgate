@@ -9,6 +9,11 @@ import (
 	"github.com/go-authgate/authgate/internal/store"
 )
 
+// SwaggerEnabled mirrors cfg.SwaggerEnabled. Set once during bootstrap before
+// any template renders. Templates read this to hide Swagger UI links when
+// the /swagger route is not registered.
+var SwaggerEnabled bool
+
 // BaseProps contains common properties shared across all pages
 type BaseProps struct {
 	CSRFToken string
