@@ -35,6 +35,12 @@ BASE_URL=http://localhost:8080   # Public URL for verification_uri
 # TLS_CERT_FILE=/etc/authgate/tls/fullchain.pem
 # TLS_KEY_FILE=/etc/authgate/tls/privkey.pem
 
+# Swagger UI (opt-in)
+# When true, registers GET /swagger/*any served by gin-swagger. Default: false.
+# Decoupled from ENVIRONMENT — safe to enable in production behind an internal network.
+# Exposes the full API surface, so keep it off on public-facing instances.
+ENABLE_SWAGGER=false
+
 # Security - CHANGE THESE IN PRODUCTION!
 JWT_SECRET=your-256-bit-secret-change-in-production       # HMAC-SHA256 signing key
 SESSION_SECRET=session-secret-change-in-production        # Cookie encryption key

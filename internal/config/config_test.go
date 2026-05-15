@@ -856,6 +856,33 @@ func TestLoad_JWTDomain(t *testing.T) {
 	})
 }
 
+func TestLoad_SwaggerEnabled(t *testing.T) {
+	t.Run("default false", func(t *testing.T) {
+		cfg := Load()
+		assert.False(t, cfg.SwaggerEnabled)
+	})
+
+	t.Run("env true", func(t *testing.T) {
+		t.Setenv("ENABLE_SWAGGER", "true")
+		cfg := Load()
+		assert.True(t, cfg.SwaggerEnabled)
+	})
+
+	t.Run("env false", func(t *testing.T) {
+		t.Setenv("ENABLE_SWAGGER", "false")
+		cfg := Load()
+		assert.False(t, cfg.SwaggerEnabled)
+	})
+
+	t.Run("decoupled from ENVIRONMENT", func(t *testing.T) {
+		t.Setenv("ENVIRONMENT", "production")
+		t.Setenv("ENABLE_SWAGGER", "true")
+		cfg := Load()
+		assert.True(t, cfg.IsProduction)
+		assert.True(t, cfg.SwaggerEnabled)
+	})
+}
+
 // ============================================================
 // Authorization Code Flow config (RFC 6749 + RFC 7636)
 // ============================================================

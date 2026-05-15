@@ -131,6 +131,9 @@ type Config struct {
 	// Environment detection
 	IsProduction bool
 
+	// Decoupled from IsProduction so prod deployments can opt in behind internal networking.
+	SwaggerEnabled bool
+
 	// JWT settings
 	JWTSecret           string
 	JWTExpiration       time.Duration
@@ -403,6 +406,7 @@ func Load() *Config {
 		TLSKeyFile:  getEnv("TLS_KEY_FILE", ""),
 		IsProduction: getEnvBool("ENVIRONMENT", false) ||
 			getEnv("ENVIRONMENT", "") == "production",
+		SwaggerEnabled:      getEnvBool("ENABLE_SWAGGER", false),
 		JWTSecret:           getEnv("JWT_SECRET", "your-256-bit-secret-change-in-production"),
 		JWTExpiration:       jwtExpiration,
 		JWTSigningAlgorithm: getEnv("JWT_SIGNING_ALGORITHM", AlgHS256),
