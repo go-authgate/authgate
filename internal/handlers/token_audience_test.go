@@ -22,9 +22,10 @@ import (
 // responses for already-issued tokens.
 func TestIntrospectAudience(t *testing.T) {
 	tests := []struct {
-		name  string
-		token *models.AccessToken
-		want  any
+		name     string
+		token    *models.AccessToken
+		fallback []string // current JWT_AUDIENCE config (live, possibly rotated)
+		want     any
 	}{
 		{
 			name: "access token with single resource → string",
@@ -60,11 +61,35 @@ func TestIntrospectAudience(t *testing.T) {
 			want: "static.example.com",
 		},
 		{
-			name: "access token with empty Resource (neither JWT_AUDIENCE nor RFC 8707) → nil",
+			name: "access token snapshot beats rotated fallback (snapshot wins)",
+			// Snapshot purity invariant: a populated Resource is the audience
+			// the JWT was actually signed with. The fallback (live config) is
+			// only consulted for legacy empty-Resource rows.
+			token: &models.AccessToken{
+				TokenCategory: models.TokenCategoryAccess,
+				Resource:      models.StringArray{"original.example.com"},
+			},
+			fallback: []string{"rotated.example.com"},
+			want:     "original.example.com",
+		},
+		{
+			name: "access token with empty Resource and no fallback → nil",
 			token: &models.AccessToken{
 				TokenCategory: models.TokenCategoryAccess,
 			},
 			want: nil,
+		},
+		{
+			name: "access token with empty Resource falls back to JWT_AUDIENCE (legacy row)",
+			// Pre-PR access tokens have empty Resource even though their JWT
+			// was minted with JWT_AUDIENCE. Without the fallback, introspection
+			// would regress from "aud: <static.example.com>" to omitting aud
+			// entirely for those still-active tokens.
+			token: &models.AccessToken{
+				TokenCategory: models.TokenCategoryAccess,
+			},
+			fallback: []string{"static.example.com"},
+			want:     "static.example.com",
 		},
 		{
 			name: "refresh token always omits aud (token_type=Bearer would mislead RS)",
@@ -73,20 +98,22 @@ func TestIntrospectAudience(t *testing.T) {
 				// Persisted for §2.2 subset checks; never reported as aud.
 				Resource: models.StringArray{"https://mcp.example.com"},
 			},
-			want: nil,
+			fallback: []string{"static.example.com"},
+			want:     nil,
 		},
 		{
-			name: "refresh token without resource also omits aud",
+			name: "refresh token without resource also omits aud — even with fallback set",
 			token: &models.AccessToken{
 				TokenCategory: models.TokenCategoryRefresh,
 			},
-			want: nil,
+			fallback: []string{"static.example.com"},
+			want:     nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := introspectAudience(tt.token)
+			got := introspectAudience(tt.token, tt.fallback)
 			assert.Equal(t, tt.want, got)
 		})
 	}

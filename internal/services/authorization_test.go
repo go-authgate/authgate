@@ -1044,6 +1044,43 @@ func TestSaveConsentAndAuthorizeDeviceCode_HappyPath(t *testing.T) {
 	assert.Equal(t, ua.UUID, loaded.UUID)
 }
 
+// TestSaveConsentAndAuthorizeDeviceCode_RollsBackOnExpiry asserts the
+// transactional expiry re-check: store.AuthorizeDeviceCode does not filter
+// on expires_at, so a code that expires between the handler's
+// GetClientByUserCode lookup and the transactional commit could otherwise
+// be authorized + granted consent. The in-txn dc.IsExpired() check catches
+// this and the entire transaction (including the consent upsert) rolls back.
+func TestSaveConsentAndAuthorizeDeviceCode_RollsBackOnExpiry(t *testing.T) {
+	svc := createTestAuthorizationService(t)
+	client := createAuthCodeFlowClient(t, svc, "confidential")
+	dc := createTestDeviceCode(t, svc, client.ClientID)
+
+	// Backdate the expiry so the transactional check fires.
+	dc.ExpiresAt = time.Now().Add(-1 * time.Second)
+
+	userID := uuid.New().String()
+	_, err := svc.SaveConsentAndAuthorizeDeviceCode(
+		context.Background(),
+		userID, client.ID, client.ClientID,
+		"read", nil,
+		dc,
+		"user-carol",
+	)
+	require.ErrorIs(t, err, ErrDeviceCodeExpired)
+
+	// Critical invariant: the upsert is rolled back — no stale consent left.
+	leaked, err := svc.GetUserAuthorization(userID, client.ID)
+	require.NoError(t, err)
+	assert.Nil(t, leaked,
+		"consent must roll back when expiry check inside the txn fails")
+
+	// And the device code is NOT marked authorized.
+	dcAfter, err := svc.store.GetDeviceCodeByUserCode(dc.UserCode)
+	require.NoError(t, err)
+	assert.False(t, dcAfter.Authorized,
+		"expired device code must not be authorized")
+}
+
 // TestSaveConsentAndAuthorizeDeviceCode_RollsBackOnAlreadyAuthorized is the
 // regression test for the stale-consent leak Copilot flagged: when
 // AuthorizeDeviceCode fails (here, because a concurrent submit already

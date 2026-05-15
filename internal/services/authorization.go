@@ -188,6 +188,17 @@ func (s *AuthorizationService) SaveConsentAndAuthorizeDeviceCode(
 	}
 
 	if err := s.store.RunInTransaction(func(tx core.Store) error {
+		// Re-check expiry inside the transaction. store.AuthorizeDeviceCode
+		// only filters on (id, authorized=false) — it has no expires_at
+		// predicate, so a code that expires between the handler's
+		// GetClientByUserCode and this commit would otherwise still be
+		// authorized + grant consent. DeviceCode.ExpiresAt is a persisted
+		// absolute timestamp; dc.IsExpired() re-evaluates against
+		// time.Now(), so checking the cached struct catches the race
+		// without an extra round-trip.
+		if dc.IsExpired() {
+			return ErrDeviceCodeExpired
+		}
 		if err := tx.UpsertUserAuthorization(auth); err != nil {
 			return fmt.Errorf("failed to save user authorization: %w", err)
 		}

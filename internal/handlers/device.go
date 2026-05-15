@@ -306,7 +306,11 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 		dc,
 		user.Username,
 	); err != nil {
-		if errors.Is(err, services.ErrDeviceCodeAlreadyAuthorized) {
+		// Known device-code failure modes (already authorized, expired)
+		// surface a user-facing 400 with the proper message; anything else
+		// is an internal failure that gets a 500.
+		if errors.Is(err, services.ErrDeviceCodeAlreadyAuthorized) ||
+			errors.Is(err, services.ErrDeviceCodeExpired) {
 			renderDeviceErrorPage(
 				c,
 				user,

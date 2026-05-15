@@ -122,11 +122,24 @@ func normalizeAudience(values []string) any {
 // active does NOT change what introspection reports — preventing resource
 // servers that trust introspection from accepting tokens that were never
 // minted for them.
-func introspectAudience(tok *models.AccessToken) any {
+//
+// `fallback` is the current `JWT_AUDIENCE` config. It is used ONLY for
+// access tokens whose persisted `Resource` is empty — i.e., tokens minted
+// before the resource-binding migration that snapshots the effective
+// audience on issuance. For those legacy rows the JWT itself was signed
+// with `JWT_AUDIENCE`, and emitting nothing would regress introspection
+// vs. the pre-PR behavior. Newly-issued tokens always have `Resource`
+// populated (see effectiveAudience), so the fallback never overrides a
+// snapshot for current-vintage tokens.
+func introspectAudience(tok *models.AccessToken, fallback []string) any {
 	if !tok.IsAccessToken() {
 		return nil
 	}
-	return normalizeAudience([]string(tok.Resource))
+	values := []string(tok.Resource)
+	if len(values) == 0 {
+		values = fallback
+	}
+	return normalizeAudience(values)
 }
 
 // audienceFromClaims extracts the JWT `aud` claim from a decoded MapClaims
@@ -523,7 +536,7 @@ func (h *TokenHandler) Introspect(c *gin.Context) {
 	// hard-coded "Bearer" and a resource server checking `active && aud=mine`
 	// could otherwise be tricked into accepting a refresh token as an access
 	// token. See introspectAudience for the full rationale.
-	if aud := introspectAudience(tok); aud != nil {
+	if aud := introspectAudience(tok, h.config.JWTAudience); aud != nil {
 		resp["aud"] = aud
 	}
 

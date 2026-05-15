@@ -119,9 +119,15 @@ type baseMetadata struct {
 	// rejects `none`. Advertising `none` here would invite unauthenticated
 	// introspection attempts that the server immediately 401s.
 	IntrospectionEndpointAuthMethods []string
-	GrantTypesSupported              []string
-	CodeChallengeMethodsSupported    []string
-	IDTokenSigningAlgValues          []string // empty when ID token not supported
+	// RevocationEndpointAuthMethods reflects /oauth/revoke's actual behavior:
+	// it does NOT authenticate the calling client (just hashes the supplied
+	// token and revokes it). Advertising `client_secret_basic`/
+	// `client_secret_post` here would mislead RFC 8414 clients into
+	// expecting auth that isn't enforced — so we publish only `none`.
+	RevocationEndpointAuthMethods []string
+	GrantTypesSupported           []string
+	CodeChallengeMethodsSupported []string
+	IDTokenSigningAlgValues       []string // empty when ID token not supported
 }
 
 // buildBaseMetadata returns the shared core used by both discovery endpoints.
@@ -157,6 +163,8 @@ func (h *OIDCHandler) buildBaseMetadata() baseMetadata {
 			"client_secret_basic",
 			"client_secret_post",
 		},
+		// /oauth/revoke does not authenticate clients (see field docstring).
+		RevocationEndpointAuthMethods: []string{"none"},
 		GrantTypesSupported: []string{
 			GrantTypeAuthorizationCode,
 			GrantTypeDeviceCode,
@@ -246,11 +254,17 @@ func (h *OIDCHandler) OAuthAuthorizationServerMetadata(c *gin.Context) {
 		JwksURI:                     base.JwksURI,
 		ResponseTypesSupported:      base.ResponseTypesSupported,
 		ScopesSupported:             base.ScopesSupported,
-		// Token and revoke endpoints accept the same auth methods (including
-		// `none` for public-client PKCE). Introspection is narrower —
-		// /oauth/introspect requires client authentication.
+		// Three endpoints, three auth-method sets — advertised to match what
+		// each handler actually enforces:
+		//   - Token: accepts client_secret_basic/_post (confidential) plus
+		//     none (public-client PKCE).
+		//   - Introspection: confidential only — /oauth/introspect rejects
+		//     `none` and 401s.
+		//   - Revocation: /oauth/revoke does not authenticate the caller at
+		//     all; advertising basic/_post would mislead RFC 8414 clients
+		//     into expecting auth that isn't enforced.
 		TokenEndpointAuthMethodsSupported:      base.TokenEndpointAuthMethods,
-		RevocationEndpointAuthMethodsSupported: base.TokenEndpointAuthMethods,
+		RevocationEndpointAuthMethodsSupported: base.RevocationEndpointAuthMethods,
 		IntrospectionEndpointAuthMethods:       base.IntrospectionEndpointAuthMethods,
 		GrantTypesSupported:                    base.GrantTypesSupported,
 		CodeChallengeMethodsSupported:          base.CodeChallengeMethodsSupported,

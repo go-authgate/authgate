@@ -554,19 +554,15 @@ func TestOAuthASMetadata_Fields(t *testing.T) {
 	assert.Contains(t, grantTypes, GrantTypeRefreshToken)
 	assert.Contains(t, grantTypes, GrantTypeClientCredentials)
 
-	// Token and revoke endpoints accept `none` (for public-client PKCE);
-	// introspection must NOT advertise `none` because the endpoint rejects
-	// unauthenticated requests.
-	for _, k := range []string{
-		"token_endpoint_auth_methods_supported",
-		"revocation_endpoint_auth_methods_supported",
-	} {
-		methods, ok := meta[k].([]any)
-		require.True(t, ok, "missing %s", k)
-		assert.Contains(t, methods, "client_secret_basic")
-		assert.Contains(t, methods, "client_secret_post")
-		assert.Contains(t, methods, "none")
-	}
+	// Token endpoint accepts confidential auth + `none` (public-client PKCE).
+	tokenMethods, ok := meta["token_endpoint_auth_methods_supported"].([]any)
+	require.True(t, ok, "missing token_endpoint_auth_methods_supported")
+	assert.Contains(t, tokenMethods, "client_secret_basic")
+	assert.Contains(t, tokenMethods, "client_secret_post")
+	assert.Contains(t, tokenMethods, "none")
+
+	// Introspection requires client auth; `none` must NOT appear or the
+	// server would 401 callers it told to authenticate without credentials.
 	introspectMethods, ok := meta["introspection_endpoint_auth_methods_supported"].([]any)
 	require.True(t, ok)
 	assert.Contains(t, introspectMethods, "client_secret_basic")
@@ -575,6 +571,15 @@ func TestOAuthASMetadata_Fields(t *testing.T) {
 		t, introspectMethods, "none",
 		"introspection endpoint requires client auth; `none` must not be advertised",
 	)
+
+	// Revocation does NOT authenticate clients (/oauth/revoke just hashes
+	// the supplied token), so the only honest advertisement is `none`.
+	// Listing client_secret_basic/_post would mislead RFC 8414 clients into
+	// expecting auth that isn't enforced.
+	revokeMethods, ok := meta["revocation_endpoint_auth_methods_supported"].([]any)
+	require.True(t, ok, "missing revocation_endpoint_auth_methods_supported")
+	assert.Equal(t, []any{"none"}, revokeMethods,
+		"revocation endpoint advertises ONLY `none` to match its actual behavior")
 
 	// OIDC-only fields must NOT appear in OAuth AS metadata
 	for _, oidcOnly := range []string{

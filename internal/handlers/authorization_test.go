@@ -281,6 +281,34 @@ func TestAuthorize_UnsupportedResponseType_UnregisteredRedirectURI_NotReflected(
 	)
 }
 
+// TestAuthorize_UnsupportedResponseType_RegisteredRedirectURI_Redirects
+// asserts the RFC 6749 §4.1.2.1 spec invariant for the
+// unsupported_response_type error: when the redirect_uri IS registered for
+// the client, the error must be returned to that URI as a redirect, not
+// rendered locally. ValidateAuthorizationRequest checks response_type before
+// redirect_uri, so the error path re-runs ValidateClientRedirect to prove
+// the URI is registered before reflecting.
+func TestAuthorize_UnsupportedResponseType_RegisteredRedirectURI_Redirects(t *testing.T) {
+	r, client := setupAuthorizeTestEnv(t)
+
+	q := url.Values{
+		"client_id":     {client.ClientID},
+		"redirect_uri":  {"https://app.example.com/callback"},
+		"response_type": {"token"}, // not supported
+		"scope":         {"read"},
+		"state":         {"xyz"},
+	}
+	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize?"+q.Encode(), nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusFound, w.Code, "registered redirect_uri → redirect")
+	loc := w.Header().Get("Location")
+	assert.Contains(t, loc, "https://app.example.com/callback")
+	assert.Contains(t, loc, "error=unsupported_response_type")
+	assert.Contains(t, loc, "state=xyz")
+}
+
 // TestAuthorize_InvalidResource_UnregisteredRedirectURI_NotReflected
 // asserts the open-redirect mitigation: when an invalid `resource` is
 // paired with an UNREGISTERED redirect_uri, the response must NOT redirect

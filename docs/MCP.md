@@ -89,7 +89,7 @@ Content-Type: application/json
 {
   "client_name": "Acme MCP CLI",
   "redirect_uris": ["http://127.0.0.1:1729/callback"],
-  "grant_types": ["authorization_code", "refresh_token"],
+  "grant_types": ["authorization_code"],
   "token_endpoint_auth_method": "none"
 }
 ```

@@ -279,38 +279,64 @@ func (h *AuthorizationHandler) issueCodeAndRedirect(
 }
 
 // handleAuthorizeError converts a ValidateAuthorizationRequest error into the
-// right response. Per RFC 6749 §3.1.2.4, when redirect_uri has not yet been
-// proven registered for the client, the AS MUST NOT redirect — otherwise the
-// caller-supplied redirect_uri becomes an open redirect.
+// right response. Per RFC 6749 §3.1.2.4 / §4.1.2.1, OAuth errors MUST be
+// returned to the caller's redirect_uri once that URI is verified for the
+// client; if the URI has not been proven registered, the AS MUST NOT redirect
+// (else redirect_uri becomes an open redirect).
 //
 // ValidateAuthorizationRequest checks parameters in this order:
 //
 //	response_type → client lookup → client active → auth-code flow enabled →
 //	redirect_uri → scope → PKCE
 //
-// Anything that can fail BEFORE the redirect_uri match (response_type,
-// client lookup/active/flow-disabled, redirect_uri itself) must render an
-// error page locally; only failures after that point may safely redirect
-// the OAuth error to the now-validated redirect_uri.
+// For errors that fail the response_type check (ErrUnsupportedResponseType),
+// the validator returns BEFORE proving redirect_uri is registered. RFC 6749
+// §4.1.2.1 still requires that error to be returned to a registered
+// redirect_uri when one exists. We therefore re-run the lightweight
+// ValidateClientRedirect to prove the URI is registered for the client; on
+// success the OAuth error rides the redirect, on failure (unknown client,
+// inactive client, unregistered URI) it renders locally — preserving the
+// open-redirect closure that the response_type-first ordering provides.
+//
+// ErrInvalidRedirectURI and ErrUnauthorizedClient remain local-render: the
+// first IS the redirect_uri mismatch, and the second indicates no
+// trustworthy client/redirect_uri exists to redirect to.
 func (h *AuthorizationHandler) handleAuthorizeError(
 	c *gin.Context,
 	redirectURI, state string,
 	err error,
 ) {
 	if errors.Is(err, services.ErrInvalidRedirectURI) ||
-		errors.Is(err, services.ErrUnauthorizedClient) ||
-		errors.Is(err, services.ErrUnsupportedResponseType) {
-		templates.RenderTempl(
-			c,
-			http.StatusBadRequest,
-			templates.ErrorPage(templates.ErrorPageProps{
-				Error:   oauthErrorCode(err),
-				Message: err.Error(),
-			}),
+		errors.Is(err, services.ErrUnauthorizedClient) {
+		h.renderLocalAuthorizeError(c, err)
+		return
+	}
+	if errors.Is(err, services.ErrUnsupportedResponseType) {
+		clientID := c.Request.FormValue("client_id")
+		validatedURI, vErr := h.authorizationService.ValidateClientRedirect(
+			c.Request.Context(), clientID, redirectURI,
 		)
+		if vErr != nil {
+			h.renderLocalAuthorizeError(c, err)
+			return
+		}
+		h.redirectWithError(c, validatedURI, state, oauthErrorCode(err), err.Error())
 		return
 	}
 	h.redirectWithError(c, redirectURI, state, oauthErrorCode(err), err.Error())
+}
+
+// renderLocalAuthorizeError renders an OAuth error page in-line, used when
+// the redirect_uri has NOT been proven registered for the client.
+func (h *AuthorizationHandler) renderLocalAuthorizeError(c *gin.Context, err error) {
+	templates.RenderTempl(
+		c,
+		http.StatusBadRequest,
+		templates.ErrorPage(templates.ErrorPageProps{
+			Error:   oauthErrorCode(err),
+			Message: err.Error(),
+		}),
+	)
 }
 
 // redirectWithError sends an OAuth error response as a redirect to the client's redirect_uri.
