@@ -103,8 +103,15 @@ require a pre-shared bearer token for registration.
 MCP clients send `resource=<MCP-URL>` on both `/authorize` and `/token`. The
 issued JWT's `aud` claim is **bound to the requested resource**. AuthGate:
 
-- Validates each `resource` value against RFC 8707 §2.1 (absolute URI, no
-  fragment) and rejects malformed values with `error=invalid_target`.
+- Validates each `resource` value with the RFC 8707 §2.1 baseline rules
+  (absolute URI, no fragment) **plus stricter operational requirements**:
+  the scheme MUST be `http` or `https`, and the URI MUST have a non-empty
+  host. Other absolute-URI shapes accepted by §2.1 — `urn:`-style
+  identifiers, schemeless authorities, `https:foo` without a `//host` —
+  are rejected with `error=invalid_target`. MCP servers must therefore use
+  an HTTP(S) URL (typically the same value as the PRM document's
+  `resource` field) as their resource identifier; `urn:` resource IDs are
+  not supported even though they are technically valid under §2.1.
 - Replaces the static `JWT_AUDIENCE` config for that token. When the caller
   does not send `resource`, the existing `JWT_AUDIENCE` is used as before.
 - Persists the bound resource on the authorization code and on access/refresh
@@ -117,10 +124,15 @@ issued JWT's `aud` claim is **bound to the requested resource**. AuthGate:
 **Trust model:** the `aud` claim is server-attested for the user-delegated
 grants (`authorization_code`, `device_code`, `refresh_token`) — the user
 explicitly authorized that resource at consent time, and the access token's
-`aud` matches what they approved. The MCP server must verify that `aud`
-matches its own resource identifier before accepting the token — token
-replay against a different MCP server with the same `iss`/signature must
-fail. Standard verification still applies:
+`aud` matches what they approved. For `device_code` specifically, AuthGate
+routes resource-bound device codes through an explicit confirmation page
+that displays the requesting client and the requested resource(s) BEFORE
+`AuthorizeDeviceCode` is called, regardless of whether the user arrived via
+`verification_uri_complete` or typed the user code into the
+`verification_uri` form. The MCP server must verify that `aud` matches its
+own resource identifier before accepting the token — token replay against a
+different MCP server with the same `iss`/signature must fail. Standard
+verification still applies:
 
 - Check the JWT signature against JWKS.
 - `iss` matches AuthGate's configured `BASE_URL`.

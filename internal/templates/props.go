@@ -120,6 +120,21 @@ type DevicePageProps struct {
 	Error    string
 }
 
+// DeviceConfirmPageProps contains properties for the device confirmation
+// page. Resource-bound device codes route through this page (regardless of
+// whether the user arrived via verification_uri_complete or by typing the
+// code manually) so the audience binding is always shown alongside the
+// client name BEFORE AuthorizeDeviceCode is called. The form posts back to
+// /device/verify with `confirmed=true` to commit the authorization.
+type DeviceConfirmPageProps struct {
+	BaseProps
+	NavbarProps
+	Username   string
+	UserCode   string
+	ClientName string
+	Resource   []string
+}
+
 // SessionsPageProps contains properties for the sessions page
 type SessionsPageProps struct {
 	BaseProps

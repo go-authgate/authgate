@@ -319,6 +319,59 @@ func TestDeviceCode_RejectsResourceSupersetOfGrant(t *testing.T) {
 	assert.ErrorIs(t, err, ErrInvalidTarget)
 }
 
+// TestDeviceCode_LinksAuthorizationIDForCascadeRevoke confirms that
+// device-code tokens issued after a /device/verify approval inherit the
+// AuthorizationID FK on the saved UserAuthorization row. Without this the
+// /account/authorizations Revoke button (and the admin "revoke all users
+// for this client" action) would not invalidate device-code tokens — the
+// docstring claims it does, so the wiring must be present.
+func TestDeviceCode_LinksAuthorizationIDForCascadeRevoke(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		DeviceCodeExpiration: 30 * time.Minute,
+		PollingInterval:      5,
+		JWTExpiration:        1 * time.Hour,
+		JWTSecret:            "test-secret-device-cascade",
+		BaseURL:              "http://localhost:8080",
+	}
+	tokenService := createTestTokenService(t, s, cfg)
+
+	client := createTestClient(t, s, true)
+	dc := authorizedDeviceCodeWithResource(t, s, client.ClientID, nil)
+
+	// Persist a UserAuthorization for the same (user, client) pair — the
+	// /device/verify handler does this in production. ExchangeDeviceCode
+	// must look it up and thread its ID through to the issued tokens.
+	authzService := NewAuthorizationService(s, cfg, NewNoopAuditService(), tokenService,
+		NewClientService(s, NewNoopAuditService(), nil, 0, nil, 0))
+	ua, err := authzService.SaveUserAuthorization(
+		context.Background(),
+		dc.UserID, client.ID, client.ClientID,
+		dc.Scopes, nil,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	access, refresh, err := tokenService.ExchangeDeviceCode(
+		context.Background(),
+		dc.DeviceCode,
+		client.ClientID,
+		nil, nil,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, access)
+	require.NotNil(t, refresh)
+
+	// Both access and refresh tokens must carry the same AuthorizationID
+	// FK so cascade-revoke takes them out together.
+	require.NotNil(t, access.AuthorizationID,
+		"device-code access token must be linked to the UserAuthorization row")
+	assert.Equal(t, ua.ID, *access.AuthorizationID)
+	require.NotNil(t, refresh.AuthorizationID,
+		"device-code refresh token must be linked to the UserAuthorization row")
+	assert.Equal(t, ua.ID, *refresh.AuthorizationID)
+}
+
 // TestDeviceCode_RejectsResourceWhenNoneGranted asserts that a token-time
 // resource is rejected when the user authorized a device code without one —
 // the empty granted set means "no audience binding" and any resource on

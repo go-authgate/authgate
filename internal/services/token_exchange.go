@@ -82,6 +82,21 @@ func (s *TokenService) ExchangeDeviceCode(
 	// Record successful validation
 	s.metrics.RecordOAuthDeviceCodeValidation("success")
 
+	// Resolve the UserAuthorization saved at /device/verify so the issued
+	// tokens carry an AuthorizationID FK. This is what makes
+	// /account/authorizations cascade-revoke and admin /admin/clients/:id/revoke-all
+	// actually invalidate device-code tokens — without it the tokens are
+	// orphaned and only expire naturally. A missing UA is non-fatal (we still
+	// issue tokens) so older device codes authorized before consent persistence
+	// existed continue to work; the only loss is cascade-revoke for that one
+	// session.
+	var authorizationID *uint
+	if ua, err := s.store.GetUserAuthorization(dc.UserID, client.ID); err == nil &&
+		ua != nil {
+		id := ua.ID
+		authorizationID = &id
+	}
+
 	// Generate and persist token pair. The refresh token's DB row carries the
 	// full granted resource set so future refresh requests can re-narrow
 	// against the original /oauth/device/code grant rather than the (possibly
@@ -91,6 +106,7 @@ func (s *TokenService) ExchangeDeviceCode(
 		UserID:          dc.UserID,
 		ClientID:        dc.ClientID,
 		Scopes:          dc.Scopes,
+		AuthorizationID: authorizationID,
 		Client:          client,
 		ExtraClaims:     extraClaims,
 		Resource:        accessResource,

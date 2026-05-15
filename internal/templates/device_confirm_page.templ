@@ -1,0 +1,45 @@
+package templates
+
+// DeviceConfirmPage is the explicit confirmation step for resource-bound
+// device codes. It shows the requesting client and the RFC 8707 audience
+// the user is about to grant access to, with a single Confirm button that
+// posts back to /device/verify with `confirmed=true`. A Cancel link returns
+// the user to /device without authorizing.
+templ DeviceConfirmPage(props DeviceConfirmPageProps) {
+	@Layout("Confirm Device Authorization", LayoutHasNavbar, &props.NavbarProps) {
+		<div class="main-content">
+			<div class="device-auth-container">
+				<div class="device-auth-card">
+					<div class="device-auth-header">
+						<h1 class="device-auth-title">Confirm Authorization</h1>
+						<p class="device-auth-subtitle">Review what you are about to authorize</p>
+					</div>
+					<div class="device-client-info">
+						<span class="device-client-label">Requesting Access</span>
+						<span class="device-client-name">{ props.ClientName }</span>
+						<span class="device-client-desc">This application is requesting authorization to access your account on the resource server(s) below.</span>
+						if len(props.Resource) > 0 {
+							<div class="device-resource-list">
+								<span class="device-resource-label">Access will be granted to:</span>
+								<ul class="device-resource-items">
+									for _, r := range props.Resource {
+										<li><code>{ r }</code></li>
+									}
+								</ul>
+							</div>
+						}
+					</div>
+					<form method="POST" action="/device/verify" class="device-form">
+						<input type="hidden" name="csrf_token" value={ props.CSRFToken }/>
+						<input type="hidden" name="user_code" value={ props.UserCode }/>
+						<input type="hidden" name="confirmed" value="true"/>
+						<button type="submit" class="device-submit-btn">
+							Confirm and Authorize
+						</button>
+						<a href="/device" class="device-cancel-link">Cancel</a>
+					</form>
+				</div>
+			</div>
+		</div>
+	}
+}

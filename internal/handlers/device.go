@@ -255,6 +255,30 @@ func (h *DeviceHandler) DeviceVerify(c *gin.Context) {
 	}
 	clientName := client.ClientName
 
+	// Resource-bound device codes require an explicit confirmation step that
+	// surfaces both the client and the requested resource(s) before
+	// authorization. The verification_uri_complete flow already shows them on
+	// the GET /device page, but the manual-entry flow (user types user_code
+	// into the form on /device) would otherwise authorize as soon as they
+	// click the submit button — without the user having ever seen the
+	// audience they were about to grant. Routing through this confirm page
+	// makes the audience binding genuinely user-attested for both flows.
+	if len(dc.Resource) > 0 && c.PostForm("confirmed") != "true" {
+		templates.RenderTempl(
+			c,
+			http.StatusOK,
+			templates.DeviceConfirmPage(templates.DeviceConfirmPageProps{
+				BaseProps:   templates.BaseProps{CSRFToken: middleware.GetCSRFToken(c)},
+				NavbarProps: buildNavbarProps(c, user, "device"),
+				Username:    user.Username,
+				UserCode:    userCode,
+				ClientName:  clientName,
+				Resource:    []string(dc.Resource),
+			}),
+		)
+		return
+	}
+
 	err = h.deviceService.AuthorizeDeviceCode(
 		c.Request.Context(),
 		userCode,

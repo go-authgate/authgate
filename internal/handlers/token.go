@@ -149,17 +149,25 @@ func buildTokenResponse(accessToken, refreshToken *models.AccessToken, idToken s
 // Token godoc
 //
 //	@Summary		Request access token
-//	@Description	Exchange device code or refresh token for access token (RFC 8628 and RFC 6749)
+//	@Description	Exchange a device code, authorization code, refresh token, or client credentials for an access token (RFC 6749 / RFC 8628). Accepts the optional repeatable `resource` parameter (RFC 8707) on every grant type.
 //	@Tags			OAuth
 //	@Accept			json
 //	@Accept			x-www-form-urlencoded
 //	@Produce		json
-//	@Param			grant_type		formData	string																							true	"Grant type: 'urn:ietf:params:oauth:grant-type:device_code' or 'refresh_token'"
+//	@Param			grant_type		formData	string																							true	"Grant type: 'urn:ietf:params:oauth:grant-type:device_code', 'authorization_code', 'refresh_token', or 'client_credentials'"
 //	@Param			device_code		formData	string																							false	"Device code (required when grant_type=device_code)"
-//	@Param			client_id		formData	string																							true	"OAuth client ID"
+//	@Param			client_id		formData	string																							false	"OAuth client ID (required for non-Basic-Auth flows)"
+//	@Param			client_secret	formData	string																							false	"OAuth client secret (confidential clients only; alternative to HTTP Basic Auth)"
 //	@Param			refresh_token	formData	string																							false	"Refresh token (required when grant_type=refresh_token)"
+//	@Param			code			formData	string																							false	"Authorization code (required when grant_type=authorization_code)"
+//	@Param			redirect_uri	formData	string																							false	"Redirect URI (required when grant_type=authorization_code)"
+//	@Param			code_verifier	formData	string																							false	"PKCE code verifier (RFC 7636; required for public clients on grant_type=authorization_code)"
+//	@Param			scope			formData	string																							false	"Space-separated scopes; refresh_token / client_credentials may narrow the original grant"
+//	@Param			resource		formData	[]string																						false	"RFC 8707 Resource Indicator(s) — bound to the issued access token's `aud` claim. Repeat to send multiple. Each value must be an absolute http(s) URL with a non-empty host and no fragment."	collectionFormat(multi)
+//	@Param			extra_claims	formData	string																							false	"Optional caller-supplied JWT claims as a JSON object (subject to size guards and reserved-key rejection)"
 //	@Success		200				{object}	object{access_token=string,refresh_token=string,token_type=string,expires_in=int,scope=string}	"Access token issued successfully"
-//	@Failure		400				{object}	object{error=string,error_description=string}													"Invalid request (unsupported_grant_type, invalid_request, authorization_pending, slow_down, expired_token, access_denied, invalid_grant)"
+//	@Failure		400				{object}	object{error=string,error_description=string}													"Invalid request (unsupported_grant_type, invalid_request, authorization_pending, slow_down, expired_token, access_denied, invalid_grant, invalid_scope, invalid_target)"
+//	@Failure		401				{object}	object{error=string,error_description=string}													"Client authentication failed (invalid_client)"
 //	@Failure		429				{object}	object{error=string,error_description=string}													"Rate limit exceeded"
 //	@Failure		500				{object}	object{error=string,error_description=string}													"Internal server error"
 //	@Router			/oauth/token [post]
@@ -395,8 +403,8 @@ func (h *TokenHandler) TokenInfo(c *gin.Context) {
 //	@Param			token_type_hint	formData	string																																		false	"Hint about the type of token: 'access_token' or 'refresh_token'"
 //	@Param			client_id		formData	string																																		false	"Client ID (alternative to HTTP Basic Auth)"
 //	@Param			client_secret	formData	string																																		false	"Client secret (alternative to HTTP Basic Auth)"
-//	@Success		200				{object}	object{active=bool,scope=string,client_id=string,username=string,token_type=string,exp=int,iat=int,sub=string,iss=string,jti=string}	"Token introspection response"
-//	@Failure		401				{object}	object{error=string,error_description=string}																							"Client authentication failed"
+//	@Success		200				{object}	object{active=bool,scope=string,client_id=string,username=string,token_type=string,exp=int,iat=int,sub=string,iss=string,jti=string,aud=object}	"Token introspection response. `aud` is included only for active access tokens — it is the persisted RFC 8707 resource set when present, otherwise the configured JWT_AUDIENCE; collapsed to a string for a single value, slice for multiple. Refresh tokens always omit `aud` to avoid being mistaken for access tokens."
+//	@Failure		401				{object}	object{error=string,error_description=string}																																																																																																																																																																																																																																																																																																																																																																																																"Client authentication failed"
 //	@Router			/oauth/introspect [post]
 func (h *TokenHandler) Introspect(c *gin.Context) {
 	// 1. Authenticate the calling client (RFC 7662 §2.1)
