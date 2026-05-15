@@ -11,12 +11,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-authgate/authgate/internal/cache"
 	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/metrics"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/store"
 
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -282,6 +285,161 @@ func TestDeviceCodeRequest_DefaultScope(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.NotEmpty(t, resp["device_code"])
 	assert.NotEmpty(t, resp["user_code"])
+}
+
+// ============================================================
+// DeviceVerify — resource-bound confirm page
+// ============================================================
+
+// setupDeviceVerifyEnv wires up POST /device/verify against an in-memory
+// store with sessions middleware that auto-populates the logged-in user.
+// Returns the engine, the test store, and a seeded user/client/device-code
+// triple. The device code is unauthorized; resource is set per the caller.
+func setupDeviceVerifyEnv(
+	t *testing.T,
+	resource []string,
+) (*gin.Engine, *store.Store, *models.OAuthApplication, *models.User, *models.DeviceCode) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		BaseURL:              "http://localhost:8080",
+		DeviceCodeExpiration: 30 * time.Minute,
+		PollingInterval:      5,
+	}
+
+	s, err := store.New(context.Background(), "sqlite", ":memory:", &config.Config{})
+	require.NoError(t, err)
+
+	auditSvc := services.NewNoopAuditService()
+	clientSvc := services.NewClientService(s, auditSvc, nil, 0, nil, 0)
+	deviceSvc := services.NewDeviceService(
+		s, cfg, auditSvc, metrics.NewNoopMetrics(), clientSvc,
+	)
+	userSvc := services.NewUserService(
+		s, nil, nil, "local", false, auditSvc,
+		cache.NewNoopCache[models.User](), 0,
+	)
+	authzSvc := services.NewAuthorizationService(s, cfg, auditSvc, nil, clientSvc)
+	handler := NewDeviceHandler(deviceSvc, userSvc, authzSvc, cfg)
+
+	client := &models.OAuthApplication{
+		ClientID:         uuid.New().String(),
+		ClientSecret:     "test-secret-hash",
+		ClientName:       "Device Confirm Test Client",
+		UserID:           uuid.New().String(),
+		Scopes:           "read",
+		GrantTypes:       "urn:ietf:params:oauth:grant-type:device_code",
+		EnableDeviceFlow: true,
+		Status:           models.ClientStatusActive,
+	}
+	require.NoError(t, s.CreateClient(client))
+
+	user := &models.User{
+		ID:       uuid.New().String(),
+		Username: "device-confirm-user",
+		Email:    "device-confirm@example.com",
+		IsActive: true,
+	}
+	require.NoError(t, s.CreateUser(user))
+
+	dc := &models.DeviceCode{
+		DeviceCodeHash: "hash-" + uuid.New().String(),
+		DeviceCodeSalt: "salt-" + uuid.New().String()[:8],
+		DeviceCodeID:   uuid.New().String()[:8],
+		UserCode:       strings.ToUpper("ABCD" + uuid.New().String()[:4]),
+		ClientID:       client.ClientID,
+		Scopes:         "read",
+		Resource:       models.StringArray(resource),
+		ExpiresAt:      time.Now().Add(30 * time.Minute),
+		Interval:       5,
+	}
+	require.NoError(t, s.CreateDeviceCode(dc))
+
+	r := gin.New()
+	r.Use(sessions.Sessions("test_session", cookie.NewStore([]byte("test-secret"))))
+	// Auto-populate the session so DeviceVerify sees a logged-in user
+	// without round-tripping through /login.
+	r.Use(func(c *gin.Context) {
+		sess := sessions.Default(c)
+		sess.Set(SessionUserID, user.ID)
+		_ = sess.Save()
+		c.Next()
+	})
+	r.POST("/device/verify", handler.DeviceVerify)
+	return r, s, client, user, dc
+}
+
+func postDeviceVerify(t *testing.T, r *gin.Engine, form url.Values) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/device/verify",
+		strings.NewReader(form.Encode()),
+	)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
+// TestDeviceVerify_ResourceBound_FirstPostRendersConfirm asserts the new
+// user-consent enforcement point: a resource-bound device code's FIRST POST
+// renders the confirm page and MUST NOT authorize. Without this, the
+// manual-entry flow would grant tokens for an audience the user never saw.
+func TestDeviceVerify_ResourceBound_FirstPostRendersConfirm(t *testing.T) {
+	r, s, _, _, dc := setupDeviceVerifyEnv(t, []string{"https://mcp.example.com"})
+
+	w := postDeviceVerify(t, r, url.Values{
+		"user_code": {dc.UserCode},
+		// no `confirmed=true`
+	})
+
+	require.Equal(t, http.StatusOK, w.Code)
+	body := w.Body.String()
+	assert.Contains(t, body, "https://mcp.example.com",
+		"confirm page must show the resource the user is about to grant")
+
+	dcAfter, err := s.GetDeviceCodeByUserCode(dc.UserCode)
+	require.NoError(t, err)
+	assert.False(t, dcAfter.Authorized,
+		"resource-bound device code must NOT be authorized on the first POST")
+}
+
+// TestDeviceVerify_ResourceBound_ConfirmedPostAuthorizes asserts the
+// completion path: a second POST with `confirmed=true` commits the grant.
+func TestDeviceVerify_ResourceBound_ConfirmedPostAuthorizes(t *testing.T) {
+	r, s, _, user, dc := setupDeviceVerifyEnv(t, []string{"https://mcp.example.com"})
+
+	w := postDeviceVerify(t, r, url.Values{
+		"user_code": {dc.UserCode},
+		"confirmed": {"true"},
+	})
+
+	require.Equal(t, http.StatusOK, w.Code)
+	dcAfter, err := s.GetDeviceCodeByUserCode(dc.UserCode)
+	require.NoError(t, err)
+	assert.True(t, dcAfter.Authorized,
+		"confirmed POST must mark the device code as authorized")
+	assert.Equal(t, user.ID, dcAfter.UserID,
+		"authorized device code must record the consenting user's id")
+}
+
+// TestDeviceVerify_NoResource_SkipsConfirm asserts the confirm step fires
+// ONLY for resource-bound device codes. A non-resource-bound code should
+// authorize on the first POST (legacy fast path).
+func TestDeviceVerify_NoResource_SkipsConfirm(t *testing.T) {
+	r, s, _, _, dc := setupDeviceVerifyEnv(t, nil)
+
+	w := postDeviceVerify(t, r, url.Values{
+		"user_code": {dc.UserCode},
+	})
+
+	require.Equal(t, http.StatusOK, w.Code)
+	dcAfter, err := s.GetDeviceCodeByUserCode(dc.UserCode)
+	require.NoError(t, err)
+	assert.True(t, dcAfter.Authorized,
+		"non-resource-bound device code should authorize on the first POST")
 }
 
 func TestDeviceCodeErrorMessage(t *testing.T) {

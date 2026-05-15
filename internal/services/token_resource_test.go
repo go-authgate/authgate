@@ -17,6 +17,8 @@ import (
 	"github.com/go-authgate/authgate/internal/metrics"
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/store"
+	"github.com/go-authgate/authgate/internal/token"
+	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -421,6 +423,93 @@ func TestClientCredentials_NoResource_SnapshotsJWTAudience(t *testing.T) {
 	// later reads the persisted value rather than re-deriving from the live
 	// (possibly rotated) config.
 	assert.Equal(t, models.StringArray{"snapshot.example.com"}, tok.Resource)
+}
+
+// TestRefresh_LegacyRefreshToken_AudienceFromJWT covers the legacy upgrade
+// path: a refresh token whose persisted Resource column is empty (issued
+// before the snapshot-at-issuance fix landed) must refresh using the
+// audience signed into the original refresh JWT, NOT whatever JWT_AUDIENCE
+// is currently configured. The signed JWT is the canonical record of what
+// audience the grant had — relying on it prevents JWT_AUDIENCE rotation
+// from silently retargeting refreshed access tokens.
+//
+// Setup: issue a fresh token pair with JWT_AUDIENCE=original.example.com
+// (so the JWT's aud is set), then manually clear the persisted Resource
+// columns on both rows to simulate a legacy pre-snapshot record. Rotate
+// JWT_AUDIENCE to a new value and refresh — the new access token MUST
+// carry the original aud, not the rotated one.
+func TestRefresh_LegacyRefreshToken_AudienceFromJWT(t *testing.T) {
+	s := setupTestStore(t)
+	cfg := &config.Config{
+		JWTExpiration:          1 * time.Hour,
+		JWTSecret:              "test-secret-refresh-legacy",
+		BaseURL:                "http://localhost:8080",
+		JWTAudience:            []string{"original.example.com"},
+		EnableRefreshTokens:    true,
+		RefreshTokenExpiration: 30 * 24 * time.Hour,
+	}
+	tokenService := createTestTokenService(t, s, cfg)
+
+	client := createTestClient(t, s, true)
+	userID := uuid.New().String()
+
+	// Mint a refresh JWT directly via the provider so we can persist it as a
+	// "legacy" row — i.e., the JWT's aud is set (to JWT_AUDIENCE in effect at
+	// issuance) but the Resource column is empty, exactly as pre-snapshot
+	// vintage rows look on disk.
+	provider, err := token.NewLocalTokenProvider(cfg)
+	require.NoError(t, err)
+	refreshResult, err := provider.GenerateRefreshToken(
+		context.Background(), userID, client.ClientID, "read", 0, nil,
+		[]string{"original.example.com"},
+	)
+	require.NoError(t, err)
+
+	legacyRefreshRow := &models.AccessToken{
+		ID:            uuid.New().String(),
+		TokenHash:     util.SHA256Hex(refreshResult.TokenString),
+		RawToken:      refreshResult.TokenString,
+		TokenType:     refreshResult.TokenType,
+		TokenCategory: models.TokenCategoryRefresh,
+		Status:        models.TokenStatusActive,
+		UserID:        userID,
+		ClientID:      client.ClientID,
+		Scopes:        "read",
+		ExpiresAt:     refreshResult.ExpiresAt,
+		// Resource intentionally nil — the legacy-vintage invariant.
+	}
+	require.NoError(t, s.CreateAccessToken(legacyRefreshRow))
+
+	// Rotate JWT_AUDIENCE — the live config no longer matches the original
+	// audience signed into the legacy refresh JWT.
+	cfg.JWTAudience = []string{"rotated.example.com"}
+
+	newAccess, _, err := tokenService.RefreshAccessToken(
+		context.Background(),
+		refreshResult.TokenString,
+		client.ClientID,
+		"",
+		nil,
+		nil, // refresh without explicit resource
+	)
+	require.NoError(t, err)
+	require.NotNil(t, newAccess)
+
+	// The refreshed access token's `aud` must come from the ORIGINAL JWT's
+	// signed audience, not the rotated live config. Same applies to the
+	// persisted Resource column snapshot on the new row.
+	claims := decodeJWTClaims(t, newAccess.RawToken)
+	aud, ok := claims["aud"].(string)
+	require.True(t, ok, "single-value aud should collapse to string")
+	assert.Equal(t,
+		"original.example.com", aud,
+		"refreshed token must inherit the audience signed into the original "+
+			"refresh JWT, not the rotated live JWT_AUDIENCE config",
+	)
+	assert.Equal(t,
+		models.StringArray{"original.example.com"}, newAccess.Resource,
+		"refreshed access token's Resource column tracks the JWT-derived audience",
+	)
 }
 
 // TestDeviceCode_RejectsResourceWhenNoneGranted asserts that a token-time

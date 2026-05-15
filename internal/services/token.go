@@ -370,6 +370,40 @@ func (s *TokenService) composeIssuanceClaims(
 // Used to snapshot the issued aud onto access-token rows so introspection
 // (RFC 7662) can later report what the JWT carries, without depending on
 // the live JWTAudience config (which may have rotated since issuance).
+// audienceFromClaims extracts the JWT `aud` claim from a decoded MapClaims
+// map and normalizes it to []string. The jwt library decodes single-string
+// aud claims as `string` and multi-value aud claims as `[]any` (via
+// json.Unmarshal); this helper folds both shapes into the same slice form
+// for callers that need the audience without going through the JWT library.
+//
+// Used by the refresh flow to recover the signed audience from a legacy
+// refresh token whose persisted Resource column is empty — the JWT itself
+// is the canonical record of what aud it was minted with.
+func audienceFromClaims(claims map[string]any) []string {
+	raw, ok := claims["aud"]
+	if !ok {
+		return nil
+	}
+	switch v := raw.(type) {
+	case string:
+		if v == "" {
+			return nil
+		}
+		return []string{v}
+	case []string:
+		return v
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok && s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return nil
+}
+
 func effectiveAudience(requested, fallback []string) []string {
 	if len(requested) > 0 {
 		out := make([]string, len(requested))

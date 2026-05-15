@@ -93,6 +93,18 @@ type TokenProvider interface {
 		audience []string,
 	) (*TokenResult, error)
 	ValidateToken(ctx context.Context, tokenString string) (*TokenValidationResult, error)
+	// ValidateRefreshToken verifies a refresh-token JWT and returns the parsed
+	// claims (including `aud`). Callers — notably the refresh flow in
+	// TokenService — use the signed claims as the authoritative source of the
+	// original grant's audience when the persisted `Resource` column is
+	// empty (e.g. legacy rows issued before fix #2 snapshotted the effective
+	// audience on issuance). This prevents a later JWT_AUDIENCE rotation
+	// from silently retargeting refreshed access tokens to an audience the
+	// original token's JWT never carried.
+	ValidateRefreshToken(
+		ctx context.Context,
+		tokenString string,
+	) (*TokenValidationResult, error)
 	// RefreshAccessToken issues a new access token (and, in rotation mode, a
 	// new refresh token) from a valid refresh-token string.
 	//

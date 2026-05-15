@@ -138,7 +138,23 @@ func (s *TokenService) RefreshAccessToken(
 	// 5b. Resolve effective resource per RFC 8707 §2.2: the refresh request
 	// MAY narrow the audience but MUST NOT widen it. When the caller omits
 	// `resource`, reuse the original grant's bound resources unchanged.
+	//
+	// When the persisted Resource column is empty (legacy rows issued before
+	// the effective-audience snapshot was added at issuance), fall back to
+	// the `aud` claim signed into the original refresh JWT. The signed JWT
+	// is the canonical record of what audience the token was minted with —
+	// using it prevents a later JWT_AUDIENCE rotation from silently
+	// retargeting refreshed access tokens to an audience the original grant
+	// never had. Validation failure is non-fatal: the provider's own
+	// RefreshAccessToken call below re-validates and will reject an
+	// invalid token there, so we just skip the JWT-aud fallback and proceed.
 	originalResource := []string(refreshToken.Resource)
+	if len(originalResource) == 0 {
+		if vr, err := s.tokenProvider.ValidateRefreshToken(ctx, refreshTokenString); err == nil &&
+			vr != nil {
+			originalResource = audienceFromClaims(vr.Claims)
+		}
+	}
 	effectiveResource := originalResource
 	if len(requestedResource) > 0 {
 		if !util.IsStringSliceSubset(originalResource, requestedResource) {

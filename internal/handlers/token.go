@@ -123,23 +123,21 @@ func normalizeAudience(values []string) any {
 // servers that trust introspection from accepting tokens that were never
 // minted for them.
 //
-// `fallback` is the current `JWT_AUDIENCE` config. It is used ONLY for
-// access tokens whose persisted `Resource` is empty — i.e., tokens minted
-// before the resource-binding migration that snapshots the effective
-// audience on issuance. For those legacy rows the JWT itself was signed
-// with `JWT_AUDIENCE`, and emitting nothing would regress introspection
-// vs. the pre-PR behavior. Newly-issued tokens always have `Resource`
-// populated (see effectiveAudience), so the fallback never overrides a
-// snapshot for current-vintage tokens.
-func introspectAudience(tok *models.AccessToken, fallback []string) any {
+// An empty `Resource` is reported as "no audience" — `aud` is omitted from
+// the response. A previous version of this function fell back to the live
+// JWT_AUDIENCE config when Resource was empty, intended as backward-compat
+// for tokens issued before the resource-binding migration. That fallback
+// was security-unsafe: a no-audience token issued with empty JWT_AUDIENCE
+// would, after a later JWT_AUDIENCE rotation, gain a synthesized `aud` that
+// its JWT never carried — letting resource servers trusting introspection
+// accept tokens they were not minted for. Legacy rows now lose `aud` in
+// introspection responses instead; this resolves naturally as those tokens
+// expire within JWT_EXPIRATION.
+func introspectAudience(tok *models.AccessToken) any {
 	if !tok.IsAccessToken() {
 		return nil
 	}
-	values := []string(tok.Resource)
-	if len(values) == 0 {
-		values = fallback
-	}
-	return normalizeAudience(values)
+	return normalizeAudience([]string(tok.Resource))
 }
 
 // audienceFromClaims extracts the JWT `aud` claim from a decoded MapClaims
@@ -536,7 +534,7 @@ func (h *TokenHandler) Introspect(c *gin.Context) {
 	// hard-coded "Bearer" and a resource server checking `active && aud=mine`
 	// could otherwise be tricked into accepting a refresh token as an access
 	// token. See introspectAudience for the full rationale.
-	if aud := introspectAudience(tok, h.config.JWTAudience); aud != nil {
+	if aud := introspectAudience(tok); aud != nil {
 		resp["aud"] = aud
 	}
 
