@@ -161,6 +161,49 @@
   font-size: 0.5rem;
 }
 
+/* RFC 8707 Resource Indicators — the audience the issued tokens are
+   valid for. Distinct from .authorization-scopes (which lists permissions)
+   because resources name target endpoints, not capabilities. */
+.authorization-resources {
+  margin-top: var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.authorization-resources-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+}
+
+.authorization-resource-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-text-primary);
+  background: rgba(0, 114, 255, 0.06);
+  border: 1px solid rgba(0, 114, 255, 0.2);
+  border-left: 2px solid var(--color-primary);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  word-break: break-all;
+}
+
+.authorization-resource-item::before {
+  content: "→";
+  color: var(--color-primary);
+  font-weight: 700;
+  opacity: 0.7;
+}
+
 /* Revoke Button */
 .authorization-actions {
   display: flex;

@@ -112,7 +112,28 @@ type DevicePageProps struct {
 	Username   string
 	UserCode   string
 	ClientName string
-	Error      string
+	// Resource holds the RFC 8707 Resource Indicator(s) the CLI requested
+	// at /oauth/device/code. When non-empty, the verification UI displays
+	// them so the user can see which resource server they are about to
+	// authorize access to — without this surface, the audience binding
+	// would not be user-consented in any meaningful way.
+	Resource []string
+	Error    string
+}
+
+// DeviceConfirmPageProps contains properties for the device confirmation
+// page. Resource-bound device codes route through this page (regardless of
+// whether the user arrived via verification_uri_complete or by typing the
+// code manually) so the audience binding is always shown alongside the
+// client name BEFORE AuthorizeDeviceCode is called. The form posts back to
+// /device/verify with `confirmed=true` to commit the authorization.
+type DeviceConfirmPageProps struct {
+	BaseProps
+	NavbarProps
+	Username   string
+	UserCode   string
+	ClientName string
+	Resource   []string
 }
 
 // SessionsPageProps contains properties for the sessions page
@@ -220,7 +241,11 @@ type AuthorizePageProps struct {
 	Nonce               string
 	CodeChallenge       string
 	CodeChallengeMethod string
-	Error               string
+	// Resource holds RFC 8707 Resource Indicator values requested at
+	// /authorize. The template renders one hidden <input name="resource">
+	// per value so the POST round-trip preserves them.
+	Resource []string
+	Error    string
 }
 
 // AuthorizationDisplay is a view model for a single user authorization entry
@@ -229,8 +254,14 @@ type AuthorizationDisplay struct {
 	ClientID   string
 	ClientName string
 	Scopes     string
-	GrantedAt  time.Time
-	IsActive   bool
+	// Resource holds the RFC 8707 Resource Indicator(s) the user approved
+	// when granting this authorization. Empty means the consent had no
+	// audience binding; non-empty values are shown alongside the scope
+	// list so the user can see which resource server(s) they granted
+	// access to.
+	Resource  []string
+	GrantedAt time.Time
+	IsActive  bool
 }
 
 // AuthorizationsPageProps contains properties for the account authorizations page

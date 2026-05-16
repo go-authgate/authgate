@@ -46,10 +46,26 @@ func IsMachineUserID(userID string) bool {
 // callerExtra (optional) is merged into the issued token; reserved keys must
 // already have been rejected by the handler. System claims (project,
 // service_account from the OAuth client) override on collision.
+//
+// resource (optional, RFC 8707) binds the issued token's "aud" claim to the
+// supplied resource indicators. There is currently NO per-client
+// allowed-resources allowlist on the client_credentials grant: any
+// confidential client with this grant enabled may request any
+// syntactically valid resource indicator and have it become the JWT `aud`.
+// In multi-resource-server deployments where many resource servers trust
+// the same AS issuer, this means a resource server MUST NOT treat
+// `aud == its-own-id` as evidence the AS authorized this specific client to
+// reach it — the resource server is responsible for validating the (client,
+// resource) pair against its own policy (e.g., per-client API allowlists at
+// the resource server, or a network-level allowlist). A future change may
+// add a per-client AllowedResources column to OAuthApplication; until then
+// treat the resource indicator as caller-asserted intent rather than
+// AS-attested authorization. See docs/MCP.md "Multi-resource-server caveat".
 func (s *TokenService) IssueClientCredentialsToken(
 	ctx context.Context,
 	clientID, clientSecret, requestedScopes string,
 	callerExtra map[string]any,
+	resource []string,
 ) (*models.AccessToken, error) {
 	// 1. Look up client (uncached — needs secret for authentication)
 	client, err := s.clientService.GetClientWithSecret(ctx, clientID)
@@ -106,6 +122,7 @@ func (s *TokenService) IssueClientCredentialsToken(
 		effectiveScopes,
 		0,
 		s.composeIssuanceClaims(client, machineUserID, callerExtra),
+		resource,
 	)
 	if providerErr != nil {
 		log.Printf(
@@ -115,7 +132,11 @@ func (s *TokenService) IssueClientCredentialsToken(
 		)
 		return nil, fmt.Errorf("token generation failed: %w", providerErr)
 	}
-	// 7. Persist the token record (no AuthorizationID — no user consent)
+	// 7. Persist the token record (no AuthorizationID — no user consent).
+	// Resource is the audience the JWT was actually signed with (per-request
+	// RFC 8707 binding, or the static JWTAudience fallback) — snapshotting at
+	// issuance keeps RFC 7662 introspection consistent with the JWT even
+	// after operators rotate JWT_AUDIENCE.
 	accessToken := &models.AccessToken{
 		ID:            uuid.New().String(),
 		TokenHash:     util.SHA256Hex(accessTokenResult.TokenString),
@@ -127,6 +148,7 @@ func (s *TokenService) IssueClientCredentialsToken(
 		ClientID:      clientID,
 		Scopes:        effectiveScopes,
 		ExpiresAt:     accessTokenResult.ExpiresAt,
+		Resource:      models.StringArray(effectiveAudience(resource, s.config.JWTAudience)),
 	}
 
 	if err := s.store.CreateAccessToken(accessToken); err != nil {
@@ -136,7 +158,12 @@ func (s *TokenService) IssueClientCredentialsToken(
 	// 8. Metrics
 	providerName := s.tokenProvider.Name()
 	duration := time.Since(start)
-	s.metrics.RecordTokenIssued("access", "client_credentials", duration, providerName)
+	s.metrics.RecordTokenIssued(
+		models.TokenCategoryAccess,
+		"client_credentials",
+		duration,
+		providerName,
+	)
 
 	// 9. Audit log
 	s.auditService.Log(ctx, core.AuditLogEntry{

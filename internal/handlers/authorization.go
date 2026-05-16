@@ -65,15 +65,29 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 		return
 	}
 
-	// Validate the authorization request parameters
+	// Validate the authorization request parameters FIRST. This proves the
+	// redirect_uri is registered to the client. Validating resource (which
+	// can fail with a redirect to redirect_uri) before this would let an
+	// attacker craft an invalid `resource` plus a non-registered
+	// `redirect_uri` to coerce the server into an open redirect.
 	req, err := h.authorizationService.ValidateAuthorizationRequest(
 		c.Request.Context(),
 		clientID, redirectURI, responseType, scope, codeChallenge, codeChallengeMethod, nonce,
 	)
 	if err != nil {
-		h.redirectWithError(c, redirectURI, state, oauthErrorCode(err), err.Error())
+		h.handleAuthorizeError(c, redirectURI, state, err)
 		return
 	}
+
+	// RFC 8707 Resource Indicators (repeatable parameter). Validated AFTER
+	// the redirect_uri has been confirmed registered, so an invalid_target
+	// redirect goes to a trusted destination.
+	resource, err := util.ValidateResourceIndicators(c.QueryArray("resource"))
+	if err != nil {
+		h.redirectWithError(c, redirectURI, state, errInvalidTarget, err.Error())
+		return
+	}
+	req.Resource = resource
 
 	userIDStr := getUserIDFromContext(c)
 
@@ -84,11 +98,19 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 		return
 	}
 
-	// If ConsentRemember is enabled and the user has already consented to all
-	// requested scopes, skip the consent page and issue a code immediately.
+	// If ConsentRemember is enabled and the user has already consented to
+	// the same client+scopes+resource set, skip the consent page and issue
+	// a code immediately. The resource set must match EXACTLY — neither a
+	// no-resource request matching a resource-bound consent nor a
+	// resource-bound request matching a no-resource consent qualifies, since
+	// the user only ever approved a specific audience binding (or its
+	// absence) and silently widening/narrowing it would shift trust they
+	// never granted.
 	if h.config.ConsentRemember {
 		existing, _ := h.authorizationService.GetUserAuthorization(userIDStr, req.Client.ID)
-		if existing != nil && util.IsScopeSubset(existing.Scopes, req.Scopes) {
+		if existing != nil &&
+			util.IsScopeSubset(existing.Scopes, req.Scopes) &&
+			util.IsStringSliceSetEqual([]string(existing.Resource), req.Resource) {
 			h.issueCodeAndRedirect(c, req, userIDStr, state)
 			return
 		}
@@ -109,6 +131,7 @@ func (h *AuthorizationHandler) ShowAuthorizePage(c *gin.Context) {
 		Nonce:               req.Nonce,
 		CodeChallenge:       req.CodeChallenge,
 		CodeChallengeMethod: req.CodeChallengeMethod,
+		Resource:            req.Resource,
 	}))
 }
 
@@ -128,11 +151,28 @@ func (h *AuthorizationHandler) HandleAuthorize(c *gin.Context) {
 		return
 	}
 
-	// Deny path: redirect immediately with access_denied
+	// Deny path runs FIRST with a lighter validator: the Deny consent form
+	// only posts (csrf_token, action, client_id, redirect_uri, state) — no
+	// scope/PKCE/nonce — so the full ValidateAuthorizationRequest would
+	// reject a deny on a public client (or any client when global PKCE is
+	// required) with a PKCE error instead of redirecting `access_denied`.
+	// ValidateClientRedirect proves redirect_uri is registered without
+	// imposing the parameter checks irrelevant to a deny, which keeps the
+	// open-redirect closure (RFC 6749 §3.1.2.4 / §4.1.2.1: error responses
+	// redirect only to a redirect_uri verified for the client) while letting
+	// users actually cancel.
 	if action != "approve" {
+		validatedURI, err := h.authorizationService.ValidateClientRedirect(
+			c.Request.Context(),
+			clientID, redirectURI,
+		)
+		if err != nil {
+			h.handleAuthorizeError(c, redirectURI, state, err)
+			return
+		}
 		h.redirectWithError(
 			c,
-			redirectURI,
+			validatedURI,
 			state,
 			errAccessDenied,
 			"User denied the authorization request",
@@ -140,27 +180,53 @@ func (h *AuthorizationHandler) HandleAuthorize(c *gin.Context) {
 		return
 	}
 
-	// Re-validate request on POST to prevent parameter tampering
+	// Approve path: full validation prevents parameter tampering and
+	// enforces PKCE/scope before issuing a code.
 	req, err := h.authorizationService.ValidateAuthorizationRequest(
 		c.Request.Context(),
 		clientID, redirectURI, "code", scope, codeChallenge, codeChallengeMethod, nonce,
 	)
 	if err != nil {
-		h.redirectWithError(c, redirectURI, state, oauthErrorCode(err), err.Error())
+		h.handleAuthorizeError(c, redirectURI, state, err)
 		return
 	}
 
+	// RFC 8707 Resource Indicators (repeatable form parameter). The GET handler
+	// emits hidden <input name="resource"> per value so the POST round-trip
+	// preserves the original request's audience binding.
+	resource, err := util.ValidateResourceIndicators(c.PostFormArray("resource"))
+	if err != nil {
+		h.redirectWithError(c, redirectURI, state, errInvalidTarget, err.Error())
+		return
+	}
+	req.Resource = resource
+
 	userIDStr := getUserIDFromContext(c)
 
-	// Persist the consent record
+	// Persist the consent record (with the approved resource set, if any).
+	// UserAuthorization is now resource-aware: the GET-side remembered-consent
+	// shortcut requires an exact resource-set match before auto-approving, so
+	// saving a resource-bound consent here cannot accidentally widen a later
+	// no-resource request — it just makes the (client, scopes, resource)
+	// triple a re-usable shortcut. Persisting also means the issued tokens
+	// get an AuthorizationID FK so the user can revoke them from
+	// /account/authorizations and so admin-initiated client revocations
+	// cascade to them.
 	if _, err := h.authorizationService.SaveUserAuthorization(
 		c.Request.Context(),
 		userIDStr,
 		req.Client.ID,
 		req.Client.ClientID,
 		req.Scopes,
+		req.Resource,
 	); err != nil {
-		h.redirectWithError(c, redirectURI, state, errServerError, "Failed to save authorization")
+		h.redirectWithError(
+			c,
+			redirectURI,
+			state,
+			errServerError,
+			"Failed to save authorization",
+		)
 		return
 	}
 
@@ -184,6 +250,7 @@ func (h *AuthorizationHandler) issueCodeAndRedirect(
 			CodeChallenge:       req.CodeChallenge,
 			CodeChallengeMethod: req.CodeChallengeMethod,
 			Nonce:               req.Nonce,
+			Resource:            req.Resource,
 		},
 	)
 	if err != nil {
@@ -209,6 +276,67 @@ func (h *AuthorizationHandler) issueCodeAndRedirect(
 	}
 	u.RawQuery = q.Encode()
 	c.Redirect(http.StatusFound, u.String())
+}
+
+// handleAuthorizeError converts a ValidateAuthorizationRequest error into the
+// right response. Per RFC 6749 §3.1.2.4 / §4.1.2.1, OAuth errors MUST be
+// returned to the caller's redirect_uri once that URI is verified for the
+// client; if the URI has not been proven registered, the AS MUST NOT redirect
+// (else redirect_uri becomes an open redirect).
+//
+// ValidateAuthorizationRequest checks parameters in this order:
+//
+//	response_type → client lookup → client active → auth-code flow enabled →
+//	redirect_uri → scope → PKCE
+//
+// For errors that fail the response_type check (ErrUnsupportedResponseType),
+// the validator returns BEFORE proving redirect_uri is registered. RFC 6749
+// §4.1.2.1 still requires that error to be returned to a registered
+// redirect_uri when one exists. We therefore re-run the lightweight
+// ValidateClientRedirect to prove the URI is registered for the client; on
+// success the OAuth error rides the redirect, on failure (unknown client,
+// inactive client, unregistered URI) it renders locally — preserving the
+// open-redirect closure that the response_type-first ordering provides.
+//
+// ErrInvalidRedirectURI and ErrUnauthorizedClient remain local-render: the
+// first IS the redirect_uri mismatch, and the second indicates no
+// trustworthy client/redirect_uri exists to redirect to.
+func (h *AuthorizationHandler) handleAuthorizeError(
+	c *gin.Context,
+	redirectURI, state string,
+	err error,
+) {
+	if errors.Is(err, services.ErrInvalidRedirectURI) ||
+		errors.Is(err, services.ErrUnauthorizedClient) {
+		h.renderLocalAuthorizeError(c, err)
+		return
+	}
+	if errors.Is(err, services.ErrUnsupportedResponseType) {
+		clientID := c.Request.FormValue("client_id")
+		validatedURI, vErr := h.authorizationService.ValidateClientRedirect(
+			c.Request.Context(), clientID, redirectURI,
+		)
+		if vErr != nil {
+			h.renderLocalAuthorizeError(c, err)
+			return
+		}
+		h.redirectWithError(c, validatedURI, state, oauthErrorCode(err), err.Error())
+		return
+	}
+	h.redirectWithError(c, redirectURI, state, oauthErrorCode(err), err.Error())
+}
+
+// renderLocalAuthorizeError renders an OAuth error page in-line, used when
+// the redirect_uri has NOT been proven registered for the client.
+func (h *AuthorizationHandler) renderLocalAuthorizeError(c *gin.Context, err error) {
+	templates.RenderTempl(
+		c,
+		http.StatusBadRequest,
+		templates.ErrorPage(templates.ErrorPageProps{
+			Error:   oauthErrorCode(err),
+			Message: err.Error(),
+		}),
+	)
 }
 
 // redirectWithError sends an OAuth error response as a redirect to the client's redirect_uri.
@@ -307,36 +435,47 @@ const (
 	maxNonceLength = 1024
 )
 
-// validateStateAndNonce checks that state and nonce parameters don't exceed maximum lengths.
-// Returns true if validation passes, false if an error redirect was sent.
+// validateStateAndNonce checks that state and nonce parameters don't exceed
+// maximum lengths. Returns true if validation passes, false if an error
+// response was written.
+//
+// This runs BEFORE ValidateAuthorizationRequest, so the redirect_uri has not
+// yet been proven registered for the client. Reflecting the OAuth error to
+// the caller-supplied redirect_uri here would be an open redirect — an
+// attacker could pair an oversized state/nonce with an attacker-controlled
+// redirect_uri to coerce the AS into redirecting off-site. We render the
+// error page locally instead. Per RFC 6749 §3.1.2.4 the AS MUST NOT redirect
+// to an unverified redirect_uri.
 func (h *AuthorizationHandler) validateStateAndNonce(
 	c *gin.Context,
-	redirectURI, state, nonce string,
+	_, state, nonce string,
 ) bool {
 	if len(state) > maxStateLength {
-		h.redirectWithError(
+		templates.RenderTempl(
 			c,
-			redirectURI,
-			"",
-			errInvalidRequest,
-			"state parameter exceeds maximum length",
+			http.StatusBadRequest,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error:   errInvalidRequest,
+				Message: "state parameter exceeds maximum length",
+			}),
 		)
 		return false
 	}
 	if len(nonce) > maxNonceLength {
-		h.redirectWithError(
+		templates.RenderTempl(
 			c,
-			redirectURI,
-			state,
-			errInvalidRequest,
-			"nonce parameter exceeds maximum length",
+			http.StatusBadRequest,
+			templates.ErrorPage(templates.ErrorPageProps{
+				Error:   errInvalidRequest,
+				Message: "nonce parameter exceeds maximum length",
+			}),
 		)
 		return false
 	}
 	return true
 }
 
-// oauthErrorCode maps service errors to RFC 6749 error codes.
+// oauthErrorCode maps service errors to RFC 6749 / RFC 8707 error codes.
 func oauthErrorCode(err error) string {
 	switch {
 	case errors.Is(err, services.ErrUnauthorizedClient):
@@ -345,6 +484,8 @@ func oauthErrorCode(err error) string {
 		return "unsupported_response_type"
 	case errors.Is(err, services.ErrInvalidAuthCodeScope):
 		return errInvalidScope
+	case errors.Is(err, services.ErrInvalidTarget):
+		return errInvalidTarget
 	default:
 		return errInvalidRequest
 	}

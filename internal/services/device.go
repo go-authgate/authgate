@@ -55,10 +55,17 @@ func NewDeviceService(
 	}
 }
 
-// GenerateDeviceCode creates a new device code request
+// GenerateDeviceCode creates a new device code request.
+// resource (optional, RFC 8707) is persisted on the device code so the
+// /oauth/token grant can subset-check any token-time `resource` against the
+// audience the user authorized — without this binding, a polling client could
+// change the issued JWT's `aud` after the user had already authorized the
+// device code. Caller must validate values via util.ValidateResourceIndicators
+// before passing them in; nil/empty means no audience binding.
 func (s *DeviceService) GenerateDeviceCode(
 	ctx context.Context,
 	clientID, scope string,
+	resource []string,
 ) (*models.DeviceCode, error) {
 	// Validate client
 	client, err := s.clientService.GetClient(ctx, clientID)
@@ -101,6 +108,7 @@ func (s *DeviceService) GenerateDeviceCode(
 		UserCode:       generateUserCode(),
 		ClientID:       clientID,
 		Scopes:         scope,
+		Resource:       models.StringArray(resource),
 		ExpiresAt:      time.Now().Add(s.config.DeviceCodeExpiration),
 		Interval:       s.config.PollingInterval,
 		Authorized:     false,
@@ -116,18 +124,22 @@ func (s *DeviceService) GenerateDeviceCode(
 	s.metrics.RecordOAuthDeviceCodeGenerated(true)
 
 	// Log device code generation
+	details := models.AuditDetails{
+		"client_id": clientID,
+		"scopes":    scope,
+		"user_code": deviceCode.UserCode,
+	}
+	if len(resource) > 0 {
+		details["resource"] = resource
+	}
 	s.auditService.Log(ctx, core.AuditLogEntry{
 		EventType:    models.EventDeviceCodeGenerated,
 		Severity:     models.SeverityInfo,
 		ResourceType: models.ResourceDeviceCode,
 		ResourceID:   deviceCode.DeviceCodeID,
 		Action:       "Device code generated",
-		Details: models.AuditDetails{
-			"client_id": clientID,
-			"scopes":    scope,
-			"user_code": deviceCode.UserCode,
-		},
-		Success: true,
+		Details:      details,
+		Success:      true,
 	})
 
 	return deviceCode, nil
@@ -235,6 +247,16 @@ func (s *DeviceService) AuthorizeDeviceCode(
 	})
 
 	return nil
+}
+
+// RecordDeviceCodeAuthorized records the authorization-duration histogram
+// sample for a device code that has been marked authorized via an external
+// transactional path (see AuthorizationService.SaveConsentAndAuthorizeDeviceCode).
+// The legacy AuthorizeDeviceCode method records this metric inline; callers
+// that bypass it for atomicity reasons must invoke this after a successful
+// commit to keep the metric population complete.
+func (s *DeviceService) RecordDeviceCodeAuthorized(dc *models.DeviceCode) {
+	s.metrics.RecordOAuthDeviceCodeAuthorized(time.Since(dc.CreatedAt))
 }
 
 // GetClientByUserCode retrieves the OAuth client and device code associated with a user code

@@ -33,7 +33,7 @@ func TestGenerateToken_WithExtraClaims_Merged(t *testing.T) {
 
 	result, err := provider.GenerateToken(
 		context.Background(),
-		"user-1", "client-1", "read", 0, extra,
+		"user-1", "client-1", "read", 0, extra, nil,
 	)
 	require.NoError(t, err)
 
@@ -70,7 +70,7 @@ func TestGenerateToken_ReservedKeysOverriddenByStandard(t *testing.T) {
 
 	result, err := provider.GenerateToken(
 		context.Background(),
-		"real-user", "real-client", "read", 0, extra,
+		"real-user", "real-client", "read", 0, extra, nil,
 	)
 	require.NoError(t, err)
 
@@ -98,7 +98,7 @@ func TestGenerateToken_NilExtraClaims_NoOp(t *testing.T) {
 
 	result, err := provider.GenerateToken(
 		context.Background(),
-		"user-1", "client-1", "read", 0, nil,
+		"user-1", "client-1", "read", 0, nil, nil,
 	)
 	require.NoError(t, err)
 
@@ -122,14 +122,14 @@ func TestRefreshAccessToken_AppliesFreshExtraClaims(t *testing.T) {
 
 	original, err := provider.GenerateRefreshToken(
 		ctx, "user-1", "client-1", "read", 0,
-		map[string]any{"tenant": "old-acme"},
+		map[string]any{"tenant": "old-acme"}, nil,
 	)
 	require.NoError(t, err)
 
 	// Refresh with a different set of extras — old ones must NOT carry over.
 	refreshed, err := provider.RefreshAccessToken(
 		ctx, original.TokenString, 0, 0,
-		map[string]any{"tenant": "new-acme", "trace_id": "xyz"},
+		map[string]any{"tenant": "new-acme", "trace_id": "xyz"}, nil, nil,
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "new-acme", refreshed.AccessToken.Claims["tenant"])
@@ -137,7 +137,8 @@ func TestRefreshAccessToken_AppliesFreshExtraClaims(t *testing.T) {
 
 	// Refresh with nil extras — new token has no custom claims at all.
 	refreshed2, err := provider.RefreshAccessToken(
-		ctx, original.TokenString, 0, 0, nil,
+		ctx, original.TokenString, 0, 0, nil, nil,
+		nil,
 	)
 	require.NoError(t, err)
 	_, hasTenant := refreshed2.AccessToken.Claims["tenant"]
@@ -164,7 +165,7 @@ func TestGenerateToken_DropsOIDCOnlyKeysFromAccessToken(t *testing.T) {
 
 	result, err := provider.GenerateToken(
 		context.Background(),
-		"user-1", "client-1", "read", 0, smuggled,
+		"user-1", "client-1", "read", 0, smuggled, nil,
 	)
 	require.NoError(t, err)
 

@@ -66,7 +66,7 @@ func createAuthorizedDeviceCode(t *testing.T, s *store.Store, clientID string) *
 	)
 
 	// Generate device code
-	dc, err := deviceService.GenerateDeviceCode(context.Background(), clientID, "read write")
+	dc, err := deviceService.GenerateDeviceCode(context.Background(), clientID, "read write", nil)
 	require.NoError(t, err)
 
 	// Authorize it
@@ -97,7 +97,7 @@ func TestExchangeDeviceCode_ActiveClient(t *testing.T) {
 	token, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	// Assert
 	require.NoError(t, err)
@@ -132,7 +132,7 @@ func TestExchangeDeviceCode_InactiveClient(t *testing.T) {
 	token, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	// Assert - should fail with access denied
 	require.Error(t, err)
@@ -160,7 +160,7 @@ func TestExchangeDeviceCode_ClientMismatch(t *testing.T) {
 	token, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		differentClientID, nil)
+		differentClientID, nil, nil)
 
 	// Assert
 	require.Error(t, err)
@@ -188,14 +188,19 @@ func TestExchangeDeviceCode_NotAuthorized(t *testing.T) {
 
 	// Create an active client and device code but don't authorize it
 	client := createTestClient(t, s, true)
-	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
+	dc, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client.ClientID,
+		"read write",
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Try to exchange without authorization
 	token, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	// Assert
 	require.Error(t, err)
@@ -223,14 +228,19 @@ func TestExchangeDeviceCode_ExpiredCode(t *testing.T) {
 
 	// Create an active client and device code (it will be expired)
 	client := createTestClient(t, s, true)
-	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
+	dc, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client.ClientID,
+		"read write",
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Try to exchange expired device code
 	token, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	// Assert
 	require.Error(t, err)
@@ -256,7 +266,7 @@ func TestExchangeDeviceCode_InvalidDeviceCode(t *testing.T) {
 	token, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		"non-existent-code",
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	// Assert: a non-existent device code should return ErrAccessDenied, not ErrExpiredToken
 	require.Error(t, err)
@@ -281,7 +291,7 @@ func TestValidateToken_Success(t *testing.T) {
 	token, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 
@@ -327,7 +337,7 @@ func TestValidateToken_WrongSecret(t *testing.T) {
 	token, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 
@@ -360,7 +370,7 @@ func TestRevokeToken_Success(t *testing.T) {
 	token, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 
@@ -407,7 +417,7 @@ func TestRevokeTokenByID_Success(t *testing.T) {
 	token, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 
@@ -445,12 +455,17 @@ func TestGetUserTokens_Success(t *testing.T) {
 	userID := uuid.New().String()
 
 	// Generate and authorize multiple device codes
-	dc1, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read")
+	dc1, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read", nil)
 	require.NoError(t, err)
 	err = deviceService.AuthorizeDeviceCode(context.Background(), dc1.UserCode, userID, "testuser")
 	require.NoError(t, err)
 
-	dc2, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "write")
+	dc2, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client.ClientID,
+		"write",
+		nil,
+	)
 	require.NoError(t, err)
 	err = deviceService.AuthorizeDeviceCode(context.Background(), dc2.UserCode, userID, "testuser")
 	require.NoError(t, err)
@@ -459,13 +474,13 @@ func TestGetUserTokens_Success(t *testing.T) {
 	token1, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc1.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 	token2, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc2.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 
@@ -507,12 +522,17 @@ func TestRevokeAllUserTokens_Success(t *testing.T) {
 	userID := uuid.New().String()
 
 	// Generate and authorize multiple device codes
-	dc1, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read")
+	dc1, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read", nil)
 	require.NoError(t, err)
 	err = deviceService.AuthorizeDeviceCode(context.Background(), dc1.UserCode, userID, "testuser")
 	require.NoError(t, err)
 
-	dc2, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "write")
+	dc2, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client.ClientID,
+		"write",
+		nil,
+	)
 	require.NoError(t, err)
 	err = deviceService.AuthorizeDeviceCode(context.Background(), dc2.UserCode, userID, "testuser")
 	require.NoError(t, err)
@@ -521,13 +541,13 @@ func TestRevokeAllUserTokens_Success(t *testing.T) {
 	_, _, err = tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc1.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 	_, _, err = tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc2.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 
@@ -564,7 +584,12 @@ func TestGetUserTokensWithClient_Success(t *testing.T) {
 	userID := uuid.New().String()
 
 	// Generate and authorize device code
-	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
+	dc, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client.ClientID,
+		"read write",
+		nil,
+	)
 	require.NoError(t, err)
 	err = deviceService.AuthorizeDeviceCode(context.Background(), dc.UserCode, userID, "testuser")
 	require.NoError(t, err)
@@ -574,6 +599,7 @@ func TestGetUserTokensWithClient_Success(t *testing.T) {
 		context.Background(),
 		dc.DeviceCode,
 		client.ClientID,
+		nil,
 		nil,
 	)
 
@@ -619,12 +645,22 @@ func TestGetUserTokensWithClient_MultipleClients(t *testing.T) {
 	userID := uuid.New().String()
 
 	// Generate and authorize tokens for both clients
-	dc1, err := deviceService.GenerateDeviceCode(context.Background(), client1.ClientID, "read")
+	dc1, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client1.ClientID,
+		"read",
+		nil,
+	)
 	require.NoError(t, err)
 	err = deviceService.AuthorizeDeviceCode(context.Background(), dc1.UserCode, userID, "testuser")
 	require.NoError(t, err)
 
-	dc2, err := deviceService.GenerateDeviceCode(context.Background(), client2.ClientID, "write")
+	dc2, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client2.ClientID,
+		"write",
+		nil,
+	)
 	require.NoError(t, err)
 	err = deviceService.AuthorizeDeviceCode(context.Background(), dc2.UserCode, userID, "testuser")
 	require.NoError(t, err)
@@ -633,13 +669,13 @@ func TestGetUserTokensWithClient_MultipleClients(t *testing.T) {
 	token1, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc1.DeviceCode,
-		client1.ClientID, nil)
+		client1.ClientID, nil, nil)
 
 	require.NoError(t, err)
 	token2, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc2.DeviceCode,
-		client2.ClientID, nil)
+		client2.ClientID, nil, nil)
 
 	require.NoError(t, err)
 
@@ -728,7 +764,7 @@ func TestExchangeAuthorizationCode_IssuesTokens(t *testing.T) {
 	accessToken, refreshToken, _, err := tokenService.ExchangeAuthorizationCode(
 		context.Background(),
 		authCode,
-		nil, nil)
+		nil, nil, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, accessToken)
@@ -760,7 +796,7 @@ func TestExchangeAuthorizationCode_WithAuthorizationID(t *testing.T) {
 	accessToken, _, _, err := tokenService.ExchangeAuthorizationCode(
 		context.Background(),
 		authCode,
-		&authID, nil)
+		&authID, nil, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, accessToken)
@@ -812,7 +848,7 @@ func TestExchangeAuthorizationCode_IDToken_IssuedWhenOpenIDScope(t *testing.T) {
 	_, _, idToken, err := tokenService.ExchangeAuthorizationCode(
 		context.Background(),
 		authCode,
-		nil, nil)
+		nil, nil, nil)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, idToken, "id_token must be returned when openid scope is granted")
@@ -836,7 +872,7 @@ func TestExchangeAuthorizationCode_IDToken_NotIssuedWithoutOpenIDScope(t *testin
 	_, _, idToken, err := tokenService.ExchangeAuthorizationCode(
 		context.Background(),
 		authCode,
-		nil, nil)
+		nil, nil, nil)
 
 	require.NoError(t, err)
 	assert.Empty(t, idToken, "id_token must be absent when openid scope is not granted")
@@ -874,7 +910,7 @@ func TestExchangeAuthorizationCode_IDToken_ContainsNonce(t *testing.T) {
 	_, _, idToken, err := tokenService.ExchangeAuthorizationCode(
 		context.Background(),
 		authCode,
-		nil, nil)
+		nil, nil, nil)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, idToken)
@@ -918,7 +954,7 @@ func TestExchangeAuthorizationCode_IDToken_ContainsAtHash(t *testing.T) {
 	accessToken, _, idToken, err := tokenService.ExchangeAuthorizationCode(
 		context.Background(),
 		authCode,
-		nil, nil)
+		nil, nil, nil)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, idToken)
@@ -981,7 +1017,7 @@ func TestExchangeAuthorizationCode_IDToken_EmailVerifiedMirrorsUser(t *testing.T
 			_, _, idToken, err := tokenService.ExchangeAuthorizationCode(
 				context.Background(),
 				authCode,
-				nil, nil)
+				nil, nil, nil)
 
 			require.NoError(t, err)
 			require.NotEmpty(t, idToken)
@@ -1016,7 +1052,7 @@ func TestDisableToken_ActiveToken(t *testing.T) {
 	accessToken, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 
@@ -1044,7 +1080,7 @@ func TestDisableToken_AlreadyDisabled(t *testing.T) {
 	accessToken, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 
@@ -1071,7 +1107,7 @@ func TestDisableToken_RevokedToken(t *testing.T) {
 	accessToken, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 
@@ -1098,7 +1134,7 @@ func TestEnableToken_DisabledToken(t *testing.T) {
 	accessToken, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 
@@ -1128,7 +1164,7 @@ func TestEnableToken_ActiveToken(t *testing.T) {
 	accessToken, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 
@@ -1153,7 +1189,7 @@ func TestEnableToken_RevokedToken(t *testing.T) {
 	accessToken, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 
@@ -1184,7 +1220,7 @@ func TestValidateToken_RevokedToken(t *testing.T) {
 	accessToken, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 
@@ -1215,7 +1251,7 @@ func TestValidateToken_DisabledToken(t *testing.T) {
 	accessToken, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 
@@ -1246,7 +1282,7 @@ func TestValidateToken_ExpiredDBRecord(t *testing.T) {
 	accessToken, _, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 
@@ -1281,7 +1317,7 @@ func TestValidateToken_RefreshTokenRejected(t *testing.T) {
 	_, refreshToken, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, refreshToken)
@@ -1377,7 +1413,7 @@ func TestRefreshAccessToken_RotationMode_ReplayDetection(t *testing.T) {
 	_, initialRefresh, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, initialRefresh)
@@ -1387,7 +1423,7 @@ func TestRefreshAccessToken_RotationMode_ReplayDetection(t *testing.T) {
 		context.Background(),
 		initialRefresh.RawToken,
 		client.ClientID,
-		"read write", nil)
+		"read write", nil, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, newRefresh)
@@ -1402,7 +1438,7 @@ func TestRefreshAccessToken_RotationMode_ReplayDetection(t *testing.T) {
 		context.Background(),
 		initialRefresh.RawToken,
 		client.ClientID,
-		"read write", nil)
+		"read write", nil, nil)
 
 	require.Error(t, err)
 	assert.Equal(t, token.ErrInvalidRefreshToken, err)
@@ -1463,7 +1499,7 @@ func TestRefreshAccessToken_FixedMode_NoFamilyRevocation(t *testing.T) {
 		context.Background(),
 		rawRefreshToken,
 		client.ClientID,
-		"read write", nil)
+		"read write", nil, nil)
 
 	require.Error(t, err)
 	assert.Equal(t, token.ErrInvalidRefreshToken, err)
@@ -1541,7 +1577,7 @@ func TestRefreshAccessToken_RotationMode_DisabledToken_RevokesFamily(t *testing.
 		context.Background(),
 		rawRefreshToken,
 		client.ClientID,
-		"read write", nil)
+		"read write", nil, nil)
 
 	require.Error(t, err)
 	assert.Equal(t, token.ErrInvalidRefreshToken, err)
@@ -1576,7 +1612,7 @@ func TestRefreshAccessToken_RotationMode_MultiRotation_ReplayDetection(t *testin
 	_, refresh0, err := tokenService.ExchangeDeviceCode(
 		context.Background(),
 		dc.DeviceCode,
-		client.ClientID, nil)
+		client.ClientID, nil, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, refresh0)
@@ -1586,7 +1622,7 @@ func TestRefreshAccessToken_RotationMode_MultiRotation_ReplayDetection(t *testin
 		context.Background(),
 		refresh0.RawToken,
 		client.ClientID,
-		"read write", nil)
+		"read write", nil, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, refresh1)
@@ -1596,7 +1632,7 @@ func TestRefreshAccessToken_RotationMode_MultiRotation_ReplayDetection(t *testin
 		context.Background(),
 		refresh1.RawToken,
 		client.ClientID,
-		"read write", nil)
+		"read write", nil, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, refresh2)
@@ -1606,7 +1642,7 @@ func TestRefreshAccessToken_RotationMode_MultiRotation_ReplayDetection(t *testin
 		context.Background(),
 		refresh2.RawToken,
 		client.ClientID,
-		"read write", nil)
+		"read write", nil, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, refresh3)
@@ -1616,7 +1652,7 @@ func TestRefreshAccessToken_RotationMode_MultiRotation_ReplayDetection(t *testin
 		context.Background(),
 		refresh0.RawToken,
 		client.ClientID,
-		"read write", nil)
+		"read write", nil, nil)
 
 	require.Error(t, err)
 	assert.Equal(t, token.ErrInvalidRefreshToken, err)

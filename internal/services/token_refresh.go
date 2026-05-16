@@ -77,10 +77,23 @@ func (s *TokenService) revokeTokenFamilyWithAudit(
 // keys must already have been rejected by the handler. Custom claims are NOT
 // persisted server-side — callers must re-supply on every refresh request to
 // retain them.
+//
+// requestedResource (optional, RFC 8707 §2.2) narrows the new access token's
+// `aud` claim — it MUST be a subset of the original grant's resources. When
+// empty, the audience persisted at issuance is reused (no narrowing, no
+// widening). A non-subset value returns ErrInvalidTarget.
+//
+// The rotated refresh token's JWT `aud` is unaffected by this parameter:
+// refresh JWTs are signed with nil audience (falling back to the static
+// JWTAudience config) so they cannot be silently accepted as access tokens
+// by a resource server that only checks signature/iss/exp/aud. The new
+// refresh-token row's persisted Resource column keeps the original grant's
+// resource set for future §2.2 subset checks.
 func (s *TokenService) RefreshAccessToken(
 	ctx context.Context,
 	refreshTokenString, clientID, requestedScopes string,
 	callerExtra map[string]any,
+	requestedResource []string,
 ) (*models.AccessToken, *models.AccessToken, error) {
 	// 1. Get refresh token from database
 	refreshToken, err := s.store.GetAccessTokenByHash(util.SHA256Hex(refreshTokenString))
@@ -122,6 +135,32 @@ func (s *TokenService) RefreshAccessToken(
 		return nil, nil, token.ErrInvalidScope
 	}
 
+	// 5b. Resolve effective resource per RFC 8707 §2.2: the refresh request
+	// MAY narrow the audience but MUST NOT widen it. When the caller omits
+	// `resource`, reuse the original grant's bound resources unchanged.
+	//
+	// When the persisted Resource column is empty (legacy rows issued before
+	// the effective-audience snapshot was added at issuance), fall back to
+	// the `aud` claim signed into the original refresh JWT. The signed JWT
+	// is the canonical record of what audience the token was minted with —
+	// using it prevents a later JWT_AUDIENCE rotation from silently
+	// retargeting refreshed access tokens to an audience the original grant
+	// never had. Validation failure is non-fatal: the provider's own
+	// RefreshAccessToken call below re-validates and will reject an
+	// invalid token there, so we just skip the JWT-aud fallback and proceed.
+	originalResource := []string(refreshToken.Resource)
+	if len(originalResource) == 0 {
+		if vr, err := s.tokenProvider.ValidateRefreshToken(ctx, refreshTokenString); err == nil &&
+			vr != nil {
+			originalResource = util.AudienceFromClaims(vr.Claims)
+		}
+	}
+	effectiveResource, err := narrowResource(originalResource, requestedResource)
+	if err != nil {
+		s.metrics.RecordTokenRefresh(false)
+		return nil, nil, err
+	}
+
 	// 6. Use provider to generate new tokens.
 	// Re-resolve TTLs and extra claims at refresh time so admin changes to the
 	// client's TokenProfile / Project / ServiceAccount take effect on the next
@@ -148,12 +187,20 @@ func (s *TokenService) RefreshAccessToken(
 		}
 	}
 	extraClaims := s.composeIssuanceClaims(client, refreshToken.UserID, callerExtra)
+	// Access token's `aud` = effectiveResource (possibly narrowed).
+	// Refresh token's `aud` override = nil → provider falls back to the
+	// static JWTAudience config; the refresh JWT must not carry the
+	// per-request RFC 8707 resource because it's presented to the AS, not
+	// the RS. The persisted Resource column (set below) tracks the original
+	// grant for §2.2 subset checks on future refreshes.
 	refreshResult, providerErr := s.tokenProvider.RefreshAccessToken(
 		ctx,
 		refreshTokenString,
 		accessTTL,
 		refreshTTL,
 		extraClaims,
+		effectiveResource,
+		nil,
 	)
 	if providerErr != nil {
 		log.Printf("[Token] Refresh failed provider=%s: %v", s.tokenProvider.Name(), providerErr)
@@ -162,7 +209,11 @@ func (s *TokenService) RefreshAccessToken(
 	}
 
 	// 7. Save new tokens in transaction
-	// 7.1 Create new access token
+	// 7.1 Create new access token. Resource is the audience the JWT was
+	// actually signed with (effectiveResource, or the static JWTAudience
+	// fallback when no per-request resource is in play) — snapshotting at
+	// issuance keeps RFC 7662 introspection consistent with the JWT even
+	// after operators rotate JWT_AUDIENCE.
 	newAccessToken := &models.AccessToken{
 		ID:            uuid.New().String(),
 		TokenHash:     util.SHA256Hex(refreshResult.AccessToken.TokenString),
@@ -176,13 +227,20 @@ func (s *TokenService) RefreshAccessToken(
 		ExpiresAt:     refreshResult.AccessToken.ExpiresAt,
 		ParentTokenID: refreshToken.ID,
 		TokenFamilyID: refreshToken.TokenFamilyID, // Inherit family ID
+		Resource: models.StringArray(
+			effectiveAudience(effectiveResource, s.config.JWTAudience),
+		),
 	}
 
 	// 7.2 Handle refresh token based on mode
 	var newRefreshToken *models.AccessToken
 
 	if s.config.EnableTokenRotation && refreshResult.RefreshToken != nil {
-		// Rotation mode: create new refresh token, revoke old one
+		// Rotation mode: create new refresh token, revoke old one. The new
+		// refresh token's Resource is the original grant (not the narrowed
+		// access-token audience) — RFC 8707 §2.2 subset checks on future
+		// refreshes compare against this row, so narrowing must always be
+		// relative to the original grant.
 		newRefreshToken = &models.AccessToken{
 			ID:            uuid.New().String(),
 			TokenHash:     util.SHA256Hex(refreshResult.RefreshToken.TokenString),
@@ -196,6 +254,7 @@ func (s *TokenService) RefreshAccessToken(
 			ExpiresAt:     refreshResult.RefreshToken.ExpiresAt,
 			ParentTokenID: refreshToken.ID,
 			TokenFamilyID: refreshToken.TokenFamilyID, // Inherit family ID
+			Resource:      models.StringArray(originalResource),
 		}
 	}
 

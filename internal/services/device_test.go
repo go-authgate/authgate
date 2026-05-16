@@ -70,7 +70,12 @@ func TestGenerateDeviceCode_ActiveClient(t *testing.T) {
 	client := createTestClient(t, s, true)
 
 	// Generate device code
-	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
+	dc, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client.ClientID,
+		"read write",
+		nil,
+	)
 
 	// Assert
 	require.NoError(t, err)
@@ -105,7 +110,12 @@ func TestGenerateDeviceCode_InactiveClient(t *testing.T) {
 	require.Equal(t, models.ClientStatusInactive, storedClient.Status, "Client should be inactive")
 
 	// Try to generate device code
-	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
+	dc, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client.ClientID,
+		"read write",
+		nil,
+	)
 
 	// Assert
 	require.Error(t, err)
@@ -132,6 +142,7 @@ func TestGenerateDeviceCode_InvalidClient(t *testing.T) {
 		context.Background(),
 		"non-existent-client-id",
 		"read write",
+		nil,
 	)
 
 	// Assert
@@ -183,7 +194,12 @@ func TestGenerateDeviceCode_DeviceFlowDisabled(t *testing.T) {
 	require.True(t, storedClient.EnableAuthCodeFlow, "EnableAuthCodeFlow should be true")
 
 	// Try to generate device code
-	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
+	dc, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client.ClientID,
+		"read write",
+		nil,
+	)
 
 	// Assert
 	require.Error(t, err)
@@ -207,7 +223,12 @@ func TestAuthorizeDeviceCode_Success(t *testing.T) {
 
 	// Create an active client and device code
 	client := createTestClient(t, s, true)
-	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
+	dc, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client.ClientID,
+		"read write",
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Authorize the device code
@@ -268,7 +289,12 @@ func TestGetClientByUserCode_Success(t *testing.T) {
 
 	// Create an active client and device code
 	client := createTestClient(t, s, true)
-	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
+	dc, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client.ClientID,
+		"read write",
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Get client and device code by user code
@@ -298,7 +324,12 @@ func TestUserCodeNormalization(t *testing.T) {
 
 	// Create an active client and device code
 	client := createTestClient(t, s, true)
-	dc, err := deviceService.GenerateDeviceCode(context.Background(), client.ClientID, "read write")
+	dc, err := deviceService.GenerateDeviceCode(
+		context.Background(),
+		client.ClientID,
+		"read write",
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Test normalization: dash-separated and lowercase-with-dash should both work

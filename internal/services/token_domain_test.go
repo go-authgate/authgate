@@ -83,6 +83,7 @@ func TestDeviceCodeFlow_DomainClaim(t *testing.T) {
 
 			access, refresh, err := svc.ExchangeDeviceCode(
 				context.Background(), dc.DeviceCode, client.ClientID, nil,
+				nil,
 			)
 			require.NoError(t, err)
 
@@ -102,6 +103,7 @@ func TestAuthCodeFlow_EmitsDomainClaim(t *testing.T) {
 
 	access, refresh, _, err := svc.ExchangeAuthorizationCode(
 		context.Background(), authCode, nil, nil,
+		nil,
 	)
 	require.NoError(t, err)
 
@@ -123,6 +125,7 @@ func TestRefresh_ReResolvesJWTDomain(t *testing.T) {
 
 	_, refresh, err := svc.ExchangeDeviceCode(
 		context.Background(), dc.DeviceCode, client.ClientID, nil,
+		nil,
 	)
 	require.NoError(t, err)
 
@@ -130,6 +133,7 @@ func TestRefresh_ReResolvesJWTDomain(t *testing.T) {
 
 	newAccess, newRefresh, err := svc.RefreshAccessToken(
 		context.Background(), refresh.RawToken, client.ClientID, "read write", nil,
+		nil,
 	)
 	require.NoError(t, err)
 
@@ -155,6 +159,7 @@ func TestClientCredentialsFlow_DomainClaim(t *testing.T) {
 
 			tok, err := svc.IssueClientCredentialsToken(
 				context.Background(), client.ClientID, plainSecret, "", nil,
+				nil,
 			)
 			require.NoError(t, err)
 
@@ -180,6 +185,7 @@ func TestServerDomainOverridesCallerExtraClaims(t *testing.T) {
 
 	result, err := provider.GenerateToken(
 		context.Background(), "u", "c", "read", 0, merged,
+		nil,
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "oa", result.Claims[domainKey])

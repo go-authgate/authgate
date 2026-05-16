@@ -36,6 +36,7 @@ var (
 	ErrInvalidCodeVerifier     = errors.New("invalid code_verifier")
 	ErrPKCERequired            = errors.New("pkce required for public clients")
 	ErrAuthorizationNotFound   = errors.New("authorization not found")
+	ErrInvalidTarget           = errors.New("invalid_target")
 )
 
 // AuthorizationRequest holds validated parameters for an authorization request
@@ -47,6 +48,10 @@ type AuthorizationRequest struct {
 	CodeChallenge       string
 	CodeChallengeMethod string
 	Nonce               string
+	// Resource holds validated RFC 8707 Resource Indicator values requested
+	// at /authorize. Empty means the caller did not request a specific
+	// audience.
+	Resource []string
 }
 
 // AuthorizationService manages the OAuth 2.0 Authorization Code Flow (RFC 6749)
@@ -78,7 +83,11 @@ func NewAuthorizationService(
 }
 
 // ValidateAuthorizationRequest validates all parameters of an incoming authorization request.
-// Returns the parsed AuthorizationRequest on success.
+// Returns the parsed AuthorizationRequest on success. Resource indicators are
+// attached separately via AuthorizationRequest.Resource after this returns —
+// they cannot be validated here without first confirming the redirect URI is
+// registered (otherwise an invalid resource would be reflected to an
+// attacker-controlled URI, becoming an open redirect).
 func (s *AuthorizationService) ValidateAuthorizationRequest(
 	ctx context.Context,
 	clientID, redirectURI, responseType, scope, codeChallenge, codeChallengeMethod, nonce string,
@@ -139,6 +148,149 @@ func (s *AuthorizationService) ValidateAuthorizationRequest(
 	}, nil
 }
 
+// SaveConsentAndAuthorizeDeviceCode atomically persists the user's consent
+// and marks the linked device code as authorized. Both store mutations run
+// in a single transaction so:
+//
+//   - If AuthorizeDeviceCode fails (e.g., a concurrent submit already
+//     authorized the code, or the row disappeared between the GET lookup and
+//     this call), the UserAuthorization upsert rolls back — a never-granted
+//     consent does NOT linger in the DB to be auto-approved on a later
+//     request, returned by GetUserAuthorization, or displayed at
+//     /account/authorizations.
+//   - The original race the two-step ordering was guarding against also
+//     closes: a polling /oauth/token client cannot observe
+//     DeviceCode.Authorized=true while UserAuthorization is still missing,
+//     because both writes become visible at the same commit boundary.
+//
+// Audit events fire only after a successful commit so the audit log reflects
+// committed state. Metrics for device-code authorization (e.g., the
+// authorization duration histogram) remain the caller's responsibility —
+// record them after this returns nil.
+func (s *AuthorizationService) SaveConsentAndAuthorizeDeviceCode(
+	ctx context.Context,
+	userID string,
+	applicationID int64,
+	clientID, scopes string,
+	resource []string,
+	dc *models.DeviceCode,
+	username string,
+) (*models.UserAuthorization, error) {
+	auth := &models.UserAuthorization{
+		UUID:          uuid.New().String(),
+		UserID:        userID,
+		ApplicationID: applicationID,
+		ClientID:      clientID,
+		Scopes:        scopes,
+		Resource:      models.StringArray(resource),
+		GrantedAt:     time.Now(),
+		IsActive:      true,
+	}
+
+	if err := s.store.RunInTransaction(func(tx core.Store) error {
+		// Re-check expiry inside the transaction. store.AuthorizeDeviceCode
+		// only filters on (id, authorized=false) — it has no expires_at
+		// predicate, so a code that expires between the handler's
+		// GetClientByUserCode and this commit would otherwise still be
+		// authorized + grant consent. DeviceCode.ExpiresAt is a persisted
+		// absolute timestamp; dc.IsExpired() re-evaluates against
+		// time.Now(), so checking the cached struct catches the race
+		// without an extra round-trip.
+		if dc.IsExpired() {
+			return ErrDeviceCodeExpired
+		}
+		if err := tx.UpsertUserAuthorization(auth); err != nil {
+			return fmt.Errorf("failed to save user authorization: %w", err)
+		}
+		if err := tx.AuthorizeDeviceCode(dc.ID, userID); err != nil {
+			if errors.Is(err, store.ErrDeviceCodeAlreadyAuthorized) {
+				return ErrDeviceCodeAlreadyAuthorized
+			}
+			return fmt.Errorf("authorize device code: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	// Re-fetch to surface any DB-side mutations (UUID is the one we just set,
+	// but Updated/Created timestamps and IsActive default come from the DB).
+	stored, fetchErr := s.store.GetUserAuthorization(userID, applicationID)
+	if fetchErr != nil {
+		stored = auth
+	}
+
+	consentDetails := models.AuditDetails{
+		"client_id": clientID,
+		"scopes":    scopes,
+	}
+	if len(resource) > 0 {
+		consentDetails["resource"] = resource
+	}
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:    models.EventUserAuthorizationGranted,
+		Severity:     models.SeverityInfo,
+		ActorUserID:  userID,
+		ResourceType: models.ResourceAuthorization,
+		ResourceID:   stored.UUID,
+		Action:       "User granted authorization to application",
+		Details:      consentDetails,
+		Success:      true,
+	})
+
+	// Match DeviceService.AuthorizeDeviceCode's audit shape so admins see the
+	// same fields regardless of whether the device flow ran through this
+	// orchestrated path or a legacy direct call.
+	s.auditService.Log(ctx, core.AuditLogEntry{
+		EventType:     models.EventDeviceCodeAuthorized,
+		Severity:      models.SeverityInfo,
+		ActorUserID:   userID,
+		ActorUsername: username,
+		ResourceType:  models.ResourceDeviceCode,
+		ResourceID:    dc.DeviceCodeID,
+		Action:        "Device code authorized by user",
+		Details: models.AuditDetails{
+			"client_id": dc.ClientID,
+			"scopes":    dc.Scopes,
+			"user_code": dc.UserCode,
+		},
+		Success: true,
+	})
+
+	return stored, nil
+}
+
+// ValidateClientRedirect performs the minimal validation needed to safely
+// redirect an OAuth error response back to the caller: it proves the client
+// exists, is active, has the Auth Code Flow enabled, and that redirect_uri is
+// registered for the client. It intentionally skips scope and PKCE checks
+// because the Deny consent form does not post `scope`, `code_challenge`, or
+// `code_challenge_method` — running the full ValidateAuthorizationRequest
+// against a Deny click would otherwise reject a public-client deny with a
+// PKCE error instead of redirecting `access_denied`. Per RFC 6749 §3.1.2.4
+// /§4.1.2.1, error responses are only safe to redirect once redirect_uri has
+// been confirmed registered for the client; this function returns that
+// confirmation without imposing additional checks irrelevant to a deny.
+func (s *AuthorizationService) ValidateClientRedirect(
+	ctx context.Context,
+	clientID, redirectURI string,
+) (string, error) {
+	client, err := s.clientService.GetClient(ctx, clientID)
+	if err != nil {
+		return "", ErrUnauthorizedClient
+	}
+	if !client.IsActive() {
+		return "", ErrUnauthorizedClient
+	}
+	if !client.EnableAuthCodeFlow {
+		return "", ErrUnauthorizedClient
+	}
+	if !s.isValidRedirectURI(client, redirectURI) {
+		return "", ErrInvalidRedirectURI
+	}
+	return redirectURI, nil
+}
+
 // CreateAuthorizationCodeParams bundles the inputs for authorization code creation.
 type CreateAuthorizationCodeParams struct {
 	ApplicationID       int64
@@ -149,6 +301,10 @@ type CreateAuthorizationCodeParams struct {
 	CodeChallenge       string
 	CodeChallengeMethod string
 	Nonce               string
+	// Resource holds RFC 8707 Resource Indicator values to persist on the
+	// authorization code so the /token grant can bind them to the issued
+	// JWT's "aud" claim. Empty means no resource was requested.
+	Resource []string
 }
 
 // CreateAuthorizationCode generates a one-time authorization code and saves it to the database.
@@ -180,6 +336,7 @@ func (s *AuthorizationService) CreateAuthorizationCode(
 		CodeChallenge:       params.CodeChallenge,
 		CodeChallengeMethod: params.CodeChallengeMethod,
 		Nonce:               params.Nonce,
+		Resource:            models.StringArray(params.Resource),
 		ExpiresAt:           time.Now().Add(s.config.AuthCodeExpiration),
 	}
 
@@ -187,6 +344,15 @@ func (s *AuthorizationService) CreateAuthorizationCode(
 		return "", nil, fmt.Errorf("failed to save authorization code: %w", err)
 	}
 
+	details := models.AuditDetails{
+		"client_id":    params.ClientID,
+		"scopes":       params.Scopes,
+		"pkce":         params.CodeChallenge != "",
+		"redirect_uri": params.RedirectURI,
+	}
+	if len(params.Resource) > 0 {
+		details["resource"] = params.Resource
+	}
 	s.auditService.Log(ctx, core.AuditLogEntry{
 		EventType:    models.EventAuthorizationCodeGenerated,
 		Severity:     models.SeverityInfo,
@@ -194,13 +360,8 @@ func (s *AuthorizationService) CreateAuthorizationCode(
 		ResourceType: models.ResourceAuthorization,
 		ResourceID:   record.UUID,
 		Action:       "Authorization code generated",
-		Details: models.AuditDetails{
-			"client_id":    params.ClientID,
-			"scopes":       params.Scopes,
-			"pkce":         params.CodeChallenge != "",
-			"redirect_uri": params.RedirectURI,
-		},
-		Success: true,
+		Details:      details,
+		Success:      true,
 	})
 
 	return plainCode, record, nil
@@ -208,9 +369,14 @@ func (s *AuthorizationService) CreateAuthorizationCode(
 
 // ExchangeCode validates a plaintext authorization code and marks it as used.
 // The caller (TokenHandler) is responsible for issuing tokens after this returns successfully.
+// requestedResource (optional, RFC 8707) is checked against the resource set
+// bound at /authorize: when both are present, the request value MUST be a
+// subset, otherwise ErrInvalidTarget is returned BEFORE the code is consumed
+// so a client typo doesn't burn the single-use code.
 func (s *AuthorizationService) ExchangeCode(
 	ctx context.Context,
 	plainCode, clientID, redirectURI, clientSecret, codeVerifier string,
+	requestedResource []string,
 ) (*models.AuthorizationCode, error) {
 	// Hash the incoming code for lookup
 	codeHash := util.SHA256Hex(plainCode)
@@ -261,6 +427,17 @@ func (s *AuthorizationService) ExchangeCode(
 		}
 	}
 
+	// RFC 8707 §2.2: when /token passes a resource, it MUST be a subset of
+	// what was bound at /authorize. An empty authorize-time grant therefore
+	// rejects any token-time resource — matching the refresh-grant rule, and
+	// preventing widening from no-audience consent to a specific audience
+	// without re-consent. Validate BEFORE consuming the code so a malformed
+	// request doesn't burn the single-use code.
+	if len(requestedResource) > 0 &&
+		!util.IsStringSliceSubset([]string(record.Resource), requestedResource) {
+		return nil, ErrInvalidTarget
+	}
+
 	// Mark as used atomically (WHERE used_at IS NULL ensures only one concurrent
 	// request wins; the loser receives ErrAuthCodeAlreadyUsed from the store).
 	now := time.Now()
@@ -302,12 +479,18 @@ func (s *AuthorizationService) GetUserAuthorization(
 	return auth, nil
 }
 
-// SaveUserAuthorization creates or updates the consent record for a user+application pair.
+// SaveUserAuthorization creates or updates the consent record for a
+// user+application pair. resource (RFC 8707) is persisted on the record so
+// the GET-side remembered-consent shortcut can require an EXACT resource-set
+// match before auto-approving — empty `resource` means "no audience binding
+// approved", and a later resource-bound request must NOT auto-approve off
+// that record (and vice versa).
 func (s *AuthorizationService) SaveUserAuthorization(
 	ctx context.Context,
 	userID string,
 	applicationID int64,
 	clientID, scopes string,
+	resource []string,
 ) (*models.UserAuthorization, error) {
 	auth := &models.UserAuthorization{
 		UUID:          uuid.New().String(),
@@ -315,6 +498,7 @@ func (s *AuthorizationService) SaveUserAuthorization(
 		ApplicationID: applicationID,
 		ClientID:      clientID,
 		Scopes:        scopes,
+		Resource:      models.StringArray(resource),
 		GrantedAt:     time.Now(),
 		IsActive:      true,
 	}
@@ -329,6 +513,13 @@ func (s *AuthorizationService) SaveUserAuthorization(
 		return auth, nil // Return what we built; non-fatal
 	}
 
+	details := models.AuditDetails{
+		"client_id": clientID,
+		"scopes":    scopes,
+	}
+	if len(resource) > 0 {
+		details["resource"] = resource
+	}
 	s.auditService.Log(ctx, core.AuditLogEntry{
 		EventType:    models.EventUserAuthorizationGranted,
 		Severity:     models.SeverityInfo,
@@ -336,11 +527,8 @@ func (s *AuthorizationService) SaveUserAuthorization(
 		ResourceType: models.ResourceAuthorization,
 		ResourceID:   stored.UUID,
 		Action:       "User granted authorization to application",
-		Details: models.AuditDetails{
-			"client_id": clientID,
-			"scopes":    scopes,
-		},
-		Success: true,
+		Details:      details,
+		Success:      true,
 	})
 
 	return stored, nil

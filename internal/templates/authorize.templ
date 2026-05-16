@@ -52,6 +52,22 @@ templ AuthorizePage(props AuthorizePageProps) {
 						</li>
 					}
 				</ul>
+				<!-- RFC 8707 Resource Indicators: show which resource server(s) the
+				     issued token will be valid for, so the user knows what they
+				     are authorizing access to. -->
+				if len(props.Resource) > 0 {
+					<div class="authorize-scopes-label">Token will be valid for</div>
+					<ul class="authorize-scopes-list">
+						for _, r := range props.Resource {
+							<li class="authorize-scope-item">
+								<div class="authorize-scope-check">→</div>
+								<div class="authorize-scope-text">
+									<span class="authorize-scope-name">{ r }</span>
+								</div>
+							</li>
+						}
+					</ul>
+				}
 				<!-- Action Form -->
 				<div class="authorize-actions">
 					<!-- Allow -->
@@ -65,6 +81,9 @@ templ AuthorizePage(props AuthorizePageProps) {
 						<input type="hidden" name="nonce" value={ props.Nonce }/>
 						<input type="hidden" name="code_challenge" value={ props.CodeChallenge }/>
 						<input type="hidden" name="code_challenge_method" value={ props.CodeChallengeMethod }/>
+						for _, r := range props.Resource {
+							<input type="hidden" name="resource" value={ r }/>
+						}
 						<button type="submit" class="authorize-btn-allow">
 							Allow Access
 						</button>

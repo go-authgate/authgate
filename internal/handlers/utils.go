@@ -195,6 +195,7 @@ func toAuthorizationDisplaySlice(
 			ClientID:   a.ClientID,
 			ClientName: a.ClientName,
 			Scopes:     a.Scopes,
+			Resource:   []string(a.Resource),
 			GrantedAt:  a.GrantedAt,
 			IsActive:   a.IsActive,
 		})

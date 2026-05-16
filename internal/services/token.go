@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"maps"
+	"slices"
 	"time"
 
 	"github.com/go-authgate/authgate/internal/cache"
@@ -179,6 +180,19 @@ type tokenPairParams struct {
 	// and overridden by generateJWT; system claims (project, service_account)
 	// from buildClientClaims are merged on top of these so admins always win.
 	ExtraClaims map[string]any
+	// Resource holds RFC 8707 Resource Indicator values to bind into the
+	// access token's "aud" claim. Empty means fall back to the static
+	// JWTAudience config. Persisted on the access token row.
+	Resource []string
+	// RefreshResource overrides what gets persisted on the refresh-token row's
+	// `Resource` column — it does NOT affect the refresh JWT's `aud` claim
+	// (the refresh token is always signed with nil audience override; see
+	// generateAndPersistTokenPair). Used by issuance flows that narrow the
+	// access token (auth-code, device-code) to record the FULL granted
+	// resource set on the refresh row so future RFC 8707 §2.2 subset checks
+	// re-narrow against the original grant rather than the already-narrowed
+	// access-token audience. When nil, the refresh row falls back to Resource.
+	RefreshResource []string
 }
 
 // ttlForClient returns the access/refresh TTLs dictated by the given client's
@@ -348,6 +362,40 @@ func (s *TokenService) composeIssuanceClaims(
 	return applyServerClaims(claims, buildServerClaims(s.config.JWTDomain, username, prefix))
 }
 
+// effectiveAudience snapshots the audience that will be written into a
+// freshly issued access token's persisted Resource column: the per-request
+// RFC 8707 binding when supplied, otherwise the static JWTAudience config
+// the JWT provider will fall back to. Persisting the snapshot (rather than
+// re-deriving from live config at introspection time) means operators
+// rotating JWT_AUDIENCE while older tokens are still active won't cause
+// RFC 7662 introspection to advertise an `aud` the JWT was never minted
+// with. The result is a defensive copy so callers may mutate the input.
+func effectiveAudience(requested, fallback []string) []string {
+	if len(requested) > 0 {
+		return slices.Clone(requested)
+	}
+	if len(fallback) == 0 {
+		return nil
+	}
+	return slices.Clone(fallback)
+}
+
+// narrowResource implements RFC 8707 §2.2 audience narrowing for token-time
+// `resource` parameters: the requested set MUST be a subset of the granted
+// set (the resources the user originally authorized). Returns the requested
+// set when non-empty (the caller narrowed), the granted set otherwise (no
+// narrowing — reuse the full grant). A widening request returns
+// ErrInvalidTarget, which the handler layer maps to OAuth `invalid_target`.
+func narrowResource(granted, requested []string) ([]string, error) {
+	if !util.IsStringSliceSubset(granted, requested) {
+		return nil, ErrInvalidTarget
+	}
+	if len(requested) > 0 {
+		return requested, nil
+	}
+	return granted, nil
+}
+
 // generateAndPersistTokenPair generates access and refresh tokens via the
 // configured provider, builds database records, and persists them atomically.
 // The per-client TokenProfile is resolved here so that all issuance paths
@@ -384,7 +432,7 @@ func (s *TokenService) generateAndPersistTokenPair(
 	extraClaims = s.composeIssuanceClaims(client, p.UserID, p.ExtraClaims)
 
 	accessResult, err := s.tokenProvider.GenerateToken(
-		ctx, p.UserID, p.ClientID, p.Scopes, accessTTL, extraClaims,
+		ctx, p.UserID, p.ClientID, p.Scopes, accessTTL, extraClaims, p.Resource,
 	)
 	if err != nil {
 		log.Printf(
@@ -394,8 +442,15 @@ func (s *TokenService) generateAndPersistTokenPair(
 		)
 		return nil, nil, fmt.Errorf("token generation failed: %w", err)
 	}
+	// Refresh tokens never carry the per-request RFC 8707 resource as `aud` —
+	// they're presented to the AS, not the RS. Pass nil so the JWT audience
+	// falls back to the static JWTAudience config (deployments must point
+	// `JWT_AUDIENCE` at an AS-only value or leave it unset; see
+	// core/token.go on RefreshAccessToken for why). The persisted Resource
+	// column on the refresh-token row still records the granted resource
+	// set, so future refresh requests can subset-check against it.
 	refreshResult, err := s.tokenProvider.GenerateRefreshToken(
-		ctx, p.UserID, p.ClientID, p.Scopes, refreshTTL, extraClaims,
+		ctx, p.UserID, p.ClientID, p.Scopes, refreshTTL, extraClaims, nil,
 	)
 	if err != nil {
 		log.Printf(
@@ -406,7 +461,14 @@ func (s *TokenService) generateAndPersistTokenPair(
 		return nil, nil, fmt.Errorf("refresh token generation failed: %w", err)
 	}
 
-	// Build token records
+	// The access-token row's Resource is the audience that was actually
+	// written into the JWT — the per-request RFC 8707 binding when the
+	// caller supplied one, otherwise a snapshot of the static JWTAudience
+	// config that the provider just fell back to. Persisting the snapshot
+	// (rather than re-deriving it from the live config at introspection
+	// time) means that operators rotating JWT_AUDIENCE while older tokens
+	// are still active won't cause RFC 7662 introspection to advertise an
+	// `aud` the JWT was never minted with.
 	accessToken := &models.AccessToken{
 		ID:              uuid.New().String(),
 		TokenHash:       util.SHA256Hex(accessResult.TokenString),
@@ -419,8 +481,29 @@ func (s *TokenService) generateAndPersistTokenPair(
 		Scopes:          p.Scopes,
 		ExpiresAt:       accessResult.ExpiresAt,
 		AuthorizationID: p.AuthorizationID,
+		Resource:        models.StringArray(effectiveAudience(p.Resource, s.config.JWTAudience)),
 	}
 
+	// Persisted Resource on the refresh-token row drives RFC 8707 §2.2
+	// subset checks on subsequent refresh requests AND, when no per-request
+	// resource was bound, pins the audience the refresh grant should mint
+	// future access tokens for. When the caller wants the refresh token to
+	// remember the FULL grant (not the narrowed access audience),
+	// p.RefreshResource is passed; otherwise it falls back to p.Resource.
+	// If neither is set (the caller never bound an RFC 8707 resource), the
+	// effective audience snapshot (current JWTAudience config) is persisted
+	// so a future refresh uses the audience in effect at original issuance,
+	// not whatever JWT_AUDIENCE is at refresh time — matching the
+	// access-token row's snapshot semantics and preventing
+	// JWT_AUDIENCE rotation from silently retargeting refreshed access
+	// tokens to a different audience without a new grant.
+	refreshDBResource := p.RefreshResource
+	if refreshDBResource == nil {
+		refreshDBResource = p.Resource
+	}
+	if len(refreshDBResource) == 0 {
+		refreshDBResource = effectiveAudience(nil, s.config.JWTAudience)
+	}
 	refreshTokenID := uuid.New().String()
 	refreshToken := &models.AccessToken{
 		ID:              refreshTokenID,
@@ -434,6 +517,7 @@ func (s *TokenService) generateAndPersistTokenPair(
 		Scopes:          p.Scopes,
 		ExpiresAt:       refreshResult.ExpiresAt,
 		AuthorizationID: p.AuthorizationID,
+		Resource:        models.StringArray(refreshDBResource),
 	}
 
 	// In rotation mode, set TokenFamilyID to the refresh token's own ID (family root)

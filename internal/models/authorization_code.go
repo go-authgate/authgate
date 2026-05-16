@@ -27,6 +27,11 @@ type AuthorizationCode struct {
 	// OIDC (OpenID Connect Core 1.0 §3.1.2.1)
 	Nonce string `gorm:"default:''"` // nonce from authorization request (empty if not provided)
 
+	// Resource Indicators (RFC 8707) — requested at /authorize and bound into
+	// the JWT "aud" at /token. Empty means the caller did not request a
+	// specific audience; falls back to the static JWTAudience config.
+	Resource StringArray `gorm:"type:json"`
+
 	ExpiresAt time.Time  `gorm:"index"`
 	UsedAt    *time.Time // Set immediately upon exchange; prevents replay attacks
 	CreatedAt time.Time

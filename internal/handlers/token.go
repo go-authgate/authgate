@@ -11,6 +11,7 @@ import (
 	"github.com/go-authgate/authgate/internal/models"
 	"github.com/go-authgate/authgate/internal/services"
 	"github.com/go-authgate/authgate/internal/token"
+	"github.com/go-authgate/authgate/internal/util"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,7 +24,7 @@ const (
 	GrantTypeAuthorizationCode = "authorization_code"
 	GrantTypeClientCredentials = "client_credentials"
 
-	// OAuth 2.0 error codes (RFC 6749 §5.2, RFC 8628 §3.5)
+	// OAuth 2.0 error codes (RFC 6749 §5.2, RFC 8628 §3.5, RFC 8707 §2)
 	errInvalidGrant         = "invalid_grant"
 	errInvalidRequest       = "invalid_request"
 	errInvalidClient        = "invalid_client"
@@ -37,6 +38,7 @@ const (
 	errMissingToken         = "missing_token"
 	errInvalidToken         = "invalid_token"
 	errUnauthorizedClient   = "unauthorized_client"
+	errInvalidTarget        = "invalid_target"
 )
 
 type TokenHandler struct {
@@ -71,6 +73,56 @@ func (h *TokenHandler) parseExtraClaims(c *gin.Context) (map[string]any, bool) {
 	return claims, true
 }
 
+// parseResourceParam reads the optional repeatable `resource` form parameter
+// (RFC 8707) and writes an invalid_target response on failure. On success
+// returns (resources, true); on failure the response is already written and
+// callers must return.
+func parseResourceParam(c *gin.Context) ([]string, bool) {
+	values, err := util.ValidateResourceIndicators(c.PostFormArray("resource"))
+	if err != nil {
+		respondOAuthError(c, http.StatusBadRequest, errInvalidTarget, err.Error())
+		return nil, false
+	}
+	return values, true
+}
+
+// introspectAudience returns the value to emit as the `aud` field on an
+// RFC 7662 introspection response, or nil to omit the claim.
+//
+// Refresh tokens always return nil. The introspection response's `token_type`
+// field is hard-coded to "Bearer" (matching how access tokens are presented),
+// so a resource server that authenticates with `active=true` AND
+// `aud == its-own-id` cannot tell a refresh token apart from an access
+// token. Advertising any `aud` on a refresh token would let it be mistakenly
+// accepted as an access token whenever the configured `JWT_AUDIENCE` happens
+// to match a resource-server identifier.
+//
+// For access tokens, `tok.Resource` is the audience snapshot taken at
+// issuance — it is exactly what the JWT was signed with (per-request RFC
+// 8707 binding when supplied, or the static JWTAudience config that the
+// JWT provider fell back to). Reading the snapshot rather than re-deriving
+// from the live config means rotating `JWT_AUDIENCE` while older tokens are
+// active does NOT change what introspection reports — preventing resource
+// servers that trust introspection from accepting tokens that were never
+// minted for them.
+//
+// An empty `Resource` is reported as "no audience" — `aud` is omitted from
+// the response. A previous version of this function fell back to the live
+// JWT_AUDIENCE config when Resource was empty, intended as backward-compat
+// for tokens issued before the resource-binding migration. That fallback
+// was security-unsafe: a no-audience token issued with empty JWT_AUDIENCE
+// would, after a later JWT_AUDIENCE rotation, gain a synthesized `aud` that
+// its JWT never carried — letting resource servers trusting introspection
+// accept tokens they were not minted for. Legacy rows now lose `aud` in
+// introspection responses instead; this resolves naturally as those tokens
+// expire within JWT_EXPIRATION.
+func introspectAudience(tok *models.AccessToken) any {
+	if !tok.IsAccessToken() {
+		return nil
+	}
+	return util.AudienceClaim([]string(tok.Resource))
+}
+
 // buildTokenResponse constructs a standard OAuth 2.0 token response (RFC 6749 §5.1).
 func buildTokenResponse(accessToken, refreshToken *models.AccessToken, idToken string) gin.H {
 	expiresIn := max(int(time.Until(accessToken.ExpiresAt).Seconds()), 0)
@@ -92,17 +144,25 @@ func buildTokenResponse(accessToken, refreshToken *models.AccessToken, idToken s
 // Token godoc
 //
 //	@Summary		Request access token
-//	@Description	Exchange device code or refresh token for access token (RFC 8628 and RFC 6749)
+//	@Description	Exchange a device code, authorization code, refresh token, or client credentials for an access token (RFC 6749 / RFC 8628). Accepts the optional repeatable `resource` parameter (RFC 8707) on every grant type.
 //	@Tags			OAuth
 //	@Accept			json
 //	@Accept			x-www-form-urlencoded
 //	@Produce		json
-//	@Param			grant_type		formData	string																							true	"Grant type: 'urn:ietf:params:oauth:grant-type:device_code' or 'refresh_token'"
+//	@Param			grant_type		formData	string																							true	"Grant type: 'urn:ietf:params:oauth:grant-type:device_code', 'authorization_code', 'refresh_token', or 'client_credentials'"
 //	@Param			device_code		formData	string																							false	"Device code (required when grant_type=device_code)"
-//	@Param			client_id		formData	string																							true	"OAuth client ID"
+//	@Param			client_id		formData	string																							false	"OAuth client ID (required for non-Basic-Auth flows)"
+//	@Param			client_secret	formData	string																							false	"OAuth client secret (confidential clients only; alternative to HTTP Basic Auth)"
 //	@Param			refresh_token	formData	string																							false	"Refresh token (required when grant_type=refresh_token)"
+//	@Param			code			formData	string																							false	"Authorization code (required when grant_type=authorization_code)"
+//	@Param			redirect_uri	formData	string																							false	"Redirect URI (required when grant_type=authorization_code)"
+//	@Param			code_verifier	formData	string																							false	"PKCE code verifier (RFC 7636; required for public clients on grant_type=authorization_code)"
+//	@Param			scope			formData	string																							false	"Space-separated scopes; refresh_token / client_credentials may narrow the original grant"
+//	@Param			resource		formData	[]string																						false	"RFC 8707 Resource Indicator(s) — bound to the issued access token's `aud` claim. Repeat to send multiple. Each value must be an absolute http(s) URL with a non-empty host and no fragment."	collectionFormat(multi)
+//	@Param			extra_claims	formData	string																							false	"Optional caller-supplied JWT claims as a JSON object (subject to size guards and reserved-key rejection)"
 //	@Success		200				{object}	object{access_token=string,refresh_token=string,token_type=string,expires_in=int,scope=string}	"Access token issued successfully"
-//	@Failure		400				{object}	object{error=string,error_description=string}													"Invalid request (unsupported_grant_type, invalid_request, authorization_pending, slow_down, expired_token, access_denied, invalid_grant)"
+//	@Failure		400				{object}	object{error=string,error_description=string}													"Invalid request (unsupported_grant_type, invalid_request, authorization_pending, slow_down, expired_token, access_denied, invalid_grant, invalid_scope, invalid_target)"
+//	@Failure		401				{object}	object{error=string,error_description=string}													"Client authentication failed (invalid_client)"
 //	@Failure		429				{object}	object{error=string,error_description=string}													"Rate limit exceeded"
 //	@Failure		500				{object}	object{error=string,error_description=string}													"Internal server error"
 //	@Router			/oauth/token [post]
@@ -148,11 +208,17 @@ func (h *TokenHandler) handleDeviceCodeGrant(c *gin.Context) {
 		return
 	}
 
+	resource, ok := parseResourceParam(c)
+	if !ok {
+		return
+	}
+
 	accessToken, refreshToken, err := h.tokenService.ExchangeDeviceCode(
 		c.Request.Context(),
 		deviceCode,
 		clientID,
 		extraClaims,
+		resource,
 	)
 	if err != nil {
 		switch {
@@ -164,6 +230,13 @@ func (h *TokenHandler) handleDeviceCodeGrant(c *gin.Context) {
 			respondOAuthError(c, http.StatusBadRequest, errExpiredToken, "")
 		case errors.Is(err, services.ErrAccessDenied):
 			respondOAuthError(c, http.StatusBadRequest, errAccessDenied, "")
+		case errors.Is(err, services.ErrInvalidTarget):
+			respondOAuthError(
+				c,
+				http.StatusBadRequest,
+				errInvalidTarget,
+				"Requested resource exceeds the audience granted at /oauth/device/code",
+			)
 		default:
 			log.Printf("[token] device code exchange error: %v", err)
 			respondOAuthError(
@@ -202,6 +275,11 @@ func (h *TokenHandler) handleRefreshTokenGrant(c *gin.Context) {
 		return
 	}
 
+	resource, ok := parseResourceParam(c)
+	if !ok {
+		return
+	}
+
 	// 3. Call service to refresh token
 	newAccessToken, newRefreshToken, err := h.tokenService.RefreshAccessToken(
 		c.Request.Context(),
@@ -209,8 +287,9 @@ func (h *TokenHandler) handleRefreshTokenGrant(c *gin.Context) {
 		clientID,
 		requestedScopes,
 		extraClaims,
+		resource,
 	)
-	// 4. Error handling (RFC 6749 error codes)
+	// 4. Error handling (RFC 6749 / RFC 8707 error codes)
 	if err != nil {
 		switch {
 		case errors.Is(err, token.ErrInvalidRefreshToken),
@@ -237,6 +316,13 @@ func (h *TokenHandler) handleRefreshTokenGrant(c *gin.Context) {
 				errInvalidScope,
 				"Requested scope exceeds original grant",
 			)
+		case errors.Is(err, services.ErrInvalidTarget):
+			respondOAuthError(
+				c,
+				http.StatusBadRequest,
+				errInvalidTarget,
+				"Requested resource exceeds original grant",
+			)
 		default:
 			respondOAuthError(
 				c,
@@ -261,7 +347,7 @@ func (h *TokenHandler) handleRefreshTokenGrant(c *gin.Context) {
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			Authorization	header		string																				true	"Bearer token (format: 'Bearer <token>')"
-//	@Success		200				{object}	object{active=bool,user_id=string,client_id=string,scope=string,exp=int,iss=string}	"Token is valid"
+//	@Success		200				{object}	object{active=bool,user_id=string,client_id=string,scope=string,exp=int,iss=string,subject_type=string,aud=object}	"Token is valid. `aud` mirrors the JWT's signed audience snapshot (per-request RFC 8707 resource, otherwise the static JWT_AUDIENCE the JWT was minted with); collapsed to a string for a single value, slice for multiple, omitted when the JWT carries no audience."
 //	@Failure		401				{object}	object{error=string,error_description=string}										"Token is invalid or expired (missing_token, invalid_token)"
 //	@Router			/oauth/tokeninfo [get]
 func (h *TokenHandler) TokenInfo(c *gin.Context) {
@@ -290,7 +376,7 @@ func (h *TokenHandler) TokenInfo(c *gin.Context) {
 		subjectType = "client"
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	resp := gin.H{
 		"active":       result.Valid,
 		"user_id":      result.UserID,
 		"client_id":    result.ClientID,
@@ -298,7 +384,20 @@ func (h *TokenHandler) TokenInfo(c *gin.Context) {
 		"exp":          result.ExpiresAt.Unix(),
 		"iss":          h.config.BaseURL,
 		"subject_type": subjectType,
-	})
+	}
+
+	// Emit the JWT's signed `aud` claim so callers using /oauth/tokeninfo see
+	// the same per-token audience that /oauth/introspect reports. Both sources
+	// are issuance-time snapshots: introspect reads the persisted Resource
+	// column, tokeninfo reads the verified JWT claim — they must agree because
+	// both are written at the same instant. Validation already rejects refresh
+	// tokens (only access tokens reach this point), so this never advertises
+	// a refresh-token aud the way it would on /oauth/introspect.
+	if aud := util.AudienceClaim(util.AudienceFromClaims(result.Claims)); aud != nil {
+		resp["aud"] = aud
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 // Introspect godoc
@@ -312,8 +411,8 @@ func (h *TokenHandler) TokenInfo(c *gin.Context) {
 //	@Param			token_type_hint	formData	string																																		false	"Hint about the type of token: 'access_token' or 'refresh_token'"
 //	@Param			client_id		formData	string																																		false	"Client ID (alternative to HTTP Basic Auth)"
 //	@Param			client_secret	formData	string																																		false	"Client secret (alternative to HTTP Basic Auth)"
-//	@Success		200				{object}	object{active=bool,scope=string,client_id=string,username=string,token_type=string,exp=int,iat=int,sub=string,iss=string,jti=string}	"Token introspection response"
-//	@Failure		401				{object}	object{error=string,error_description=string}																							"Client authentication failed"
+//	@Success		200				{object}	object{active=bool,scope=string,client_id=string,username=string,token_type=string,exp=int,iat=int,sub=string,iss=string,jti=string,aud=object}	"Token introspection response. `aud` is included only for active access tokens — it is the persisted RFC 8707 resource set when present, otherwise the configured JWT_AUDIENCE; collapsed to a string for a single value, slice for multiple. Refresh tokens always omit `aud` to avoid being mistaken for access tokens."
+//	@Failure		401				{object}	object{error=string,error_description=string}																																																																																																																																																																																																																																																																																																																																																																																																"Client authentication failed"
 //	@Router			/oauth/introspect [post]
 func (h *TokenHandler) Introspect(c *gin.Context) {
 	// 1. Authenticate the calling client (RFC 7662 §2.1)
@@ -376,6 +475,17 @@ func (h *TokenHandler) Introspect(c *gin.Context) {
 		"sub":        tok.UserID,
 		"iss":        h.config.BaseURL,
 		"jti":        tok.ID,
+	}
+
+	// Audience: for access tokens, report the audience snapshot taken at
+	// issuance (per-request RFC 8707 resource OR static JWTAudience config
+	// — whichever was actually written into the JWT). Refresh tokens always
+	// omit `aud` because the introspection response's `token_type` is
+	// hard-coded "Bearer" and a resource server checking `active && aud=mine`
+	// could otherwise be tricked into accepting a refresh token as an access
+	// token. See introspectAudience for the full rationale.
+	if aud := introspectAudience(tok); aud != nil {
+		resp["aud"] = aud
 	}
 
 	// Add username for user-delegated tokens (not M2M / client credentials tokens)
@@ -458,12 +568,18 @@ func (h *TokenHandler) handleClientCredentialsGrant(c *gin.Context) {
 		return
 	}
 
+	resource, ok := parseResourceParam(c)
+	if !ok {
+		return
+	}
+
 	accessToken, err := h.tokenService.IssueClientCredentialsToken(
 		c.Request.Context(),
 		clientID,
 		clientSecret,
 		requestedScopes,
 		extraClaims,
+		resource,
 	)
 	if err != nil {
 		switch {
@@ -480,6 +596,13 @@ func (h *TokenHandler) handleClientCredentialsGrant(c *gin.Context) {
 		case errors.Is(err, services.ErrClientCredentialsFlowDisabled):
 			respondOAuthError(c, http.StatusBadRequest, errUnauthorizedClient,
 				"Client credentials flow is not enabled for this client")
+		case errors.Is(err, services.ErrInvalidTarget):
+			respondOAuthError(
+				c,
+				http.StatusBadRequest,
+				errInvalidTarget,
+				"Requested resource is not allowed for this client",
+			)
 		case errors.Is(err, token.ErrInvalidScope):
 			respondOAuthError(
 				c,
@@ -525,10 +648,17 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 		return
 	}
 
-	// Validate and consume the authorization code
+	resource, ok := parseResourceParam(c)
+	if !ok {
+		return
+	}
+
+	// Validate and consume the authorization code. ExchangeCode now performs
+	// the RFC 8707 §2.2 subset check BEFORE marking the code as used so a
+	// rejected resource doesn't burn the single-use code.
 	authCode, err := h.authorizationService.ExchangeCode(
 		c.Request.Context(),
-		code, clientID, redirectURI, clientSecret, codeVerifier,
+		code, clientID, redirectURI, clientSecret, codeVerifier, resource,
 	)
 	if err != nil {
 		errCode := errInvalidGrant
@@ -549,6 +679,9 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 			description = "PKCE code_verifier is required for public clients"
 		case errors.Is(err, services.ErrInvalidCodeVerifier):
 			description = "PKCE code_verifier validation failed"
+		case errors.Is(err, services.ErrInvalidTarget):
+			errCode = errInvalidTarget
+			description = "Requested resource exceeds the audience granted at /authorize"
 		default:
 			log.Printf("[token] authorization code exchange error: %v", err)
 			description = "An internal error occurred"
@@ -566,12 +699,17 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 		authorizationID = &id
 	}
 
-	// Issue access + refresh tokens (+ ID token when openid scope was granted)
+	// Issue access + refresh tokens (+ ID token when openid scope was granted).
+	// The service uses `resource` (token-time, possibly narrowed) for the
+	// access token's audience and falls back to authCode.Resource for the
+	// refresh token, so future refreshes can re-narrow against the original
+	// /authorize-time grant rather than the narrowed access-token audience.
 	accessToken, refreshToken, idToken, err := h.tokenService.ExchangeAuthorizationCode(
 		c.Request.Context(),
 		authCode,
 		authorizationID,
 		extraClaims,
+		resource,
 	)
 	if err != nil {
 		respondOAuthError(

@@ -490,3 +490,202 @@ func TestDiscovery_EmptyAlgorithm_DefaultsToHS256(t *testing.T) {
 	_, hasJwksURI := meta["jwks_uri"]
 	assert.False(t, hasJwksURI)
 }
+
+// ============================================================
+// OAuthAuthorizationServerMetadata (RFC 8414)
+// ============================================================
+
+func TestOAuthASMetadata_Fields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		BaseURL:                         "https://auth.example.com",
+		EnableDynamicClientRegistration: true,
+	}
+	handler := NewOIDCHandler(nil, nil, cfg, false, true)
+
+	r := gin.New()
+	r.GET(
+		"/.well-known/oauth-authorization-server",
+		handler.OAuthAuthorizationServerMetadata,
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet, "/.well-known/oauth-authorization-server", nil,
+	)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "public, max-age=3600", w.Header().Get("Cache-Control"))
+
+	var meta map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &meta))
+
+	// Required OAuth fields
+	assert.Equal(t, "https://auth.example.com", meta["issuer"])
+	assert.Equal(t, "https://auth.example.com/oauth/authorize", meta["authorization_endpoint"])
+	assert.Equal(t, "https://auth.example.com/oauth/token", meta["token_endpoint"])
+	assert.Equal(t, "https://auth.example.com/oauth/introspect", meta["introspection_endpoint"])
+	assert.Equal(t, "https://auth.example.com/oauth/revoke", meta["revocation_endpoint"])
+	assert.Equal(t, "https://auth.example.com/oauth/register", meta["registration_endpoint"])
+	assert.Equal(
+		t,
+		"https://auth.example.com/oauth/device/code",
+		meta["device_authorization_endpoint"],
+	)
+	// RFC 8707 §3 — clients use these flags to know `resource` is honored.
+	// Both field names are emitted because OAuth implementations historically
+	// split on the naming (the RFC draft used `resource_parameter_supported`;
+	// large providers ship `resource_indicators_supported`).
+	assert.Equal(t, true, meta["resource_indicators_supported"])
+	assert.Equal(t, true, meta["resource_parameter_supported"])
+
+	// MCP-required PKCE method
+	codeChallenges, ok := meta["code_challenge_methods_supported"].([]any)
+	require.True(t, ok)
+	assert.Equal(t, []any{"S256"}, codeChallenges)
+
+	// Grant types must include the four AuthGate supports
+	grantTypes, ok := meta["grant_types_supported"].([]any)
+	require.True(t, ok)
+	assert.Contains(t, grantTypes, "authorization_code")
+	assert.Contains(t, grantTypes, GrantTypeDeviceCode)
+	assert.Contains(t, grantTypes, GrantTypeRefreshToken)
+	assert.Contains(t, grantTypes, GrantTypeClientCredentials)
+
+	// Token endpoint accepts confidential auth + `none` (public-client PKCE).
+	tokenMethods, ok := meta["token_endpoint_auth_methods_supported"].([]any)
+	require.True(t, ok, "missing token_endpoint_auth_methods_supported")
+	assert.Contains(t, tokenMethods, "client_secret_basic")
+	assert.Contains(t, tokenMethods, "client_secret_post")
+	assert.Contains(t, tokenMethods, "none")
+
+	// Introspection requires client auth; `none` must NOT appear or the
+	// server would 401 callers it told to authenticate without credentials.
+	introspectMethods, ok := meta["introspection_endpoint_auth_methods_supported"].([]any)
+	require.True(t, ok)
+	assert.Contains(t, introspectMethods, "client_secret_basic")
+	assert.Contains(t, introspectMethods, "client_secret_post")
+	assert.NotContains(
+		t, introspectMethods, "none",
+		"introspection endpoint requires client auth; `none` must not be advertised",
+	)
+
+	// Revocation does NOT authenticate clients (/oauth/revoke just hashes
+	// the supplied token), so the only honest advertisement is `none`.
+	// Listing client_secret_basic/_post would mislead RFC 8414 clients into
+	// expecting auth that isn't enforced.
+	revokeMethods, ok := meta["revocation_endpoint_auth_methods_supported"].([]any)
+	require.True(t, ok, "missing revocation_endpoint_auth_methods_supported")
+	assert.Equal(t, []any{"none"}, revokeMethods,
+		"revocation endpoint advertises ONLY `none` to match its actual behavior")
+
+	// OIDC-only fields must NOT appear in OAuth AS metadata
+	for _, oidcOnly := range []string{
+		"userinfo_endpoint",
+		"subject_types_supported",
+		"id_token_signing_alg_values_supported",
+		"claims_supported",
+	} {
+		_, present := meta[oidcOnly]
+		assert.False(
+			t, present,
+			"OAuth AS metadata must not advertise OIDC-only field %q",
+			oidcOnly,
+		)
+	}
+}
+
+func TestOAuthASMetadata_DCRDisabled_OmitsRegistrationEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		BaseURL:                         "https://auth.example.com",
+		EnableDynamicClientRegistration: false,
+	}
+	handler := NewOIDCHandler(nil, nil, cfg, false, true)
+
+	r := gin.New()
+	r.GET(
+		"/.well-known/oauth-authorization-server",
+		handler.OAuthAuthorizationServerMetadata,
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet, "/.well-known/oauth-authorization-server", nil,
+	)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var meta map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &meta))
+
+	_, present := meta["registration_endpoint"]
+	assert.False(
+		t, present,
+		"registration_endpoint must be omitted when DCR is disabled",
+	)
+}
+
+// TestOIDCDiscovery_UnaffectedByOAuthMetadataAddition pins the OIDC discovery
+// response shape so future edits cannot accidentally drop a field that
+// downstream OIDC clients depend on. The OAuth AS metadata endpoint is a
+// separate URL and must not change the OIDC payload.
+func TestOIDCDiscovery_UnaffectedByOAuthMetadataAddition(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{BaseURL: "https://auth.example.com"}
+	handler := NewOIDCHandler(nil, nil, cfg, false, true)
+
+	r := gin.New()
+	r.GET("/.well-known/openid-configuration", handler.Discovery)
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/openid-configuration", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var meta map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &meta))
+
+	required := []string{
+		"issuer",
+		"authorization_endpoint",
+		"token_endpoint",
+		"userinfo_endpoint",
+		"revocation_endpoint",
+		"response_types_supported",
+		"subject_types_supported",
+		"scopes_supported",
+		"token_endpoint_auth_methods_supported",
+		"grant_types_supported",
+		"claims_supported",
+		"code_challenge_methods_supported",
+	}
+	for _, k := range required {
+		_, ok := meta[k]
+		assert.Truef(t, ok, "OIDC discovery field %q regressed", k)
+	}
+
+	// OAuth-specific fields must NOT bleed into OIDC discovery
+	for _, oauthOnly := range []string{
+		"introspection_endpoint",
+		"registration_endpoint",
+		"device_authorization_endpoint",
+		"introspection_endpoint_auth_methods_supported",
+		"revocation_endpoint_auth_methods_supported",
+		"resource_indicators_supported",
+		"resource_parameter_supported",
+	} {
+		_, present := meta[oauthOnly]
+		assert.Falsef(
+			t, present,
+			"OIDC discovery must not include OAuth-only field %q",
+			oauthOnly,
+		)
+	}
+}

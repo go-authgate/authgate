@@ -156,6 +156,117 @@
   line-height: 1.5;
 }
 
+/* ============================================
+   Resource Indicators (RFC 8707) — the audience
+   manifest. Most security-critical info on the
+   page: the user is consenting to these specific
+   resource servers, not "everything".
+   ============================================ */
+
+.device-resource-list {
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px dashed rgba(0, 114, 255, 0.25);
+  text-align: left;
+  animation: resourceReveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.7s both;
+}
+
+.device-resource-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-primary);
+  margin-bottom: var(--space-3);
+}
+
+.device-resource-label::before {
+  content: '◆';
+  font-size: 0.65em;
+  color: var(--color-primary);
+  opacity: 0.7;
+}
+
+.device-resource-items {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+}
+
+.device-resource-items li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-primary);
+  border: 1px solid rgba(0, 114, 255, 0.15);
+  border-left: 3px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  transition:
+    border-left-color var(--transition-fast),
+    background var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.device-resource-items li::before {
+  content: '→';
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--color-primary);
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.device-resource-items li:hover {
+  border-left-color: #00c6ff;
+  background: rgba(0, 114, 255, 0.04);
+  transform: translateX(2px);
+}
+
+.device-resource-items code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  background: none;
+  padding: 0;
+  border: none;
+  letter-spacing: -0.01em;
+  word-break: break-all;
+}
+
+/* Cancel link on the confirm page — secondary action
+   paired below the primary CTA. Mono + muted so it
+   reads as "back out" without competing with the
+   blue submit button. */
+.device-cancel-link {
+  display: block;
+  text-align: center;
+  margin-top: var(--space-4);
+  padding: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.device-cancel-link:hover {
+  color: var(--color-text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 /* Form section */
 .device-form {
   animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.6s both;
@@ -412,6 +523,17 @@
   }
 }
 
+@keyframes resourceReveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ============================================
    Responsive Design
    ============================================ */
@@ -451,6 +573,15 @@
   .device-client-name {
     font-size: var(--text-base);
   }
+
+  .device-resource-items li {
+    padding: var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .device-resource-items code {
+    font-size: var(--text-xs);
+  }
 }
 
 /* ============================================
@@ -461,6 +592,8 @@
   .device-auth-card,
   .device-auth-header,
   .device-client-info,
+  .device-resource-list,
+  .device-resource-items li,
   .device-form,
   .device-code-input,
   .device-submit-btn {
@@ -468,7 +601,8 @@
     transition: none !important;
   }
 
-  .device-submit-btn:hover {
+  .device-submit-btn:hover,
+  .device-resource-items li:hover {
     transform: none;
   }
 }

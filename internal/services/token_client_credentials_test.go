@@ -79,7 +79,7 @@ func TestIssueClientCredentialsToken_Success_DefaultScopes(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"", nil)
+		"", nil, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, tok)
@@ -104,7 +104,7 @@ func TestIssueClientCredentialsToken_Success_SubsetScopes(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"read", nil)
+		"read", nil, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, tok)
@@ -137,7 +137,7 @@ func TestIssueClientCredentialsToken_Error_PublicClient(t *testing.T) {
 		context.Background(),
 		publicClient.ClientID,
 		plainSecret,
-		"", nil)
+		"", nil, nil)
 
 	assert.ErrorIs(t, err, ErrClientNotConfidential)
 }
@@ -152,7 +152,7 @@ func TestIssueClientCredentialsToken_Error_FlowDisabled(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"", nil)
+		"", nil, nil)
 
 	assert.ErrorIs(t, err, ErrClientCredentialsFlowDisabled)
 }
@@ -167,7 +167,7 @@ func TestIssueClientCredentialsToken_Error_WrongSecret(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		"wrong-secret",
-		"", nil)
+		"", nil, nil)
 
 	assert.ErrorIs(t, err, ErrInvalidClientCredentials)
 }
@@ -186,7 +186,7 @@ func TestIssueClientCredentialsToken_Error_InactiveClient(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"", nil)
+		"", nil, nil)
 
 	assert.ErrorIs(t, err, ErrInvalidClientCredentials)
 }
@@ -201,7 +201,7 @@ func TestIssueClientCredentialsToken_Error_ScopeExceedsClient(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"read write admin", nil)
+		"read write admin", nil, nil)
 
 	assert.ErrorIs(t, err, token.ErrInvalidScope)
 }
@@ -216,7 +216,7 @@ func TestIssueClientCredentialsToken_Error_OpenIDScope(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"openid read", nil)
+		"openid read", nil, nil)
 
 	assert.ErrorIs(t, err, token.ErrInvalidScope)
 }
@@ -229,7 +229,7 @@ func TestIssueClientCredentialsToken_Error_OfflineAccessScope(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"offline_access read", nil)
+		"offline_access read", nil, nil)
 
 	assert.ErrorIs(t, err, token.ErrInvalidScope)
 }
@@ -244,7 +244,7 @@ func TestIssueClientCredentialsToken_TokenPersisted(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"", nil)
+		"", nil, nil)
 
 	require.NoError(t, err)
 
@@ -296,7 +296,7 @@ func TestIssueClientCredentialsToken_IgnoresClientTokenProfile(t *testing.T) {
 	require.NoError(t, s.UpdateClient(client))
 
 	tok, err := svc.IssueClientCredentialsToken(
-		context.Background(), client.ClientID, plainSecret, "", nil)
+		context.Background(), client.ClientID, plainSecret, "", nil, nil)
 
 	require.NoError(t, err)
 
@@ -315,7 +315,7 @@ func TestIssueClientCredentialsToken_MachineUserIDPrefix(t *testing.T) {
 		context.Background(),
 		client.ClientID,
 		plainSecret,
-		"", nil)
+		"", nil, nil)
 
 	require.NoError(t, err)
 
