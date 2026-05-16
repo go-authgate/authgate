@@ -152,16 +152,13 @@ func (s *TokenService) RefreshAccessToken(
 	if len(originalResource) == 0 {
 		if vr, err := s.tokenProvider.ValidateRefreshToken(ctx, refreshTokenString); err == nil &&
 			vr != nil {
-			originalResource = audienceFromClaims(vr.Claims)
+			originalResource = util.AudienceFromClaims(vr.Claims)
 		}
 	}
-	effectiveResource := originalResource
-	if len(requestedResource) > 0 {
-		if !util.IsStringSliceSubset(originalResource, requestedResource) {
-			s.metrics.RecordTokenRefresh(false)
-			return nil, nil, ErrInvalidTarget
-		}
-		effectiveResource = requestedResource
+	effectiveResource, err := narrowResource(originalResource, requestedResource)
+	if err != nil {
+		s.metrics.RecordTokenRefresh(false)
+		return nil, nil, err
 	}
 
 	// 6. Use provider to generate new tokens.

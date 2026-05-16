@@ -1404,18 +1404,3 @@ func TestRefreshAccessToken_AppliesExtraClaims(t *testing.T) {
 	require.NotNil(t, refreshed.RefreshToken, "rotation mode should produce a new refresh token")
 	assert.Equal(t, "new-project", refreshed.RefreshToken.Claims[projectKey])
 }
-
-// audienceClaim is exercised indirectly via TestGenerateToken_AudienceClaim, but
-// the helper has subtle list-copy semantics worth pinning explicitly.
-func TestAudienceClaim_HelperShape(t *testing.T) {
-	assert.Nil(t, audienceClaim(nil))
-	assert.Nil(t, audienceClaim([]string{}))
-	assert.Equal(t, "oa", audienceClaim([]string{"oa"}))
-
-	in := []string{"oa", "swrd"}
-	out := audienceClaim(in).([]string)
-	assert.Equal(t, in, out)
-	// Mutating the returned slice must not corrupt the caller's input.
-	out[0] = "mutated"
-	assert.Equal(t, "oa", in[0], "audienceClaim must defensively copy")
-}

@@ -69,14 +69,10 @@ func (s *TokenService) ExchangeDeviceCode(
 	// authorized set therefore rejects any token-time `resource` (matches the
 	// auth-code flow's rule).
 	grantedResource := []string(dc.Resource)
-	if len(requestedResource) > 0 &&
-		!util.IsStringSliceSubset(grantedResource, requestedResource) {
+	accessResource, err := narrowResource(grantedResource, requestedResource)
+	if err != nil {
 		s.metrics.RecordOAuthDeviceCodeValidation("invalid")
-		return nil, nil, ErrInvalidTarget
-	}
-	accessResource := requestedResource
-	if len(accessResource) == 0 {
-		accessResource = grantedResource
+		return nil, nil, err
 	}
 
 	// Record successful validation
@@ -119,8 +115,8 @@ func (s *TokenService) ExchangeDeviceCode(
 	// Record token issuance metrics
 	duration := time.Since(start)
 	providerName := s.tokenProvider.Name()
-	s.metrics.RecordTokenIssued("access", "device_code", duration, providerName)
-	s.metrics.RecordTokenIssued("refresh", "device_code", duration, providerName)
+	s.metrics.RecordTokenIssued(models.TokenCategoryAccess, "device_code", duration, providerName)
+	s.metrics.RecordTokenIssued(models.TokenCategoryRefresh, "device_code", duration, providerName)
 
 	// Delete the used device code
 	_ = s.store.DeleteDeviceCodeByID(dc.ID)
@@ -197,19 +193,13 @@ func (s *TokenService) ExchangeAuthorizationCode(
 	// service boundary. The handler also validates this via
 	// AuthorizationService.ExchangeCode, but ExchangeAuthorizationCode is
 	// exported and may be called from other entry points; the audience
-	// invariant must hold here too.
+	// invariant must hold here too. The refresh token always carries the
+	// full /authorize-time grant so later refreshes can re-narrow against it;
+	// the access token gets whatever the /token request narrowed to.
 	refreshResource := []string(authCode.Resource)
-	if !util.IsStringSliceSubset(refreshResource, resource) {
-		return nil, nil, "", ErrInvalidTarget
-	}
-
-	// The refresh token always carries the full /authorize-time grant so
-	// later refreshes can re-narrow against it. The access token gets
-	// whatever the /token request narrowed to (or the full grant when /token
-	// didn't pass `resource`).
-	accessResource := resource
-	if len(accessResource) == 0 {
-		accessResource = refreshResource
+	accessResource, err := narrowResource(refreshResource, resource)
+	if err != nil {
+		return nil, nil, "", err
 	}
 
 	// Generate and persist token pair (linked to UserAuthorization for cascade-revoke)
@@ -294,8 +284,18 @@ func (s *TokenService) ExchangeAuthorizationCode(
 
 	// Metrics
 	duration := time.Since(start)
-	s.metrics.RecordTokenIssued("access", "authorization_code", duration, providerName)
-	s.metrics.RecordTokenIssued("refresh", "authorization_code", duration, providerName)
+	s.metrics.RecordTokenIssued(
+		models.TokenCategoryAccess,
+		"authorization_code",
+		duration,
+		providerName,
+	)
+	s.metrics.RecordTokenIssued(
+		models.TokenCategoryRefresh,
+		"authorization_code",
+		duration,
+		providerName,
+	)
 
 	// Audit — ActorUsername is auto-resolved by buildAuditLog (from the
 	// context user cached above when openid+profile/email was requested,

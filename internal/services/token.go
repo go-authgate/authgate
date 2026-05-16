@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"maps"
+	"slices"
 	"time"
 
 	"github.com/go-authgate/authgate/internal/cache"
@@ -361,61 +362,38 @@ func (s *TokenService) composeIssuanceClaims(
 	return applyServerClaims(claims, buildServerClaims(s.config.JWTDomain, username, prefix))
 }
 
-// effectiveAudience returns the audience the JWT will actually be signed
-// with: the per-request RFC 8707 binding when set, otherwise the static
-// JWTAudience config (which is itself empty when unset — empty input
-// returns an empty result so the caller's `Resource` column stays empty
-// for deployments that use neither feature, exactly matching the JWT).
-//
-// Used to snapshot the issued aud onto access-token rows so introspection
-// (RFC 7662) can later report what the JWT carries, without depending on
-// the live JWTAudience config (which may have rotated since issuance).
-// audienceFromClaims extracts the JWT `aud` claim from a decoded MapClaims
-// map and normalizes it to []string. The jwt library decodes single-string
-// aud claims as `string` and multi-value aud claims as `[]any` (via
-// json.Unmarshal); this helper folds both shapes into the same slice form
-// for callers that need the audience without going through the JWT library.
-//
-// Used by the refresh flow to recover the signed audience from a legacy
-// refresh token whose persisted Resource column is empty — the JWT itself
-// is the canonical record of what aud it was minted with.
-func audienceFromClaims(claims map[string]any) []string {
-	raw, ok := claims["aud"]
-	if !ok {
-		return nil
-	}
-	switch v := raw.(type) {
-	case string:
-		if v == "" {
-			return nil
-		}
-		return []string{v}
-	case []string:
-		return v
-	case []any:
-		out := make([]string, 0, len(v))
-		for _, item := range v {
-			if s, ok := item.(string); ok && s != "" {
-				out = append(out, s)
-			}
-		}
-		return out
-	}
-	return nil
-}
-
+// effectiveAudience snapshots the audience that will be written into a
+// freshly issued access token's persisted Resource column: the per-request
+// RFC 8707 binding when supplied, otherwise the static JWTAudience config
+// the JWT provider will fall back to. Persisting the snapshot (rather than
+// re-deriving from live config at introspection time) means operators
+// rotating JWT_AUDIENCE while older tokens are still active won't cause
+// RFC 7662 introspection to advertise an `aud` the JWT was never minted
+// with. The result is a defensive copy so callers may mutate the input.
 func effectiveAudience(requested, fallback []string) []string {
 	if len(requested) > 0 {
-		out := make([]string, len(requested))
-		copy(out, requested)
-		return out
+		return slices.Clone(requested)
 	}
 	if len(fallback) == 0 {
 		return nil
 	}
-	out := make([]string, len(fallback))
-	copy(out, fallback)
-	return out
+	return slices.Clone(fallback)
+}
+
+// narrowResource implements RFC 8707 §2.2 audience narrowing for token-time
+// `resource` parameters: the requested set MUST be a subset of the granted
+// set (the resources the user originally authorized). Returns the requested
+// set when non-empty (the caller narrowed), the granted set otherwise (no
+// narrowing — reuse the full grant). A widening request returns
+// ErrInvalidTarget, which the handler layer maps to OAuth `invalid_target`.
+func narrowResource(granted, requested []string) ([]string, error) {
+	if !util.IsStringSliceSubset(granted, requested) {
+		return nil, ErrInvalidTarget
+	}
+	if len(requested) > 0 {
+		return requested, nil
+	}
+	return granted, nil
 }
 
 // generateAndPersistTokenPair generates access and refresh tokens via the

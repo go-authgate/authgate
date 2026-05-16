@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-authgate/authgate/internal/config"
 	"github.com/go-authgate/authgate/internal/core"
+	"github.com/go-authgate/authgate/internal/util"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -253,7 +254,7 @@ func (p *LocalTokenProvider) generateJWT(
 	if len(audienceOverride) > 0 {
 		audSource = audienceOverride
 	}
-	if aud := audienceClaim(audSource); aud != nil {
+	if aud := util.AudienceClaim(audSource); aud != nil {
 		claims["aud"] = aud
 	}
 
@@ -268,24 +269,6 @@ func (p *LocalTokenProvider) generateJWT(
 		ExpiresAt:   expiresAt,
 		Claims:      claims,
 	}, nil
-}
-
-// audienceClaim returns the value to assign to the JWT "aud" claim, given the
-// configured audience list. A single entry collapses to a plain string (the
-// common case and most compatible with naive JWT consumers), multiple entries
-// stay as a slice, and an empty list returns nil so the caller can skip the
-// claim entirely.
-func audienceClaim(aud []string) any {
-	switch len(aud) {
-	case 0:
-		return nil
-	case 1:
-		return aud[0]
-	default:
-		out := make([]string, len(aud))
-		copy(out, aud)
-		return out
-	}
 }
 
 // ParseJWT parses a JWT token, verifies its signature, and extracts standard claims.

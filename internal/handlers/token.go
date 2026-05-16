@@ -77,30 +77,13 @@ func (h *TokenHandler) parseExtraClaims(c *gin.Context) (map[string]any, bool) {
 // (RFC 8707) and writes an invalid_target response on failure. On success
 // returns (resources, true); on failure the response is already written and
 // callers must return.
-func (h *TokenHandler) parseResourceParam(c *gin.Context) ([]string, bool) {
+func parseResourceParam(c *gin.Context) ([]string, bool) {
 	values, err := util.ValidateResourceIndicators(c.PostFormArray("resource"))
 	if err != nil {
 		respondOAuthError(c, http.StatusBadRequest, errInvalidTarget, err.Error())
 		return nil, false
 	}
 	return values, true
-}
-
-// normalizeAudience collapses an audience value list into the JWT-shaped
-// `any` used in both /oauth/tokeninfo and /oauth/introspect responses:
-// nil for empty, a plain string for single-value, or []string for
-// multi-value (matching JWT `aud` conventions).
-func normalizeAudience(values []string) any {
-	switch len(values) {
-	case 0:
-		return nil
-	case 1:
-		return values[0]
-	default:
-		out := make([]string, len(values))
-		copy(out, values)
-		return out
-	}
 }
 
 // introspectAudience returns the value to emit as the `aud` field on an
@@ -137,40 +120,7 @@ func introspectAudience(tok *models.AccessToken) any {
 	if !tok.IsAccessToken() {
 		return nil
 	}
-	return normalizeAudience([]string(tok.Resource))
-}
-
-// audienceFromClaims extracts the JWT `aud` claim from a decoded MapClaims
-// map and normalizes it to []string. The jwt library decodes single-string
-// aud claims as `string` and multi-value aud claims as `[]any` (via
-// json.Unmarshal); this helper folds both shapes into the same slice form
-// for `normalizeAudience`. Used by /oauth/tokeninfo, which validates the JWT
-// directly (no extra DB lookup) and therefore reads the aud snapshot from
-// the signed token rather than the persisted Resource column. Both sources
-// are taken at issuance and must agree.
-func audienceFromClaims(claims map[string]any) []string {
-	raw, ok := claims["aud"]
-	if !ok {
-		return nil
-	}
-	switch v := raw.(type) {
-	case string:
-		if v == "" {
-			return nil
-		}
-		return []string{v}
-	case []string:
-		return v
-	case []any:
-		out := make([]string, 0, len(v))
-		for _, item := range v {
-			if s, ok := item.(string); ok && s != "" {
-				out = append(out, s)
-			}
-		}
-		return out
-	}
-	return nil
+	return util.AudienceClaim([]string(tok.Resource))
 }
 
 // buildTokenResponse constructs a standard OAuth 2.0 token response (RFC 6749 §5.1).
@@ -258,7 +208,7 @@ func (h *TokenHandler) handleDeviceCodeGrant(c *gin.Context) {
 		return
 	}
 
-	resource, ok := h.parseResourceParam(c)
+	resource, ok := parseResourceParam(c)
 	if !ok {
 		return
 	}
@@ -325,7 +275,7 @@ func (h *TokenHandler) handleRefreshTokenGrant(c *gin.Context) {
 		return
 	}
 
-	resource, ok := h.parseResourceParam(c)
+	resource, ok := parseResourceParam(c)
 	if !ok {
 		return
 	}
@@ -443,7 +393,7 @@ func (h *TokenHandler) TokenInfo(c *gin.Context) {
 	// both are written at the same instant. Validation already rejects refresh
 	// tokens (only access tokens reach this point), so this never advertises
 	// a refresh-token aud the way it would on /oauth/introspect.
-	if aud := normalizeAudience(audienceFromClaims(result.Claims)); aud != nil {
+	if aud := util.AudienceClaim(util.AudienceFromClaims(result.Claims)); aud != nil {
 		resp["aud"] = aud
 	}
 
@@ -618,7 +568,7 @@ func (h *TokenHandler) handleClientCredentialsGrant(c *gin.Context) {
 		return
 	}
 
-	resource, ok := h.parseResourceParam(c)
+	resource, ok := parseResourceParam(c)
 	if !ok {
 		return
 	}
@@ -698,7 +648,7 @@ func (h *TokenHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 		return
 	}
 
-	resource, ok := h.parseResourceParam(c)
+	resource, ok := parseResourceParam(c)
 	if !ok {
 		return
 	}

@@ -158,7 +158,12 @@ func (s *TokenService) IssueClientCredentialsToken(
 	// 8. Metrics
 	providerName := s.tokenProvider.Name()
 	duration := time.Since(start)
-	s.metrics.RecordTokenIssued("access", "client_credentials", duration, providerName)
+	s.metrics.RecordTokenIssued(
+		models.TokenCategoryAccess,
+		"client_credentials",
+		duration,
+		providerName,
+	)
 
 	// 9. Audit log
 	s.auditService.Log(ctx, core.AuditLogEntry{
